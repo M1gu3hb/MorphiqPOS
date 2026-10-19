@@ -43,6 +43,29 @@ describe('la Content-Security-Policy', () => {
     expect(produccion).not.toContain("'unsafe-eval'");
   });
 
+  /**
+   * `upgrade-insecure-requests` es correcta en produccion y ROMPE una caja en la LAN.
+   *
+   * La directiva reescribe a `https://` toda peticion `http://` de la pagina. Contra un
+   * despliegue que no sirve TLS, el navegador pide https a un puerto que habla texto
+   * plano: `ERR_SSL_PROTOCOL_ERROR`, la peticion no llega y la pantalla se queda muda
+   * SIN un solo 500 en el servidor. Le paso al portal del comensal en CI.
+   *
+   * Y A-27 dice que el backend tiene que poder correr en la PC de un cliente sin
+   * internet: una caja en la trastienda, servida por http en la LAN, es el escenario
+   * para el que se escribio esa regla.
+   *
+   * La decide la CONFIGURACION del despliegue —`APP_URL`— y nunca la peticion. Sin
+   * configuracion se asume https, que es lo seguro: un despliegue mal configurado se
+   * queda con la politica estricta, no sin ella.
+   */
+  it('eleva a https solo cuando el despliegue sirve https', () => {
+    expect(construirCsp('abc123', false, true)).toContain('upgrade-insecure-requests');
+    expect(construirCsp('abc123', false, false)).not.toContain('upgrade-insecure-requests');
+    // Sin decir nada, se asume https.
+    expect(produccion).toContain('upgrade-insecure-requests');
+  });
+
   it('prohibe que la aplicacion se meta en un iframe ajeno', () => {
     expect(produccion).toContain("frame-ancestors 'none'");
   });

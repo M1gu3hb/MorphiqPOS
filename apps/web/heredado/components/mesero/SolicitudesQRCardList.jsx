@@ -17,9 +17,9 @@ import { ROLES } from '@/lib/constants';
 
 const TIPO_ICON = { ordenar: Bell, cuenta: Receipt, ayuda: HelpCircle };
 const TIPO_COLOR = {
-  ordenar: 'bg-amber-100 text-amber-800 border-amber-300',
-  cuenta: 'bg-emerald-100 text-emerald-800 border-emerald-300',
-  ayuda: 'bg-rose-100 text-rose-800 border-rose-300',
+  ordenar: 'bg-advertencia/15 text-advertencia border-advertencia/30',
+  cuenta: 'bg-exito/15 text-exito border-exito/30',
+  ayuda: 'bg-peligro/15 text-peligro border-peligro/30',
 };
 
 /**
@@ -90,14 +90,14 @@ export default function SolicitudesQRCardList() {
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center gap-2 text-xs font-bold text-amber-800">
-        <Bell className="w-4 h-4 text-amber-600" />
+      <div className="flex items-center gap-2 text-xs font-bold text-advertencia">
+        <Bell className="w-4 h-4 text-advertencia" />
         SOLICITUDES ACTIVAS ({activas.length})
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
         {activas.map((s) => {
           const Icon = TIPO_ICON[s.tipo] || Bell;
-          const colorClass = TIPO_COLOR[s.tipo] || 'bg-slate-100 text-slate-700 border-slate-300';
+          const colorClass = TIPO_COLOR[s.tipo] || 'bg-fondo-sutil text-texto border-borde';
           const time = (() => {
             try {
               return s?.fecha_creacion
@@ -113,7 +113,7 @@ export default function SolicitudesQRCardList() {
           return (
             <div
               key={s.id}
-              className={`rounded-xl border-2 p-2.5 bg-white ${yaAtendida ? 'border-emerald-300 bg-emerald-50/40' : propia ? 'border-primary' : 'border-amber-300'}`}
+              className={`rounded-xl border-2 p-2.5 bg-superficie ${yaAtendida ? 'border-exito/30 bg-exito/40' : propia ? 'border-primary' : 'border-advertencia/30'}`}
               style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.04)' }}
             >
               <div className="flex items-start gap-2">
@@ -129,7 +129,7 @@ export default function SolicitudesQRCardList() {
                   <p className="text-[10px] text-muted-foreground flex items-center gap-1 mt-0.5">
                     <Clock className="w-3 h-3" /> {time}
                     <span
-                      className={`ml-1 px-1.5 py-0.5 rounded-full font-bold uppercase ${yaAtendida ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-800'}`}
+                      className={`ml-1 px-1.5 py-0.5 rounded-full font-bold uppercase ${yaAtendida ? 'bg-exito/15 text-exito' : 'bg-advertencia/15 text-advertencia'}`}
                     >
                       {yaAtendida ? 'Atendida' : 'Pendiente'}
                     </span>
@@ -140,7 +140,7 @@ export default function SolicitudesQRCardList() {
                     </p>
                   )}
                   {sinAsignar && (
-                    <p className="text-[10px] text-amber-700 mt-0.5">⚠ Mesa sin mesero asignado</p>
+                    <p className="text-[10px] text-advertencia mt-0.5">⚠ Mesa sin mesero asignado</p>
                   )}
                 </div>
               </div>

@@ -1,12 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
+import { enPesos, exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
-  abrirCajaPorLaRuta,
+  abrirLaCajaSiHaceFalta,
   abrirPantalla,
   type MarcaDePantalla,
   accionesDelTablero,
   cambiarDePlantilla,
-  cerrarCajaYCuadrar,
   consultarPuente,
   entrar,
   exigirDemostracion,
@@ -212,6 +213,9 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
   });
 
   test('la ferretería dice Materiales donde la tiendita dice Productos', async ({ page }) => {
+    // Recorre el giro entero —venta, caja, corte, conteo, entradas, crédito—: seis minutos
+    // y no los tres de omisión.
+    test.setTimeout(360_000);
     await entrar(page);
     await exigirGiro(page, 'ferreteria', 'ferreteria');
     // Ninguna pantalla puede abrir en 200 y reventar por dentro.
@@ -356,12 +360,20 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     // FOLIO, y el folio se toma en la misma transacción que el pago.
     const idsDeAntes = await ventasDeAntes(page);
 
-    // La caja de ESTA terminal, por la ruta: este modelo no tiene pantalla de
-    // apertura propia —su `/ferreteria/caja` cobra, y la apertura con
-    // denominaciones vive en la heredada— y teclear un diálogo de la plataforma
-    // anterior no prueba nada del acople. Se usa la MISMA ruta que usa el botón,
-    // con las mismas cabeceras: se salta el diálogo, no la autorización.
-    await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
+    // La caja de ESTA terminal, POR SU PANTALLA (C.6 de la 2.4). Hasta aquí se abría por
+    // la API porque la ferretería no tenía dónde abrirla: su «Caja» cobra notas, y la
+    // apertura de su documento —«Caja y corte», heredada de abarrotes— no tenía
+    // dirección. Ahora vive en «Fondo y movimientos».
+    await abrirLaCajaSiHaceFalta(
+      page,
+      {
+        ruta: '/ferreteria/fondo-y-movimientos',
+        boton: 'Abrir caja',
+        campoDelFondo: '#fondo-monedas',
+        señalAbierta: 'Lo que debería haber',
+      },
+      (FONDO_CENTAVOS / 100).toFixed(2),
+    );
 
     // El material sale del ÍNDICE, no de un nombre escrito aquí: la pantalla lee
     // `MaterialMostrador` y esto lee lo mismo, así que si mañana la semilla cambia
@@ -391,9 +403,13 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
     const primeraPalabra = nombre.split(' ')[0] ?? nombre;
     await page.locator('#buscador').fill(primeraPalabra);
 
-    // El resultado es un `button` con el material entero en su nombre accesible:
-    // medida, precio, existencia y ubicación. Se toca, como en el pasillo.
-    const fila = page.getByRole('button', { name: new RegExp(comoTexto(nombre)) }).first();
+    // El resultado es una FILA de la tabla en la PC —se compara columna por columna— y
+    // una tarjeta que se toca en el pasillo (`TablaAdaptable`). Las dos llevan el
+    // material entero en su nombre accesible, y las dos se activan igual.
+    const enPc = (page.viewportSize()?.width ?? 0) >= 1280;
+    const fila = page
+      .getByRole(enPc ? 'row' : 'button', { name: new RegExp(comoTexto(nombre)) })
+      .first();
     await expect(
       fila,
       `El índice del mostrador no encontró «${nombre}» buscando «${primeraPalabra}», y el ` +
@@ -451,8 +467,31 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
         'pieza de un material cuesta lo que cuesta.',
     ).toBe(material.precioCentavos ?? 0);
 
-    // COBRAR EN EFECTIVO · un método por nota, que es como sella esta pantalla.
+    // COBRAR EN EFECTIVO, CON CAMBIO (C.5 de la 2.4). La caja mandaba lo recibido
+    // igual al total y no había cambio que dar. Ahora se toca un billete probable, el
+    // cambio sale en grande, y el cajón al cerrar sigue esperando fondo + total: el
+    // cambio salió del cajón con el cliente.
     await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
+    const billete = page.getByRole('button', { name: /^Recibido \d+ pesos$/ }).first();
+    await expect(
+      billete,
+      'Al elegir efectivo la caja no ofrece los billetes probables para calcular el cambio.',
+    ).toBeVisible();
+    const pesosDelBillete = Number(
+      /Recibido (\d+) pesos/.exec((await billete.getAttribute('aria-label')) ?? '')?.[1] ?? '0',
+    );
+    await billete.click();
+    const cambioEsperado = pesosDelBillete * 100 - totalCentavos;
+    await expect(
+      page.getByText('Cambio', { exact: true }),
+      'La caja no enseña el cambio con lo recibido.',
+    ).toBeVisible();
+    await page.getByRole('button', { name: 'Cobrar en efectivo' }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: /cobrada/ }),
+      `El acuse del cobro no dice el cambio: con $${String(pesosDelBillete)} por ` +
+        `${String(totalCentavos)} centavos son ${String(cambioEsperado)} de cambio.`,
+    ).toContainText(cambioEsperado > 0 ? /Cambio:/ : /Sin cambio/);
 
     // La nota deja las pendientes y pasa a «Cerradas, sin entregar»: cerrada para
     // la caja, con el material todavía en el patio. Esa lista es lo que evita
@@ -579,12 +618,297 @@ test.describe('ferretería · su vocabulario, sus pantallas y su dashboard', () 
       })
       .toBeCloseTo(cableAntes - (MEDIDA_DEL_CORTE + MERMA_DEL_CABLE), 2);
 
+    // ── 6b · LA NOTA DEL CORTE, COBRADA EN LA CAJA ──────────────────────────
+    // El corte abre su nota y la manda a la caja —su acuse lo dice: «está en la caja»—. Y
+    // desde el muro del cierre (`caja/sesion.ts`, 0178217) el turno no cierra con una nota
+    // mandada y sin cobrar: «cóbralas o cancélalas con su motivo antes de cerrar». Esta
+    // suite se escribió antes del muro y cerraba con la del cable pendiente; lo que hace una
+    // cajera es cobrársela al cliente del cable, y eso entra al esperado del cajón.
+    const folioDelCorte = /N-\d+/.exec(await corte.innerText())?.[0] ?? '';
+    expect(folioDelCorte, 'El acuse del corte no dice el folio de su nota.').not.toBe('');
+    await abrirPantalla(page, '/ferreteria/caja', /Notas pendientes/);
+    const notaDelCorte = page
+      .getByRole('button', { name: new RegExp(comoTexto(folioDelCorte) + '(?![0-9])') })
+      .first();
+    await expect(
+      notaDelCorte,
+      `La nota del corte ${folioDelCorte} no llegó a las pendientes de la caja.`,
+    ).toBeVisible({ timeout: 30_000 });
+    await notaDelCorte.click();
+    const totalDelCorte = await totalEnPantalla(page);
+    await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
+    await page
+      .getByRole('button', { name: /^Recibido \d+ pesos$/ })
+      .first()
+      .click();
+    await page.getByRole('button', { name: 'Cobrar en efectivo' }).click();
+    await expect(
+      page.getByRole('status').filter({ hasText: /cobrada/ }),
+      `La nota del corte ${folioDelCorte} no se cobró.`,
+    ).toBeVisible({ timeout: 30_000 });
+
     // ── 7 · EL CORTE DE CAJA · el fondo más la venta, al centavo ───────────
     //
     // Y cerrar es lo que hace REPETIBLE la corrida: la base permite UNA sesión
     // abierta por sucursal, y cada navegador nuevo trae su propia terminal, así
     // que una caja que se queda abierta bloquea la corrida siguiente entera.
-    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + totalCentavos);
+    /**
+     * 7 · UN CONTEO, DE PUNTA A PUNTA, POR SUS PANTALLAS (C.8 de la 2.4).
+     *
+     * `inventario.abrir_conteo` existía y ninguna pantalla lo llamaba, la página de
+     * conteo nunca leía la toma de la dirección, y cerrarla «era del tronco»: una toma
+     * de ferretería no se abría ni se cerraba. Aquí se abre desde Existencias, se llega
+     * al conteo con su toma y se cierra. Sin nada contado, nada se ajusta.
+     */
+    await abrirPantalla(page, '/ferreteria/existencias', /Existencias/);
+    await page.getByRole('button', { name: 'Abrir conteo' }).click();
+    await page.getByRole('button', { name: 'Abrir y contar' }).click();
+    await expect(
+      page,
+      'Abrir el conteo no llevó a la pantalla de conteo con su toma en la dirección.',
+    ).toHaveURL(/\/ferreteria\/conteo\?toma=[0-9a-f-]{36}/, { timeout: 30_000 });
+    await page.getByRole('button', { name: 'Cerrar el conteo' }).click();
+    await page.getByRole('button', { name: 'Sí, cerrar y ajustar' }).click();
+    await expect(
+      page.getByText('Conteo cerrado'),
+      'La toma no se cerró desde la pantalla de conteo.',
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Todo cuadró: ninguna existencia cambió.')).toBeVisible();
+
+    // ── EL CORTE, POR SU PANTALLA, Y SU PDF (C.6 de la 2.4) ────────────────
+    // Cerraba por la API porque la ferretería no tenía pantalla de corte. Ahora es la de
+    // abarrotes, en su dirección: a ciegas, con lo que se deja, y el PDF de su §9.3.
+    const esperadoCentavos = FONDO_CENTAVOS + totalCentavos + totalDelCorte;
+    await abrirPantalla(page, '/ferreteria/cortes', /Cortes/);
+    await page.locator('#sueltos').fill((esperadoCentavos / 100).toFixed(2));
+    await page.locator('#dejado-en-el-cajon').fill((FONDO_CENTAVOS / 100).toFixed(2));
+    await page.getByRole('button', { name: 'Cerrar el turno' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Turno cerrado' }),
+      'El corte de la ferretería no se cerró desde su pantalla.',
+    ).toBeVisible({ timeout: 30_000 });
+    await expect(page.getByText('Cuadra exacto')).toBeVisible();
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE CAJA',
+      textos: [
+        'Arqueo de efectivo',
+        `Dinero dejado en caja ${enPesos(FONDO_CENTAVOS)}`,
+        'De dónde salió el efectivo esperado',
+        `Efectivo esperado ${enPesos(esperadoCentavos)}`,
+        'Venta por mostradorista',
+      ],
+    });
+
+    // ── C.10 DE LA 2.4 · LA NOTA DEL PROVEEDOR DESDE SU ARCHIVO ──────────────
+    //
+    // «La subida necesita multipart», decía la pantalla, y no la había. El CSV se lee en
+    // el navegador y viaja como renglones: lo que casa entra como partida —lo que casó
+    // por NOMBRE, marcado—, lo que no se da de alta Y ENTRA a la nota (antes se perdía),
+    // y la clave de la hoja queda en cada línea para emparejar la nota siguiente.
+    // A crédito: no toca la caja, que ya se cerró.
+    await abrirPantalla(page, '/ferreteria/entradas', /Recepción y pedido/);
+    const sello = String(Date.now()).slice(-6);
+    const folioDeLaNota = `E2E-${sello}`;
+    const codoNuevo = `Codo PVC 90 grados E2E ${sello}`;
+    await page.locator('#folio').fill(folioDeLaNota);
+    await page.getByRole('button', { name: /Importar archivo/ }).click();
+    await page.locator('#archivo-de-la-nota').setInputFiles({
+      name: `${folioDeLaNota}.csv`,
+      mimeType: 'text/csv',
+      // Como lo guarda el Excel en español: punto y coma y coma decimal.
+      buffer: Buffer.from(
+        'Clave;Descripción;Cantidad;Costo unitario\n' +
+          'MART-16;Martillo uña pulida 16 oz;2;95,50\n' +
+          `CODO-${sello};${codoNuevo};10;4,20\n`,
+        'utf8',
+      ),
+    });
+    await expect(
+      page.getByText(/casó por nombre/).first(),
+      'El martillo del archivo no entró como partida casada por nombre.',
+    ).toBeVisible({ timeout: 30_000 });
+    const sinEmparejar = page.getByRole('table', { name: 'Líneas sin emparejar' });
+    await sinEmparejar
+      .getByRole('row', { name: new RegExp(codoNuevo) })
+      .getByRole('button', { name: 'Alta' })
+      .click();
+    await expect(
+      page.getByRole('row', { name: new RegExp(codoNuevo) }).getByRole('button', {
+        name: `Quitar ${codoNuevo}`,
+      }),
+      'Dar de alta el renglón sin emparejar no lo metió a la entrada.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: 'Guardar entrada' }).click();
+    await expect(page.getByText('Todavía no hay ninguna nota en captura.')).toBeVisible({
+      timeout: 30_000,
+    });
+    const [compra] = await consultarPuente<{
+      readonly id?: string;
+      readonly notas?: string | null;
+      readonly total_compra?: number;
+    }>(page, 'CompraInsumo', { filtro: { factura_folio: folioDeLaNota }, limite: 1 });
+    expect(compra?.notas, 'La entrada no dice que se capturó del archivo.').toBe(
+      'Entrada capturada por archivo del proveedor',
+    );
+    // 2 × $95.50 + 10 × $4.20: al centavo.
+    expect(compra?.total_compra).toBe(233);
+    const lineas = await consultarPuente<{ readonly clave_proveedor?: string | null }>(
+      page,
+      'DetalleCompra',
+      { filtro: { compra_id: compra?.id ?? '' }, limite: 10 },
+    );
+    expect(
+      lineas.map((l) => l.clave_proveedor).sort(),
+      'La clave de la hoja no quedó en las líneas: la nota siguiente no casará sola.',
+    ).toEqual([`CODO-${sello}`, 'MART-16']);
+
+    // ── C.10 · LA FICHA DE LA PIEZA, DESDE EL MOSTRADOR, Y DE VUELTA ────────
+    //
+    // La ficha sólo se abría desde el menú y en la PRIMERA pieza del catálogo, y su
+    // AGREGAR escribía una venta que ninguna pantalla enseñaba. Ahora F5 abre la de la
+    // pieza que se busca, lo agregado vuelve a la nota del mostrador, y la nota
+    // sobrevive a ir, volver y recargar.
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.locator('#buscador').fill('martillo');
+    // F5 abre la del PRIMER resultado: se espera a que la búsqueda esté pintada.
+    await expect(
+      page.getByRole('table', { name: 'Resultados' }).getByText(/Martillo uña pulida/),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.press('F5');
+    await expect(page, 'F5 no abrió la ficha de la pieza buscada.').toHaveURL(
+      /\/ferreteria\/ficha-de-pieza\?pieza=[0-9a-f-]{36}/,
+      { timeout: 30_000 },
+    );
+    await expect(page.getByRole('heading', { level: 1, name: /Martillo/ })).toBeVisible({
+      timeout: 20_000,
+    });
+    await page.getByRole('button', { name: /AGREGAR A LA NOTA/ }).click();
+    await expect(page, 'Agregar desde la ficha no volvió al mostrador.').toHaveURL(
+      /\/ferreteria\/mostrador$/,
+      { timeout: 30_000 },
+    );
+    const laNota = page.getByRole('table', { name: /Partidas de/ });
+    await expect(
+      laNota.getByText(/Martillo/),
+      'Lo agregado desde la ficha no llegó a la nota del mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.reload();
+    await expect(
+      page.getByRole('table', { name: /Partidas de/ }).getByText(/Martillo/),
+      'La nota del mostrador no sobrevivió a recargar.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('button', { name: /Quitar la partida Martillo/ }).click();
+
+    // ── C.10 · EL CLIENTE DE CRÉDITO: ALTA, A CUENTA DESDE EL MOSTRADOR, Y SU FICHA ──
+    //
+    // El mostrador tenía la remisión entera y NINGUNA forma de elegir al cliente; el
+    // límite no lo escribía nadie; y quién recoge, las obras, el estado de cuenta y la
+    // llave del dueño «vivían en la ficha completa», que no existía.
+    const constructora = `Constructora E2E ${sello}`;
+    await abrirPantalla(page, '/ferreteria/cuentas', /Cuentas/);
+    await page.getByRole('button', { name: 'Cliente nuevo' }).click();
+    await page.locator('#cliente-nuevo-nombre').fill(constructora);
+    await page.locator('#cliente-nuevo-telefono').fill(`55${sello}00`);
+    await page.locator('#cliente-nuevo-limite').fill('5000.00');
+    await page.getByRole('button', { name: 'Dar de alta' }).click();
+    await expect(page.getByText(`${constructora} quedó dado de alta`)).toBeVisible({
+      timeout: 30_000,
+    });
+    const [alta] = await consultarPuente<{ readonly limite_credito_pesos?: number | null }>(
+      page,
+      'Cliente',
+      { filtro: { nombre: constructora }, limite: 1 },
+    );
+    expect(alta?.limite_credito_pesos, 'El límite del cliente nuevo no se escribió.').toBe(5000);
+
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.getByRole('button', { name: 'A cuenta de…' }).click();
+    await page.locator('#buscar-cliente').fill(constructora);
+    await page.getByRole('button', { name: `A cuenta de ${constructora}` }).click();
+    await page.locator('#recoge-a-mano').fill('Beto');
+    await page.getByRole('button', { name: `A cuenta de ${constructora}` }).click();
+    await expect(
+      page.getByRole('region', { name: /y obra/ }).getByText(constructora),
+      'El mostrador no se quedó con el cliente elegido.',
+    ).toBeVisible();
+    await page.locator('#buscador').fill('martillo');
+    const resultados = page.getByRole('table', { name: 'Resultados' });
+    await resultados.getByRole('row', { name: /Martillo uña pulida/ }).click();
+    await page.keyboard.press('F11');
+    await expect(
+      // Con la nota vacía no hay tabla: se pinta su vacío, dentro de «La nota».
+      page.getByRole('complementary', { name: /La nota/ }).getByText('Todavía nada.'),
+      'La remisión a cuenta no salió desde el mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+
+    await abrirPantalla(page, '/ferreteria/cuentas', /Cuentas/);
+    await page.getByRole('button', { name: `Registrar pago de ${constructora}` }).click();
+    await expect(
+      page.getByRole('table', { name: `Estado de cuenta de ${constructora}` }),
+      'La ficha del cliente no trae su estado de cuenta.',
+    ).toBeVisible({ timeout: 30_000 });
+    await page.getByRole('textbox', { name: 'Obra nueva' }).fill('Torre E2E');
+    await page.getByRole('button', { name: 'Abrir obra' }).click();
+    await expect(
+      page.getByRole('list', { name: 'Obras abiertas' }).getByText('Torre E2E'),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('textbox', { name: 'Puede recoger' }).fill('Beto E2E');
+    await page.getByRole('button', { name: 'Agregar a la lista' }).click();
+    await expect(
+      page.getByRole('list', { name: 'Quién puede recoger' }).getByText('Beto E2E'),
+    ).toBeVisible({ timeout: 20_000 });
+    await page.getByRole('textbox', { name: 'Por cuánto' }).fill('1000.00');
+    // Se le da a QUIEN la pide: la base exige que no sea quien la da, y el comando
+    // escribía al dueño en las dos columnas (la llave no se podía dar nunca).
+    await page
+      .getByRole('group', { name: 'Quién la pide' })
+      .getByRole('button', { name: 'Karla' })
+      .click();
+    await page.locator('[id^="llave-motivo-"]').fill('Paga el viernes con el cheque de la obra');
+    await page.getByRole('button', { name: 'Dar la llave' }).click();
+    await expect(page.getByText('Llave dada.'), 'La llave del dueño no se dio.').toBeVisible({
+      timeout: 20_000,
+    });
+    await page.keyboard.press('Escape');
+
+    // ── C.10 · F9 APARTA, SE RETOMA TAL CUAL; F8 LA COTIZA; F6 LA CORTA ─────────
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.locator('#buscador').fill('martillo');
+    await resultados.getByRole('row', { name: /Martillo uña pulida/ }).click();
+    await page.keyboard.press('F9');
+    await expect(page.getByText(/Nota apartada: la \d+/)).toBeVisible({ timeout: 20_000 });
+    const laNotaDelMostrador = page.getByRole('complementary', { name: /La nota/ });
+    await expect(laNotaDelMostrador.getByText('Todavía nada.')).toBeVisible();
+    await page
+      .getByRole('button', { name: /^Retomar la \d+/ })
+      .first()
+      .click();
+    await expect(
+      laNotaDelMostrador.getByText(/Martillo/),
+      'La nota apartada no se retomó con lo que llevaba.',
+    ).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.press('F8');
+    await expect(page, 'F8 no llevó la nota a la cotización.').toHaveURL(
+      /\/ferreteria\/cotizacion$/,
+      {
+        timeout: 30_000,
+      },
+    );
+    await expect(
+      page.getByRole('table', { name: /de la cotización/ }).getByText(/Martillo uña pulida/),
+      'La cotización no trae lo que llevaba la nota del mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+    await abrirPantalla(page, '/ferreteria/mostrador', /Buscar material|La nota/);
+    await page.locator('#buscador').fill('cable');
+    await expect(resultados.getByRole('row').nth(1)).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.press('F6');
+    await expect(page, 'F6 no llevó al corte de la pieza buscada.').toHaveURL(
+      /\/ferreteria\/corte-de-material\?material=[0-9a-f-]{36}/,
+      { timeout: 30_000 },
+    );
+    await expect(page.getByRole('heading', { level: 1, name: /Cortar · .*[Cc]able/ })).toBeVisible({
+      timeout: 30_000,
+    });
 
     exigirSinFallos();
   });

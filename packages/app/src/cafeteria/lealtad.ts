@@ -49,6 +49,7 @@ export const otorgarSellos = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaOtorgarSellos,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -154,6 +155,7 @@ export const canjearPremio = definirComando<Transaccion, typeof entradaCanjear, 
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaCanjear,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -386,7 +388,7 @@ async function saldoDe(ctx: ContextoComando<Transaccion>, clienteId: string): Pr
  */
 const SELLOS_POR_PREMIO_POR_OMISION = 5;
 
-async function sellosPorPremio(ctx: ContextoComando<Transaccion>): Promise<number> {
+export async function sellosPorPremio(ctx: ContextoComando<Transaccion>): Promise<number> {
   const fila = await ctx.paso('leer_configuracion', () =>
     ctx.tx
       .selectFrom('configuracion')

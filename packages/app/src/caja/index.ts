@@ -41,3 +41,12 @@ export {
   registrarEntradaDeCambio,
   type ResultadoEntradaCambio,
 } from './entrada-cambio.ts';
+
+export {
+  entradaHojaDelCorte,
+  hojaDelCorte,
+  negocioDe,
+  type ExtrasDelCorte,
+  type HojaDelCorte,
+  type NegocioDelCorte,
+} from './corte/documento.ts';

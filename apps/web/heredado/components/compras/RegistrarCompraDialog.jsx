@@ -453,10 +453,17 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
                   )}
                 </div>
 
-                {/* Toggle existente / nuevo */}
+                {/* Toggle existente / nuevo
+                    `aria-pressed` porque son DOS BOTONES Y UNO YA ESTA PUESTO: sin el,
+                    un lector de pantalla anuncia dos botones iguales y ninguno pulsado,
+                    y el color es lo unico que dice cual es el actual. Lo destapo el
+                    rastreador, que acuso a «Existente» de no hacer nada al tocarlo: y no
+                    hace nada, porque es el que YA esta elegido —lo correcto es decirlo,
+                    no apagarlo—. */}
                 <div className="flex gap-2">
                   <button
                     type="button"
+                    aria-pressed={line.tipo === 'existente'}
                     onClick={() =>
                       updateLine(idx, { tipo: 'existente', ingrediente: null, nuevo_nombre: '' })
                     }
@@ -466,6 +473,7 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
                   </button>
                   <button
                     type="button"
+                    aria-pressed={line.tipo === 'nuevo'}
                     onClick={() => updateLine(idx, { tipo: 'nuevo', ingrediente: null })}
                     className={`flex-1 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors ${line.tipo === 'nuevo' ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'}`}
                   >
@@ -622,12 +630,12 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
                   return (
                     <>
                       {!compat.compatible && (
-                        <div className="rounded-lg p-2.5 bg-rose-50 dark:bg-rose-950/30 border border-rose-300 dark:border-rose-800/60 text-xs text-rose-900 dark:text-rose-200">
+                        <div className="rounded-lg p-2.5 bg-peligro/10 border border-peligro/30 text-xs text-peligro">
                           {compat.mensaje}
                         </div>
                       )}
                       {necesitaEq && (
-                        <div className="rounded-lg p-2.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60">
+                        <div className="rounded-lg p-2.5 bg-advertencia/10 border border-advertencia/30">
                           <Label className="text-xs">
                             ¿A cuánto equivale 1 {line.unidad_compra} en unidad base (
                             {unidadBase || 'g/ml/pieza'})? *
@@ -647,7 +655,7 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
                             }
                             className="h-8"
                           />
-                          <p className="text-[10px] text-amber-800 dark:text-amber-200 mt-1">
+                          <p className="text-[10px] text-advertencia mt-1">
                             {esUnidadEstandar(line.unidad_compra)
                               ? 'Esta unidad es un empaque — indica cuánto trae cada uno.'
                               : 'Esta es una unidad personalizada. Necesitamos su equivalencia para calcular costos.'}
@@ -675,7 +683,7 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
           </div>
 
           {/* Guardar como plantilla recurrente — dark-aware */}
-          <div className="p-3 rounded-lg border border-amber-300 dark:border-amber-700/60 bg-amber-50 dark:bg-amber-950/40 space-y-2">
+          <div className="p-3 rounded-lg border border-advertencia/30 bg-advertencia/10 space-y-2">
             <label className="flex items-start gap-2 cursor-pointer">
               <input
                 type="checkbox"
@@ -684,10 +692,10 @@ export default function RegistrarCompraDialog({ open, onClose, ingredientes = []
                 className="mt-1"
               />
               <div className="flex-1">
-                <p className="text-sm font-medium flex items-center gap-1 text-amber-900 dark:text-amber-200">
-                  <Star className="w-3.5 h-3.5 text-amber-500" /> Guardar como plantilla recurrente
+                <p className="text-sm font-medium flex items-center gap-1 text-advertencia">
+                  <Star className="w-3.5 h-3.5 text-advertencia" /> Guardar como plantilla recurrente
                 </p>
-                <p className="text-[11px] text-amber-800/80 dark:text-amber-300/70">
+                <p className="text-[11px] text-advertencia/80">
                   Para repetir esta compra rápidamente la próxima vez.
                 </p>
               </div>

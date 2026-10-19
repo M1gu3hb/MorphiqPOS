@@ -197,7 +197,10 @@ describe('F-260 · entregar la propina', () => {
     // Registrarlo como gasto lo metería en el estado de resultados. El negocio
     // no gastó ese dinero: sólo lo custodiaba.
     expect(base.campo('movimientos_caja', 'tipo')).toBe('retiro');
-    expect(base.campo('movimientos_caja', 'monto_centavos')).toBe(12_000n);
+    // NEGATIVO: sale del cajón. Esta prueba esperaba +12,000 y Postgres rechaza un retiro
+    // positivo (`movimiento_signo_coherente`): la entrega de propina no podía guardarse en
+    // la base real, y la falsa no mira `check` (auditoría de la 2.4).
+    expect(base.campo('movimientos_caja', 'monto_centavos')).toBe(-12_000n);
     expect(base.campo('movimientos_caja', 'referencia_tipo')).toBe('pasivo');
   });
 

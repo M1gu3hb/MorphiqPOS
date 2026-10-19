@@ -25,7 +25,13 @@ import { defineConfig, devices } from '@playwright/test';
  * levanta el servidor local, que es el comportamiento de siempre.
  */
 const DESPLIEGUE = process.env['MORPHIQPOS_URL_DESPLIEGUE'];
-const LOCAL = 'http://localhost:3200';
+/**
+ * El puerto del servidor local. 3200 de siempre; otro cuando dos corridas comparten la
+ * máquina —cada una con su base desechable y su servidor—, y entonces `APP_URL` del
+ * servidor tiene que ser el mismo origen (`scripts/base-desechable.mjs entorno` lo pone).
+ */
+const PUERTO = process.env['MORPHIQPOS_PUERTO_E2E'] ?? '3200';
+const LOCAL = `http://localhost:${PUERTO}`;
 const BASE = DESPLIEGUE ?? LOCAL;
 
 /**
@@ -87,6 +93,15 @@ const ESTADO_DEL_MURO = ESTADO === undefined || ESTADO === '' ? {} : { storageSt
 
 const CAMINO_DE_ARRANQUE = '/';
 
+/**
+ * Un Chromium ya instalado, cuando la máquina no puede descargar el de esta versión de
+ * Playwright (un contenedor con el navegador horneado y sin salida a su CDN). Sin la
+ * variable no cambia nada: CI instala el suyo con `playwright install`.
+ */
+const CHROMIUM = process.env['MORPHIQPOS_CHROMIUM'];
+const NAVEGADOR_INSTALADO =
+  CHROMIUM === undefined || CHROMIUM === '' ? {} : { launchOptions: { executablePath: CHROMIUM } };
+
 export default defineConfig({
   testDir: './pruebas/e2e',
   outputDir: './pruebas/e2e/.resultados',
@@ -129,6 +144,7 @@ export default defineConfig({
     timezoneId: 'America/Mexico_City',
     ...CABECERAS_DEL_MURO,
     ...ESTADO_DEL_MURO,
+    ...NAVEGADOR_INSTALADO,
   },
 
   projects: [
@@ -146,6 +162,13 @@ export default defineConfig({
       // mesero, que es cuando la diferencia de motor puede importar.
       name: 'tablet',
       use: { ...devices['Galaxy Tab S4 landscape'] },
+    },
+    {
+      // EL TELÉFONO (D.6 de la 2.4). El dueño lee el corte en el coche a las doce de la
+      // noche y la estilista ve su día en el suyo: sin este proyecto, nada de eso se
+      // probaba en un ancho de teléfono. Chromium, como la tablet, por la misma razón.
+      name: 'telefono',
+      use: { ...devices['Pixel 7'] },
     },
   ],
 
@@ -165,8 +188,7 @@ export default defineConfig({
            * bundle viejo. Con `reuseExistingServer` en local hay que acordarse de
            * matar el 3200 si se quiere forzar una reconstrucción.
            */
-          command:
-            'pnpm turbo run build --filter=@morphiqpos/web && pnpm --filter @morphiqpos/web exec next start -p 3200',
+          command: `pnpm turbo run build --filter=@morphiqpos/web && pnpm --filter @morphiqpos/web exec next start -p ${PUERTO}`,
           url: `${LOCAL}${CAMINO_DE_ARRANQUE}`,
           reuseExistingServer: process.env['CI'] === undefined,
           timeout: 300_000,

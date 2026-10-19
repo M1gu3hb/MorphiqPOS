@@ -110,6 +110,53 @@ async function columnasGeneradas() {
   return porTabla;
 }
 
+/**
+ * LAS COLUMNAS QUE SON ARREGLOS de Postgres (`integer[]`, `text[]`…), con su tipo.
+ *
+ * PostgREST las entrega como arreglos de JSON, y `literal()` las volcaba como `jsonb`:
+ * el respaldo del 24-09-2026 NO SE PODÍA RESTAURAR —`column "dia_visita" is of type
+ * integer[] but expression is of type jsonb`—, y nadie lo había visto porque ningún
+ * respaldo anterior se había cargado de verdad (lo destapó el ensayo con datos de la
+ * 178, C.4 de la 2.4). Un arreglo de Postgres se escribe como su literal `'{…}'` con su
+ * tipo; sólo `json`/`jsonb` van como JSON.
+ */
+async function columnasDeArreglo() {
+  const respuesta = await consultarViva(
+    `select c.relname as tabla, a.attname as columna,
+            pg_catalog.format_type(a.atttypid, a.atttypmod) as tipo
+       from pg_catalog.pg_class c
+       join pg_catalog.pg_namespace n on n.oid = c.relnamespace
+       join pg_catalog.pg_attribute a on a.attrelid = c.oid
+       join pg_catalog.pg_type t on t.oid = a.atttypid
+      where n.nspname = 'public'
+        and c.relkind in ('r', 'p')
+        and a.attnum > 0
+        and not a.attisdropped
+        and t.typcategory = 'A'`,
+  );
+  const porTabla = new Map();
+  for (const fila of respuesta.rows) {
+    const tabla = String(fila.tabla);
+    if (!porTabla.has(tabla)) porTabla.set(tabla, new Map());
+    porTabla.get(tabla).set(String(fila.columna), String(fila.tipo));
+  }
+  return porTabla;
+}
+
+/** Un arreglo de JS como literal de arreglo de Postgres, con su tipo: `'{1,3}'::integer[]`. */
+function literalDeArreglo(valores, tipo) {
+  if (!/^[a-z][a-z0-9_ ]*(\(\d+(,\d+)?\))?\[\]$/.test(tipo)) {
+    throw new Error(`Tipo de arreglo inesperado: ${tipo}`);
+  }
+  const elemento = (v) => {
+    if (v === null || v === undefined) return 'NULL';
+    if (typeof v === 'number') return String(v);
+    if (typeof v === 'boolean') return v ? 't' : 'f';
+    return `"${String(v).replaceAll('\\', '\\\\').replaceAll('"', '\\"')}"`;
+  };
+  return `${literal(`{${valores.map(elemento).join(',')}}`)}::${tipo}`;
+}
+
 function leerEntorno() {
   const rutas = [join(RAIZ, '.env.local'), join(RAIZ, '.env')];
   const valores = {};
@@ -199,6 +246,7 @@ async function volcar() {
   const expuestas = await listarTablas(base, clave);
   const sonTabla = await relacionesQueSonTabla();
   const generadas = await columnasGeneradas();
+  const arreglos = await columnasDeArreglo();
   const vistas = expuestas.filter((nombre) => !sonTabla.has(nombre));
   const tablas = expuestas.filter((nombre) => sonTabla.has(nombre) && nombre !== LEDGER);
   const partes = [];
@@ -235,7 +283,12 @@ async function volcar() {
     partes.push('');
     partes.push(`-- ${tabla}: ${filas.length} fila(s)`);
     for (const fila of filas) {
-      const valores = columnas.map((columna) => literal(fila[columna]));
+      const deArreglo = arreglos.get(tabla) ?? new Map();
+      const valores = columnas.map((columna) =>
+        Array.isArray(fila[columna]) && deArreglo.has(columna)
+          ? literalDeArreglo(fila[columna], deArreglo.get(columna))
+          : literal(fila[columna]),
+      );
       partes.push(
         `insert into public.${identificador(tabla)} (${columnas.join(', ')}) values (${valores.join(', ')});`,
       );

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { slugsConfigurados } from './despliegue.ts';
+import { slugDelHostQueManda, slugsConfigurados } from './despliegue.ts';
 
 /**
  * UN DESPLIEGUE, LAS CINCO DEMOS (E3).
@@ -69,5 +69,34 @@ describe('los slugs que ORGANIZACION puede llevar', () => {
     expect(slugsConfigurados(undefined)).toEqual([]);
     expect(slugsConfigurados('')).toEqual([]);
     expect(slugsConfigurados('  ,  ,  ')).toEqual([]);
+  });
+});
+
+describe('el host manda, pero dentro de la lista (auditoría de la 2.4)', () => {
+  const demos = ['demo-acople-tienda', 'demo-acople-cafeteria'];
+
+  it('un host de la lista manda', () => {
+    expect(slugDelHostQueManda('demo-acople-tienda', demos)).toBe('demo-acople-tienda');
+  });
+
+  it('un host FUERA de la lista no manda: un negocio real no se cuela por DNS en un Preview', () => {
+    expect(slugDelHostQueManda('mh-restaurante', demos)).toBeNull();
+  });
+
+  it('sin lista declarada, el host manda como siempre', () => {
+    expect(slugDelHostQueManda('mh-restaurante', [])).toBe('mh-restaurante');
+    expect(slugDelHostQueManda(null, demos)).toBeNull();
+  });
+});
+
+describe('negociosDelDespliegue usa la regla del host (contrato sobre el archivo)', () => {
+  it('el host pasa por `slugDelHostQueManda` con la lista configurada', async () => {
+    const { readFileSync } = await import('node:fs');
+    const texto = readFileSync(new URL('./despliegue.ts', import.meta.url), 'utf8');
+    const inicio = texto.indexOf('export async function negociosDelDespliegue');
+    const cuerpo = texto.slice(inicio, texto.indexOf('\n}\n', inicio)).replace(/^\s*\/\/.*$/gm, '');
+    expect(cuerpo).toMatch(
+      /slugDelHostQueManda\(\s*slugDelHost\(host\),\s*slugsConfigurados\(slugConfigurado\)\s*\)/,
+    );
   });
 });

@@ -1,15 +1,5 @@
 'use client';
 
-import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useRouter } from 'next/navigation';
-import { useEffect, useMemo, useRef, useState } from 'react';
-
-import { consultarPuente, invocarComando } from '~/cliente/api';
-import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
-import { useVocabulario } from '~/cliente/vocabulario';
-
 /**
  * PANTALLA · ferreteria · mostrador
  *
@@ -19,41 +9,110 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * ── Por qué arranca CON los ocho grupos y no en blanco ───────────────────
  * `abarrotes` abre con la lista vacía y «escanea el primer producto». Aquí eso
  * sería un error: la primera pregunta del mostradorista al cliente es «¿de qué
- * es?», y los ocho grupos de línea son esa pregunta convertida en botones. El
- * estado inicial no es un vacío: es un punto de partida.
+ * es?», y los ocho grupos de línea son esa pregunta convertida en botones.
+ *
+ * ── Por qué los resultados son una TABLA en la PC y tarjetas en el pasillo ─
+ * En el mostrador se COMPARA —cinco tornillos de la misma medida, ¿galvanizado o
+ * negro?, ¿Truper o Pretul?—, y comparar es leer una columna de arriba abajo: medida,
+ * acabado, marca, precio, existencia y DÓNDE, cada una alineada. En la tableta del
+ * pasillo se camina hacia el rack, y la misma fila es una tarjeta con la ubicación
+ * en negritas. Es la misma lista con las mismas columnas (`TablaAdaptable`).
  *
  * ── Por qué el total NO es lo más grande ─────────────────────────────────
- * En `abarrotes` el total es lo mayor de la aplicación porque el cliente lo lee
- * desde el otro lado. Aquí el cliente no mira la pantalla: mira la pieza que le
- * acaban de poner enfrente. El total importa al final, no durante, y agrandarlo
- * le robaría a la búsqueda el espacio donde de verdad se resuelve la venta.
+ * Aquí el cliente no mira la pantalla: mira la pieza que le acaban de poner
+ * enfrente. El total importa al final, no durante.
  *
  * ── Por qué la franja del cliente está arriba y no en el cobro ───────────
  * Porque en una remisión a crédito NO HAY COBRO. El saldo, el límite y quién
- * recoge tienen que verse ANTES de despachar o no se ven nunca. Es la única
- * excepción a «aquí no van avisos», y su ausencia es el dolor 1 del modelo.
- *
- * ── Por qué existe la columna «Dónde» ────────────────────────────────────
- * F-152, la columna que `abarrotes` no tiene. Sin ella el resultado encuentra
- * el material y no termina la venta: el empleado nuevo sabe que hay 2,340 y no
- * sabe de qué gaveta sacarlos.
+ * recoge tienen que verse ANTES de despachar o no se ven nunca.
  *
  * ── Por qué no hay esqueleto mientras se teclea ──────────────────────────
  * El índice vive en memoria del cliente y filtrar es local: por debajo de 100
  * ms no hay nada que anunciar. El esqueleto es sólo para la HIDRATACIÓN del
  * índice, que sí cruza la red, y una sola vez.
  *
- * ── Alcance recortado, dicho aquí y no escondido ─────────────────────────
- * Caben la búsqueda con su miga de pan, los ocho grupos, la tabla, la venta, la
- * franja del cliente y las dos salidas. Quedan FUERA, cada una en su pantalla:
- * el corte de material (F6), la ficha con foto (F5), la cotización (F8),
- * suspender (F9) y el diálogo de PIN sobre el límite. La equivalencia real
- * (F-060) y la medida inmediata mayor y menor salen de `equivalencias` y del
- * índice en micrómetros; mientras no existan, el estado de cero resultados
- * aproxima por familia — y lo dice con todas sus letras en la pantalla.
+ * ── La nota sobrevive a ir y volver, y la ficha le agrega (C.10 de la 2.4) ─
+ * F5 abre la ficha de la pieza que se está viendo; lo que ahí se agrega —la caja con
+ * su precio, o piezas— vuelve a esta nota, que vive en la pestaña y no se pierde al ir
+ * a la ficha, al corte o al alta (`nota-del-mostrador.ts`).
+ *
+ * ── A cuenta de quién, y la llave (C.10 de la 2.4) ───────────────────────
+ * El mostrador tenía la remisión entera —F11, la firma, el aviso del límite— y
+ * NINGUNA forma de elegir al cliente: ahora se elige (nombre o teléfono), con su
+ * obra y quién recoge, de la lista o a mano, y entonces se avisa. Si la mora lo
+ * bloquea, se dice dónde da el dueño la llave (Cuentas, con SU usuario) y la nota
+ * que ya se mandó a caja se REUSA al volver a F11: antes cada intento creaba otra.
+ *
+ * ── Las teclas, todas con su botón ───────────────────────────────────────
+ * F5 la ficha, F6 el corte de la pieza, F8 la nota como cotización, F9 apartarla
+ * mientras se atiende a otro (espera en este dispositivo con un número corto,
+ * `notas-en-espera.ts`), F11 a cuenta y F12 a caja. La equivalencia real (F-060)
+ * sale de `equivalencias`; mientras no exista, cero resultados aproxima por familia
+ * y lo dice en la pantalla.
  */
 
-const PESOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@morphiqpos/ui/primitivas/dialog';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  EsqueletoDeLista,
+  Superficie,
+  Tabla,
+  TablaAdaptable,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  ChevronDown,
+  ChevronUp,
+  Clock,
+  FileText,
+  Maximize2,
+  MapPin,
+  Minus,
+  Plus,
+  Scissors,
+  Search,
+  UserRound,
+  X,
+} from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+
+import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
+import { buscar, cercanas, normalizar, type MaterialDeMostrador } from './buscar-material';
+import { useVocabulario } from '~/cliente/vocabulario';
+import { DescuentoDeVenta, type DescuentoElegido } from '~/venta/DescuentoDeVenta';
+import {
+  claveDePartida,
+  dejarParaCotizar,
+  guardarLaNota,
+  leerLaNota,
+  sumarPartida,
+  tomarLoDeLaFicha,
+  type PartidaGuardada,
+  type PresentacionElegida,
+} from './nota-del-mostrador.ts';
+import { ElegirClienteDelMostrador, type EleccionDeCliente } from './ElegirClienteDelMostrador.tsx';
+import {
+  apartarNota,
+  guardarLasNotasEnEspera,
+  notasEnEspera,
+  retomarNota,
+  suscribirseALaEspera,
+  textoDeLaEspera,
+} from './notas-en-espera.ts';
 
 /** «¿De qué es?», convertido en botones. No son productos: son puntos de partida. */
 const GRUPOS = [
@@ -69,16 +128,6 @@ const GRUPOS = [
 
 /** F-153: el conocimiento del mostradorista. Aquí sólo siembran la búsqueda. */
 const LISTAS = ['tinaco', 'contacto', 'llave'] as const;
-
-// Las clases largas viven arriba para que cada elemento quepa en una línea. La
-// rejilla es LA MISMA en la cabecera y en cada fila: así las columnas cuadran
-// en PC sin un segundo marcado, y en el pasillo la misma fila es una tarjeta de
-// dos renglones — medida arriba, precio y ubicación abajo.
-const REJILLA = 'grid grid-cols-3 gap-x-3 gap-y-1 xl:grid-cols-[7rem_7rem_6rem_6rem_6rem_5rem]';
-const FILA = `${REJILLA} w-full rounded-md border border-border bg-card p-2 text-left text-card-foreground hover:bg-accent hover:text-accent-foreground focus-visible:outline-2 focus-visible:outline-ring xl:items-center xl:py-1`;
-const BANDA = 'mb-3 rounded-md border p-2 text-sm';
-const GRUPO =
-  'min-h-20 rounded-md border border-border bg-secondary p-2 text-sm font-semibold text-secondary-foreground hover:bg-accent hover:text-accent-foreground';
 
 export interface ClienteDeMostrador {
   readonly id: string;
@@ -98,12 +147,9 @@ export interface MostradorProps {
   /** La caja cerrada no bloquea el mostrador: armar no es cobrar. */
   readonly cajaCerrada?: boolean;
   /**
-   * LO QUE SE VIENE BUSCANDO, cuando quien llega ya sabe qué quiere.
-   *
-   * La pantalla de Entradas tiene un «Buscar…» por cada renglón del proveedor que
-   * no se pudo emparejar, y llevaba a `/ferreteria/catalogo`, que **no existe**:
-   * 404. El sitio donde se busca material por su descripción es ÉSTE, y ahora la
-   * búsqueda llega con la descripción ya escrita en vez de obligar a teclearla.
+   * LO QUE SE VIENE BUSCANDO, cuando quien llega ya sabe qué quiere: la pantalla
+   * de Entradas manda aquí cada renglón del proveedor que no pudo emparejar, con
+   * su descripción ya escrita.
    */
   readonly consultaInicial?: string;
 }
@@ -111,21 +157,113 @@ export interface MostradorProps {
 interface Partida {
   readonly material: MaterialDeMostrador;
   readonly cantidad: number;
+  /** La caja que la ficha eligió, o nulo: la pieza suelta. */
+  readonly presentacion: PresentacionElegida | null;
+}
+
+/** Su clave: la misma pieza suelta y en caja son dos renglones. */
+function claveDe(partida: Partida): string {
+  return claveDePartida(partida.material.id, partida.presentacion);
 }
 
 /**
- * Lo que devuelve `ferreteria.crear_nota_mostrador`.
- *
- * Se declara aquí y no se importa del comando: ese módulo es `server-only` y
- * esta pantalla corre en el navegador. El contrato son estos cuatro campos, y
- * está escrito en los dos lados a propósito —importarlo arrastraría el paquete
- * del servidor al bundle del cliente—.
+ * Lo que devuelve `ferreteria.crear_nota_mostrador`. Se declara aquí y no se
+ * importa del comando: ese módulo es `server-only` y esta pantalla corre en el
+ * navegador.
  */
 interface ResultadoNotaMostrador {
   readonly ordenId: string;
   readonly notaId: string;
   readonly folio: string;
   readonly totalCentavos: string;
+}
+
+/**
+ * El precio de un material, en centavos. Por `centavosDe`: la unidad la dice el
+ * mapa, no el nombre. Ausente vale cero, como valía antes.
+ */
+function precioDe(m: MaterialDeMostrador): number {
+  return centavosDe('MaterialMostrador', 'precioCentavos', m.precioCentavos) ?? 0;
+}
+
+/** El código de dominio del muro, que el contrato de la ruta no lista. */
+function esElMuroDeLaMora(codigo: string): boolean {
+  return codigo === 'PUENTE_SIN_PERMISO';
+}
+
+/** Cómo se dice la pieza en el botón de su ficha: su medida o, sin ella, su nombre. */
+function nombreParaLaFicha(material: MaterialDeMostrador | undefined): string {
+  if (material === undefined) return 'la pieza';
+  return material.medida.trim() === '' ? material.nombre : material.medida;
+}
+
+/** La nota guardada en la pestaña más lo que dejó la ficha, contra el catálogo. */
+function partidasRecuperadas(catalogo: readonly MaterialDeMostrador[]): Partida[] {
+  const deLaFicha = tomarLoDeLaFicha();
+  const guardadas = deLaFicha === null ? leerLaNota() : sumarPartida(leerLaNota(), deLaFicha);
+  const porId = new Map(catalogo.map((m) => [m.id, m]));
+  return guardadas.flatMap((g): Partida[] => {
+    const material = porId.get(g.productoId);
+    return material === undefined
+      ? []
+      : [{ material, cantidad: g.cantidad, presentacion: g.presentacion }];
+  });
+}
+
+/** El precio de un renglón: el de su caja, si es una; si no, el de la pieza. */
+function precioDeLaPartida(p: Partida): number {
+  return p.presentacion === null ? precioDe(p.material) : (p.presentacion.precioCentavos ?? 0);
+}
+
+/** Las columnas de un resultado. Cada una se gana su lugar (`04-INTERFAZ` §1). */
+function columnasDeResultado(
+  nombreDeMaterial: string,
+): readonly ColumnaDeTabla<MaterialDeMostrador>[] {
+  return [
+    {
+      clave: 'material',
+      titulo: nombreDeMaterial,
+      celda: (m) => (
+        <span className="flex flex-col">
+          <span className="text-base font-semibold">{m.medida}</span>
+          <span className="text-xs text-texto-sutil">{m.nombre}</span>
+        </span>
+      ),
+    },
+    { clave: 'acabado', titulo: 'Acabado', desde: 'md', celda: (m) => m.acabado ?? '—' },
+    { clave: 'marca', titulo: 'Marca', desde: 'lg', celda: (m) => m.marca ?? '—' },
+    {
+      clave: 'precio',
+      titulo: 'Precio',
+      numerica: true,
+      orden: (m) => precioDe(m),
+      celda: (m) => <Dinero centavos={precioDe(m)} tamano="sm" />,
+    },
+    {
+      clave: 'hay',
+      titulo: 'Hay',
+      numerica: true,
+      orden: (m) => m.existencia,
+      // Negativo es un dato que NO es verdad: falta capturar una entrada. Se dice.
+      celda: (m) =>
+        m.existencia < 0 ? (
+          <span className="font-medium text-peligro">revisar entradas</span>
+        ) : (
+          <Cifra valor={m.existencia} unidad={m.unidad} />
+        ),
+    },
+    {
+      clave: 'donde',
+      titulo: 'Dónde',
+      // En negritas siempre: en el pasillo es el dato que se está usando.
+      celda: (m) => (
+        <span className="inline-flex items-center gap-(--espacio-1) font-bold">
+          <MapPin aria-hidden="true" className="size-4 shrink-0" />
+          {m.ubicacion ?? 'sin capturar'}
+        </span>
+      ),
+    },
+  ];
 }
 
 export function Mostrador({
@@ -137,6 +275,8 @@ export function Mostrador({
   const voc = useVocabulario();
   const enrutador = useRouter();
   const [filas, setFilas] = useState<readonly MaterialDeMostrador[] | null>(filasIniciales ?? null);
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
   const [consulta, setConsulta] = useState(consultaInicial);
   const [partidas, setPartidas] = useState<readonly Partida[]>([]);
   const [error, setError] = useState<string | null>(null);
@@ -145,29 +285,73 @@ export function Mostrador({
   /** El folio de la última nota mandada: lo que el cliente canta en la caja. */
   const [folioEnCaja, setFolioEnCaja] = useState<string | null>(null);
   const buscador = useRef<HTMLInputElement>(null);
-  const cliente = clienteInicial ?? null;
+  const [cliente, setCliente] = useState<ClienteDeMostrador | null>(clienteInicial ?? null);
+  /** Obra, autorizado y quien firma: lo que la remisión necesita del que se eligió. */
+  const [eleccion, setEleccion] = useState<Omit<EleccionDeCliente, 'cliente'> | null>(null);
+  const [eligiendo, setEligiendo] = useState(false);
+  /**
+   * La nota que ya se mandó a la caja para ESTA remisión. Si la remisión falla —la mora,
+   * la red— la nota se queda en la caja por cobrar; volver a F11 la reusa en vez de
+   * crear otra: antes cada intento dejaba una nota más en la caja.
+   */
+  const [notaEnCaja, setNotaEnCaja] = useState<ResultadoNotaMostrador | null>(null);
+  /** El muro de la mora, dicho con lo que hay que hacer. */
+  const [bloqueo, setBloqueo] = useState<string | null>(null);
+  const [avisoDeEspera, setAvisoDeEspera] = useState<string | null>(null);
+  /**
+   * EL DESCUENTO QUE SE NEGOCIA AQUÍ (`02-DINERO-Y-CAJA §3`, bloque D de la 2.4): el
+   * mostradorista está en la conversación del «¿cuánto es lo menos?», con su tope; arriba
+   * de él, el supervisor teclea su PIN en esta misma pantalla. Viaja con la nota: la caja
+   * cobra el total que el cliente ya oyó. Cualquier cambio en las partidas lo quita —el
+   * tope es sobre lo que vale la nota, y la nota ya vale otra cosa—.
+   */
+  const [descuento, setDescuento] = useState<{
+    readonly elegido: DescuentoElegido;
+    /** Lo que valía la nota cuando se negoció: si cambia, el descuento ya no es ése. */
+    readonly base: number;
+  } | null>(null);
+  const [descontando, setDescontando] = useState(false);
+  const textoDeEspera = useSyncExternalStore(suscribirseALaEspera, textoDeLaEspera, () => null);
+  const enEspera = useMemo(() => notasEnEspera(textoDeEspera), [textoDeEspera]);
 
   useEffect(() => {
     if (filasIniciales !== undefined) return;
     let vivo = true;
-    // El índice se hidrata una vez al abrir, de la vista `materiales_mostrador`
-    // (168): precio y existencia EN VIVO —cambian con cada venta— y los
-    // atributos de display con su valor original, `1/4"` y no `6350`.
+    // El índice se hidrata una vez al abrir, de la vista `materiales_mostrador`:
+    // precio y existencia EN VIVO, y los atributos con su valor original.
     consultarPuente<MaterialDeMostrador>('MaterialMostrador', { limite: 6000 })
       .then((leidas) => {
-        if (vivo) setFilas(leidas);
+        if (!vivo) return;
+        setFilas(leidas);
+        // LA NOTA QUE YA IBA y lo que la ficha dejó, en cuanto hay catálogo contra el
+        // cual reconocerlos. Una sola vez: después, la nota la lleva esta pantalla.
+        if (!rehidratada.current) {
+          rehidratada.current = true;
+          const recuperadas = partidasRecuperadas(leidas);
+          if (recuperadas.length > 0) setPartidas(recuperadas);
+        }
       })
       .catch((fallo: unknown) => {
-        // La pantalla no se vacía por un error de red: se avisa y se sigue.
-        if (vivo) {
-          setFilas([]);
-          setError(fallo instanceof Error ? fallo.message : 'No se pudo cargar el catálogo.');
-        }
+        if (vivo)
+          setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer el catálogo.');
       });
     return () => {
       vivo = false;
     };
-  }, [filasIniciales]);
+  }, [filasIniciales, intento]);
+
+  /** Hasta que la nota guardada se recupera, no se guarda nada: se pisaría con vacío. */
+  const rehidratada = useRef(false);
+  useEffect(() => {
+    if (!rehidratada.current) return;
+    guardarLaNota(
+      partidas.map((p) => ({
+        productoId: p.material.id,
+        cantidad: p.cantidad,
+        presentacion: p.presentacion,
+      })),
+    );
+  }, [partidas]);
 
   const palabras = useMemo(
     () =>
@@ -177,17 +361,28 @@ export function Mostrador({
     [consulta],
   );
   const resultados = useMemo(() => buscar(filas ?? [], palabras), [filas, palabras]);
-  const total = partidas.reduce((suma, p) => suma + p.material.precioCentavos * p.cantidad, 0);
+  const sinDescuento = partidas.reduce((suma, p) => suma + precioDeLaPartida(p) * p.cantidad, 0);
+  /** Uno que ya no cabe en la nota no se aplica: el servidor lo rechazaría igual. */
+  const aplicado =
+    descuento !== null &&
+    descuento.base === sinDescuento &&
+    descuento.elegido.centavos < sinDescuento
+      ? descuento.elegido
+      : null;
+  const total = sinDescuento - (aplicado?.centavos ?? 0);
   const sobreLimite = cliente !== null && cliente.saldoCentavos > cliente.limiteCentavos;
+  const columnas = useMemo(() => columnasDeResultado(voc.titulo('producto')), [voc]);
 
   useEffect(() => {
-    // Escribir desde cualquier parte va al buscador —la acción principal no
-    // gasta ninguna tecla— y la letra no se pierde por el camino. Esc limpia la
-    // búsqueda; con la búsqueda ya vacía, limpia la venta.
+    // Escribir desde cualquier parte va al buscador —la acción principal no gasta
+    // ninguna tecla—. Esc limpia la búsqueda; con la búsqueda vacía, la venta.
     function alTeclear(evento: KeyboardEvent): void {
       const enCampo = evento.target instanceof HTMLInputElement;
       if (evento.key === 'Escape') {
-        if (consulta === '') setPartidas([]);
+        if (consulta === '') {
+          setPartidas([]);
+          setDescuento(null);
+        }
         setConsulta('');
         return;
       }
@@ -203,34 +398,154 @@ export function Mostrador({
   }, [consulta]);
 
   function agregar(material: MaterialDeMostrador): void {
+    // Desde la tabla se agrega la pieza SUELTA; la caja llega desde la ficha.
+    const clave = claveDePartida(material.id, null);
+    setNotaEnCaja(null);
     setPartidas((actuales) =>
-      actuales.some((p) => p.material.id === material.id)
-        ? actuales.map((p) =>
-            p.material.id === material.id ? { ...p, cantidad: p.cantidad + 1 } : p,
-          )
-        : [...actuales, { material, cantidad: 1 }],
+      actuales.some((p) => claveDe(p) === clave)
+        ? actuales.map((p) => (claveDe(p) === clave ? { ...p, cantidad: p.cantidad + 1 } : p))
+        : [...actuales, { material, cantidad: 1, presentacion: null }],
     );
   }
 
-  function cambiarCantidad(id: string, paso: number): void {
+  function cambiarCantidad(clave: string, paso: number): void {
+    setNotaEnCaja(null);
     setPartidas((actuales) =>
       actuales
-        .map((p) => (p.material.id === id ? { ...p, cantidad: p.cantidad + paso } : p))
+        .map((p) => (claveDe(p) === clave ? { ...p, cantidad: p.cantidad + paso } : p))
         .filter((p) => p.cantidad > 0),
     );
   }
 
-  /** Las rutas salen de `05-DATOS-Y-BACKEND` §6; no se inventa ninguna. */
   /**
-   * Crear la nota. Es el primer paso de las dos salidas del mostrador.
-   *
-   * Devuelve la nota creada en vez de tragársela porque el folio es lo que el
-   * cliente dice en la caja —«la N-114»— y la remisión necesita la orden.
+   * F5 · LA FICHA de la pieza que se está viendo: el primer resultado, o la última
+   * partida si no se está buscando. La nota se queda: vive en la pestaña.
    */
+  function abrirLaFicha(): void {
+    const pieza = resultados[0] ?? partidas.at(-1)?.material;
+    if (pieza === undefined) return;
+    enrutador.push(`/ferreteria/ficha-de-pieza?pieza=${encodeURIComponent(pieza.id)}`);
+  }
+
+  /** F6 · EL CORTE de la pieza que se está viendo; la pantalla del corte dice si no es de corte. */
+  function abrirElCorte(): void {
+    const pieza = resultados[0] ?? partidas.at(-1)?.material;
+    enrutador.push(
+      pieza === undefined
+        ? '/ferreteria/corte-de-material'
+        : `/ferreteria/corte-de-material?material=${encodeURIComponent(pieza.id)}`,
+    );
+  }
+
+  /** Las partidas como se guardan: lo que viaja a la cotización y a la espera. */
+  function guardables(): PartidaGuardada[] {
+    return partidas.map((p) => ({
+      productoId: p.material.id,
+      cantidad: p.cantidad,
+      presentacion: p.presentacion,
+    }));
+  }
+
+  /** F8 · LA NOTA COMO COTIZACIÓN: la cotización la toma y el mostrador se vacía. */
+  function aCotizar(): void {
+    if (partidas.length === 0) return;
+    dejarParaCotizar(guardables());
+    setPartidas([]);
+    setDescuento(null);
+    enrutador.push('/ferreteria/cotizacion');
+  }
+
+  /** F9 · APARTAR la nota con un número corto, para atender a otro. */
+  function apartar(): void {
+    const apartada = apartarNota(enEspera, guardables(), cliente?.nombre ?? null, new Date());
+    if (apartada === null) return;
+    if (!guardarLasNotasEnEspera(apartada.lista)) {
+      setAvisoDeEspera('Este dispositivo no deja guardar: la nota sigue aquí.');
+      return;
+    }
+    setPartidas([]);
+    setNotaEnCaja(null);
+    setDescuento(null);
+    setAvisoDeEspera(`Nota apartada: la ${String(apartada.numero)}. Se retoma con su número.`);
+  }
+
+  /** Retomar una: si hay otra armada, se aparta primero, para no perderla. */
+  function retomar(numero: number): void {
+    const base =
+      partidas.length === 0
+        ? { lista: enEspera, numero: null }
+        : (apartarNota(enEspera, guardables(), cliente?.nombre ?? null, new Date()) ?? {
+            lista: enEspera,
+            numero: null,
+          });
+    const { lista, nota } = retomarNota(base.lista, numero);
+    if (nota === null || filas === null) return;
+    if (!guardarLasNotasEnEspera(lista)) return;
+    const porId = new Map(filas.map((m) => [m.id, m]));
+    setNotaEnCaja(null);
+    setDescuento(null);
+    setPartidas(
+      nota.partidas.flatMap((g): Partida[] => {
+        const material = porId.get(g.productoId);
+        return material === undefined
+          ? []
+          : [{ material, cantidad: g.cantidad, presentacion: g.presentacion }];
+      }),
+    );
+    setAvisoDeEspera(
+      base.numero === null
+        ? `Retomada la ${String(numero)}.`
+        : `Retomada la ${String(numero)}; la que estaba quedó como la ${String(base.numero)}.`,
+    );
+  }
+
+  /** Lo que se eligió en la hoja del cliente, en la forma que pinta la franja. */
+  function elegirCliente(elegido: EleccionDeCliente): void {
+    const { cliente: c, ...resto } = elegido;
+    setCliente({
+      id: c.id,
+      nombre: c.nombre,
+      obra: c.obras.find((o) => o.id === resto.obraId)?.nombre ?? null,
+      saldoCentavos: c.saldoCentavos,
+      limiteCentavos: c.limiteCentavos,
+      diasVencido: c.diasVencido,
+      recoge: resto.firmante,
+      recogeAutorizado: resto.autorizadoId !== null,
+    });
+    setEleccion(resto);
+    setEligiendo(false);
+    setNotaEnCaja(null);
+    setBloqueo(null);
+  }
+
+  function quitarCliente(): void {
+    setCliente(null);
+    setEleccion(null);
+    setNotaEnCaja(null);
+    setBloqueo(null);
+  }
+
+  /** Crear la nota: el primer paso de las dos salidas del mostrador. */
   async function crearLaNota(): Promise<ResultadoNotaMostrador> {
     return invocarComando<ResultadoNotaMostrador>('/api/venta/mandar-a-caja', {
       clienteId: cliente?.id ?? null,
-      partidas: partidas.map((p) => ({ productoId: p.material.id, cantidad: p.cantidad })),
+      ...(eleccion?.obraId == null ? {} : { obraId: eleccion.obraId }),
+      ...(aplicado === null
+        ? {}
+        : {
+            descuento: {
+              centavos: aplicado.centavos,
+              motivo: aplicado.motivo,
+              ...(aplicado.autorizacion === undefined
+                ? {}
+                : { autorizacion: aplicado.autorizacion }),
+            },
+          }),
+      partidas: partidas.map((p) => ({
+        productoId: p.material.id,
+        cantidad: p.cantidad,
+        ...(p.presentacion === null ? {} : { presentacionId: p.presentacion.id }),
+      })),
     });
   }
 
@@ -240,9 +555,8 @@ export function Mostrador({
     try {
       const nota = await crearLaNota();
       setPartidas([]);
-      // El folio se queda a la vista: es el número que el mostradorista le dice
-      // al cliente para que lo cante en la caja. Sin enseñarlo, la nota llega a
-      // la caja y nadie sabe pedirla.
+      setDescuento(null);
+      // El folio se queda a la vista: es el número que el cliente canta en la caja.
       setFolioEnCaja(nota.folio);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo mandar la venta.');
@@ -252,56 +566,318 @@ export function Mostrador({
   }
 
   /**
-   * La otra salida: se lo lleva a crédito, firmando.
-   *
-   * Son DOS comandos en fila y no uno, porque `credito.registrar_remision` pide
-   * una orden que ya exista —sube el saldo del cliente por un importe, y ese
-   * importe son las líneas de una venta, no un número que manda el navegador—.
-   * Si el segundo falla, la nota se queda en la caja como pendiente de cobro:
-   * recuperable, y el material no ha salido. Al revés —remisión antes de venta—
-   * el saldo del cliente subiría por algo que no existe.
+   * La otra salida: se lo lleva a crédito, firmando. Son DOS comandos en fila: la
+   * remisión pide una orden que ya exista, y si el segundo falla la nota se queda
+   * en la caja como pendiente de cobro —recuperable, y el material no ha salido—.
    */
   async function remisionACuenta(): Promise<void> {
     if (cliente === null) return;
     setEnviando(true);
     setError(null);
+    setBloqueo(null);
     try {
-      const nota = await crearLaNota();
+      // La que ya se mandó para esta remisión, si el intento anterior falló.
+      const nota = notaEnCaja ?? (await crearLaNota());
+      setNotaEnCaja(nota);
       await invocarComando('/api/credito/remision', {
         ordenId: nota.ordenId,
         clienteId: cliente.id,
         importeCentavos: Number(nota.totalCentavos),
-        // Quien firma es quien viene por el material: el autorizado de la cuenta
-        // si hay uno, y si no el cliente. Un documento de entrega sin nombre de
-        // quien recibió no sirve para nada, que es el talonario de papel de hoy.
-        nombreFirmante: cliente.recoge ?? cliente.nombre,
+        nombreFirmante: eleccion?.firmante ?? cliente.recoge ?? cliente.nombre,
+        ...(eleccion?.obraId == null ? {} : { obraId: eleccion.obraId }),
+        ...(eleccion?.autorizadoId == null ? {} : { autorizadoId: eleccion.autorizadoId }),
       });
       setPartidas([]);
+      setDescuento(null);
       setFolioEnCaja(null);
+      setNotaEnCaja(null);
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo registrar la remisión.');
+      // El muro de la mora llega como 403 con su código de dominio, que no está en el
+      // contrato de la ruta: se compara como texto.
+      if (fallo instanceof ErrorApi && esElMuroDeLaMora(fallo.error.codigo)) {
+        setBloqueo(fallo.error.mensaje);
+      } else {
+        setError(fallo instanceof Error ? fallo.message : 'No se pudo registrar la remisión.');
+      }
     } finally {
       setEnviando(false);
     }
   }
 
+  /**
+   * F12 manda a caja y F11 remite a cuenta, con las MISMAS guardas que sus botones.
+   * Iban impresas en ellos sin que el teclado las escuchara (C.5 de la 2.4): un atajo
+   * que se anuncia y no responde es un botón muerto.
+   */
+  const alTeclearFuncion = useEffectEvent((evento: KeyboardEvent) => {
+    if (evento.key === 'F5') {
+      // F5 del navegador recarga; aquí abre la ficha, como dice su botón.
+      evento.preventDefault();
+      abrirLaFicha();
+      return;
+    }
+    if (evento.key === 'F6') {
+      evento.preventDefault();
+      abrirElCorte();
+      return;
+    }
+    if (evento.key === 'F8' || evento.key === 'F9') {
+      evento.preventDefault();
+      if (enviando || partidas.length === 0) return;
+      if (evento.key === 'F8') aCotizar();
+      else apartar();
+      return;
+    }
+    if (evento.key !== 'F12' && evento.key !== 'F11') return;
+    evento.preventDefault();
+    if (enviando || partidas.length === 0) return;
+    if (evento.key === 'F12' && !cajaCerrada) void mandarACaja();
+    if (evento.key === 'F11' && cliente !== null) void remisionACuenta();
+  });
+
+  useEffect(() => {
+    window.addEventListener('keydown', alTeclearFuncion);
+    return () => {
+      window.removeEventListener('keydown', alTeclearFuncion);
+    };
+  }, []);
+
+  const columnasDeLaNota: readonly ColumnaDeTabla<Partida>[] = [
+    {
+      clave: 'partida',
+      titulo: voc.titulo('producto'),
+      celda: (p) => (
+        <span className="flex flex-col">
+          <span className="font-medium">
+            {p.material.nombre} {p.material.medida}
+          </span>
+          <span className="text-xs text-texto-sutil">
+            <Cifra
+              valor={p.cantidad}
+              unidad={p.presentacion?.etiqueta ?? p.material.unidad}
+              tamano="xs"
+            />{' '}
+            × <Dinero centavos={precioDeLaPartida(p)} tamano="xs" />
+          </span>
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Importe',
+      numerica: true,
+      celda: (p) => <Dinero centavos={precioDeLaPartida(p) * p.cantidad} tamano="sm" />,
+    },
+    {
+      clave: 'acciones',
+      titulo: 'Cantidad',
+      celda: (p) => (
+        <span className="flex justify-end gap-(--espacio-1)">
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label={`Quitar una pieza de ${p.material.nombre}`}
+            onClick={() => {
+              cambiarCantidad(claveDe(p), -1);
+            }}
+          >
+            <Minus />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="outline"
+            aria-label={`Agregar una pieza de ${p.material.nombre}`}
+            onClick={() => {
+              cambiarCantidad(claveDe(p), 1);
+            }}
+          >
+            <Plus />
+          </Button>
+          <Button
+            type="button"
+            size="icon-sm"
+            variant="ghost"
+            aria-label={`Quitar la partida ${p.material.nombre}`}
+            onClick={() => {
+              cambiarCantidad(claveDe(p), -p.cantidad);
+            }}
+          >
+            <X />
+          </Button>
+        </span>
+      ),
+    },
+  ];
+
+  const busqueda = (() => {
+    if (falloDeCarga !== null) {
+      return (
+        <ErrorDePantalla
+          titulo="No se pudo leer el catálogo del mostrador"
+          queHacer="Sin el índice no se encuentra nada. Revisa la conexión y vuelve a leerlo; lo que ya está en la nota no se pierde."
+          detalle={falloDeCarga}
+          reintentar={
+            <Button
+              onClick={() => {
+                setFalloDeCarga(null);
+                setFilas(null);
+                setIntento((previo) => previo + 1);
+              }}
+            >
+              Volver a leer
+            </Button>
+          }
+        />
+      );
+    }
+    // La forma de la tabla, nunca una rueda: el ojo ya sabe dónde va a mirar.
+    if (filas === null) return <EsqueletoDeLista filas={6} />;
+    if (palabras.length === 0) {
+      return (
+        <section aria-label="Punto de partida" className="flex flex-col gap-(--espacio-3)">
+          <div className="grid grid-cols-2 gap-(--espacio-2) sm:grid-cols-4">
+            {GRUPOS.map((grupo) => (
+              <Superficie
+                key={grupo}
+                como="button"
+                type="button"
+                interactiva
+                relleno={3}
+                radio="md"
+                className="min-h-20 text-sm font-semibold"
+                onClick={() => {
+                  setConsulta(grupo);
+                }}
+              >
+                {grupo}
+              </Superficie>
+            ))}
+          </div>
+          <div className="flex flex-wrap items-center gap-(--espacio-2)">
+            <span className="text-sm text-texto-sutil">Listas de trabajo:</span>
+            {LISTAS.map((lista) => (
+              <Button
+                key={lista}
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setConsulta(lista);
+                }}
+              >
+                para un {lista}
+              </Button>
+            ))}
+          </div>
+        </section>
+      );
+    }
+    if (resultados.length === 0) {
+      // La pantalla que salva o pierde la venta. Nunca dice «no hay» y ya.
+      return (
+        <Vacio
+          titulo="No tenemos de esa medida."
+          explicacion="Pero éstas le pueden servir — son de la misma familia, no equivalencias declaradas:"
+          accion={
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => {
+                // Con el enrutador y no recargando: las partidas que ya llevaba
+                // tienen que seguir ahí al volver del alta.
+                enrutador.push(`/ferreteria/catalogo?alta=${encodeURIComponent(consulta)}`);
+              }}
+            >
+              Dar de alta {voc.enFraseCon('este', 'producto')}
+            </Button>
+          }
+          className="items-stretch text-left"
+        >
+          <TablaAdaptable
+            etiqueta="Materiales de la misma familia"
+            principal="material"
+            columnas={columnas}
+            filas={cercanas(filas, palabras)}
+            claveDe={(m) => m.id}
+            alActivar={(id) => {
+              const material = filas.find((m) => m.id === id);
+              if (material !== undefined) agregar(material);
+            }}
+            tonoDeFila={(m) => (m.existencia <= 0 ? 'tenue' : undefined)}
+          />
+        </Vacio>
+      );
+    }
+    return (
+      <>
+        <div className="flex justify-end">
+          <Button type="button" variant="outline" size="sm" onClick={abrirLaFicha}>
+            <Maximize2 aria-hidden="true" />
+            Ficha de {nombreParaLaFicha(resultados[0])} · F5
+          </Button>
+        </div>
+        <TablaAdaptable
+          etiqueta="Resultados"
+          principal="material"
+          columnas={columnas}
+          filas={resultados}
+          claveDe={(m) => m.id}
+          alActivar={(id) => {
+            const material = resultados.find((m) => m.id === id);
+            if (material !== undefined) agregar(material);
+          }}
+          // Se atenúa, pero NO se esconde: saber que el material existe aunque no
+          // haya permite decir «te lo pido para el jueves», que es una venta.
+          tonoDeFila={(m) => (m.existencia <= 0 ? 'tenue' : undefined)}
+          alto="max-h-[65vh]"
+        />
+      </>
+    );
+  })();
+
   return (
-    <div className="p-3 pb-24 xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-start xl:gap-4 xl:pb-3">
+    <div className="p-(--espacio-3) pb-[calc(var(--espacio-12)*2)] xl:grid xl:grid-cols-[minmax(0,1fr)_23rem] xl:items-start xl:gap-(--espacio-4) xl:pb-(--espacio-3)">
       <h1 className="sr-only">Mostrador</h1>
 
-      {/* TERCIARIO · arriba a la derecha en PC, arriba del todo en el pasillo:
-          se lee antes de despachar, que es cuando sirve. */}
-      <section
+      {/* TERCIARIO · arriba a la derecha en PC, arriba del todo en el pasillo: se
+          lee antes de despachar, que es cuando sirve. */}
+      <Superficie
+        como="section"
+        relleno={3}
+        radio="md"
         aria-label={`${voc.titulo('cliente')} y obra`}
-        className={`${BANDA} ${sobreLimite ? 'border-destructive bg-destructive/15' : 'border-border bg-card'} xl:col-start-2 xl:row-start-1`}
+        className={`mb-(--espacio-3) text-sm xl:col-start-2 xl:row-start-1 xl:mb-0 ${sobreLimite ? 'border-peligro bg-peligro/10' : ''}`}
       >
-        <p className="font-semibold">{cliente?.nombre ?? 'Público en general · contado'}</p>
+        <div className="flex flex-wrap items-center justify-between gap-(--espacio-2)">
+          <p className="font-semibold">{cliente?.nombre ?? 'Público en general · contado'}</p>
+          <span className="flex gap-(--espacio-1)">
+            <Button
+              type="button"
+              size="sm"
+              variant="outline"
+              onClick={() => {
+                setEligiendo(true);
+              }}
+            >
+              <UserRound aria-hidden="true" />
+              {cliente === null ? 'A cuenta de…' : 'Cambiar'}
+            </Button>
+            {cliente !== null && (
+              <Button type="button" size="sm" variant="ghost" onClick={quitarCliente}>
+                Público
+              </Button>
+            )}
+          </span>
+        </div>
         {cliente !== null && (
           <>
-            <p className="text-muted-foreground">Obra: {cliente.obra ?? 'sin obra asignada'}</p>
-            <p className="tabular-nums">
-              Debe {PESOS.format(cliente.saldoCentavos / 100)} · {cliente.diasVencido} d · límite{' '}
-              {PESOS.format(cliente.limiteCentavos / 100)}
+            <p className="text-texto-sutil">Obra: {cliente.obra ?? 'sin obra asignada'}</p>
+            <p>
+              Debe <Dinero centavos={cliente.saldoCentavos} tamano="sm" /> ·{' '}
+              <Cifra valor={cliente.diasVencido} unidad="d" tamano="sm" /> · límite{' '}
+              <Dinero centavos={cliente.limiteCentavos} tamano="sm" />
             </p>
             {/* El color no es el único portador: la condición va escrita. */}
             {sobreLimite && (
@@ -311,35 +887,41 @@ export function Mostrador({
               Recoge: {cliente.recoge ?? '—'}{' '}
               {cliente.recogeAutorizado
                 ? '· autorizado'
-                : '· ⚠️ no está en la lista. ¿Le hablas antes de despachar?'}
+                : '· NO está en la lista. ¿Le hablas antes de despachar?'}
             </p>
           </>
         )}
-      </section>
+      </Superficie>
 
-      <main className="xl:col-start-1 xl:row-start-1 xl:row-span-2">
-        <label htmlFor="buscador" className="sr-only">
-          Buscar {voc.singular('producto')} por nombre, medida, acabado o marca
-        </label>
-        <Input
-          id="buscador"
-          ref={buscador}
-          autoFocus
-          value={consulta}
-          onChange={(evento) => {
-            setConsulta(evento.target.value);
-          }}
-          placeholder="⌕  tornillo 1/4 x 2"
-          className="text-lg"
-        />
+      <main className="flex flex-col gap-(--espacio-3) xl:col-start-1 xl:row-span-2 xl:row-start-1">
+        <div className="relative">
+          <label htmlFor="buscador" className="sr-only">
+            Buscar {voc.singular('producto')} por nombre, medida, acabado o marca
+          </label>
+          <Search
+            aria-hidden="true"
+            className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-5 -translate-y-1/2 text-texto-sutil"
+          />
+          <Input
+            id="buscador"
+            ref={buscador}
+            autoFocus
+            value={consulta}
+            onChange={(evento) => {
+              setConsulta(evento.target.value);
+            }}
+            placeholder="tornillo 1/4 x 2"
+            className="h-[calc(var(--altura-control)*1.25)] pl-(--espacio-10) text-lg"
+          />
+        </div>
 
-        {/* Miga de pan: enseña dónde estás y se quita POR PARTES, que es como
-            se corrige una búsqueda que se pasó de estrecha. */}
+        {/* Miga de pan: enseña dónde estás y se quita POR PARTES, que es como se
+            corrige una búsqueda que se pasó de estrecha. */}
         {palabras.length > 0 && (
-          <nav aria-label="Filtros de la búsqueda" className="mt-2 flex flex-wrap gap-1">
+          <nav aria-label="Filtros de la búsqueda" className="flex flex-wrap gap-(--espacio-1)">
             {palabras.map((palabra, indice) => (
               <Button
-                key={`${palabra}-${indice}`}
+                key={`${palabra}-${String(indice)}`}
                 type="button"
                 size="sm"
                 variant="secondary"
@@ -348,7 +930,8 @@ export function Mostrador({
                   setConsulta(palabras.filter((_, i) => i !== indice).join(' '));
                 }}
               >
-                {palabra} ✕
+                {palabra}
+                <X aria-hidden="true" />
               </Button>
             ))}
             <Button
@@ -365,190 +948,74 @@ export function Mostrador({
         )}
 
         {cajaCerrada && (
-          <p className={`${BANDA} mt-3 border-border bg-warning/20`}>
-            La caja está cerrada. Se arman notas y cotizaciones; no se cobra.
-          </p>
+          <Aviso tono="atencion" titulo="La caja está cerrada.">
+            Se arman notas y cotizaciones; no se cobra.
+          </Aviso>
         )}
         {error !== null && (
-          <p role="alert" className={`${BANDA} mt-3 border-destructive bg-destructive/15`}>
-            {error} · Lo que ya estaba en pantalla sigue sirviendo.
-          </p>
+          <Aviso tono="peligro" titulo={error}>
+            Lo que ya estaba en pantalla sigue sirviendo.
+          </Aviso>
+        )}
+        {bloqueo !== null && cliente !== null && (
+          <Aviso tono="atencion" titulo="Bloqueado por mora: hace falta la llave del dueño.">
+            {bloqueo} El dueño o el administrador la da con SU usuario en Cuentas › {cliente.nombre}{' '}
+            › La llave del dueño, por{' '}
+            <Dinero centavos={Number(notaEnCaja?.totalCentavos ?? total)} tamano="sm" />. Con la
+            llave dada, vuelve a F11: la nota {notaEnCaja?.folio ?? ''} ya está en la caja y se usa
+            la misma.
+          </Aviso>
         )}
 
-        {filas === null ? (
-          // Esqueleto con la forma de la tabla, nunca un spinner: el ojo ya sabe
-          // dónde va a mirar cuando el índice termine de llegar.
-          <div className="mt-3 space-y-2">
-            {Array.from({ length: 6 }, (_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-md xl:h-5" />
-            ))}
-          </div>
-        ) : palabras.length === 0 ? (
-          <section aria-label="Punto de partida" className="mt-3">
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              {GRUPOS.map((grupo) => (
-                <button
-                  key={grupo}
-                  type="button"
-                  className={GRUPO}
-                  onClick={() => {
-                    setConsulta(grupo);
-                  }}
-                >
-                  {grupo}
-                </button>
-              ))}
-            </div>
-            <p className="mt-4 text-sm text-muted-foreground">Listas de trabajo:</p>
-            <div className="mt-1 flex flex-wrap gap-2">
-              {LISTAS.map((lista) => (
-                <Button
-                  key={lista}
-                  type="button"
-                  variant="outline"
-                  size="sm"
-                  onClick={() => {
-                    setConsulta(lista);
-                  }}
-                >
-                  para un {lista}
-                </Button>
-              ))}
-            </div>
-          </section>
-        ) : resultados.length === 0 ? (
-          // Es la pantalla que salva o pierde la venta. Nunca dice «no hay» y ya.
-          <section aria-label="Sin resultados exactos" className="mt-3">
-            <p className="text-lg font-semibold">No tenemos de esa medida.</p>
-            <p className="mt-2 text-sm text-muted-foreground">
-              Pero éstas le pueden servir — son de la misma familia, no equivalencias declaradas:
-            </p>
-            <ul className="mt-2 space-y-1">
-              {cercanas(filas, palabras).map((material) => (
-                <li key={material.id}>
-                  <FilaMaterial material={material} onAgregar={agregar} />
-                </li>
-              ))}
-            </ul>
-            <Button
-              type="button"
-              variant="outline"
-              className="mt-3"
-              onClick={() => {
-                // El alta rápida vive en el catálogo; aquí se llega con lo tecleado.
-                // Se navega con el enrutador y no recargando la página: el
-                // mostradorista vuelve con el material dado de alta y las
-                // partidas que ya llevaba tienen que seguir ahí.
-                enrutador.push(`/ferreteria/catalogo?alta=${encodeURIComponent(consulta)}`);
-              }}
-            >
-              Dar de alta {voc.enFraseCon('este', 'producto')}
-            </Button>
-          </section>
-        ) : (
-          <section aria-label="Resultados" className="mt-3">
-            <p className={`${REJILLA} hidden px-2 text-xs text-muted-foreground xl:grid`}>
-              <span>Medida</span>
-              <span>Acabado</span>
-              <span>Marca</span>
-              <span>Precio</span>
-              <span>Hay</span>
-              <span>Dónde</span>
-            </p>
-            <ul className="space-y-1 xl:space-y-0">
-              {resultados.map((material) => (
-                <li key={material.id}>
-                  <FilaMaterial material={material} onAgregar={agregar} />
-                </li>
-              ))}
-            </ul>
-          </section>
-        )}
+        {busqueda}
       </main>
 
       {/* SECUNDARIO · siempre visible en PC, plegado en una barra en el pasillo. */}
-      <aside
+      <Superficie
+        como="aside"
         id="la-venta"
+        relleno={3}
+        radio="md"
         aria-label={voc.conArticulo('orden')}
-        className={`${ventaAbierta ? 'fixed inset-x-0 bottom-0 z-20 max-h-[70dvh] overflow-y-auto' : 'hidden xl:block'} rounded-md border border-border bg-card p-3 text-card-foreground xl:static xl:col-start-2 xl:row-start-2 xl:max-h-none`}
+        className={`${ventaAbierta ? 'fixed inset-x-0 bottom-0 z-20 flex max-h-[70dvh] overflow-y-auto' : 'hidden xl:flex'} flex-col gap-(--espacio-3) xl:static xl:col-start-2 xl:row-start-2 xl:max-h-none`}
       >
         {/* «La venta» es de la tiendita: en una ferretería lo que se arma en el
             pasillo es una NOTA, y es la palabra que el cliente oye en la caja. */}
-        <h2 className="text-sm font-semibold uppercase text-muted-foreground">
+        <h2 className="text-sm font-semibold text-texto-sutil uppercase">
           {voc.conArticulo('orden')}
         </h2>
-        {partidas.length === 0 ? (
-          <p className="py-3 text-sm text-muted-foreground">
-            Todavía nada. Busque {voc.enFrase('producto')} y presione Enter sobre el resultado.
+        <Tabla
+          etiqueta={`Partidas de ${voc.conArticulo('orden').toLowerCase()}`}
+          columnas={columnasDeLaNota}
+          filas={partidas}
+          claveDe={claveDe}
+          alto="max-h-[40vh]"
+          vacio={
+            <Vacio
+              titulo="Todavía nada."
+              explicacion={`Busque ${voc.enFrase('producto')} y presione Enter sobre el resultado.`}
+              className="py-(--espacio-4)"
+            />
+          }
+        />
+
+        {/* Legible de reojo, y NO lo más grande de la pantalla. */}
+        <p className="flex items-baseline justify-between">
+          <span className="text-sm text-texto-sutil">{partidas.length} partidas</span>
+          <Dinero centavos={total} tamano="lg" />
+        </p>
+        {aplicado === null ? null : (
+          <p className="flex flex-wrap items-baseline justify-end gap-(--espacio-1) text-sm text-texto-sutil">
+            descuento <Dinero centavos={aplicado.centavos} tamano="sm" />
+            {aplicado.autorizo === undefined ? null : <span>· autorizó {aplicado.autorizo}</span>}
           </p>
-        ) : (
-          <ul className="my-2 space-y-2">
-            {partidas.map((partida) => (
-              <li key={partida.material.id} className="border-b border-border pb-2">
-                <p className="text-sm font-medium">
-                  {partida.material.nombre} {partida.material.medida}
-                </p>
-                <div className="flex items-center justify-between gap-2 text-sm tabular-nums">
-                  <span>
-                    {partida.cantidad} {partida.material.unidad} ×{' '}
-                    {PESOS.format(partida.material.precioCentavos / 100)}
-                  </span>
-                  <span className="font-semibold">
-                    {PESOS.format((partida.material.precioCentavos * partida.cantidad) / 100)}
-                  </span>
-                </div>
-                <div className="mt-1 flex gap-1">
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    aria-label={`Quitar una pieza de ${partida.material.nombre}`}
-                    onClick={() => {
-                      cambiarCantidad(partida.material.id, -1);
-                    }}
-                  >
-                    −
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="outline"
-                    aria-label={`Agregar una pieza de ${partida.material.nombre}`}
-                    onClick={() => {
-                      cambiarCantidad(partida.material.id, 1);
-                    }}
-                  >
-                    +
-                  </Button>
-                  <Button
-                    type="button"
-                    size="sm"
-                    variant="ghost"
-                    aria-label={`Quitar la partida ${partida.material.nombre}`}
-                    onClick={() => {
-                      cambiarCantidad(partida.material.id, -partida.cantidad);
-                    }}
-                  >
-                    Quitar
-                  </Button>
-                </div>
-              </li>
-            ))}
-          </ul>
         )}
 
-        {/* Grande para leerse de reojo, y NO lo más grande de la pantalla. */}
-        <p className="flex items-baseline justify-between text-xl font-semibold tabular-nums">
-          <span className="text-sm font-normal text-muted-foreground">
-            {partidas.length} partidas
-          </span>
-          {PESOS.format(total / 100)}
-        </p>
-
-        <div className="mt-3 grid gap-2">
+        <div className="grid gap-(--espacio-2)">
           <Button
             type="button"
             disabled={partidas.length === 0 || cajaCerrada || enviando}
+            cargando={enviando}
             onClick={() => {
               void mandarACaja();
             }}
@@ -563,19 +1030,114 @@ export function Mostrador({
               void remisionACuenta();
             }}
           >
-            {sobreLimite ? 'Remisión a cuenta · pide PIN · F11' : 'Remisión a cuenta · F11'}
+            {sobreLimite ? 'Remisión a cuenta · pasa del límite · F11' : 'Remisión a cuenta · F11'}
           </Button>
-          {/* El número, grande y en su sitio: es lo único que el cliente se
-              lleva del mostrador, y va a decirlo en voz alta a tres metros. */}
-          {folioEnCaja !== null && (
-            <p role="status" className="rounded-md border border-border p-2 text-center text-sm">
-              {voc.titulo('orden')}{' '}
-              <span className="text-base font-bold tabular-nums">{folioEnCaja}</span> está en la
-              caja.
+          <Button
+            type="button"
+            variant="ghost"
+            size="sm"
+            disabled={partidas.length === 0 || enviando}
+            onClick={() => {
+              if (aplicado === null) setDescontando(true);
+              else setDescuento(null);
+            }}
+          >
+            {aplicado === null ? 'Descuento' : 'Quitar el descuento'}
+          </Button>
+          <div className="grid grid-cols-3 gap-(--espacio-1)">
+            <Button type="button" variant="ghost" size="sm" onClick={abrirElCorte}>
+              <Scissors aria-hidden="true" />
+              Cortar · F6
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={partidas.length === 0 || enviando}
+              onClick={aCotizar}
+            >
+              <FileText aria-hidden="true" />
+              Cotizar · F8
+            </Button>
+            <Button
+              type="button"
+              variant="ghost"
+              size="sm"
+              disabled={partidas.length === 0 || enviando}
+              onClick={apartar}
+            >
+              <Clock aria-hidden="true" />
+              Apartar · F9
+            </Button>
+          </div>
+          {avisoDeEspera !== null && (
+            <p role="status" className="text-sm font-medium">
+              {avisoDeEspera}
             </p>
           )}
+          {enEspera.length > 0 && (
+            <section aria-label="Notas en espera" className="flex flex-col gap-(--espacio-1)">
+              <h3 className="text-xs font-semibold text-texto-sutil uppercase">En espera</h3>
+              {enEspera.map((nota) => (
+                <Button
+                  key={nota.numero}
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  className="justify-between"
+                  disabled={filas === null}
+                  onClick={() => {
+                    retomar(nota.numero);
+                  }}
+                >
+                  <span>Retomar la {nota.numero}</span>
+                  <span className="text-texto-sutil">
+                    {nota.quien ?? `${String(nota.partidas.length)} partidas`}
+                  </span>
+                </Button>
+              ))}
+            </section>
+          )}
+          {/* El número, grande y en su sitio: es lo único que el cliente se lleva
+              del mostrador, y va a decirlo en voz alta a tres metros. */}
+          {folioEnCaja !== null && (
+            <Aviso tono="exito" titulo={`${voc.titulo('orden')} ${folioEnCaja} está en la caja.`}>
+              <span className="block font-numeros text-3xl font-bold text-texto">
+                {folioEnCaja}
+              </span>
+              Es lo que el cliente dice al pagar.
+            </Aviso>
+          )}
         </div>
-      </aside>
+      </Superficie>
+
+      <Dialog open={descontando} onOpenChange={setDescontando}>
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Descuento</DialogTitle>
+            <DialogDescription>
+              Hasta tu tope se aplica solo; arriba, lo autoriza un supervisor con su PIN.
+            </DialogDescription>
+          </DialogHeader>
+          {descontando ? (
+            <DescuentoDeVenta
+              base={sinDescuento}
+              onAplicar={(elegido) => {
+                setDescuento({ elegido, base: sinDescuento });
+                setDescontando(false);
+              }}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <ElegirClienteDelMostrador
+        abierto={eligiendo}
+        alCerrar={() => {
+          setEligiendo(false);
+        }}
+        alElegir={elegirCliente}
+      />
 
       <button
         type="button"
@@ -584,55 +1146,14 @@ export function Mostrador({
         onClick={() => {
           setVentaAbierta((abierta) => !abierta);
         }}
-        className="fixed inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-border bg-primary p-3 text-primary-foreground tabular-nums xl:hidden"
+        className="fixed inset-x-0 bottom-0 z-10 flex items-center justify-between border-t border-borde bg-primario p-(--espacio-3) text-primario-texto xl:hidden"
       >
         <span>{partidas.length} partidas</span>
-        <span className="font-semibold">
-          {PESOS.format(total / 100)} {ventaAbierta ? '▾' : '▴'}
+        <span className="flex items-center gap-(--espacio-2) font-semibold">
+          <Dinero centavos={total} />
+          {ventaAbierta ? <ChevronDown aria-hidden="true" /> : <ChevronUp aria-hidden="true" />}
         </span>
       </button>
     </div>
-  );
-}
-
-interface FilaMaterialProps {
-  readonly material: MaterialDeMostrador;
-  readonly onAgregar: (material: MaterialDeMostrador) => void;
-}
-
-/**
- * La misma fila sirve de renglón de tabla en PC y de tarjeta en el pasillo.
- *
- * Es un `button` y no una celda porque el resultado se agrega con Enter y se
- * recorre con Tab: la tabla de atajos lo pide y el navegador ya lo sabe hacer.
- */
-function FilaMaterial({ material, onAgregar }: FilaMaterialProps) {
-  const agotado = material.existencia === 0;
-  const negativo = material.existencia < 0;
-  return (
-    <button
-      type="button"
-      onClick={() => {
-        onAgregar(material);
-      }}
-      // Se atenúa, pero NO se esconde: saber que el material existe aunque no
-      // haya permite decir «te lo pido para el jueves», que es una venta.
-      className={`${FILA} ${agotado || negativo ? 'opacity-70' : ''}`}
-      aria-label={`${material.nombre} ${material.medida}, ${PESOS.format(material.precioCentavos / 100)}, hay ${material.existencia} ${material.unidad}, en ${material.ubicacion ?? 'ubicación sin capturar'}`}
-    >
-      <span className="col-span-2 text-lg font-semibold xl:col-span-1 xl:text-base">
-        {material.medida}
-      </span>
-      <span className="text-sm text-muted-foreground">{material.acabado ?? '—'}</span>
-      <span className="text-sm text-muted-foreground">{material.marca ?? '—'}</span>
-      <span className="font-semibold tabular-nums">
-        {PESOS.format(material.precioCentavos / 100)}
-      </span>
-      <span className="text-sm tabular-nums">
-        {negativo ? '✖ revisar' : `${material.existencia} ${material.unidad}`}
-      </span>
-      {/* En negritas siempre: en el pasillo es el dato que se está usando. */}
-      <span className="text-right font-bold xl:text-left">📍 {material.ubicacion ?? '—'}</span>
-    </button>
   );
 }

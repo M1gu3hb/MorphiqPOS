@@ -156,7 +156,12 @@ export async function anotarOperacionDeComision(
         organizacion_id: organizacionId,
         sucursal_id: datos.sucursalId,
         comisionista_id: comisionista.id,
-        tipo: datos.tipo,
+        // `tipo` es el de la OPERACIÓN (`operacion_comision_tipo_valido`, 095): venderle el
+        // servicio a un cliente es una `venta`. Aquí iba el tipo de SERVICIO —«recarga»,
+        // «pago_servicio»— y Postgres rechazaba con 23514 TODA recarga y todo recibo: F-255
+        // no funcionó nunca contra la base real (bloque D de la 2.4). Qué servicio fue lo
+        // dice el comisionista (`comisionistas.tipo`), y por ahí agrupa el corte.
+        tipo: 'venta',
         monto_ajeno_centavos: ajeno,
         comision_centavos: BigInt(datos.comisionNegocioCentavos),
         comision_bp_aplicada: comisionBp,

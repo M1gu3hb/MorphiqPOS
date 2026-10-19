@@ -12,6 +12,7 @@ export {
   empleadosParaEntrar,
   entrarConPin,
   organizacionDeQuienEntra,
+  organizacionDelDispositivo,
   type PeticionEntrar,
   type ResultadoEntrar,
 } from './entrar.ts';
@@ -30,3 +31,13 @@ export {
   entradaGuardarEmpleado,
   type ResultadoGuardarEmpleado,
 } from './empleados.ts';
+
+export {
+  autorizarConPin,
+  leerAutorizacion,
+  ROLES_QUE_AUTORIZAN,
+  VIGENCIA_AUTORIZACION_SEGUNDOS,
+  type PeticionDeSupervisor,
+  type ResultadoDeSupervisor,
+} from './supervisor.ts';
+export { negociosDePresentacion, cambiarNegocioDePresentacion } from './presentacion.ts';

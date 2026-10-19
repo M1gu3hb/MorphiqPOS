@@ -339,15 +339,15 @@ export default function BarcodeScanner({
   if (pendingCode) statusText = 'Código listo — revísalo';
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black flex flex-col">
+    <div className="fixed inset-0 z-[200] bg-primario flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 bg-gray-900 text-white flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 bg-primario text-primario-texto flex-shrink-0">
         <h2 className="text-base font-bold flex items-center gap-2">
           <Camera className="h-5 w-5" /> {title}
         </h2>
         <button
           onClick={() => { stopCamera(); onClose(); }}
-          className="h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 flex items-center justify-center"
+          className="h-9 w-9 rounded-full bg-primario-texto/10 hover:bg-primario-texto/20 flex items-center justify-center"
         >
           <X className="h-5 w-5" />
         </button>
@@ -358,21 +358,21 @@ export default function BarcodeScanner({
         {manualMode ? (
           <div className="w-full max-w-md p-6 space-y-4">
             {!canUseCamera && (
-              <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-amber-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-amber-100">
+              <div className="bg-advertencia/10 border border-advertencia/30 rounded-xl p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-advertencia flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-advertencia">
                   Tu navegador no permite escaneo por cámara. Ingresa el código manualmente.
                 </div>
               </div>
             )}
             {error && (
-              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 flex items-start gap-3">
-                <AlertCircle className="h-5 w-5 text-red-400 flex-shrink-0 mt-0.5" />
-                <div className="text-sm text-red-100">{error}</div>
+              <div className="bg-peligro/10 border border-peligro/30 rounded-xl p-4 flex items-start gap-3">
+                <AlertCircle className="h-5 w-5 text-peligro flex-shrink-0 mt-0.5" />
+                <div className="text-sm text-peligro">{error}</div>
               </div>
             )}
             <div>
-              <label className="text-sm font-semibold text-white block mb-2">Código de barras</label>
+              <label className="text-sm font-semibold text-primario-texto block mb-2">Código de barras</label>
               <Input
                 value={manualValue}
                 onChange={e => setManualValue(e.target.value)}
@@ -380,10 +380,10 @@ export default function BarcodeScanner({
                 placeholder="Escribe o escanea con lector USB..."
                 autoFocus
                 inputMode="numeric"
-                className="h-12 text-base bg-white text-gray-900"
+                className="h-12 text-base bg-superficie text-texto"
               />
               {manualValue && isSuspiciousBarcode(manualValue) && (
-                <p className="text-xs text-amber-300 mt-1">
+                <p className="text-xs text-advertencia mt-1">
                   Este código parece corto. Revisa que esté completo.
                 </p>
               )}
@@ -394,7 +394,7 @@ export default function BarcodeScanner({
             {canUseCamera && (
               <button
                 onClick={() => { setManualMode(false); setError(null); }}
-                className="w-full text-sm text-blue-300 hover:text-blue-200 underline"
+                className="w-full text-sm text-info hover:text-info underline"
               >
                 Volver a escaneo con cámara
               </button>
@@ -443,36 +443,36 @@ export default function BarcodeScanner({
               <div className="relative" style={{ width: 'min(85vw, 360px)', height: '180px' }}>
                 {['top-0 left-0 border-t-4 border-l-4', 'top-0 right-0 border-t-4 border-r-4',
                   'bottom-0 left-0 border-b-4 border-l-4', 'bottom-0 right-0 border-b-4 border-r-4'].map((cls, i) => (
-                  <div key={i} className={`absolute h-8 w-8 border-white ${cls} rounded-md`} />
+                  <div key={i} className={`absolute h-8 w-8 border-borde ${cls} rounded-md`} />
                 ))}
-                <div className="absolute inset-x-4 top-1/2 h-[2px] bg-red-500 shadow-[0_0_12px_2px_rgba(239,68,68,0.8)] scan-line" />
+                <div className="absolute inset-x-4 top-1/2 h-[2px] bg-peligro shadow-[0_0_12px_2px_rgba(239,68,68,0.8)] scan-line" />
               </div>
 
               {/* Estado + candidato */}
               <div className="mt-4 flex flex-col items-center gap-2 px-4">
-                <p className="text-white text-sm font-medium drop-shadow-lg bg-black/50 px-4 py-2 rounded-full">
+                <p className="text-primario-texto text-sm font-medium drop-shadow-lg bg-velo px-4 py-2 rounded-full">
                   {statusText}
                 </p>
                 {candidate && (
-                  <p className="text-white/90 text-xs font-mono bg-black/50 px-3 py-1 rounded-full">
+                  <p className="text-primario-texto/90 text-xs font-mono bg-velo px-3 py-1 rounded-full">
                     {candidate}
                   </p>
                 )}
                 {engine === 'zxing' && !pendingCode && (
-                  <p className="text-white/50 text-[10px]">Modo compatible</p>
+                  <p className="text-primario-texto/50 text-[10px]">Modo compatible</p>
                 )}
               </div>
             </div>
 
             {/* Tarjeta de confirmación (pendingCode) */}
             {pendingCode && (
-              <div className="absolute bottom-4 left-3 right-3 bg-white dark:bg-gray-900 rounded-2xl shadow-2xl p-4 pointer-events-auto">
+              <div className="absolute bottom-4 left-3 right-3 bg-superficie rounded-2xl shadow-2xl p-4 pointer-events-auto">
                 <p className="text-xs text-muted-foreground mb-1">Código detectado:</p>
                 <p className="text-2xl font-bold font-mono tabular-nums text-foreground mb-3 break-all">
                   {pendingCode}
                 </p>
                 {isSuspiciousBarcode(pendingCode) && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400 mb-2 flex items-start gap-1">
+                  <p className="text-xs text-advertencia mb-2 flex items-start gap-1">
                     <AlertCircle className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
                     Este código parece incompleto. Revísalo o reintenta.
                   </p>
@@ -496,8 +496,8 @@ export default function BarcodeScanner({
             )}
 
             {!scanning && !error && (
-              <div className="absolute inset-0 flex items-center justify-center bg-black/60">
-                <div className="text-white text-sm">Iniciando cámara…</div>
+              <div className="absolute inset-0 flex items-center justify-center bg-velo">
+                <div className="text-primario-texto text-sm">Iniciando cámara…</div>
               </div>
             )}
           </>
@@ -505,11 +505,11 @@ export default function BarcodeScanner({
       </div>
 
       {/* Footer */}
-      <div className="flex items-center gap-2 px-4 py-3 bg-gray-900 flex-shrink-0">
+      <div className="flex items-center gap-2 px-4 py-3 bg-primario flex-shrink-0">
         <Button
           onClick={() => setManualMode(m => !m)}
           variant="outline"
-          className="flex-1 bg-gray-800 border-gray-700 text-white hover:bg-gray-700 h-11"
+          className="flex-1 bg-primario border-borde-fuerte text-primario-texto hover:bg-primario h-11"
         >
           <Keyboard className="h-4 w-4 mr-1" />
           {manualMode ? 'Usar cámara' : 'Ingresar manual'}
@@ -519,7 +519,7 @@ export default function BarcodeScanner({
             onClick={switchCamera}
             variant="outline"
             size="icon"
-            className="bg-gray-800 border-gray-700 text-white hover:bg-gray-700 h-11 w-11"
+            className="bg-primario border-borde-fuerte text-primario-texto hover:bg-primario h-11 w-11"
             title="Cambiar cámara"
           >
             <SwitchCamera className="h-5 w-5" />

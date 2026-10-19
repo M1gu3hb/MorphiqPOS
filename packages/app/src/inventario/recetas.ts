@@ -49,6 +49,15 @@ const ingrediente = z.object({
    * silenciosa, que es la peor clase.
    */
   aplicaCanal: z.enum(['ambos', 'aqui', 'llevar']).default('ambos'),
+  /**
+   * F-027 · El GRUPO de opciones que puede sustituir esta línea: la leche entera del
+   * latte la sustituye el grupo «Leche». Nulo, ninguno.
+   *
+   * La 084 dejó la columna y nadie la escribía, así que el latte de avena descontaba
+   * leche entera: la pantalla ofrecía avena y el almacén no se enteraba. Se declara en
+   * la LÍNEA porque es la línea la que se sustituye, no la bebida entera.
+   */
+  sustituiblePorGrupoId: z.uuid().nullable().default(null),
 });
 
 export const entradaGuardarReceta = z.object({
@@ -73,6 +82,35 @@ export const entradaGuardarReceta = z.object({
    */
   ingredientes: z.array(ingrediente).max(50),
 });
+/**
+ * Los grupos que una receta declara como sustitutos tienen que ser DE ESTE negocio.
+ *
+ * El `fk` de la 084 sólo pide que el grupo exista, en cualquier organización: sin esta
+ * guarda, un id colado haría que la leche de un negocio la sustituyera la opción de
+ * otro —y el cobro, que también guarda por organización, simplemente no sustituiría,
+ * dejando la receta declarando algo que nunca ocurre—.
+ */
+async function exigirGruposDelNegocio(
+  ctx: ContextoComando<Transaccion>,
+  grupoIds: readonly string[],
+): Promise<void> {
+  const unicos = [...new Set(grupoIds)];
+  if (unicos.length === 0) return;
+  const propios = await ctx.tx
+    .selectFrom('modificadores')
+    .select('id')
+    .where('organizacion_id', '=', ctx.ambito.organizacionId)
+    .where('activo', '=', true)
+    .where('id', 'in', unicos)
+    .execute();
+  if (propios.length !== unicos.length) {
+    throw new ErrorDominio(
+      'CATALOGO_INVALIDO',
+      'El grupo de opciones que sustituye esa línea no es de este negocio.',
+    );
+  }
+}
+
 export const entradaActualizarCostoInsumo = z.object({
   insumoId: z.uuid(),
   costoUnitario: z.string().regex(/^\d+(?:\.\d{1,2})?$/),
@@ -106,6 +144,7 @@ export const guardarReceta = definirComando<
       unidad: string;
       mermaBp: number;
       canales: string | null;
+      grupoId: string | null;
     }[] = [];
     for (const item of entrada.ingredientes) {
       const insumo = await ctx.tx
@@ -130,8 +169,13 @@ export const guardarReceta = definirComando<
         // arreglo completo: «no depende del canal» y «aplica a los cuatro de hoy» no
         // son la misma afirmación, y la segunda envejece mal.
         canales: item.aplicaCanal === 'ambos' ? null : `{${item.aplicaCanal}}`,
+        grupoId: item.sustituiblePorGrupoId,
       });
     }
+    await exigirGruposDelNegocio(
+      ctx,
+      filas.map((f) => f.grupoId).filter((id): id is string => id !== null),
+    );
     await ctx.paso('reemplazar_receta', async () => {
       await sql`delete from recetas where organizacion_id = ${ctx.ambito.organizacionId} and producto_id = ${entrada.productoId}`.execute(
         ctx.tx,
@@ -144,9 +188,9 @@ export const guardarReceta = definirComando<
 
       const valores = filas.map(
         (item) =>
-          sql`(${ctx.ambito.organizacionId}, ${entrada.productoId}, ${item.insumoId}, ${item.cantidad}, ${item.unidad}, ${item.mermaBp}, ${item.canales})`,
+          sql`(${ctx.ambito.organizacionId}, ${entrada.productoId}, ${item.insumoId}, ${item.cantidad}, ${item.unidad}, ${item.mermaBp}, ${item.canales}, ${item.grupoId})`,
       );
-      await sql`insert into recetas (organizacion_id, producto_id, insumo_id, cantidad, unidad, merma_bp, aplica_canal) values ${sql.join(valores)}`.execute(
+      await sql`insert into recetas (organizacion_id, producto_id, insumo_id, cantidad, unidad, merma_bp, aplica_canal, sustituible_por_grupo_id) values ${sql.join(valores)}`.execute(
         ctx.tx,
       );
     });

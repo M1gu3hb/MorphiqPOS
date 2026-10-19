@@ -195,7 +195,7 @@ function totalizar(
   return { totales, subtotal, total: subtotal - descuento };
 }
 
-interface FilaCotizacion {
+export interface FilaCotizacion {
   readonly id: string;
   readonly folio: string;
   readonly version: number;
@@ -208,7 +208,7 @@ interface FilaCotizacion {
   readonly telefono_libre: string | null;
 }
 
-async function cargar(
+export async function cargar(
   ctx: ContextoComando<Transaccion>,
   cotizacionId: string,
 ): Promise<FilaCotizacion> {
@@ -432,6 +432,7 @@ export const versionarCotizacion = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaVersionarCotizacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;
@@ -512,6 +513,7 @@ export const registrarEnvio = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaRegistrarEnvio,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -553,6 +555,7 @@ export const registrarAprobacion = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaRegistrarAprobacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -603,47 +606,61 @@ export const convertirCotizacion = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones', ordenId: 'ordenes' },
   entrada: entradaConvertirCotizacion,
   async ejecutar(ctx, entrada) {
-    const { organizacionId } = ctx.ambito;
-    const cotizacion = await cargar(ctx, entrada.cotizacionId);
-
-    if (!sigueVigente(cotizacion.vence_el, ctx.ahora)) {
-      throw new ErrorDominio(
-        'CONFIGURACION_CONFLICTO',
-        'Esa cotización venció: convertirla es cerrar en pérdida la venta que se celebró.',
-      );
-    }
-
-    // `ganada` exige orden Y fecha de cierre a la vez (`cotizacion_ganada_con_orden`):
-    // una ganada sin orden es un deseo, y sin fecha no se puede sacar del embudo.
-    const tocadas = await ctx.paso('convertir', () =>
-      ctx.tx
-        .updateTable('cotizaciones')
-        .set({
-          estado: 'ganada',
-          orden_id: entrada.ordenId,
-          cerrada_en: ctx.ahora,
-          updated_at: ctx.ahora,
-        })
-        .where('organizacion_id', '=', organizacionId)
-        .where('id', '=', entrada.cotizacionId)
-        .where('estado', 'in', ['enviada', 'aprobada'])
-        .executeTakeFirst(),
-    );
-    if (Number(tocadas.numUpdatedRows) !== 1) {
-      throw new ErrorDominio(
-        'CONFIGURACION_CONFLICTO',
-        'Esa cotización ya estaba cerrada, o todavía es un borrador.',
-      );
-    }
-
-    await anotarEvento(ctx, entrada.cotizacionId, 'convertida', null, null);
-
+    await ganarCotizacion(ctx, entrada.cotizacionId, entrada.ordenId);
     ctx.auditar({ entidadId: entrada.cotizacionId, payload: { ordenId: entrada.ordenId } });
     return { cotizacionId: entrada.cotizacionId, estado: 'ganada' };
   },
 });
+
+/**
+ * LA COTIZACIÓN SE GANA CON SU ORDEN: vigente, y sólo si se mandó (F-604). La comparten
+ * `cotizacion.convertir`, que recibe una orden ya hecha, y `cotizacion.convertir_en_nota`
+ * (`ferreteria/cotizacion-a-nota.ts`), que la abre como nota de mostrador con los precios
+ * cotizados (bloque D de la 2.4). No audita: lo hace quien llama.
+ */
+export async function ganarCotizacion(
+  ctx: ContextoComando<Transaccion>,
+  cotizacionId: string,
+  ordenId: string,
+): Promise<void> {
+  const { organizacionId } = ctx.ambito;
+  const cotizacion = await cargar(ctx, cotizacionId);
+
+  if (!sigueVigente(cotizacion.vence_el, ctx.ahora)) {
+    throw new ErrorDominio(
+      'CONFIGURACION_CONFLICTO',
+      'Esa cotización venció: convertirla es cerrar en pérdida la venta que se celebró.',
+    );
+  }
+
+  // `ganada` exige orden Y fecha de cierre a la vez (`cotizacion_ganada_con_orden`):
+  // una ganada sin orden es un deseo, y sin fecha no se puede sacar del embudo.
+  const tocadas = await ctx.paso('convertir', () =>
+    ctx.tx
+      .updateTable('cotizaciones')
+      .set({
+        estado: 'ganada',
+        orden_id: ordenId,
+        cerrada_en: ctx.ahora,
+        updated_at: ctx.ahora,
+      })
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', cotizacionId)
+      .where('estado', 'in', ['enviada', 'aprobada'])
+      .executeTakeFirst(),
+  );
+  if (Number(tocadas.numUpdatedRows) !== 1) {
+    throw new ErrorDominio(
+      'CONFIGURACION_CONFLICTO',
+      'Esa cotización ya estaba cerrada, o todavía es un borrador.',
+    );
+  }
+
+  await anotarEvento(ctx, cotizacionId, 'convertida', null, null);
+}
 
 export const registrarSurtido = definirComando<
   Transaccion,
@@ -655,6 +672,7 @@ export const registrarSurtido = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaRegistrarSurtido,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -732,6 +750,7 @@ export const cerrarCotizacion = definirComando<
   escribe: true,
   roles: [...AUTORIZA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { cotizacionId: 'cotizaciones' },
   entrada: entradaCerrarCotizacion,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

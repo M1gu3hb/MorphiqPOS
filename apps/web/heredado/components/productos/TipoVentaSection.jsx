@@ -233,7 +233,7 @@ export default function TipoVentaSection({ value = {}, onChange, ingredientes = 
                 </SelectContent>
               </Select>
               {safeIngredientes.length === 0 && (
-                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">
+                <p className="text-[11px] text-advertencia mt-1">
                   Necesitas registrar al menos un ingrediente en Inventario para usar este tipo de
                   venta.
                 </p>
@@ -358,7 +358,7 @@ export default function TipoVentaSection({ value = {}, onChange, ingredientes = 
                     <SelectItem key={i.id} value={i.id}>
                       {i.nombre}
                       {i.tipo_ingrediente === 'contenedor' ? (
-                        <span className="text-emerald-600"> · contenedor</span>
+                        <span className="text-exito"> · contenedor</span>
                       ) : (
                         <span className="text-muted-foreground"> ({i.unidad_base})</span>
                       )}
@@ -367,7 +367,7 @@ export default function TipoVentaSection({ value = {}, onChange, ingredientes = 
                 </SelectContent>
               </Select>
               {safeIngredientes.length === 0 && (
-                <p className="text-[11px] text-amber-700 dark:text-amber-300 mt-1">
+                <p className="text-[11px] text-advertencia mt-1">
                   Necesitas registrar al menos un ingrediente en Inventario para usar este tipo de
                   venta.
                 </p>

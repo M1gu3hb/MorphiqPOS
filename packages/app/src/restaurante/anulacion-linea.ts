@@ -83,6 +83,7 @@ export const anularLineaComando = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes', lineaId: 'orden_lineas' },
   entrada: entradaAnularLinea,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

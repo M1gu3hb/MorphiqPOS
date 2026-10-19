@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { z } from 'zod';
 
+import { insumoDelProducto } from '../catalogo/insumo-del-producto.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 
 /**
@@ -45,9 +46,27 @@ const CABINA = ['mesero', 'cajero', 'gerente', 'administrador', 'dueno'] as cons
  * Si no hay un segundo almacén se DICE, con lo que hay que hacer. Antes esto no
  * podía fallar porque la pantalla mandaba dos cadenas vacías y no llegaba nunca.
  */
-async function almacenesDelSalon(
+export async function almacenesDelSalon(
   ctx: ContextoComando<Transaccion>,
 ): Promise<{ readonly venta: string; readonly cabina: string }> {
+  const { venta, cabina } = await almacenesParaLeer(ctx);
+  if (cabina === null) {
+    throw new ErrorDominio(
+      'CONFIGURACION_INVALIDA',
+      'Este negocio no tiene almacén de CABINA: lo que se abre para mezclar se cuenta aparte de ' +
+        'lo que se vende, o el inventario del anaquel miente. Da de alta un segundo almacén.',
+    );
+  }
+  return { venta, cabina };
+}
+
+/**
+ * Los mismos dos almacenes, para LEER: sin el de cabina el anaquel se sigue pudiendo
+ * contar (`cabina.existencias`). Escribir en cabina sí lo exige: ver arriba.
+ */
+export async function almacenesParaLeer(
+  ctx: ContextoComando<Transaccion>,
+): Promise<{ readonly venta: string; readonly cabina: string | null }> {
   const { organizacionId, sucursalId } = ctx.ambito;
   if (sucursalId === null) {
     throw new ErrorDominio(
@@ -66,21 +85,14 @@ async function almacenesDelSalon(
       .execute(),
   );
   const venta = almacenes.find((a) => a.principal) ?? almacenes[0];
-  const cabina = almacenes.find((a) => a.id !== venta?.id);
   if (venta === undefined) {
     throw new ErrorDominio(
       'CONFIGURACION_INVALIDA',
       'Esta sucursal no tiene almacén dado de alta.',
     );
   }
-  if (cabina === undefined) {
-    throw new ErrorDominio(
-      'CONFIGURACION_INVALIDA',
-      'Este negocio no tiene almacén de CABINA: lo que se abre para mezclar se cuenta aparte de ' +
-        'lo que se vende, o el inventario del anaquel miente. Da de alta un segundo almacén.',
-    );
-  }
-  return { venta: venta.id, cabina: cabina.id };
+  const cabina = almacenes.find((a) => a.id !== venta.id);
+  return { venta: venta.id, cabina: cabina?.id ?? null };
 }
 
 export const entradaAbrirProducto = z.object({
@@ -140,9 +152,29 @@ export interface FaltanteDeCabina {
   readonly hara_falta: string;
 }
 
+/**
+ * Un material del día en la cabina, con lo que la pantalla necesita para decidir (§4.3.9,
+ * C.10 de la 2.4): su nombre y su unidad —antes sólo viajaba el id y la pantalla lo
+ * adivinaba por el producto que lo surte—, cuántos servicios de hoy lo piden y para
+ * cuántos de ésos alcanza lo que hay.
+ */
+export interface InsumoDeCabina {
+  readonly insumoId: string;
+  readonly nombre: string | null;
+  readonly unidad: string | null;
+  readonly hay: string;
+  readonly hara_falta: string;
+  /** Cuántos servicios de hoy lo piden; nulo si el consumo lo trajo quien pregunta. */
+  readonly servicios: number | null;
+  /** Para cuántos de esos servicios alcanza lo que hay; nulo sin servicios. */
+  readonly alcanzaPara: number | null;
+  readonly falta: boolean;
+}
+
 export interface ResultadoAlcanza {
   readonly alcanza: boolean;
   readonly faltantes: readonly FaltanteDeCabina[];
+  readonly insumos: readonly InsumoDeCabina[];
 }
 
 const ESCALA = 10_000n;
@@ -168,6 +200,7 @@ export const abrirProducto = definirComando<
   escribe: true,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenVentaId: 'almacenes', almacenCabinaId: 'almacenes' },
   entrada: entradaAbrirProducto,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -189,7 +222,7 @@ export const abrirProducto = definirComando<
     const producto = await ctx.paso('leer_producto', () =>
       ctx.tx
         .selectFrom('productos')
-        .select(['id', 'nombre', 'destino', 'factor_apertura', 'unidad_cabina', 'insumo_base_id'])
+        .select(['id', 'nombre', 'destino', 'factor_apertura', 'unidad_cabina'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.productoId)
         .executeTakeFirst(),
@@ -207,7 +240,12 @@ export const abrirProducto = definirComando<
     }
     const factor = producto.factor_apertura;
     const unidad = producto.unidad_cabina;
-    const insumoId = producto.insumo_base_id;
+    // El insumo por la liga de REVENTA (`insumos.producto_id`), la que escribe el alta y
+    // descuenta la venta; leer sólo `insumo_base_id` dejaba sin abrir todo producto
+    // dado de alta como se da de alta.
+    const insumoId = await ctx.paso('leer_insumo', () =>
+      insumoDelProducto(ctx.tx, organizacionId, producto.id),
+    );
     if (factor == null || unidad == null || insumoId === null) {
       // El `check` de la 141 lo exige, pero aquí se puede decir QUÉ falta: un
       // 23514 sólo diría que algo de la ficha está a medias.
@@ -286,6 +324,7 @@ export const alcanzaLaCabina = definirComando<
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenCabinaId: 'almacenes' },
   entrada: entradaAlcanzaCabina,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -310,8 +349,12 @@ export const alcanzaLaCabina = definirComando<
      * empieza el día—, sus servicios, y las recetas de esos servicios sumadas por
      * insumo. Las canceladas y las que no llegaron no gastan nada.
      */
-    const esperado =
-      entrada.consumoEsperado ??
+    const esperado: readonly {
+      readonly insumoId: string;
+      readonly cantidadBase: string;
+      readonly servicios: number | null;
+    }[] =
+      entrada.consumoEsperado?.map((e) => ({ ...e, servicios: null })) ??
       (await ctx.paso('consumo_del_dia', async () => {
         const filas = await ctx.tx
           .selectFrom('citas')
@@ -323,6 +366,7 @@ export const alcanzaLaCabina = definirComando<
           .select([
             'recetas.insumo_id as insumoId',
             sql<string>`sum(recetas.cantidad::numeric)`.as('cantidad'),
+            sql<string>`count(distinct cita_servicios.id)`.as('servicios'),
           ])
           .where('citas.organizacion_id', '=', organizacionId)
           .where('citas.estado', 'not in', ['cancelada', 'no_llego'])
@@ -334,12 +378,19 @@ export const alcanzaLaCabina = definirComando<
         return filas.map((fila) => ({
           insumoId: fila.insumoId,
           cantidadBase: Number(fila.cantidad).toFixed(4),
+          servicios: Number(fila.servicios),
         }));
       }));
 
+    const nombres = await nombresDeInsumos(
+      ctx,
+      esperado.map((e) => e.insumoId),
+    );
+    const insumos: InsumoDeCabina[] = [];
     for (const necesario of esperado) {
       const hay = hayPorInsumo.get(necesario.insumoId) ?? 0n;
       const hara = aEscala(necesario.cantidadBase);
+      const { servicios } = necesario;
       if (hay < hara) {
         faltantes.push({
           insumoId: necesario.insumoId,
@@ -347,13 +398,55 @@ export const alcanzaLaCabina = definirComando<
           hara_falta: deEscala(hara),
         });
       }
+      insumos.push({
+        insumoId: necesario.insumoId,
+        nombre: nombres.get(necesario.insumoId)?.nombre ?? null,
+        unidad: nombres.get(necesario.insumoId)?.unidad_base ?? null,
+        hay: deEscala(hay),
+        hara_falta: deEscala(hara),
+        servicios,
+        alcanzaPara: alcanzaParaCuantos(hay, hara, servicios),
+        falta: hay < hara,
+      });
     }
 
     // Se devuelven TODOS los faltantes y no sólo el primero: quien va a comprar
-    // hace un viaje, y enterarse de uno en uno son tres viajes.
-    return { alcanza: faltantes.length === 0, faltantes };
+    // hace un viaje, y enterarse de uno en uno son tres viajes. Y los que alcanzan
+    // también, con su margen: «alcanza para 2 de 5» se decide distinto que «falta».
+    return { alcanza: faltantes.length === 0, faltantes, insumos };
   },
 });
+
+/**
+ * Para cuántos servicios alcanza lo que hay, con el gasto PROMEDIO de los de hoy: si
+ * cinco tintes piden 300 g y hay 130 g, alcanza para dos. Hacia abajo: medio tinte no se
+ * aplica. Sin servicios —el consumo lo trajo quien pregunta— no hay «cuántos».
+ */
+export function alcanzaParaCuantos(
+  hay: bigint,
+  hara: bigint,
+  servicios: number | null,
+): number | null {
+  if (servicios === null || servicios <= 0 || hara <= 0n) return null;
+  return Math.min(servicios, Number((hay * BigInt(servicios)) / hara));
+}
+
+/** El nombre y la unidad de cada insumo, en una lectura acotada al negocio. */
+async function nombresDeInsumos(
+  ctx: ContextoComando<Transaccion>,
+  ids: readonly string[],
+): Promise<ReadonlyMap<string, { readonly nombre: string; readonly unidad_base: string }>> {
+  if (ids.length === 0) return new Map();
+  const filas = await ctx.paso('leer_insumos', () =>
+    ctx.tx
+      .selectFrom('insumos')
+      .select(['id', 'nombre', 'unidad_base'])
+      .where('organizacion_id', '=', ctx.ambito.organizacionId)
+      .where('id', 'in', [...new Set(ids)])
+      .execute(),
+  );
+  return new Map(filas.map((f) => [f.id, f]));
+}
 
 /**
  * LA FICHA DE CABINA · «este producto también se usa adentro».

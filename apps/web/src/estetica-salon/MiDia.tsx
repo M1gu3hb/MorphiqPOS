@@ -3,12 +3,45 @@
 import { Badge } from '@morphiqpos/ui/primitivas/badge';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Progress } from '@morphiqpos/ui/primitivas/progress';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
+import {
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  CalendarPlus,
+  ChevronRight,
+  Scissors,
+  TriangleAlert,
+  UserPlus,
+  UsersRound,
+} from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { useEffect, useMemo, useState } from 'react';
 
-import { consultarPuente } from '~/cliente/api';
+import { consultarPuente, invocarComando } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import {
+  componerElDia,
+  esMismoDia,
+  leerPropinaDelDia,
+  rutaDeLaCita,
+  type CitaDeMiDia,
+  type FilaCita,
+  type FilaCitaServicio,
+  type FilaCliente,
+  type FilaComision,
+  type FilaExpediente,
+} from './mi-dia.ts';
+
+export type { CitaDeMiDia } from './mi-dia.ts';
 
 /**
  * PANTALLA · estetica-salon · mi-dia
@@ -24,7 +57,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *
  * ── La que sigue va grande y sola ────────────────────────────────────────
  * Es la acción principal —abrir la siguiente cita— y compite con un espejo, una
- * clienta hablando y un secador. Si comparte tamaño con el resto, se pierde.
+ * clienta hablando y un secador. Si comparte tamaño con el resto, se pierde. Por
+ * eso es la única superficie levantada (nivel 2) y con el borde del primario: el
+ * resto de la pantalla está a ras.
  *
  * ── Comisión y propina en dos renglones, SIEMPRE ─────────────────────────
  * Es la regla del §4.4 de `02-DINERO-Y-CAJA.md` puesta en pantalla: sumadas,
@@ -32,8 +67,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * «total» debajo: no existe un número que junte esas dos cosas.
  *
  * ── Y por qué la propina puede decir «sin dato» en vez de $0 ─────────────
- * Porque hoy no se puede leer: `BeneficiarioPropina` la ven sólo dueño y
- * administrador, y `ComisionCausada.tipo` no tiene 'propina' —son 'servicio',
+ * Porque hoy no se puede leer: el reparto por persona vive en
+ * `liquidacion_propina_beneficiarios`, que no lleva organización y por eso el
+ * puente no la expone (D-36), y `ComisionCausada.tipo` no tiene 'propina' —son 'servicio',
  * 'producto', 'venta_paquete', 'ajuste' y 'contrapartida'—. Un $0 sería mentira
  * y fundirla con la comisión sería justo el error que la regla prohíbe, así que
  * el renglón se queda, vacío y dicho con palabras.
@@ -44,21 +80,30 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * el puente no expone. El hueco es por tanto una sugerencia honesta, no un
  * dato: por eso se enseña con su rango y su medida, para que ella decida.
  *
- * ── Quién es «yo», y por qué hay un paso para decirlo ────────────────────
- * La sesión todavía no dice qué profesional mira. Sin `profesionalId` esta
- * pantalla no consulta nada y pregunta el nombre, porque enseñar el día de otra
- * persona es peor que no enseñar nada. Que conste: elegir el nombre aquí es
- * comodidad de pantalla, NO una barrera; el recorte por persona lo tiene que
- * hacer el servidor el día que la sesión sepa quién entró.
+ * ── Teléfono primero; la tableta y la PC, con el desglose al lado ────────
+ * En el teléfono va en el orden del documento: la que sigue, lo ganado, el resto
+ * del día y la walk-in abajo, en el tercio que el pulgar alcanza. De tableta para
+ * arriba lo ganado sube a la derecha, a la altura de la que sigue, y debajo va el
+ * desglose servicio por servicio: es lo que abre para verificar un número antes
+ * de que le paguen, y en el teléfono estorbaría.
+ *
+ * ── Quién es «yo»: lo dice el SERVIDOR (C.7 de la 2.4) ────────────────────
+ * Esta pantalla preguntaba el nombre y enseñaba el día de quien se eligiera: cualquier
+ * estilista podía leer la agenda y las comisiones de otra, y aquí mismo decía que el
+ * recorte «lo tiene que hacer el servidor el día que la sesión sepa quién entró». Ya lo
+ * hace: para la estilista, el puente sólo devuelve SU ficha de `Profesional`, SUS
+ * servicios, SUS citas y SUS comisiones (`soloDeQuienEntra`). Así que la lista del
+ * equipo le llega con UNA persona —ella— y la pantalla entra directo a su día, sin
+ * preguntar. Quien dirige el salón sí recibe a todas, y elige a quién mirar.
  *
  * ── Lo que NO va aquí ────────────────────────────────────────────────────
  * La venta del salón, la comisión de nadie más, el corte y los gastos. Esta
  * pantalla es de UNA persona.
  *
- * ── Alcance recortado, dicho y no escondido ──────────────────────────────
- * El nombre del servicio llega vacío: el puente no declara `Servicio`, así que
- * `CitaServicio` sólo trae su id. Llega por props, para las pruebas y para el
- * día que la entidad exista. Los minutos de procesado, igual.
+ * ── De dónde sale cada dato ─────────────────────────────────────────────
+ * El nombre del servicio y sus minutos de procesado vienen de `CitaServicio`
+ * (derivados del producto y de `servicios`), y la bandera de alergia del
+ * EXPEDIENTE, no de buscar «alergia» en las notas de la cita (C.9 de la 2.4).
  */
 
 /** Los estados en que la cita ya no espera nada de ella. */
@@ -79,25 +124,14 @@ const MINUTOS_HUECO_MINIMO = 25;
 /** Escala de la barra de procesado. Es presentación; el número va en palabras. */
 const MINUTOS_PROCESADO_TOPE = 45;
 
-export interface CitaDeMiDia {
-  readonly id: string;
-  readonly citaServicioId: string;
-  readonly folio: string | null;
-  readonly clienteNombre: string | null;
-  readonly servicio: string | null;
-  /** ISO. La hora se pinta sólo en el navegador: el servidor tiene otro huso. */
-  readonly inicio: string;
-  readonly estado: string;
-  /** El puente entrega el dinero en PESOS aunque la columna sea `_centavos`. */
-  readonly precioPesos: number;
-  readonly alergias: boolean;
-  readonly minutosProcesado: number | null;
-}
+/** El rótulo de cada bloque: pequeño, en versalitas, y el mismo en los cuatro. */
+const RUBRO = 'text-xs font-semibold tracking-wide text-texto-sutil uppercase';
 
 export interface LineaDeComision {
   readonly id: string;
   readonly concepto: string;
-  readonly pesos: number;
+  /** En CENTAVOS, como `comisionCentavos`: ya convertido con `centavosDe`. */
+  readonly centavos: number;
 }
 
 export interface GananciaDelDia {
@@ -124,95 +158,10 @@ export interface MiDiaProps {
   readonly onAbrirCita?: (citaId: string) => void;
 }
 
-interface FilaCitaServicio {
-  readonly id: string;
-  readonly cita_id: string;
-  readonly precio_centavos: number | null;
-}
-
-interface FilaCita {
-  readonly id: string;
-  readonly folio: string | null;
-  readonly cliente_id: string | null;
-  readonly estado: string | null;
-  readonly agendada_para: string | null;
-  readonly notas: string | null;
-}
-
-interface FilaCliente {
-  readonly id: string;
-  readonly nombre: string | null;
-}
-
-interface FilaComision {
-  readonly id: string;
-  readonly tipo: string | null;
-  readonly monto_centavos: number | null;
-  readonly causada_en: string | null;
-  readonly motivo: string | null;
-}
-
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
-/** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
-export function enPesos(centavos: number): string {
-  const bruto = Math.abs(centavos);
-  const miles = Math.trunc(bruto / 100)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${centavos < 0 ? '-' : ''}$${miles}.${(bruto % 100).toString().padStart(2, '0')}`;
-}
-
 function aHora(iso: string): string {
   const f = new Date(iso);
   const hh = f.getHours().toString().padStart(2, '0');
   return `${hh}:${f.getMinutes().toString().padStart(2, '0')}`;
-}
-
-export function esMismoDia(iso: string, referencia: Date): boolean {
-  const f = new Date(iso);
-  return (
-    f.getFullYear() === referencia.getFullYear() &&
-    f.getMonth() === referencia.getMonth() &&
-    f.getDate() === referencia.getDate()
-  );
-}
-
-/** Une lo que el puente devuelve en tres lecturas y lo ordena por hora. */
-export function componerElDia(
-  servicios: readonly FilaCitaServicio[],
-  citas: readonly FilaCita[],
-  clientes: readonly FilaCliente[],
-  hoy: Date,
-): readonly CitaDeMiDia[] {
-  const porCita = new Map(citas.map((c) => [c.id, c]));
-  const nombreDe = new Map(clientes.map((c) => [c.id, c.nombre]));
-  const filas: CitaDeMiDia[] = [];
-  for (const servicio of servicios) {
-    const cita = porCita.get(servicio.cita_id);
-    const cuando = cita?.agendada_para ?? null;
-    if (cita === undefined || cuando === null || !esMismoDia(cuando, hoy)) continue;
-    filas.push({
-      id: cita.id,
-      citaServicioId: servicio.id,
-      folio: cita.folio,
-      clienteNombre: cita.cliente_id === null ? null : (nombreDe.get(cita.cliente_id) ?? null),
-      servicio: null,
-      inicio: cuando,
-      estado: cita.estado ?? 'agendada',
-      precioPesos: servicio.precio_centavos ?? 0,
-      // Hasta que la ficha exponga el campo, se busca en las notas. Un falso
-      // positivo avisa de más, y en alergias ése es el error barato.
-      alergias: (cita.notas ?? '').toLowerCase().includes('alergia'),
-      minutosProcesado: null,
-    });
-  }
-  return filas.sort((a, b) => a.inicio.localeCompare(b.inicio));
 }
 
 export type Renglon =
@@ -248,6 +197,10 @@ function mensajeDe(fallo: unknown, porOmision: string): string {
   return fallo instanceof Error ? fallo.message : porOmision;
 }
 
+function nombreDe(persona: ProfesionalDeLaLista): string {
+  return persona.nombre_corto ?? persona.nombre_completo ?? 'Sin nombre';
+}
+
 export function MiDia({
   profesionalId,
   nombreProfesional,
@@ -263,6 +216,9 @@ export function MiDia({
   const [yo, setYo] = useState<string | null>(profesionalId ?? null);
   const [error, setError] = useState<string | null>(null);
   const [reloj, setReloj] = useState<Date | null>(null);
+  // Cada intento de lectura es un número: «Volver a intentar» lo sube y el efecto
+  // lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
 
   // El reloj entra DESPUÉS del primer pintado a propósito: un `new Date()` en el
   // cuerpo daría una fecha de servidor distinta de la del navegador y la
@@ -286,7 +242,13 @@ export function MiDia({
     if (yo === null) {
       consultarPuente<ProfesionalDeLaLista>('Profesional', { limite: 50, signal: control.signal })
         .then((filas) => {
-          if (sigueMontada()) setEquipo(filas.filter((f) => f.activo !== false));
+          if (!sigueMontada()) return;
+          const activas = filas.filter((f) => f.activo !== false);
+          // UNA sola: es la sesión de esa estilista, y el servidor ya recortó al resto.
+          // No hay nada que preguntar.
+          const sola = activas.length === 1 ? activas[0] : undefined;
+          if (sola !== undefined) setYo(sola.id);
+          else setEquipo(activas);
         })
         .catch((fallo: unknown) => {
           if (sigueMontada()) setError(mensajeDe(fallo, 'No se pudo leer el equipo.'));
@@ -302,33 +264,37 @@ export function MiDia({
       consultarPuente<FilaCita>('Cita', { limite: 200, signal: señal }),
       consultarPuente<FilaCliente>('Cliente', { limite: 300, signal: señal }),
       consultarPuente<FilaComision>('ComisionCausada', { filtro: mio, limite: 60, signal: señal }),
+      consultarPuente<FilaExpediente>('ExpedienteBelleza', { limite: 300, signal: señal }),
+      // La propina del día la sabe el ledger de propinas; si no se lee, se dice «sin dato».
+      leerPropinaDelDia(invocarComando, yo),
     ])
-      .then(([servicios, agenda, clientes, comisiones]) => {
+      .then(([servicios, agenda, clientes, comisiones, expedientes, propinaDelDia]) => {
         if (!sigueMontada()) return;
         const hoy = new Date();
-        setCitas(componerElDia(servicios, agenda, clientes, hoy));
+        setCitas(componerElDia(servicios, agenda, clientes, expedientes, hoy));
         const delDia = comisiones.filter(
           (c) => c.causada_en !== null && esMismoDia(c.causada_en, hoy),
         );
+        // Se convierte UNA vez, renglón por renglón, y la comisión es la suma de esos
+        // mismos centavos: el total y el desglose no pueden contar distinto.
+        const detalle = delDia.map((c) => ({
+          id: c.id,
+          concepto: c.motivo ?? c.tipo ?? 'Servicio',
+          centavos: centavosDe('ComisionCausada', 'monto_pesos', c.monto_pesos) ?? 0,
+        }));
         setGanancia({
-          comisionCentavos: delDia.reduce((suma, c) => suma + aCentavos(c.monto_centavos), 0),
-          propinaCentavos: null,
-          detalle: delDia.map((c) => ({
-            id: c.id,
-            concepto: c.motivo ?? c.tipo ?? 'Servicio',
-            pesos: c.monto_centavos ?? 0,
-          })),
+          comisionCentavos: detalle.reduce((suma, linea) => suma + linea.centavos, 0),
+          propinaCentavos: propinaDelDia,
+          detalle,
         });
       })
       .catch((fallo: unknown) => {
-        // La pantalla NUNCA se vacía por un fallo de red: prefiere el dato de
-        // hace un minuto a dejarla sin saber qué sigue.
         if (sigueMontada()) setError(mensajeDe(fallo, 'No se pudo leer tu día.'));
       });
     return () => {
       control.abort();
     };
-  }, [citasIniciales, yo]);
+  }, [citasIniciales, yo, intento]);
 
   const pendientes = useMemo(
     () => (citas ?? []).filter((c) => !CERRADAS.includes(c.estado)),
@@ -348,24 +314,30 @@ export function MiDia({
 
   function abrir(citaId: string): void {
     if (onAbrirCita !== undefined) onAbrirCita(citaId);
-    // La fórmula vive en CITA EN CURSO (§4.3.3); esta pantalla sólo lleva ahí.
-    else router.push('/estetica-salon/cita-en-curso');
+    // La fórmula vive en CITA EN CURSO (§4.3.3); esta pantalla lleva ahí, a ESA cita.
+    else router.push(rutaDeLaCita(citaId));
   }
 
-  const banda =
-    error === null ? null : (
-      <p
-        role="alert"
-        className="mb-3 rounded-md border border-destructive bg-destructive/15 p-2 text-sm"
-      >
-        {error} · Se muestra lo último que se pudo leer.
-      </p>
-    );
+  function reintentar(): void {
+    setError(null);
+    if (yo === null) setEquipo(null);
+    else setCitas(null);
+    setIntento((previo) => previo + 1);
+  }
+
+  // El nombre de quien mira, en cuanto se sabe: «KARLA · martes 14», como en el
+  // documento. «Mi día» se queda arriba como rótulo, para que la pantalla diga
+  // qué es aunque el nombre cambie.
+  const quien = equipo?.find((persona) => persona.id === yo);
+  const nombreVisible = nombreProfesional ?? (quien === undefined ? null : nombreDe(quien));
 
   const encabezado = (
-    <header className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
-      <h1 className="text-2xl font-bold">{nombreProfesional ?? 'Mi día'}</h1>
-      <p className="text-sm text-muted-foreground">
+    <header className="flex flex-wrap items-end justify-between gap-x-(--espacio-4) gap-y-(--espacio-1)">
+      <div className="flex flex-col">
+        {nombreVisible === null ? null : <p className={RUBRO}>Mi día</p>}
+        <h1 className="text-2xl font-bold leading-tight">{nombreVisible ?? 'Mi día'}</h1>
+      </div>
+      <p className="text-sm text-texto-sutil first-letter:uppercase">
         {reloj === null
           ? 'Hoy'
           : reloj.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })}
@@ -373,232 +345,388 @@ export function MiDia({
     </header>
   );
 
-  const walkIn = (
+  /**
+   * La walk-in se agenda en AGENDAR (§4.3.2): ahí están el servicio y la hora,
+   * que es lo que el comando pide y aquí no hay de dónde sacar. Es la acción
+   * principal del día vacío y la secundaria de un día con citas: el mismo botón,
+   * con el peso que le toca en cada uno.
+   */
+  const walkIn = (variante: 'default' | 'outline') => (
     <Button
       type="button"
+      size="lg"
+      variant={variante}
       className="min-h-20 w-full text-base"
       onClick={() => {
-        // La walk-in se agenda en AGENDAR (§4.3.2): ahí están el servicio y la
-        // hora, que es lo que el comando pide y aquí no hay de dónde sacar.
         router.push('/estetica-salon/agendar');
       }}
     >
+      <UserPlus aria-hidden="true" />
       Tomar una walk-in
     </Button>
   );
 
+  if (error !== null) {
+    // No se leyó nada: sin su día no hay qué enseñar, y un día a medias —las
+    // citas sin la comisión, o al revés— se leería como un día de verdad.
+    return (
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-(--espacio-4) p-(--espacio-4)">
+        {encabezado}
+        <ErrorDePantalla
+          titulo={yo === null ? 'No se pudo leer el equipo' : 'No se pudo leer tu día'}
+          queHacer={
+            yo === null
+              ? 'Sin la lista no hay cómo entrar a tu día. Revisa la conexión y vuelve a intentarlo.'
+              : `Sin él no se sabe qué ${voc.singular('orden')} sigue ni cuánto llevas. Revisa la conexión y vuelve a intentarlo.`
+          }
+          detalle={error}
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        />
+      </div>
+    );
+  }
+
   if (yo === null) {
     // Sin sesión que diga quién mira no se consulta nada. Ver el docblock.
     return (
-      <div className="mx-auto w-full max-w-2xl p-4">
+      <div className="mx-auto flex w-full max-w-2xl flex-col gap-(--espacio-4) p-(--espacio-4)">
         {encabezado}
-        {banda}
-        <p className="mb-3 text-base">¿Quién eres? Tu día sólo lo ves tú.</p>
-        {equipo === null ? (
-          <div className="flex flex-col gap-2">
-            {Array.from({ length: 4 }, (_, i) => (
-              <Skeleton key={i} className="h-20 w-full rounded-lg" />
-            ))}
-          </div>
-        ) : (
-          <ul className="flex flex-col gap-2">
-            {equipo.map((persona) => (
-              <li key={persona.id}>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="min-h-20 w-full justify-start text-base"
-                  onClick={() => {
-                    setYo(persona.id);
-                  }}
-                >
-                  {persona.nombre_corto ?? persona.nombre_completo ?? 'Sin nombre'}
-                </Button>
-              </li>
-            ))}
-          </ul>
-        )}
+        <section aria-labelledby="quien" className="flex flex-col gap-(--espacio-3)">
+          <p id="quien" className="text-lg font-medium">
+            ¿Quién eres? Tu día sólo lo ves tú.
+          </p>
+          {equipo === null ? (
+            <div
+              role="status"
+              aria-busy="true"
+              aria-label="Leyendo el equipo"
+              className="grid gap-(--espacio-2) sm:grid-cols-2"
+            >
+              {Array.from({ length: 4 }, (_, indice) => (
+                <Esqueleto key={indice} className="min-h-20 w-full rounded-lg" />
+              ))}
+            </div>
+          ) : equipo.length === 0 ? (
+            <Superficie nivel={0} relleno={0} className="border-dashed">
+              <Vacio
+                icono={<UsersRound />}
+                titulo="El equipo todavía está vacío."
+                explicacion="En cuanto se dé de alta a quien atiende en el salón, aquí aparece su nombre para entrar a su día."
+                className="py-(--espacio-8)"
+              />
+            </Superficie>
+          ) : (
+            // Una rejilla de nombres que se tocan: con el nudillo, con tinte en los
+            // dedos. Cada nombre es una tesela de 80 px, no un renglón de lista.
+            <ul className="grid gap-(--espacio-2) sm:grid-cols-2">
+              {equipo.map((persona) => (
+                <li key={persona.id}>
+                  <Superficie
+                    como="button"
+                    type="button"
+                    interactiva
+                    relleno={3}
+                    className="flex min-h-20 w-full items-center gap-(--espacio-3)"
+                    onClick={() => {
+                      setYo(persona.id);
+                    }}
+                  >
+                    <span
+                      aria-hidden="true"
+                      className="flex size-(--altura-control) shrink-0 items-center justify-center rounded-full bg-acento-suave text-base font-bold text-acento-suave-texto"
+                    >
+                      {nombreDe(persona).charAt(0).toUpperCase()}
+                    </span>
+                    <span className="min-w-0 truncate text-lg font-semibold">
+                      {nombreDe(persona)}
+                    </span>
+                  </Superficie>
+                </li>
+              ))}
+            </ul>
+          )}
+        </section>
       </div>
     );
   }
 
   if (citas === null) {
     return (
-      <div className="mx-auto w-full max-w-6xl p-4">
+      <div className="mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-4)">
         {encabezado}
-        {banda}
-        {/* Esqueletos con la forma de lo que llega, no un spinner: así nada
-            salta al cargar y el ojo ya sabe dónde va a mirar. */}
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-          <Skeleton className="min-h-40 w-full rounded-xl" />
-          <Skeleton className="min-h-28 w-full rounded-xl" />
-          <Skeleton className="min-h-40 w-full rounded-xl" />
+        {/* La forma de lo que llega, no una rueda: la que sigue, lo ganado y el
+            resto del día, cada uno en su sitio. Así nada salta al cargar. */}
+        <div
+          role="status"
+          aria-busy="true"
+          aria-label="Leyendo tu día"
+          className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,1fr)_20rem]"
+        >
+          <Esqueleto className="min-h-64 w-full rounded-lg" />
+          <Esqueleto className="min-h-40 w-full rounded-lg md:min-h-64" />
+          <div className="flex flex-col gap-(--espacio-2)">
+            {Array.from({ length: 3 }, (_, indice) => (
+              <Esqueleto key={indice} className="min-h-20 w-full rounded-lg" />
+            ))}
+          </div>
         </div>
       </div>
     );
   }
 
+  const columnasDelDetalle: readonly ColumnaDeTabla<LineaDeComision>[] = [
+    {
+      clave: 'concepto',
+      titulo: voc.titulo('linea_orden'),
+      celda: (linea) => <span className="line-clamp-2">{linea.concepto}</span>,
+    },
+    {
+      clave: 'comision',
+      titulo: 'Comisión',
+      numerica: true,
+      celda: (linea) => <Dinero centavos={linea.centavos} tamano="sm" />,
+    },
+  ];
+
   return (
-    <div className="mx-auto w-full max-w-6xl p-4">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-(--espacio-4) p-(--espacio-4)">
       {encabezado}
-      {banda}
-      {/* Teléfono: una columna en el orden del documento. PC: el dinero y su
-          desglose se van a la derecha, que es donde ella los verifica. */}
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_20rem]">
-        <section aria-labelledby="ahora" className="xl:col-start-1 xl:row-start-1">
-          <h2 id="ahora" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+
+      {/* Teléfono: una columna en el orden del documento. Tableta y PC: lo ganado
+          sube a la derecha, a la altura de la que sigue —los dos del mismo alto—, y
+          el desglose va debajo, que es donde ella verifica. */}
+      <div className="grid gap-(--espacio-4) md:grid-cols-[minmax(0,1fr)_20rem] md:items-start">
+        <section
+          aria-labelledby="ahora"
+          className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-start-1 md:self-stretch"
+        >
+          <h2 id="ahora" className={RUBRO}>
             Ahora
           </h2>
           {actual === null ? (
-            // El vacío ENSEÑA: dice qué se puede hacer con el día por delante.
-            <div className="rounded-xl border border-dashed border-border p-6 text-center">
-              <p className="mb-1 text-lg font-semibold">Hoy no tienes {voc.plural('orden')}.</p>
-              <p className="mb-4 text-sm text-muted-foreground">
-                El día entero está libre: cabe {voc.enFraseCon('un', 'linea_orden')} sin mover nada.
-              </p>
-              {walkIn}
-            </div>
+            // El vacío ENSEÑA: dice qué se puede hacer con el día por delante. El
+            // borde discontinuo se queda: dice «aquí CABE algo», que es el punto.
+            <Superficie
+              nivel={0}
+              relleno={0}
+              className="flex flex-1 items-center justify-center border-dashed"
+            >
+              <Vacio
+                className="py-(--espacio-8)"
+                icono={<CalendarPlus />}
+                titulo={
+                  citas.length === 0
+                    ? `Hoy no tienes ${voc.plural('orden')}.`
+                    : `No te queda ${voc.enFraseCon('ningun', 'orden')} por atender.`
+                }
+                explicacion={
+                  citas.length === 0
+                    ? `El día entero está libre: cabe ${voc.enFraseCon('un', 'linea_orden')} sin mover nada.`
+                    : `El resto del día está libre: cabe ${voc.enFraseCon('un', 'linea_orden')} sin mover nada.`
+                }
+                accion={walkIn('default')}
+              />
+            </Superficie>
           ) : (
-            <article className="rounded-xl border-2 border-primary bg-card p-4 shadow-2">
+            <Superficie
+              como="article"
+              nivel={2}
+              relleno={6}
+              className="flex flex-1 flex-col gap-(--espacio-4) border-primario"
+            >
               {actual.alergias && (
                 // Arriba del todo: un error aquí no es un descuadre.
-                <Badge variant="destructive" className="mb-2">
-                  ⚠️ Revisa alergias en su ficha
+                <Badge variant="destructive" className="self-start text-sm">
+                  <TriangleAlert aria-hidden="true" className="size-4 shrink-0" />
+                  Revisa alergias en su ficha
                 </Badge>
               )}
-              <p className="text-2xl font-bold leading-tight">
-                {actual.clienteNombre ?? actual.folio ?? 'Sin nombre'}
-              </p>
-              <p className="mt-1 text-base text-muted-foreground">
-                {actual.servicio ?? 'Servicio'} · {aHora(actual.inicio)} ·{' '}
-                {enPesos(aCentavos(actual.precioPesos))}
-              </p>
+              <div className="flex flex-col gap-(--espacio-1)">
+                <p className="text-3xl leading-tight font-bold">
+                  {actual.clienteNombre ?? actual.folio ?? 'Sin nombre'}
+                </p>
+                <p className="flex flex-wrap items-baseline gap-x-(--espacio-2) text-base text-texto-sutil">
+                  <span>{actual.servicio ?? 'Servicio'}</span>
+                  <span aria-hidden="true">·</span>
+                  <span className="font-numeros font-semibold text-texto tabular-nums">
+                    {aHora(actual.inicio)}
+                  </span>
+                  <span aria-hidden="true">·</span>
+                  <Dinero centavos={actual.precioCentavos} />
+                </p>
+              </div>
               {actual.minutosProcesado !== null && (
-                <div className="mt-3">
+                <div className="flex flex-col gap-(--espacio-1)">
                   <Progress
                     value={Math.min(100, (actual.minutosProcesado / MINUTOS_PROCESADO_TOPE) * 100)}
                     aria-label="Avance del procesado"
                   />
                   {/* La barra nunca carga sola el dato: va el número en letra. */}
-                  <p className="mt-1 text-sm">Procesado · {actual.minutosProcesado} min</p>
+                  <p className="text-sm">
+                    Procesado · <Cifra valor={actual.minutosProcesado} unidad="min" tamano="sm" />
+                  </p>
                 </div>
               )}
               <Button
                 type="button"
-                className="mt-4 min-h-20 w-full text-base"
+                size="lg"
+                className="mt-auto min-h-20 w-full text-lg"
                 onClick={() => {
                   abrir(actual.id);
                 }}
               >
                 Ver fórmula
               </Button>
-            </article>
+            </Superficie>
           )}
         </section>
 
-        <section aria-labelledby="ganado" className="xl:col-start-2 xl:row-start-1">
-          <h2 id="ganado" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
+        <section
+          aria-labelledby="ganado"
+          className="flex flex-col gap-(--espacio-2) md:col-start-2 md:row-start-1 md:self-stretch"
+        >
+          <h2 id="ganado" className={RUBRO}>
             Hoy llevas
           </h2>
           {/* Dos renglones, nunca uno, y sin total debajo: ese número no existe. */}
-          <dl className="rounded-xl border border-border bg-card p-4">
-            <div className="flex items-baseline justify-between gap-2">
-              <dt className="text-sm">Comisión</dt>
-              <dd className="text-2xl font-bold tabular-nums">
-                {enPesos(ganancia?.comisionCentavos ?? 0)}
-              </dd>
-            </div>
-            <div className="mt-2 flex items-baseline justify-between gap-2 border-t border-border pt-2">
-              <dt className="text-sm">Propina</dt>
-              <dd className="text-2xl font-bold tabular-nums">
-                {propina === null ? (
-                  <span className="text-base font-normal text-muted-foreground">
-                    sin dato todavía
-                  </span>
-                ) : (
-                  enPesos(propina)
-                )}
-              </dd>
-            </div>
-            <p className="mt-3 text-sm text-muted-foreground">
-              {citas.length} {citas.length === 1 ? 'cita' : 'citas'} · {pendientes.length} por
-              atender
+          <Superficie className="flex flex-1 flex-col justify-between gap-(--espacio-4)">
+            <dl className="flex flex-col">
+              <div className="flex items-baseline justify-between gap-(--espacio-2) pb-(--espacio-2)">
+                <dt className="text-sm text-texto-sutil">Comisión</dt>
+                <dd>
+                  <Dinero
+                    centavos={ganancia?.comisionCentavos ?? 0}
+                    tamano="lg"
+                    className="text-2xl font-bold"
+                  />
+                </dd>
+              </div>
+              <div className="flex items-baseline justify-between gap-(--espacio-2) border-t border-borde pt-(--espacio-2)">
+                <dt className="text-sm text-texto-sutil">Propina</dt>
+                <dd>
+                  {propina === null ? (
+                    <span className="text-sm text-texto-sutil">sin dato todavía</span>
+                  ) : (
+                    <Dinero centavos={propina} tamano="lg" className="text-2xl font-bold" />
+                  )}
+                </dd>
+              </div>
+            </dl>
+            <p className="text-sm text-texto-sutil">
+              {voc.conNumero('orden', citas.length)} · {pendientes.length} por atender
             </p>
-          </dl>
+          </Superficie>
         </section>
 
-        <section aria-labelledby="sigue" className="xl:col-start-1 xl:row-start-2">
-          <h2 id="sigue" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-            Sigue
-          </h2>
-          <ul className="flex flex-col gap-2">
-            {resto.map((renglon) =>
-              renglon.clase === 'cita' ? (
-                <li key={renglon.cita.citaServicioId}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      abrir(renglon.cita.id);
-                    }}
-                    className="flex min-h-20 w-full items-center gap-3 rounded-lg border border-border bg-card p-3 text-left hover:bg-accent hover:text-accent-foreground"
+        {actual !== null && (
+          <section
+            aria-labelledby="sigue"
+            className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-start-2"
+          >
+            <h2 id="sigue" className={RUBRO}>
+              Sigue
+            </h2>
+            {/* Cada cita es una tesela que se toca y abre su fórmula; entre dos, el
+                hueco que cabe, a ras y con borde discontinuo: se ofrece, no se abre. */}
+            <ul className="flex flex-col gap-(--espacio-2)">
+              {resto.map((renglon) =>
+                renglon.clase === 'cita' ? (
+                  <li key={renglon.cita.citaServicioId}>
+                    <Superficie
+                      como="button"
+                      type="button"
+                      interactiva
+                      relleno={3}
+                      className="flex min-h-20 w-full items-center gap-(--espacio-3)"
+                      onClick={() => {
+                        abrir(renglon.cita.id);
+                      }}
+                    >
+                      <span className="font-numeros text-lg font-bold tabular-nums">
+                        {aHora(renglon.cita.inicio)}
+                      </span>
+                      <span className="flex min-w-0 flex-1 flex-col">
+                        <span className="truncate text-base font-semibold">
+                          {renglon.cita.clienteNombre ?? renglon.cita.folio ?? 'Sin nombre'}
+                        </span>
+                        <span className="truncate text-sm text-texto-sutil">
+                          {renglon.cita.servicio ?? 'Servicio'}
+                        </span>
+                      </span>
+                      {renglon.cita.alergias && (
+                        <TriangleAlert
+                          aria-label="Con alergias"
+                          className="size-5 shrink-0 text-peligro"
+                        />
+                      )}
+                      <ChevronRight
+                        aria-hidden="true"
+                        className="size-5 shrink-0 text-texto-sutil"
+                      />
+                    </Superficie>
+                  </li>
+                ) : (
+                  <Superficie
+                    key={`hueco-${renglon.desde}`}
+                    como="li"
+                    nivel={0}
+                    relleno={3}
+                    className="flex items-center gap-(--espacio-3) border-dashed border-primario/40 bg-primario/5"
                   >
-                    <span className="text-lg font-bold tabular-nums">
-                      {aHora(renglon.cita.inicio)}
+                    <Scissors aria-hidden="true" className="size-5 shrink-0 text-primario" />
+                    <span className="flex flex-col">
+                      <span className="text-sm font-semibold">
+                        <span className="font-numeros tabular-nums">
+                          {aHora(renglon.desde)}–{aHora(renglon.hasta)}
+                        </span>{' '}
+                        · libre
+                      </span>
+                      <span className="text-sm text-texto-sutil">
+                        {renglon.minutos} min sin nadie. Cabe un corte.
+                      </span>
                     </span>
-                    <span className="min-w-0 flex-1 truncate">
-                      {renglon.cita.servicio ?? 'Servicio'} ·{' '}
-                      {renglon.cita.clienteNombre ?? renglon.cita.folio ?? 'Sin nombre'}
-                    </span>
-                    {renglon.cita.alergias && <span aria-label="Con alergias">⚠️</span>}
-                  </button>
-                </li>
-              ) : (
-                <li
-                  key={`hueco-${renglon.desde}`}
-                  className="rounded-lg border border-dashed border-primary/40 bg-primary/10 p-3"
+                  </Superficie>
+                ),
+              )}
+              {resto.length === 0 && (
+                <Superficie
+                  como="li"
+                  nivel={0}
+                  relleno={3}
+                  className="border-dashed text-sm text-texto-sutil"
                 >
-                  <p className="text-sm font-semibold">
-                    {aHora(renglon.desde)}–{aHora(renglon.hasta)} · libre
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {renglon.minutos} min sin nadie. Cabe un corte.
-                  </p>
-                </li>
-              ),
-            )}
-            {resto.length === 0 && (
-              <li className="rounded-lg border border-dashed border-border p-3 text-sm text-muted-foreground">
-                Nada más después de ésta.
-              </li>
-            )}
-          </ul>
-        </section>
+                  Nada más después de ésta.
+                </Superficie>
+              )}
+            </ul>
+          </section>
+        )}
 
-        {/* El desglose es el extra de tablet y PC: lo que abre para verificar un
-            número antes de que le paguen. En el teléfono estorbaría. */}
-        <section
-          aria-labelledby="detalle"
-          className="hidden md:block xl:col-start-2 xl:row-start-2"
-        >
-          <h2 id="detalle" className="mb-2 text-xs font-semibold uppercase text-muted-foreground">
-            {voc.titulo('linea_orden')} por {voc.singular('linea_orden')}
-          </h2>
-          <ul className="rounded-xl border border-border bg-card p-3 text-sm">
-            {(ganancia?.detalle ?? []).map((linea) => (
-              <li key={linea.id} className="flex justify-between gap-2 py-1">
-                <span className="min-w-0 truncate">{linea.concepto}</span>
-                <span className="tabular-nums">{enPesos(aCentavos(linea.pesos))}</span>
-              </li>
-            ))}
-            {(ganancia?.detalle ?? []).length === 0 && (
-              <li className="py-1 text-muted-foreground">
-                Todavía no se cierra {voc.enFraseCon('ningun', 'linea_orden')}.
-              </li>
-            )}
-          </ul>
-        </section>
-
-        {actual !== null && <div className="xl:col-start-2 xl:row-start-3">{walkIn}</div>}
+        <div className="flex flex-col gap-(--espacio-4) md:col-start-2 md:row-start-2">
+          {/* El desglose es el extra de tableta y PC: lo que abre para verificar un
+              número antes de que le paguen. En el teléfono estorbaría. */}
+          <section aria-labelledby="detalle" className="hidden flex-col gap-(--espacio-2) md:flex">
+            <h2 id="detalle" className={RUBRO}>
+              {voc.titulo('linea_orden')} por {voc.singular('linea_orden')}
+            </h2>
+            <Tabla
+              etiqueta={`Comisión, ${voc.singular('linea_orden')} por ${voc.singular('linea_orden')}`}
+              columnas={columnasDelDetalle}
+              filas={ganancia?.detalle ?? []}
+              claveDe={(linea) => linea.id}
+              alto="max-h-[50vh]"
+              vacio={
+                <Superficie nivel={0} relleno={0} className="border-dashed">
+                  <Vacio
+                    titulo={`Todavía no se cierra ${voc.enFraseCon('ningun', 'linea_orden')}.`}
+                    className="py-(--espacio-4)"
+                  />
+                </Superficie>
+              }
+            />
+          </section>
+          {actual !== null && walkIn('outline')}
+        </div>
       </div>
     </div>
   );

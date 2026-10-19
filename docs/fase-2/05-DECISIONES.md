@@ -149,6 +149,11 @@ git worktree add "D:\MIS PROYECTOS\Master POS\morphiqpos-fase2" -b fase-2 carril
 
 **Excepción única:** si Codex ya publicó su cierre de Fase 1 y `carril-b` está fusionada a `main`, esta restricción queda derogada. Anótalo aquí cuando pase.
 
+> **Derogada.** `carril-b` está fusionada a `main` (lo dice el encargo de la etapa 2.35 y la
+> rama ya no recibe trabajo). Anotado el 22-09-2026, en el cierre de la 2.35 —tarde: el
+> encargo pedía anotarlo al pasar—. Lo que rige ahora sobre `heredado/` es D-14 y
+> `verify:aspecto`: se puede cambiar, a propósito y moviendo su base, nunca a escondidas.
+
 ---
 
 ## D-10 · 14-09-2026 · `btree_gist` está disponible; el solape de citas no es bloqueante
@@ -228,20 +233,720 @@ La carpeta de fuera queda como histórico y se deja de tocar.
 
 ---
 
+## D-14 · 22-09-2026 · Las pantallas heredadas se quedan con la estructura de Miguel, y con los tokens del sistema
+
+**Contexto.** El cierre de la etapa 2.35 recompuso las pantallas de los cinco modelos con la
+biblioteca (`apps/web/src`). `apps/web/heredado/` —el punto de venta que lleva meses
+cobrando: accesos, ventas, compras, registros, portal QR, configuración— no se tocó, y
+`verify:aspecto` sigue comparándolo contra `89830e5`, el commit en que Miguel lo entregó.
+El encargo pidió decidir: o se recomponen también, o se declara por escrito que se quedan.
+
+**Decisión.** **Se quedan con la estructura y los componentes de Miguel**, y la base de
+`verify:aspecto` no se mueve. Tres razones:
+
+1. **Ya llevan el lenguaje donde importa.** Desde la etapa 2.35 sus nombres en inglés
+   —`bg-card`, `text-muted-foreground`— son ALIAS de los tokens del sistema
+   (`heredado/index.css`): cambian con el estilo, con el modo oscuro y con las cuatro
+   perillas igual que las pantallas de los modelos. Lo que no tienen es la biblioteca
+   (`Superficie`, `Tabla`, `Dinero`), y eso es composición, no color.
+2. **Son las que cobrarán.** *(Corregido el 24-09-2026, C.15 de la 2.4: aquí decía «Son las
+   que cobran hoy. Cuatro negocios operan con ellas», y no era verdad: los cuatro negocios
+   reales están dados de alta y **nadie cobra todavía** con estas pantallas. La razón de
+   fondo sigue en pie —son las de Miguel y las usarán—, pero no por un uso que no existe.)*
+   Recomponerlas es tocar el
+   flujo de dinero de un cliente que paga sin que su dueño lo haya pedido, y `verify:aspecto`
+   existe precisamente para que eso no pase sin decidirlo.
+3. **Cada modelo trae ya las suyas para lo que más se usa.** El cobro, la caja, el catálogo y
+   el inventario de cada giro son pantallas de `apps/web/src`, recompuestas; las heredadas
+   que perdieron su sitio en el menú están declaradas en `EXCEPCIONES-COBERTURA.md`.
+
+**Lo que queda dicho para cuando cambie.** El día que Miguel quiera el lenguaje nuevo en
+ellas, se recomponen una por una con la guía (`GUIA-DE-RECOMPOSICION.md`) y la base de
+`verify:aspecto` se mueve A PROPÓSITO en ese commit —nunca se apaga la puerta—.
+
+## D-15 · 24-09-2026 · La entrada es de UN negocio, y el negocio lo dice la dirección
+
+**Contexto.** Producción sirve a Restaurante MH y a las cinco demos en un solo despliegue, y
+`/api/auth/empleados` —sin sesión— devolvía a la gente de los seis mezclada: nombre, rol, color y
+el `empleoId`, que es el primer factor del acceso. El cajero de un negocio veía al personal de
+otro. Un paso de «enrolar el equipo» antes del PIN lo resolvería y Miguel ya lo rechazó: le cerraba
+la puerta de su propio negocio.
+
+**Decisión.** Cada negocio tiene su dirección, `/n/<slug>/login-pos`, que no depende del DNS; el
+host con el slug, cuando exista, manda sobre ella. La lista de empleados exige el negocio y devuelve
+sólo el suyo; un slug que el despliegue no sirve es la MISMA 404 que uno que no existe. En un
+despliegue de varios negocios, `/login-pos` a secas no enseña a nadie: la caja que ya entró antes
+vuelve a su entrada (cookie de la entrada, o su terminal —la cookie del dispositivo que el servidor
+da después de un PIN correcto—), y una que nunca entró ve una pantalla sin nombres. La etiqueta del
+rol pasa por el vocabulario del giro (la estilista no es «Mesero»), sin crear un rol en la base.
+
+**Café Jacaranda, Abarrotes Don Chuy y Ferretería La Broca SÍ se sirven en producción**, cada uno
+en su dirección (A.6). Nadie los usa todavía, y con la entrada por negocio servirlos no enseña su
+gente a nadie que no tenga su dirección; no servirlos obligaría a otro despliegue el día que
+empiecen. Cambiar `ORGANIZACION` de Production está fuera de lo que esta sesión puede hacer, así que
+va al §10 del encargo con su valor exacto — **y sólo DESPUÉS de fusionar la 2.4**: con la entrada
+de `main`, que todavía mezcla, añadirlos antes enseñaría también su personal.
+
+**Preview** lleva sólo las cinco demos (`demo-acople-*`): escribe en la misma base que producción,
+y un Preview que sirva a un negocio real sería una puerta trasera. Configurado el 24-09-2026.
+
+## D-16 · 24-09-2026 · El corte guarda su esperado y su diferencia, sin migración nueva
+
+**Contexto.** El encargo de la 2.4 (C.4) pedía una migración para que `sesiones_caja` guardara el
+efectivo esperado, con su respaldo, su ensayo y su aplicación. El ensayo con datos de esa migración
+(178) falló: **la columna ya existía**. La migración 100 creó `efectivo_esperado_centavos` y
+`diferencia_centavos` —«se guarda calculada y no se deduce después»— y `caja.cerrar` nunca las
+escribió; `esquema.ts` tampoco las declaraba, que es por lo que nadie las usaba.
+
+**Decisión.** Sin migración. `cerrarSesion` escribe las dos columnas con el esperado que comparó y
+la diferencia; el puente las sirve en `CorteCaja` como `esperado_al_cerrar` y
+`diferencia_al_cerrar` —con nombre propio: `efectivo_esperado` y `diferencia_efectivo` los reserva
+F1-04 §20.4 como derivados de las heredadas—; el histórico de cortes las pinta ordenadas por la
+diferencia. Los cierres anteriores las traen en nulo, y la pantalla dice «no se guardó» en vez de
+re-derivarlas: la foto de lo que se firmó al cerrar no se reconstruye después.
+
+La regla de F1-04 §20.2 —«los totales no se guardan»— sigue valiendo para la sesión ABIERTA:
+mientras está abierta, el esperado se deriva siempre.
+
+## D-17 · 25-09-2026 · El cobro del salón: tope de descuento, propina por camino, comisión sin IVA
+
+**Contexto.** C.3 de la 2.4 cerró el cobro de la estética contra su `02-DINERO-Y-CAJA`. Cuatro
+puntos del documento dejaban la forma abierta y había que elegir.
+
+**Decisiones.**
+1. **Por encima del tope de descuento, cobra quien lo autoriza, con SU sesión.** Los topes son los
+   de F-205 (`topes_descuento`, por puesto). El documento pide «PIN de la dueña»; ese PIN se teclea en
+   la entrada de siempre —con su límite de intentos— y no dentro del comando: un segundo verificador
+   de PIN sería una puerta sin `LIMITES`, y un campo «autorizado por» es poner el nombre de otro en lo
+   que uno hace (R16). `venta/descuento.ts` ya razonaba igual. La pantalla lo avisa ANTES
+   (`venta.cotizar_cita`), y el cobro contesta 403 auditado si se intenta igual.
+2. **La propina a la mano se anota como recibida Y entregada** en `movimientos_propina`, en el mismo
+   acto: queda en la cuenta de la profesional —el corte la cuenta— y su saldo no le debe nada, porque
+   el dinero no pasó por el salón. Al cajón: recibida en efectivo, atada a su movimiento de caja
+   `propina`. En terminal: recibida con tarjeta, en el cargo del pago con tarjeta. Nunca toca la
+   venta, el IVA ni `pagos.monto_centavos`.
+3. **La cuenta de la transferencia va en `pagos.referencia`**, como `cuenta-salon` o
+   `cuenta-profesional:<id>`, más ` por-confirmar`. Sin columna nueva: `pagos` ya tiene su referencia
+   libre y esto es lo que el corte y la liquidación necesitan leer de ella.
+4. **La comisión se calcula sobre la base SIN IVA** cuando la regla dice `sobre_iva = false`, que es
+   la omisión del documento (§7.2, pregunta 2). El cobro comisionaba el precio al público entero: 16 %
+   de más por servicio. Cambia lo que se causa desde hoy; lo ya causado no se recalcula (F-443).
+5. **El anticipo en efectivo entra al cajón con su movimiento** (`anticipo_cita`, de la 135), y exige
+   caja abierta. Se APLICA en el mismo cobro: la venta es la cita entera y los pagos suman el resto.
+
+## D-18 · 25-09-2026 · El apartado de la cafetería: sin sesión, sin pago y por la dirección del negocio
+
+**Contexto.** C.14 de la 2.4: «cobrar en línea exige pasarela, que es del §10. Mientras, se reserva
+sin pago y se cobra al recoger. Completo.» La forma quedaba abierta.
+
+**Decisiones.**
+1. **El menú y el apartado públicos van por la dirección del negocio**, `/n/<slug>/pedir` y
+   `/api/publico/negocio/<slug>/{menu,apartar}`, resueltos DENTRO de los negocios del despliegue
+   (lo mismo que la entrada del bloque A). Un slug ajeno, inexistente o que no es cafetería contesta
+   igual: 404. Sin token de mesa, el límite es por IP y por negocio (`LIMITES_PORTAL`, dos
+   acciones nuevas; `LIMITES` de `http/limite.ts` no se toca), tres apartados por hueco de cinco
+   minutos, y la clave de idempotencia va a `ordenes.idempotency_key`.
+2. **La orden nace CONFIRMADA, no pagada**, con precio de catálogo. «Preparar» emite su comanda antes
+   del pago (la misma `comandarLineasPendientes` del cobro, que así no la duplica), se cobra al
+   recoger y `entregar_anticipado` exige la orden pagada y cierra su comanda.
+3. **El origen de la propina de la barra, en la lista cerrada del servidor**: la que teclea el
+   barista es `tradicional` (el POS de mostrador) y la que elige el cliente en su pantalla es
+   `portal_qr` (elegida por el cliente en una pantalla suya). Sin migración: `'barista'` y
+   `'cliente'` no están en el `check propina_origen`.
+
+## D-19 · 25-09-2026 · El heredado cambia de color, y SÓLO de color (deroga D-14 en lo que toca al color)
+
+**Contexto.** D-14 dejó el heredado con la estructura de Miguel «y con los tokens del sistema»,
+pero eso sólo era verdad para sus alias en inglés (`bg-card`, `text-muted-foreground`). Los
+colores FIJOS de paleta —`bg-white`, `text-emerald-700`, `dark:bg-gray-900`, más de 3 000 en
+111 archivos— no cambiaban con el estilo: en Noche y en Terminal había tarjetas blancas sobre
+fondo negro, y un parche (`PARCHE DARK` de `heredado/index.css`) que repintaba a mano algunas
+clases con `!important`. El encargo C.16 pide traducirlos.
+
+**Decisión.** **D-14 queda DEROGADA en lo que toca al color**; composición, textos, iconos,
+orden y flujo siguen siendo de Miguel e intocables.
+
+1. **Un commit de sólo color** (`a92c343`): cada clase de paleta pasa a su token por su papel
+   (superficie, texto, borde, éxito, aviso, peligro, acento), y
+   `scripts/verificar-traduccion-de-color.mjs` demuestra que, quitadas las clases de color
+   (`scripts/lib/clases-de-color.mjs`), cada archivo es idéntico carácter a carácter a su
+   original.
+2. **La base de `verify:aspecto` se movió a ese commit, y la puerta lo vuelve a demostrar en
+   cada corrida**: `aspecto-permitido.json` declara `baseAnterior` (`89830e5`) y
+   `porqueSeMovioLaBase`, y todo testigo que cambia entre las dos bases tiene que ser una clase
+   de color o una excepción motivada de la lista. Un texto o un espaciado colado en ese tramo
+   la pone en rojo; mover la base sin decir por qué, también.
+3. **El `PARCHE DARK` se retiró**: sin colores fijos que repintar, sólo tapaba los tokens.
+4. **Para que no vuelvan**, `verify:primitivas` mira ahora el heredado SÓLO por colores de
+   paleta: cero, salvo **22 excepciones en 6 archivos**, cada una con su número exacto y su
+   razón en el código (texto blanco sobre un fondo que no es del sistema: la vista previa de
+   los colores de marca, el color del mesero elegido por el negocio, degradados fijos en línea
+   de tres botones). Una más, una menos o una excepción de un archivo que ya no existe es rojo.
+
+5. **Lo impreso sigue siendo papel.** La traducción metió un defecto que se corrigió en el
+   mismo bloque: dentro de los cuatro imprimibles (pre-cuenta, corte, PDF del periodo, ficha
+   de producto) `bg-gray-100` pasó a `bg-fondo-sutil` y `bg-white` a `bg-superficie`, fondos
+   que en Noche se oscurecen bajo un texto que la protección de impresión fuerza a oscuro.
+   Los contenedores protegidos (`.ticket-printable`, `.cash-cut-pdf`, `.pdf-corte-caja`,
+   `.printable-doc`) redefinen ahora los tokens con su valor claro, y
+   `apps/web/src/imprimibles-en-papel.contrato.test.ts` exige que cubran todo token que
+   pintan sus documentos.
+
+## D-20 · 25-09-2026 · El corte y su PDF: el fondo dejado es un campo, y cada giro arma su hoja
+
+**Contexto.** C.6 de la 2.4 (F-234). Las pantallas de cierre sólo exportaban CSV; el restaurante
+prometía «Imprimir el cierre» con `window.print()` sobre la pantalla, y el fondo que se deja en el
+cajón viajaba como texto dentro de `notas`. Al probar el cierre POR LA PANTALLA salieron tres
+defectos más: el cierre del restaurante mandaba el contado como TEXTO y el servidor lo rechazaba
+(su botón nunca cerró: el e2e cerraba por la API), la ferretería no tenía dónde abrir ni cerrar su
+caja, y la entrada de cambio de la cafetería se registraba como depósito.
+
+**Decisión.**
+
+1. **El fondo dejado es un campo, sin migración.** `caja.cerrar` recibe `fondoDejadoCentavos` y
+   guarda lo RETIRADO en `efectivo_retirado_centavos` (contado − dejado): la columna se llama así y
+   así la usa el corte de turno. El puente sirve `dinero_dejado_en_caja` como CÁLCULO (contado −
+   retirado) y ya no lee esa columna como si fuera lo dejado. `caja.abrir` espera lo que dejó el
+   último cierre de la terminal (`fondo_esperado_centavos`), y la diferencia de apertura se mide
+   contra eso. El conteo por denominación se guarda en `conteos_denominacion` (momento `cierre`) y
+   tiene que sumar lo contado, con lo suelto aparte (`sueltosCentavos`).
+2. **El desglose del cambio que se deja no se guarda al cerrar.** Ese cambio es el fondo del turno
+   que sigue, y su desglose se CUENTA al abrir (monedas, chicos, grandes), que es donde se sabe si
+   alcanza. Guardarlo también al cerrar pediría una columna nueva (una migración, que es de Miguel)
+   para un número que el conteo de la mañana ya da.
+3. **Una lectura, cinco documentos.** `caja.hoja_del_corte` lee en una transacción el tronco de
+   todos los cortes y lo propio de cada giro. La pantalla de cada giro arma SU documento, en el
+   orden de su §9.3 (`apps/web/src/corte/`), y el PDF sale con `generatePDFBlobFromNode` de Miguel
+   sobre `#cash-cut-pdf-document`. Se descarga solo al cerrar si el negocio no apagó
+   `descargar_pdf_corte_auto`; en la cafetería espera al reparto del bote, porque bajado antes
+   saldría sin él. Un fallo al leer no produce archivo.
+4. **Quién ve costos.** Dirección siempre; el cajero sólo con `mostrar_costos_a_caja`. Sin permiso
+   el documento sale sin costo, utilidad, margen ni consumo de insumo, como el `sinCostos` del
+   corte de Miguel.
+5. **Lo que el documento todavía no trae, y por qué.** ~~La *comisión estimada de terminal* de la
+   cafetería: el sistema no conoce la tasa que cobra la terminal de cada negocio, y no hay dónde
+   escribirla.~~ **Ya la trae (C.10, D-22 punto 1):** el negocio la declara una vez, en el mismo
+   cierre de turno. *Devoluciones del día* de la ferretería: aparecerá
+   cuando F-222 escriba devoluciones con motivo y destino; hoy no hay ninguna, y una sección sin
+   filas no se pinta. *Bloqueos por mora levantados*: la base guarda el bloqueo vigente, no su
+   historia. *El renglón completo de existencia por producto* (inicial, entradas, esperado): el
+   documento enseña lo vendido y los faltantes de los conteos cerrados en el día, que son las dos
+   cifras que se miden; un «inicial» sacado de un libro que la siembra no siempre alimenta sería
+   un número inventado.
+6. **La ferretería hereda «Caja y corte» de abarrotes**, como dice su documento: «Fondo y
+   movimientos» (`/ferreteria/fondo-y-movimientos`) y «Cortes» (`/ferreteria/cortes`).
+
+## D-21 · 25-09-2026 · Lo recortado de la tienda se construye: el fiado en el cobro, una sola cartera, la báscula declarada
+
+**Contexto.** C.10 de la 2.4: treinta y nueve pantallas llevaban «Alcance recortado» en su
+cabecera; al empezar el bloque quedaban veintinueve. Las seis de la tienda, al construirse,
+destaparon cuatro defectos que ninguna prueba veía: F11 (fiado) contestaba «La venta llegó
+incompleta»; un cobro fallido dejaba sus líneas en el borrador de la terminal y el siguiente las
+metía encima —el total ya no cuadraba nunca—; el abono del fiado se anotaba en un libro que nadie
+lee; y la pantalla «Productos» no abría ninguna ficha.
+
+**Decisión.**
+
+1. **El fiado es un pago del cobro, no un comando aparte.** `venta.cobrar` acepta el método
+   `fiado` (el `check` de `pagos.metodo` lo admite desde la 003) con `clienteId`, y emite el
+   documento de crédito en la MISMA transacción con la misma comprobación que
+   `credito.emitir_documento` (`emitirDocumento`, una sola aritmética). La venta suma a ventas, no
+   al cajón. La propina no se fía. Los documentos de fiado llevan serie propia `CR`: en la del
+   ticket, cada fiado se comía un folio de venta.
+2. **Una sola cartera.** `fiado.registrar_abono` —el nombre que declara el `05-DATOS-Y-BACKEND`—
+   aplica el pago con `aplicarPagoDeCredito`, el mismo de la ferretería: a lo más viejo, el
+   efectivo al cajón como depósito, la transferencia por confirmar. `pasivos_terceros` deja de
+   recibir abonos de fiado; sigue siendo el libro de recargas, servicios y cascos.
+3. **El carrito del mostrador se vacía antes de armarse**, con su propia clave de idempotencia
+   (`venta.vaciar_orden` en `armarCarrito`): en el mostrador la venta vive en la pantalla y lo que
+   quedó en el borrador es resto de un intento. Retomar una venta apartada retira el carrito vacío
+   de la caja y se niega a pisar uno con líneas.
+4. **La báscula de etiquetas (F-148) no se interpreta sin declararla.** Cada marca reparte los
+   dígitos a su manera y leer un importe como peso cobraría otra cosa sin que nada fallara. El
+   negocio la declara en el catálogo (`bascula_etiqueta`, validada en el servidor: prefijo 2x,
+   trece dígitos) y la prueba con una etiqueta real antes de guardar. Por importe, la cantidad se
+   elige para que precio × cantidad dé exactamente lo impreso.
+5. **F1–F8 contra las acciones.** El documento de abarrotes pide F1–F8 para los ocho de siempre Y
+   F2, F4, F6 y F7 para buscar, cliente, apartar y abono. Mandan las acciones: se usan en cada venta
+   que las necesita y ya están impresas. Los ocho llevan su tecla donde está libre (F1, F3, F5, F8)
+   y los demás son botones. Son los que el negocio VENDE (`venta.mas_vendidos`, 30 días), nunca los
+   primeros del catálogo: una tienda que aún no vende nada no ve fila.
+6. **El canje en la misma nota lo valora el servidor**, al costo de ANTES de la nota, y se le
+   descuenta al total de la compra. El navegador sólo dice qué, cuánto y por qué.
+7. **El kardex vive en la ficha del producto** (era «su propia pantalla» según la ficha y «la
+   ficha» según Existencias: no existía en ninguna). El conteo lo abre desde cada diferencia, y
+   cada diferencia elige su motivo de los del tronco y del giro (`inventario.motivos_de_merma`).
+
+## D-22 · 25-09-2026 · La cafetería sin nada recortado: la comisión declarada, la leche que se elige es la que sale
+
+**Contexto.** C.10 de la 2.4, las cinco pantallas de la cafetería. Construirlas destapó que la
+opción de bebida —la leche, el tamaño— no llegaba a ninguna parte: el mostrador no podía cobrarla
+(la pantalla de opciones metía la bebida en un borrador que el cobro nunca leía) y, aunque se
+hubiera cobrado, el consumo descontaba la receta de catálogo. Un latte de avena descontaba leche
+entera; uno de 16 oz, lo de uno de 12. Y la pantalla de recetas borraba el canal, la merma y el
+grupo de todas las líneas cada vez que se guardaba cualquiera.
+
+**Decisión.**
+
+1. **La comisión de la terminal se declara, y la declara el negocio donde la necesita.** Clave
+   `comision_terminal_bp` en la configuración (puntos base, 0 a 1000; nula = no declarada, y
+   entonces el corte dice «—», nunca cero). La pregunta el cierre de turno la primera vez que
+   falta. Estimación: (ventas con tarjeta + propinas con tarjeta) × tasa × 1.16 —la comisión
+   lleva IVA—, y se resta de la utilidad neta estimada del turno y del corte. Es ESTIMADA porque el
+   banco la cobra por su lado; el corte lo dice.
+2. **El programa de sellos lo cuenta el servidor** (`lealtad.programa`): el pasivo, quién está a un
+   sello y quién no viene hace 21 días miran a TODOS los del programa. El mensaje al que no viene
+   lo redacta el sistema y lo manda la dueña desde su WhatsApp (`wa.me`): el proveedor de envío es
+   F-406, que es del §10, y un mensaje automático a la vecina rompe lo que sostiene el negocio.
+3. **El alta de producto de la barra es la del catálogo del tronco** (`/productos`): la foto, la
+   receta, la familia y el IVA viven ahí. La pantalla de productos de la barra enseña los grupos
+   de opciones de cada bebida y su tasa de IVA.
+4. **Las opciones se aplican al CONSUMO** (`recetaConOpciones`, del dominio): la línea que declara
+   `sustituible_por_grupo_id` cambia su insumo por el de la opción elegida de ese grupo; el factor
+   escala lo que se MIDE (g, ml) y no lo que se CUENTA —un 16 oz lleva un vaso, no 1.44; el vaso
+   grande es una sustitución del grupo «Tamaño»—; la cantidad escalada se redondea a la
+   diezmilésima, al medio hacia arriba. Un sustituto de otra dimensión no se inventa (la línea
+   queda como estaba), y uno archivado o de otro negocio no sustituye.
+5. **La tabla de variantes usa esa misma función** y el mismo redondeo que el costo de línea del
+   puente: la opción que no cambia nada cuesta al centavo lo que la receta base. Si la pantalla no
+   conoce el sustituto, la variante queda SIN costo, no con el de la leche entera.
+6. **El mostrador de la cafetería cobra en un viaje** (`/api/venta/cobrar-mostrador`, el de la
+   tienda, que vacía el borrador): la bebida con opciones, alergias o nota entra por
+   `cafeteria.agregar_bebida`. La línea del pedido se reconoce por producto + opciones + alergias
+   + nota: dos lattes de avena se suman, uno de avena y uno con entera no.
+7. **La receta se reenvía entera con todo lo que tiene.** El comando reemplaza la receta, así que
+   el puente sirve `aplica_canal` y `sustituible_por_grupo_id`, y la pantalla devuelve canal,
+   merma y grupo de cada línea. El grupo se valida contra el negocio antes de borrar nada.
+
+## D-23 · 25-09-2026 · El salón sin nada recortado: la estilista ve lo suyo, el servicio se agenda con quien lo da
+
+**Contexto.** C.10 de la 2.4, las ocho pantallas de estética. Mapearlas contra el servidor
+destapó una fuga y cuatro caminos rotos: la agenda, «Mi día» y la liquidación dejaron de leer el
+puente —que sí recortaba a la estilista (C.7)— y sus comandos no miraban quién entraba; el
+catálogo de servicios no podía dar de alta ni corregir un servicio; nadie escribía qué profesional
+da cada servicio, así que un servicio nuevo no se podía agendar; y la regla de comisión no tenía
+comando.
+
+**Decisión.**
+
+1. **El recorte de la estilista vive también en los comandos** (`profesionalVisible`): para el rol
+   `mesero` la profesional es la del empleo de la sesión; sin pedir una se le da la suya, pidiendo
+   otra se niega, sin profesional ligada no ve ninguna. Los HUECOS no se recortan: son
+   disponibilidad, sin clientas. `ver_agenda_ajena` por persona sigue sin existir: manda el rol.
+2. **El servicio se guarda en un comando propio** (`servicios.guardar`): nombre, precio, sus tres
+   tramos y su cierre, y QUIÉN LO DA con su factor y su precio, en una transacción. El producto se
+   arma con la misma fila del alta del catálogo (`valoresProducto`), como servicio que no descuenta
+   al venderse. La lista de quién lo da se reemplaza entera; ausente, no se toca.
+3. **Agendar ofrece los huecos del servidor** (`agenda.huecos`), con la duración de los tres tramos
+   al factor de quien lo da, y sólo con quien lo da. Pide la ventana entera —aplicación, procesado y
+   terminado—: conservador (no promete un intercalado que el agendado rechace). Al confirmar vuelve a
+   la agenda; si venía de la lista de espera, la ata a la cita.
+4. **La regla de comisión se VERSIONA desde la liquidación** (`comision.guardar_regla`): la nueva
+   empieza después de la vigente, la anterior se cierra el día antes y quien la tenía —profesionales
+   y servicios— pasa a la nueva. Lo causado no se recalcula. El escalonado guarda
+   `{hastaCentavos, tasaBp}`, el formato que lee el cálculo. `comision.asignar_regla` cambia la de
+   una profesional.
+5. **Las fotos del expediente las sube quien administra.** La subida de archivos está cerrada al
+   rol de la estilista a propósito (una mutación de backend lo vigila) y no se abre: la cita en
+   curso intenta subir y, si el rol no puede, lo dice sin dar la foto por guardada. La galería la
+   lee `expediente.fotos`, con el aviso de las que no tienen consentimiento.
+6. **Sin conexión no hay cola** —ni de «llegó/no llegó», ni de fotos (F-436)—: es A-27 (F-988 en
+   EXCEPCIONES). La agenda lo dice en una franja.
+7. **El aviso de la lista de espera lo manda quien atiende** desde su WhatsApp (`wa.me`, con el
+   mensaje escrito); el proveedor de envío es F-406 (§10). «Sin confirmar» depende del
+   recordatorio, que es ese mismo proveedor.
+8. **Anaquel y cabina se leen por separado** (`cabina.existencias`): piezas en uno, gramos o
+   mililitros en el otro. `cabina.alcanza` trae nombre, unidad, cuántos servicios lo piden y para
+   cuántos alcanza.
+9. **La existencia de un producto se lee por la liga de REVENTA** (`insumos.producto_id`, la que
+   escribe el alta y descuenta la venta) y, sin ella, por la de consumo (`insumo_base_id`). Un solo
+   ayudante (`catalogo/insumo-del-producto.ts`) para todo comando que pregunte «¿qué insumo lleva la
+   existencia de este producto?». Cuatro lo preguntaban sólo por la de consumo, que ningún producto
+   dado de alta tiene.
+10. **La orden que nace pagada nace en su caja.** Todo comando que inserte una orden ya cobrada
+    escribe `sesion_caja_id` y `terminal_id`: el corte lee sus ventas por esa columna.
+
+## D-24 · 25-09-2026 · La nota del proveedor se lee en el navegador; la del mostrador vive en la pestaña
+
+**Contexto.** C.10 de la 2.4, primera tanda de ferretería: Entradas, Facturación y la ficha de la
+pieza. Entradas decía que subir el archivo «necesita multipart» y no lo hacía; el comparativo contra
+pedido sólo se elegía; el alta de un renglón sin emparejar lo sacaba de la nota; la ficha no subía la
+foto, no vendía la caja, sólo se abría en la primera pieza del catálogo y su AGREGAR escribía una
+venta que ninguna pantalla enseñaba.
+
+**Decisión.**
+
+1. **El archivo de la nota se lee en el NAVEGADOR** (CSV: coma, punto y coma o tabulador, coma
+   decimal, BOM; columnas por su nombre) y viajan RENGLONES a `compras.importar_nota`. No hay subida
+   de archivo: no hace falta. El servidor valida otra vez y PROPONE; guardar sigue siendo
+   `compras.recibir_entrada`, con todo a la vista.
+2. **`compras.importar_nota` devuelve el INSUMO al que entra la nota** (por la liga de reventa,
+   D-23.9) y su presentación de compra; compara el costo POR UNIDAD BASE —la hoja cobra la caja, el
+   insumo cuesta la pieza— y trae el precio que conserva el margen, calculado por el servidor. El
+   total respeta la cantidad con decimales.
+3. **La clave del proveedor se guarda en cada línea de compra** (`lineaDeCompra.claveProveedor`):
+   es la memoria con que la nota siguiente casa sola, y nadie la escribía.
+4. **El alta de un renglón sin emparejar es la rápida y ENTRA a la nota** con la cantidad y el costo
+   de la hoja; nace por pieza. El alta completa —categoría, precio, presentación— sigue en el
+   catálogo, en la lista de pendientes: con el repartidor esperando nadie contesta ocho campos.
+5. **«Contra pedido» es contra la sugerencia de hoy**: el sistema no lleva pedidos en tránsito. Lo
+   que no llegó va primero, para reclamarlo antes de firmar.
+6. **La foto de la nota en papel** se sube (sólo quien administra sube archivos) y queda en las notas
+   de la compra, sólo por https.
+7. **La ficha agrega a la NOTA DEL MOSTRADOR**, no a una venta del servidor: le deja al mostrador la
+   pieza, la cantidad y la presentación y vuelve a él. La presentación la valora el servidor al
+   mandar la nota a caja (`crear_nota_mostrador` acepta `presentacionId`, F-147).
+8. **La nota del mostrador vive en la pestaña** (`sessionStorage`): sobrevive a ir a la ficha, al
+   corte o al alta, y se borra al cerrar la pestaña. Es comodidad del mostradorista, no un registro:
+   lo que se cobra lo valora el servidor.
+9. **Facturación no timbra**: el timbrado, la cancelación, el complemento y la factura agrupada son
+   del PAC (§10.3) y están en EXCEPCIONES con su motivo. La pantalla lo dice.
+
+## D-25 · 08-10-2026 · Un solo portal del comensal: el de Miguel
+
+**Contexto.** C.11 de la 2.4: había dos portales del comensal. El QR de la mesa lleva a
+`/qr/[token]`, que pinta `PortalCliente` (heredado); la ruta del modelo,
+`/restaurante/portal-del-comensal`, pintaba `PortalDelComensal` (nuevo), al que ningún
+comensal llegaba. El encargo: queda vivo el que pase el rastreador, respete estilos y
+vocabulario y tenga las funciones del de Miguel. Uno solo, documentado.
+
+**Decisión.** Queda el de **Miguel**. Tiene lo que el otro no: el pedido desde la mesa con su
+carrito, abrir la mesa por QR y la propina en vivo cuando el mesero dispara la cuenta
+(`propina_origen = 'portal_qr'`). Desde C.16 (D-19) pinta con los tokens del estilo. El
+componente nuevo se BORRA; la ruta del modelo —que declara su `04-INTERFAZ`, que exige la
+cobertura y que la lista de rutas sin sesión nombra— monta el mismo `PortalCliente`, que sin
+token dice «Mesa no encontrada · llama a un mesero». Un componente, dos direcciones, y la del
+comensal es la del QR.
+
+## D-26 · 08-10-2026 · La utilidad del corte es la de caja, con el IVA dentro, hasta que haya CFDI
+
+**Contexto.** La auditoría de la 2.4 señaló que `utilidad = total − costo` (`domain/venta/
+totales.ts`) deja el IVA dentro cuando los precios lo incluyen: una venta de $116 con costo
+de $50 dice $66 de utilidad y 56.9 %, no $50 y 43.1 %.
+
+**Decisión.** **No se cambia ahora**, y se dice. La utilidad que el sistema guarda por orden
+(`utilidad_centavos`) y suma el corte es la de CAJA: lo que entró menos lo que costó, con los
+costos como se capturan —con su IVA pagado, que estos negocios no acreditan línea por línea—.
+Restar el IVA de un lado y no del otro daría una cifra más baja y TAMBIÉN falsa. La utilidad
+fiscal (sin IVA, con el IVA de compras acreditado) necesita las facturas de compra y venta, y
+eso es CFDI: P-02. El día que se decida el PAC, la utilidad fiscal se calcula aparte y el
+corte enseña las dos, rotuladas; antes, esta es la única que se puede calcular con los datos
+que hay. Las propinas, como siempre, fuera de las dos.
+
+## D-27 · 08-10-2026 · La base desechable de la laptop es un PostgreSQL propio, no una rama de Supabase
+
+**Contexto.** La 2.4 separa lo que se prueba según lo que toca (bloque D): lo que escribe un
+día de ventas corre sobre las cinco demos; lo destructivo —dar de baja, cambiar un PIN o el
+IVA, lo «permitido» de la matriz de permisos— y la integración contra Postgres corren contra
+una base DESECHABLE. En CI es el Postgres de servicio de cada trabajo. En la laptop,
+`BASE-DE-PRUEBAS.md` proponía una rama de Supabase: cuesta por hora, vive en el mismo
+proyecto que los negocios reales y hay que acordarse de borrarla.
+
+**Decisión.** `scripts/base-desechable.mjs` levanta un clúster propio con los binarios de
+PostgreSQL ya instalados (`initdb`, `pg_ctl`; `MORPHIQPOS_PG_BIN` si no están donde se
+buscan), en un directorio temporal y en el 5435, con confianza local y nadie más conectado.
+Migra DENTRO de su proceso con la URL local —quita `MORPHIQPOS_SUPABASE_PROJECT_REF`, que
+mandaría `migrate` al proyecto vivo por el CLI (B.5)—, da de alta las cinco demos con su ID
+(`db:alta-negocio`, `db:bootstrap`) y las siembra con `configuracion.resetear_demo`. `bajar`
+lo apaga y lo borra. Los secretos del servidor contra esa base son de usar y tirar, como en
+el rastreo de CI.
+
+**Por qué.** Es la misma forma que CI (Postgres sin Supabase, `morphiqpos_app` creado a mano,
+las migraciones de verdad con su ledger) y no comparte nada con producción. La rama de
+Supabase sigue siendo válida para quien no tenga PostgreSQL instalado. La versión local puede
+no ser la 17 de producción: CI manda en eso (D.9 lo iguala allí).
+
+## D-28 · 09-10-2026 · El descuento sobre el tope se autoriza con el PIN del supervisor en la terminal de quien cobra
+
+**Contexto.** Cada `02-DINERO-Y-CAJA §3` de los giros de mostrador pide un tope de descuento
+por puesto y, por encima, «el PIN de un supervisor, y el PIN queda en la bitácora» (F-205). El
+mostrador no tenía descuento NINGUNO y `venta.autorizar_descuento` escribía autorizaciones que
+nada aplicaba; la única vía era la del salón —el supervisor entra con su sesión y cobra él—,
+que en un mostrador obliga a cerrar la sesión de la cajera con la venta armada.
+
+**Decisión.** El supervisor teclea SU PIN en la terminal de la cajera
+(`/api/identidad/supervisor`, `identidad/supervisor.ts`): se comprueba igual que al entrar
+—Argon2id con pimienta, el mismo bloqueo progresivo en el mismo renglón de
+`credenciales_pin`, el mismo límite por origen `LIMITES.entrar`— y, si su puesto autoriza
+(gerente, administrador, dueño), vuelve una autorización FIRMADA de dos minutos, atada al
+negocio y a la cajera que la pidió. `venta.aplicar_descuento` la presenta, comprueba que el tope
+de quien autoriza cubre el descuento ENTERO y escribe `autorizaciones_descuento` con quién la
+dio. El descuento se reparte exacto entre las líneas y los totales salen de `cotizar`.
+
+**Por qué no es un comando.** El intento fallido tiene que CONTAR: un comando que rechaza
+revierte su transacción y con ella el contador, así que el PIN del gerente se podría probar
+sin fin desde la caja. Aquí cada intento fallido se confirma antes de contestar. Y un PIN malo
+contesta 403, nunca 401: para el cliente un 401 es «tu sesión venció» y cerraría la de la
+cajera.
+
+## D-29 · 09-10-2026 · La devolución de venta es un documento propio, total o parcial
+
+**Contexto.** «Devolución de venta en efectivo · Encargado · − monto · Resta de ventas» está en
+los `02-DINERO-Y-CAJA` de la tienda, la ferretería y el salón, y no existía en ningún modelo:
+`venta.devolver` es la del pedido de barra, total y sólo en la fila.
+
+**Decisión.** `devoluciones` y `devoluciones_lineas` (migración 178) y `venta.devolver_venta`.
+El ticket original no se toca (ferretería §1: «el histórico no se toca»); la devolución resta
+de la venta del día en que se hace. Lo cobrado de cada línea es su parte exacta del total
+pagado; lo devuelto se calcula ACUMULADO, así que devolver a pedazos suma exactamente lo
+cobrado. Sale por un método que la venta usó y por no más de lo que entró por él (devolver en
+efectivo lo pagado con tarjeta es la forma más vieja de sacar dinero del cajón); en efectivo,
+del cajón de la terminal que devuelve, con su sesión bloqueada. La mercancía regresa al almacén
+con un movimiento `devolucion` positivo, calculado con `calcularConsumo`; lo de receta no
+regresa. La hacen el encargado y el dueño, no la cajera. Una venta a crédito o fiada no se
+devuelve en caja: se ajusta en la cuenta del cliente (queda fuera de este comando).
+
+## D-30 · 09-10-2026 · El cupo de cajas abiertas es de la sucursal (F-235)
+
+**Contexto.** El `02-DINERO-Y-CAJA §8.1` de la cafetería abre dos cajas el fin de semana, cada
+una con su fondo, arqueo y corte, y `caja/multiples.ts` (F-235) se escribió para eso. Pero la
+046 creó `sesiones_caja_una_abierta_por_sucursal`, un índice único que impedía la segunda caja
+en cualquier terminal: F-235 no podía funcionar. El restaurante, en cambio, declara una sola
+caja a propósito.
+
+**Decisión.** `sucursales.cajas_simultaneas` (179), uno por omisión —la regla de la 046 para
+todo negocio que no lo cambie—, y un disparador que BLOQUEA la sucursal antes de contar y
+rechaza con el mismo código y el mismo nombre que el índice. `caja.abrir` lee el cupo antes y
+nombra la terminal que tiene la caja; el gasto en efectivo sale del cajón de SU terminal cuando
+hay varias. La demo de la cafetería nace con cupo dos (lo repone el reseteo). `verify:rls`
+deja de exigir el índice sólo si su disparador sustituto está en la base.
+
+## D-31 · 09-10-2026 · La cajera cancela su venta apartada con motivo, sin PIN; la caja no cierra con apartadas
+
+**Contexto.** La pantalla de ventas en espera de la tienda decía «cobra o cancela alguna» y no
+había manera de cancelar ninguna; y `caja.cerrar` cerraba con apartadas dentro, que quedaban
+colgadas de una caja que ya no existía (F-224, `abarrotes/02-DINERO-Y-CAJA §8.5`: «o se cobra,
+o se cancela con motivo»).
+
+**Decisión.** `venta.cancelar_apartada` lo puede hacer quien vende (los roles de mostrador),
+**sin PIN de supervisor**, porque una venta apartada no se cobró y su mercancía nunca salió:
+cancelarla no mueve dinero ni inventario. Lo que sí queda es el control: motivo obligatorio
+(4–200 caracteres), quién, cuándo, y la orden en `cancelada`, que es lo que lee la sección
+«Cancelaciones» del corte. Sólo desde la caja donde se apartó. `caja.cerrar` se niega con
+`TRANSICION_INVALIDA` mientras haya una apartada en ESA terminal; las de otra caja no la
+detienen. El depósito del casco (F-256) se ofrece en $10.00 por envase y se puede cambiar en el
+momento: el precio del casco lo pone el refresquero, no el sistema.
+
+## D-32 · 09-10-2026 · La nota del proveedor recibe cualquier producto, y el primer proveedor que lo trae queda como el suyo
+
+**Contexto.** Entradas (F-632) sólo llenaba la nota desde el pedido sugerido, y el sugerido
+sale de catorce días de venta de «lo que se le compra a este proveedor» (`insumos.proveedor_id`).
+Ninguna pantalla de la tienda asigna ese proveedor: los productos dados de alta en el mostrador
+no eran de nadie, así que el sugerido y el canje nunca los listaban. Una tienda nueva —o la demo
+recién reseteada— no podía recibir mercancía, aunque la pantalla decía «o captura lo que traiga
+el repartidor». Lo encontró el día completo de la tienda (bloque D).
+
+**Decisión.** La nota tiene «Agregar a la nota» con TODO el catálogo activo, además del
+sugerido; el canje puede llevarse lo del proveedor y lo que viene en esa misma nota. Y
+`compras.recibir_nota` liga al proveedor cada producto recibido que NO tenía uno: el primero que
+lo trae queda como el suyo, y desde la visita siguiente sale en su sugerido y en su canje. Nunca
+se pisa un proveedor ya puesto: cambiarlo es una decisión del dueño, no un efecto de recibir una
+nota.
+
+## D-33 · 09-10-2026 · Las zonas del anaquel se programan desde Conteo, y la demo de la tienda nace con las suyas
+
+**Contexto.** El conteo cíclico (F-149) cuenta una zona al día (`conteo_de_zona`, 173), pero
+ningún comando creaba zonas ni ponía productos en ellas: Conteo decía «Hoy no toca ninguna
+zona» para siempre y su botón llevaba a Configuración, donde no hay zonas.
+
+**Decisión.** `inventario.guardar_zona` y `inventario.asignar_zona` (almacén y encargados; ni
+caja ni cocina). El vacío de Conteo abre «Programar las zonas del anaquel» ahí mismo: se crea
+la zona con cada cuántos días toca y se dice en qué zona vive cada producto. La tienda de
+demostración nace con cuatro zonas (Refrigerador, Bebidas, Limpieza, Abarrotes) repartidas por
+el nombre del producto.
+
+## D-34 · 09-10-2026 · Las pantallas de los modelos llevan el mismo menú, en su variante «modelo»
+
+**Contexto.** El layout de `(modelos)` decía que «al acoplar se decide» si entraban en el
+`AppLayout` del heredado; nunca se decidió, y ninguna de las 61 pantallas llevaba a otra: la
+cajera en Caja no tenía cómo llegar a Cobrar sin teclear la dirección.
+
+**Decisión.** Entran en el MISMO `AppLayout`, con su menú por rol y plantilla, con
+`marco="modelo"`: la barra empieza colapsada a íconos (con nombre accesible y `aria-current`)
+y el contenido va sin el relleno de las páginas internas, para no quitarle a cada modelo su
+composición. Las páginas internas de Miguel conservan sus clases exactas. Y `/` ya no le pinta
+el tablero del dueño a quien no lo puede leer: la cajera y el almacén van a su casa, la primera
+entrada de su menú —la misma regla que usa el PIN al entrar—.
+
+## D-35 · 09-10-2026 · La idempotencia es de lo que escribe; una lectura no se guarda ni se repite
+
+**Contexto.** El ejecutor de comandos guardaba y reproducía la respuesta de CUALQUIER comando
+que trajera clave, también los de lectura. Cobrar abortaba su `caja.estado` al navegar, el
+cliente conservaba la clave del intento sin respuesta y la lectura siguiente —con la caja ya
+abierta— recibía la foto vieja: «la caja está cerrada».
+
+**Decisión.** La clave de idempotencia sólo se mira, se reclama y se guarda cuando el comando
+`escribe`. Para una lectura se ignora: se vuelve a leer siempre.
+
+## D-36 · 19-10-2026 · La frontera por sucursal: el dueño y el administrador consolidan; los demás ven y operan SU sucursal
+
+**Contexto.** El modelo de datos ya es multisucursal (`sucursal_id` en ventas, cajas, mesas,
+citas, compras…), pero el puente sólo acotaba por organización —y, para la estilista, por
+persona— y cada comando resolvía sus ids por organización. Entre dos sucursales de un mismo
+negocio no había frontera: el gerente del centro leía las ventas, el kárdex y el corte del
+norte, y desde el norte se le agregaban renglones a una orden del centro. Hoy los nueve
+negocios de producción tienen UNA sucursal, así que nada real se filtraba; pero el día que
+llegue la segunda, la fuga ya estaría hecha.
+
+**Decisión.**
+- `ROLES_CONSOLIDADOS = ['dueno', 'administrador']` (`packages/contracts`). El gerente NO
+  consolida: es el encargado de SU sucursal; un gerente regional es un administrador.
+- LEER: cada entidad del puente declara su frontera (obligatoria en el tipo): su
+  `sucursal_id`, la de su padre (renglones → orden, kárdex → almacén, movimientos → caja),
+  o «del negocio» con su razón (catálogo, clientas y su cartera, reglas, existencias
+  consolidadas). `consultar` la aplica de la sesión, nunca del cliente; sin sucursal en la
+  sesión, falla cerrada.
+- OPERAR: cada comando declara qué campos de su entrada son ids de algo de una sucursal
+  (`sucursal: { ordenId: 'ordenes' }`; 141 comandos) y `definirComando` comprueba que el
+  campo existe. El envoltorio cambia los ids de OTRA sucursal por uno que no existe antes
+  del cuerpo: el comando contesta lo mismo que a un id al azar. El dueño y el administrador
+  leen todo, pero cuando ESCRIBEN desde una terminal operan esa sucursal (el cobro entra en
+  ESE cajón); sin terminal, operan cualquiera.
+- Una `sucursal_id` que admite nulo se lee con su `coalesce`: la fila sin sucursal es del
+  negocio. Lo exige un contrato contra el esquema migrado.
+
+**Alternativas descartadas.**
+- *RLS por sucursal en Postgres* (`set local` del ámbito y políticas por tabla): la
+  aplicación entra con un rol con `bypassrls`, y cambiarlo toca todas las conexiones, el
+  pooler y cada migración; demasiado radio para este corte.
+- *Una comprobación escrita a mano en cada comando*: cien sitios que alguien tiene que
+  acordarse de escribir, y cada uno contestando distinto («es de otra sucursal» ya dice que
+  existe).
+- *Un diccionario de nombres de campo → tabla aplicado a todos los comandos*: `rentaId` y
+  `piezaId` significan tablas distintas en comandos distintos; la declaración es explícita.
+
+**Consecuencias.**
+- Un comando nuevo que recibe un id de sucursal y no lo declara pone en rojo
+  `sucursal/frontera.contrato.test.ts`, que carga los 263 comandos.
+- Devolver en el centro una venta del norte no es posible hoy (la devolución sale del cajón
+  de quien la hace). Si un cliente lo pide, es una decisión de producto con su contabilidad
+  entre sucursales, no un permiso que se abre.
+- PENDIENTE declarado: los TABLEROS (`reportes.tablero_*`) y `venta.mas_vendidos` agregan el
+  negocio entero también para el gerente, y las vistas de existencias del puente se
+  declaran consolidadas. Con una sucursal por negocio no cambia nada; se acotan cuando
+  llegue el alta de la segunda sucursal.
+
+## D-37 · 19-10-2026 · Lo vendido a cuenta se devuelve a cuenta, y el corte resta lo devuelto el día en que se devuelve
+
+**Contexto.** `venta.devolver_venta` exige devolver por el método con que se pagó, y sólo
+conocía efectivo, tarjeta y transferencia: una venta fiada (tienda) o remitida a crédito
+(ferretería) NO se podía devolver, y la única salida era sacar dinero del cajón por un
+material que nunca se pagó (`ferreteria/02-DINERO-Y-CAJA` §8.3). Además el corte filtraba
+las ventas por su estado ACTUAL: una venta devuelta entera desaparecía retroactivamente del
+corte del día en que se cobró.
+
+**Decisión.**
+- Migración 182: `devoluciones.metodo` admite `fiado` y `credito`, y una devolución a
+  cuenta nombra SIEMPRE su documento de cartera (`documento_credito_id`, con un `check` que
+  lo ata y una llave a la misma organización). La parte que el cliente ya pagó se devuelve
+  por el método con que la pagó; lo que sigue debiéndose, a su cuenta. Fiado y crédito son
+  el mismo concepto —«a cuenta»— con dos nombres de giro.
+- El corte cuenta como vendida la orden reembolsada si tiene devoluciones (`ORDEN_VENDIDA`),
+  y la hoja trae una sección de devoluciones: lo devuelto se resta el día en que se devuelve,
+  con su método, quién y por qué; la utilidad se calcula sobre la venta neta.
+
+**Alternativas.** Cancelar la venta en vez de devolverla (borra la historia y descuadra el
+día de la venta); un método «nota de crédito» aparte (otro saldo que conciliar con el
+mismo cliente).
+
+**Consecuencias.** La conciliación sabe reconstruir el saldo de un documento —importe −
+pagos aplicados − devoluciones— sin creerle a la columna cacheada. El código de `main`
+sigue funcionando con la 182 aplicada (sólo ensancha y agrega una columna nula).
+
+## D-38 · 19-10-2026 · La respuesta que no llega se dice como es, y el reintento es seguro
+
+**Contexto.** Si el servidor cobraba y la respuesta se perdía, la caja enseñaba «Failed to
+fetch» y la de la tienda caía en «No se cobró nada», que era justo lo que no se sabía.
+
+**Decisión.** `invocarComando` lanza `ErrorSinRespuesta`: «puede que sí se haya hecho;
+vuelve a tocar el mismo botón: si ya estaba hecho, no se repite». Es verdad porque el mismo
+pedido conserva su clave de idempotencia hasta tener respuesta definitiva y el servidor
+devuelve el resultado guardado. Un abort de quien llama sale tal cual.
+
+**Consecuencias.** El día de la tienda lo recorre: corta la respuesta de un cobro después de
+que el servidor lo hizo, la cajera vuelve a tocar y en el servidor hay UNA venta.
+
+## D-39 · 19-10-2026 · Las jornadas corren en CI sin reintentos, en el aparato de quien opera
+
+**Contexto.** Las suites de día completo, de matriz de permisos y de aislamiento existían y
+no corrían en ninguna parte; `playwright.config.ts` permite un reintento en CI.
+
+**Decisión.** Dos trabajos nuevos en `verificar.yml`: «Jornada completa» por modelo y
+«Permisos por rol y aislamiento». Las jornadas corren con `--retries=0` y `--workers=1`: un
+día que sólo cuadra al segundo intento no cuadró. Los aparatos son los del modelo
+(`04-INTERFAZ`): PC y tableta en el mostrador; tableta en restaurante y salón; el teléfono
+dentro del día, donde el negocio lo usa (el dueño lee el corte, la estilista su día). Todo
+sobre Chromium; WebKit entra con la pantalla de mesero del iPad.
+
+**Alternativas.** Correr cada día en los tres aparatos (probaría cobrar desde un teléfono,
+que el producto declara que no hace); permitir el reintento (escondería el fallo que se
+quiere ver).
+
+**Consecuencias.** Cinco trabajos más por empujón, en paralelo; si uno se pone rojo, el
+artefacto `jornada-<modelo>` trae la traza.
+
+## D-40 · 19-10-2026 · La cuota de entrada de la red cuenta los PIN que fallan
+
+**Contexto.** `/api/auth/entrar` admite 20 intentos por red en cinco minutos
+(`LIMITES.entrar`). El comentario decía «veinte PIN fallidos», y el contador sumaba TODAS las
+entradas, también las correctas. Todas las cajas de un negocio salen a internet por la misma
+IP, y la tableta del restaurante pasa de mesero en mesero (`AccesoPorPin`): en una comida
+llena, veinte entradas correctas en cinco minutos dejaban al restaurante entero sin entrar
+(«Demasiados intentos desde esta red»). Lo destapó CI: la matriz de permisos entra con las 25
+personas de las cinco demos y la 21.ª recibía 429.
+
+**Decisión.** Reservar y devolver. El intento se sigue contando ANTES de verificar, con la
+misma sentencia atómica (`contarIntento`), y la entrada con el PIN correcto lo devuelve
+(`devolver` → `devolverIntento`, que nunca baja de cero). Lo que falla —PIN equivocado,
+credencial bloqueada, empleo de otro negocio, cuerpo mal formado— conserva su intento.
+
+**Alternativas.** (1) Leer el contador antes y sumar sólo al fallar: veinte peticiones en
+paralelo leerían «0» y pasarían todas, que es el agujero que la sentencia única existe para
+cerrar. (2) Subir el tope: sigue contando lo que no es un ataque, sólo más tarde. (3) Partir
+la matriz de CI en un trabajo por demo: escondería el defecto del restaurante en vez de
+arreglarlo.
+
+**Consecuencias.** El barrido sigue topando en veinte fallos por red (cada petición en vuelo
+ocupa su lugar mientras se verifica). Un negocio que entra bien no gasta su cuota. Si la base
+falla al devolver, se registra y la entrada sigue: el contador queda más alto, nunca más
+abierto. Pruebas: `auth-entrar-cuota.test.ts` (la ruta, con sus mutaciones) y
+`limite.integracion.test.ts` (la SQL contra Postgres).
+
+## D-41 · 19-10-2026 · La matriz de permisos pregunta sin ejecutar: el cuerpo inerte
+
+**Contexto.** La matriz mandaba `{}` a cada ruta con cada rol, y su cabecera decía «seguro
+contra cualquier base». No lo era: cinco comandos que escriben aceptan `{}`
+(`venta.crear_orden`, `catalogo.fiscal_masivo`, `inventario.valuar`,
+`restaurante.limpiar_solicitudes` y `restaurante.vaciar_solicitudes`), y con el rol que sí
+puede, la matriz los ejecutaba. En la base desechable de CI no se notaba; contra el preview,
+que escribe en la base compartida, habría abierto órdenes y vaciado solicitudes en las demos.
+
+**Decisión.** La matriz manda un texto JSON que no es la entrada de ningún comando
+(`packages/app/src/pruebas/cuerpo-inerte.ts`). El rol se comprueba antes que la entrada, así
+que donde el rol no está sigue siendo 403, y donde está es un 400 de zod: nada se ejecuta.
+`validacion/cuerpo-inerte.contrato.test.ts` lo comprueba contra los 263 comandos del registro
+y exige que la matriz lo use.
+
+**Alternativas.** Un cuerpo «inválido» por comando (una lista que se queda atrás); saltar en
+la matriz los comandos que aceptan `{}` (dejaría su permiso sin probar).
+
+**Consecuencias.** La matriz se puede correr contra el preview —que escribe en la base
+compartida— sin tocar las demos más que con las sesiones de quien entra.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
-**P-01 · ¿Plantilla cerrada o plantilla + perillas?**
-Hoy los paquetes son bloques cerrados. La alternativa es que la plantilla sea un punto de partida y cada módulo se pueda encender y apagar (**F-016**). La segunda vende mucho mejor —permite el "sí, y además te pongo citas"— y complica el gate de paquetes, las pruebas y el soporte.
-*Recomendación: plantilla como preajuste, perillas por módulo detrás de una pantalla de administrador. Lo mejor de ambas.*
+*Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras
+tres se conservan abajo, con lo que las cerró, para que nadie las vuelva a plantear.*
 
-**P-02 · ¿Entra CFDI en la Fase 2 y en qué momento?**
+**P-02 · ¿Entra CFDI en la Fase 2 y en qué momento?** — **ABIERTA**
 No lo pide ningún arquetipo en particular: lo piden los 78. En México es lo que separa "sistema de cobro" de "sistema del negocio". Es el módulo con más superficie regulatoria y el único que ningún competidor puede no tener.
-*Recomendación: sí, y temprano — porque condiciona el modelo de datos de cliente, producto y venta. Meterlo tarde obliga a migrar todo.*
+*Recomendación: sí, y temprano — porque condiciona el modelo de datos de cliente, producto y venta. Meterlo tarde obliga a migrar todo.* Lo que falta para empezar es elegir y contratar el PAC (F-940…945), que es de Miguel.
 
-**P-03 · ¿En qué orden se atacan los arquetipos?**
-Por rendimiento: **A1 Mostrador** completo (desbloquea ~20 modelos) → **A3 Agenda** (desbloquea 22) → **A5 Cotización y crédito** (18) → **A4 Orden de trabajo** (9) → el resto.
-*Pendiente de confirmación.*
+**P-01 · ¿Plantilla cerrada o plantilla + perillas?** — **CERRADA: implementada**
+Se hizo lo recomendado: la plantilla es un preajuste y cada módulo se enciende o apaga por negocio (**F-016**). Las excepciones viven en `organizacion_modulos` (migración 058), los comandos `configuracion.fijar_modulo` y `restablecer_modulo` las escriben (`packages/app/src/configuracion/modulos.ts`), y el gate de `comando.ts` las consulta con `leerModulosActivos` para todo comando que declara módulo.
 
-**P-04 · ¿Qué pasa con los clientes que ya operan cuando cambie la plantilla?**
-Los cuatro negocios vivos tienen datos. Cualquier renombre o cambio de estructura necesita migración probada, no un `update` a mano.
-*Sin esto no se despliega nada.*
+**P-03 · ¿En qué orden se atacan los arquetipos?** — **CERRADA: sin objeto**
+Dejó de ser una decisión pendiente cuando la Fase 2 se partió en etapas: los cinco primeros modelos (2.2–2.4) ya están hechos, y el orden de la siguiente tanda es el contenido de la etapa 2.5, no una pregunta abierta de la fase.
+
+**P-04 · ¿Qué pasa con los clientes que ya operan cuando cambie la plantilla?** — **CERRADA: resuelta por D-12**
+D-12 lo resolvió: el renombre de plantillas se migra POR GIRO, con migración probada y no con un `update` a mano. Y desde la 2.4 ninguna operación de prueba, siembra o reseteo puede tocar un negocio real (`packages/contracts/src/negocios`, D-15).

@@ -1,4 +1,18 @@
 export {
+  APARIENCIA_POR_OMISION,
+  aparienciaDeLaOrganizacion,
+  DENSIDADES,
+  ELEVACIONES,
+  ESTILOS_DISPONIBLES,
+  MOVIMIENTOS,
+  REDONDEOS,
+  entradaFijarApariencia,
+  fijarApariencia,
+  normalizarEstilo,
+  type AparienciaGuardada,
+} from './apariencia.ts';
+
+export {
   entradaGuardarConfiguracion,
   guardarConfiguracion,
   leerConfiguracion,

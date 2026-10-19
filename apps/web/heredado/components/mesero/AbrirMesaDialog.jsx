@@ -98,7 +98,7 @@ export default function AbrirMesaDialog({ open, onOpenChange, mesa, onConfirm, l
           {/* Alergias */}
           <div>
             <Label className="text-xs flex items-center gap-1">
-              <AlertTriangle className="w-3 h-3 text-amber-500" />
+              <AlertTriangle className="w-3 h-3 text-advertencia" />
               Alergias o indicaciones críticas{' '}
               <span className="text-muted-foreground">(opcional)</span>
             </Label>
@@ -117,7 +117,7 @@ export default function AbrirMesaDialog({ open, onOpenChange, mesa, onConfirm, l
             <div className="flex items-start justify-between gap-3">
               <div className="flex-1">
                 <Label className="text-sm font-medium flex items-center gap-1.5">
-                  <PartyPopper className="w-4 h-4 text-pink-500" />
+                  <PartyPopper className="w-4 h-4 text-acento" />
                   Cumpleaños o celebración especial
                 </Label>
                 <p className="text-[10px] text-muted-foreground mt-0.5">

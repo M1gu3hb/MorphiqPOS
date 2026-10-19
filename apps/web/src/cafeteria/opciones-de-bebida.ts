@@ -1,4 +1,5 @@
 import { ErrorApi } from '~/cliente/api';
+import { centavosDe } from '~/cliente/dinero-del-puente';
 
 /**
  * F-027 · Los modificadores de la bebida: lo que decide QUÉ SE COBRA.
@@ -61,21 +62,63 @@ export function porOmisionDe(grupo: GrupoDeOpciones): string | null {
   return grupo.varias ? null : (disponibles[0]?.id ?? null);
 }
 
-/** El total que va dentro del botón: la base más cada delta activo. */
+/**
+ * Si la opción de un grupo de VARIAS empieza marcada: NUNCA (C.10 de la 2.4).
+ *
+ * La vista `opciones_de_bebida` marca `por_omision` la primera opción de CADA grupo, y en
+ * «Extras» la primera es el shot extra: la pantalla lo encendía solo y un americano salía
+ * cobrado $15 de más —el e2e lo cazó en cuanto el cobro abrió las opciones—. Un extra se
+ * pide; no se supone. En los grupos de una sola, la de omisión sigue siendo la marcada.
+ */
+export function activaAlAbrir(grupo: GrupoDeOpciones, opcion: OpcionDeBebida): boolean {
+  return grupo.varias ? false : opcion.por_omision;
+}
+
+/**
+ * El total que va dentro del botón: la base más cada delta activo.
+ *
+ * El delta pasa por `centavosDe` aunque el puente ya lo sirva en centavos: la unidad
+ * la decide el campo en el mapa, no el `_centavos` del nombre. Sin delta no mueve.
+ */
 export function totalCentavos(base: number, activas: readonly OpcionDeBebida[]): number {
-  return activas.reduce((suma, opcion) => suma + (opcion.delta_precio_centavos ?? 0), base);
+  return activas.reduce(
+    (suma, opcion) =>
+      suma +
+      (centavosDe('Modificador', 'delta_precio_centavos', opcion.delta_precio_centavos) ?? 0),
+    base,
+  );
 }
 
-export function pesos(centavos: number): string {
-  return `$ ${(centavos / 100).toFixed(2)}`;
+/**
+ * Lo que la pantalla de opciones DEVUELVE cuando se abre desde el cobro (C.10 de la 2.4):
+ * las opciones activas con su delta ya en centavos, las alergias y la nota. El cobro las
+ * lleva en la línea del pedido y el servidor pone el precio al cobrar.
+ */
+export interface EleccionDeBebida {
+  readonly opciones: readonly {
+    readonly id: string;
+    readonly nombre: string;
+    readonly deltaCentavos: number;
+  }[];
+  readonly alergias: readonly string[];
+  readonly nota: string;
 }
 
-/** `+22` se dice en voz alta; `+22.00` se lee. Los centavos sólo salen si los hay. */
-export function etiquetaDelta(centavos: number): string | null {
-  if (centavos === 0) return null;
-  const absoluto = Math.abs(centavos);
-  const cuerpo = absoluto % 100 === 0 ? absoluto / 100 : (absoluto / 100).toFixed(2);
-  return `${centavos > 0 ? '+' : '−'}$${cuerpo}`;
+export function eleccionDe(
+  activas: readonly OpcionDeBebida[],
+  alergias: readonly string[],
+  nota: string,
+): EleccionDeBebida {
+  return {
+    opciones: activas.map((opcion) => ({
+      id: opcion.id,
+      nombre: opcion.nombre,
+      deltaCentavos:
+        centavosDe('Modificador', 'delta_precio_centavos', opcion.delta_precio_centavos) ?? 0,
+    })),
+    alergias: [...alergias],
+    nota: nota.trim(),
+  };
 }
 
 /** El límite de intentos no es un código de la API: es el 429 del estado. */

@@ -1,8 +1,9 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  activaAlAbrir,
   agrupar,
-  etiquetaDelta,
+  eleccionDe,
   porOmisionDe,
   totalCentavos,
   type OpcionDeBebida,
@@ -131,22 +132,49 @@ describe('F-027 · lo que se cobra', () => {
   });
 });
 
-describe('F-027 · la etiqueta del delta', () => {
-  it('sin centavos, se dice en voz alta: «+$22»', () => {
-    expect(etiquetaDelta(2200)).toBe('+$22');
+describe('lo que la pantalla devuelve al cobro (C.10 de la 2.4)', () => {
+  it('cada opción con su delta EN CENTAVOS, las alergias y la nota sin espacios', () => {
+    const eleccion = eleccionDe(
+      [
+        opcion({ id: 'avena', nombre: 'Avena', delta_precio_centavos: 1200 }),
+        opcion({ id: 'propio', nombre: 'Vaso propio', delta_precio_centavos: -300 }),
+        opcion({ id: 'normal', nombre: 'Normal', delta_precio_centavos: null }),
+      ],
+      ['Lácteos'],
+      '  sin espuma ',
+    );
+    expect(eleccion).toEqual({
+      opciones: [
+        { id: 'avena', nombre: 'Avena', deltaCentavos: 1200 },
+        { id: 'propio', nombre: 'Vaso propio', deltaCentavos: -300 },
+        { id: 'normal', nombre: 'Normal', deltaCentavos: 0 },
+      ],
+      alergias: ['Lácteos'],
+      nota: 'sin espuma',
+    });
+  });
+});
+
+describe('lo que empieza marcado al abrir las opciones', () => {
+  it('en un grupo de VARIAS, nada: el shot extra se pide, no se supone', () => {
+    const [extras] = agrupar([
+      opcion({
+        id: 'shot',
+        grupo: 'Extras',
+        nombre: 'Shot extra',
+        varias: true,
+        por_omision: true,
+      }),
+      opcion({ id: 'crema', grupo: 'Extras', nombre: 'Crema', varias: true }),
+    ]);
+    expect(extras?.opciones.map((o) => activaAlAbrir(extras, o))).toEqual([false, false]);
   });
 
-  it('con centavos, se escriben los dos', () => {
-    expect(etiquetaDelta(2250)).toBe('+$22.50');
-  });
-
-  it('el descuento lleva el signo de menos tipográfico', () => {
-    expect(etiquetaDelta(-300)).toBe('−$3');
-  });
-
-  it('un delta de cero NO se pinta', () => {
-    // «+$0» al lado de una opción es ruido que el barista aprende a ignorar, y
-    // entonces deja de mirar los que sí cuestan.
-    expect(etiquetaDelta(0)).toBeNull();
+  it('en un grupo de una sola, la de omisión', () => {
+    const [leche] = agrupar([
+      opcion({ id: 'entera', grupo: 'Leche', nombre: 'Entera', por_omision: true }),
+      opcion({ id: 'avena', grupo: 'Leche', nombre: 'Avena' }),
+    ]);
+    expect(leche?.opciones.map((o) => activaAlAbrir(leche, o))).toEqual([true, false]);
   });
 });

@@ -76,6 +76,7 @@ export async function auditar<TX>(
       empleoId: ambito.empleoId,
       sucursalId: ambito.sucursalId,
       ...datos.payload,
+      ...(ambito.presentador === undefined ? {} : { presentador: ambito.presentador }),
     }),
   };
 

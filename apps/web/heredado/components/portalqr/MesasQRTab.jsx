@@ -125,7 +125,7 @@ export default function MesasQRTab({ config }) {
                 boxShadow: '0 1px 0 rgba(255,255,255,0.06) inset, 0 3px 8px rgba(0,0,0,0.18)',
               }}
             >
-              <div className="shrink-0 rounded-lg p-1.5 bg-white border">
+              <div className="shrink-0 rounded-lg p-1.5 bg-superficie border">
                 {mesa.qr_token ? (
                   <QRCanvas value={url} size={70} />
                 ) : (
@@ -145,7 +145,7 @@ export default function MesasQRTab({ config }) {
                 <div className="flex items-center gap-2 mt-2">
                   <Switch checked={activo} onCheckedChange={(v) => toggleActivo(mesa, v)} />
                   <span
-                    className={`text-xs font-semibold ${activo ? 'text-emerald-700 dark:text-emerald-300' : 'text-slate-500 dark:text-slate-400'}`}
+                    className={`text-xs font-semibold ${activo ? 'text-exito' : 'text-texto-sutil'}`}
                   >
                     {activo ? 'QR activo' : 'QR inactivo'}
                   </span>

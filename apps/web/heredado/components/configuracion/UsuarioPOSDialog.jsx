@@ -331,7 +331,7 @@ export default function UsuarioPOSDialog({ open, onClose, user, onSave }) {
               </SelectContent>
             </Select>
             {esRolLegacyBarra && (
-              <div className="mt-2 text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
+              <div className="mt-2 text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-advertencia/10 border border-advertencia/30 text-advertencia">
                 <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
                 <span>
                   Este usuario tiene un rol antiguo <strong>"Barra"</strong>. Ya no es un rol; ahora
@@ -353,7 +353,7 @@ export default function UsuarioPOSDialog({ open, onClose, user, onSave }) {
                 que vea la vista general (administrador de cocina).
               </p>
               {estacionesArr.length === 0 ? (
-                <div className="text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
+                <div className="text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-advertencia/10 border border-advertencia/30 text-advertencia">
                   <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
                   <span>
                     Aún no hay estaciones creadas. Ve a Configuración → Operación → Estaciones de
@@ -391,7 +391,7 @@ export default function UsuarioPOSDialog({ open, onClose, user, onSave }) {
                 </Select>
               )}
               {estacionAsignadaInactiva && (
-                <div className="text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
+                <div className="text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-advertencia/10 border border-advertencia/30 text-advertencia">
                   <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
                   <span>
                     La estación asignada ya no está activa. Selecciona otra antes de guardar.
@@ -443,7 +443,7 @@ export default function UsuarioPOSDialog({ open, onClose, user, onSave }) {
                 )}
               </div>
               {colorDuplicado && (
-                <div className="mt-2 text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
+                <div className="mt-2 text-[11px] flex items-start gap-1.5 px-2 py-1.5 rounded-md bg-advertencia/10 border border-advertencia/30 text-advertencia">
                   <AlertTriangle className="w-3 h-3 shrink-0 mt-0.5" />
                   <span>
                     Este color ya está asignado a <strong>{colorDuplicado.nombre}</strong>. Elige
@@ -514,7 +514,7 @@ export default function UsuarioPOSDialog({ open, onClose, user, onSave }) {
                   />
                 </div>
                 {nuevoPin && confirmarPin && nuevoPin !== confirmarPin && (
-                  <p className="text-xs text-red-600">Los NIP no coinciden.</p>
+                  <p className="text-xs text-peligro">Los NIP no coinciden.</p>
                 )}
               </div>
             )}

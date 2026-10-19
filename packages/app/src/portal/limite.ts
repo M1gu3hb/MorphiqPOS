@@ -54,6 +54,14 @@ export const LIMITES_PORTAL = {
   crear_solicitud: { intentos: 10, ventanaSegundos: CINCO_MINUTOS },
   pedir_cuenta: { intentos: 10, ventanaSegundos: CINCO_MINUTOS },
   valorar: { intentos: 6, ventanaSegundos: CINCO_MINUTOS },
+  /**
+   * C.14 · El pedido anticipado de la cafetería, que no tiene token de mesa: se
+   * cuenta por IP y por negocio. Cinco apartados por IP en quince minutos sobra para
+   * quien de verdad pide su café —y para la oficina que pide seis de una vez—; y
+   * sesenta por negocio en una hora es el techo de lo que una barra puede prometer.
+   */
+  apartar_anticipado: { intentos: 5, ventanaSegundos: 3 * CINCO_MINUTOS },
+  apartados_del_negocio: { intentos: 60, ventanaSegundos: 12 * CINCO_MINUTOS },
 } as const satisfies Readonly<Record<string, Limite>>;
 
 export type AccionPortal = keyof typeof LIMITES_PORTAL;

@@ -66,6 +66,7 @@ export const propinasPendientes = definirComando<
   // por método es parte de su corte (`Caja.jsx:160-173`), aunque liquidar no lo sea.
   roles: ROLES,
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { meseroId: 'empleos' },
   entrada: entradaPropinasPendientes,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;

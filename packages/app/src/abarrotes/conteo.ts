@@ -14,6 +14,7 @@ import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
 import { exigirMotivoDeMerma } from '../inventario/motivos.ts';
+import { almacenDeLaSesion } from './recibir-nota.ts';
 
 /**
  * F-149 · Conteo cíclico por zona, sobre la toma física de E2 (F-106).
@@ -45,7 +46,11 @@ const ROLES = ['almacen', 'gerente', 'administrador', 'dueno'] as const;
 const CANTIDAD = /^\d{1,10}(\.\d{1,4})?$/;
 
 export const entradaAbrirConteo = z.object({
-  almacenId: z.uuid(),
+  /**
+   * Opcional: sin él, el almacén principal de la sucursal de la SESIÓN. El almacén es
+   * ámbito; exigírselo a la pantalla es por lo que ninguna abría una toma (C.8).
+   */
+  almacenId: z.uuid().optional(),
   alcance: z.enum(['zona', 'completo']),
   zonaId: z.uuid().optional(),
 });
@@ -108,6 +113,7 @@ export const abrirConteo = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   entrada: entradaAbrirConteo,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -148,10 +154,11 @@ export const abrirConteo = definirComando<
       }
     }
 
+    const almacenId = entrada.almacenId ?? (await almacenDeLaSesion(ctx));
     const tomaId = await ctx.paso('abrir_toma', () =>
       repoTomas.abrirToma(ctx.tx, {
         organizacionId,
-        almacenId: entrada.almacenId,
+        almacenId,
         empleadoId: empleoId,
         zonaId,
         ahora: ctx.ahora,
@@ -160,7 +167,7 @@ export const abrirConteo = definirComando<
 
     ctx.auditar({
       entidadId: tomaId,
-      payload: { alcance: entrada.alcance, zonaId, almacenId: entrada.almacenId },
+      payload: { alcance: entrada.alcance, zonaId, almacenId },
     });
 
     return { tomaId, alcance: entrada.alcance, zonaId };
@@ -180,6 +187,7 @@ export const capturarConteo = definirComando<
   // vez una toma anual.
   roles: ['cajero', ...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { tomaId: 'tomas_inventario' },
   entrada: entradaCapturarConteo,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -258,6 +266,7 @@ export const cerrarConteo = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { tomaId: 'tomas_inventario' },
   entrada: entradaCerrarConteo,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -316,6 +325,8 @@ export async function ejecutarCierreDeConteo(
   toma: { readonly id: string; readonly almacenId: string; readonly zonaId: string | null },
   motivo: string | null,
   nota: string | null,
+  /** El motivo de cada diferencia, si no es el de la toma (C.10 de la 2.4). */
+  motivosPorInsumo: ReadonlyMap<string, string> = new Map(),
 ): Promise<ResultadoCerrarConteo> {
   const { organizacionId, empleoId } = ctx.ambito;
 
@@ -343,7 +354,7 @@ export async function ejecutarCierreDeConteo(
           referencia_tipo: 'conteo',
           referencia_id: toma.id,
           empleado_id: empleoId,
-          motivo,
+          motivo: motivosPorInsumo.get(ajuste.insumoId) ?? motivo,
           nota: nota,
         })
         .returning('id')

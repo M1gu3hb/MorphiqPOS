@@ -2,6 +2,7 @@ import 'server-only';
 
 import { ErrorDominio, plantillaDeOrganizacion } from '@morphiqpos/contracts';
 import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
+import { z } from 'zod';
 
 /**
  * `ConfiguracionNegocio` — la entidad que no es una tabla con columnas.
@@ -60,6 +61,12 @@ export const CONFIG_POR_OMISION = {
   // permisiva, por la misma razón que en todos los demás sitios.
   paquete_modo: 'tienda',
   modo_presentacion_activo: false,
+  // F-148 · Cómo etiqueta su báscula el negocio. Nula = no se interpreta ninguna etiqueta:
+  // leer un importe como si fuera peso cobraría una cosa por otra sin que nada fallara.
+  bascula_etiqueta: null,
+  // La tasa de la terminal bancaria, en puntos base SIN IVA (360 = 3.6 %). Nula = no se
+  // declaró, y la comisión estimada del corte se dice «sin tasa» en vez de inventarse.
+  comision_terminal_bp: null,
 } as const;
 
 /**
@@ -96,7 +103,12 @@ export const PUBLICOS = [
  * `presentacion_password` se compara en el servidor contra un hash (E10-3). Que
  * hoy viaje en texto plano al navegador es el defecto D-19.
  */
-const NUNCA_SALEN = new Set(['presentacion_password', 'presentacion_password_hash']);
+const NUNCA_SALEN = new Set([
+  'presentacion_password',
+  'presentacion_password_hash',
+  'presentacion_dueno_empleo',
+  'presentacion_destinos',
+]);
 
 /**
  * Campos que NO se escriben por el camino genérico, aunque salgan al leer.
@@ -166,7 +178,68 @@ const CLAVES_EDITABLES = new Set([
   'portal_qr_cuenta_modo',
   'portal_qr_mensaje_bienvenida',
   'presentacion_ultimo_acceso',
+  'bascula_etiqueta',
+  'comision_terminal_bp',
 ]);
+
+/**
+ * F-148 · La báscula de etiquetas, validada AL GUARDAR (C.10 de la 2.4): un layout que no
+ * cabe en los trece dígitos del EAN leería el dígito de control como parte del importe.
+ * Todos los prefijos del mismo largo, para que el artículo empiece siempre en el mismo sitio.
+ */
+const BASCULA = z
+  .object({
+    prefijos: z
+      .array(z.string().regex(/^2\d?$/))
+      .min(1)
+      .max(10),
+    digitosArticulo: z.number().int().min(1).max(10),
+    digitosValor: z.number().int().min(1).max(10),
+    contenido: z.enum(['peso', 'importe']),
+    decimales: z.number().int().min(0).max(4),
+    verificadorInterno: z.boolean(),
+  })
+  .strict()
+  .refine((l) => new Set(l.prefijos.map((p) => p.length)).size === 1, {
+    message: 'Todos los prefijos de la báscula van del mismo largo.',
+  })
+  .refine(
+    (l) =>
+      (l.prefijos[0]?.length ?? 0) +
+        l.digitosArticulo +
+        (l.verificadorInterno ? 1 : 0) +
+        l.digitosValor ===
+      12,
+    {
+      message:
+        'El prefijo, el artículo y el valor tienen que sumar doce dígitos más el de control.',
+    },
+  );
+
+/**
+ * La tasa de la terminal: entero de 0 a 1000 puntos base (0 a 10 %). El mercado va del 2 al
+ * 4 %; un 36 tecleado donde iba 3.6 cobraría una comisión diez veces mayor en cada corte.
+ */
+function exigirTasaDeTerminal(valor: unknown): void {
+  if (valor === null) return;
+  if (typeof valor !== 'number' || !Number.isInteger(valor) || valor < 0 || valor > 1000) {
+    throw new ErrorDominio(
+      'PUENTE_CAMPO_INVALIDO',
+      'La tasa de la terminal va en puntos base, de 0 a 1000 (3.6 % son 360).',
+    );
+  }
+}
+
+function exigirBascula(valor: unknown): void {
+  if (valor === null) return;
+  const leido = BASCULA.safeParse(valor);
+  if (!leido.success) {
+    throw new ErrorDominio(
+      'PUENTE_CAMPO_INVALIDO',
+      leido.error.issues[0]?.message ?? 'La báscula no tiene forma de etiqueta EAN-13.',
+    );
+  }
+}
 
 type Registro = Record<string, unknown>;
 
@@ -304,6 +377,8 @@ export async function guardarConfiguracionParcial(
     }
   }
   serializarConfiguracion({ ...parche });
+  if ('bascula_etiqueta' in parche) exigirBascula(parche['bascula_etiqueta']);
+  if ('comision_terminal_bp' in parche) exigirTasaDeTerminal(parche['comision_terminal_bp']);
 
   const nombreNuevo = parche['nombre_negocio'];
   let nombreNormalizado: string | null = null;

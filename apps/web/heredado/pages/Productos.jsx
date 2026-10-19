@@ -240,7 +240,7 @@ export default function Productos() {
                     <img src={p.imagen_url} alt="" className="w-full h-full object-cover" />
                   ) : (
                     <Coffee
-                      className={`w-12 h-12 ${isDark ? 'text-slate-500/50' : 'text-amber-700/30'}`}
+                      className={`w-12 h-12 ${isDark ? 'text-texto-sutil/50' : 'text-advertencia/30'}`}
                     />
                   )}
                 </div>
@@ -306,13 +306,13 @@ export default function Productos() {
                     <div className="grid grid-cols-3 gap-1 text-center">
                       <div className="rounded-md bg-muted/50 py-1.5">
                         <p className="text-[9px] text-muted-foreground uppercase">Costo</p>
-                        <p className="text-xs font-bold text-orange-700 dark:text-orange-300">
+                        <p className="text-xs font-bold text-advertencia">
                           {formatCurrency(p.costoCalc)}
                         </p>
                       </div>
                       <div className="rounded-md bg-muted/50 py-1.5">
                         <p className="text-[9px] text-muted-foreground uppercase">Utilidad</p>
-                        <p className="text-xs font-bold text-emerald-700 dark:text-emerald-300">
+                        <p className="text-xs font-bold text-exito">
                           {formatCurrency(p.utilidadCalc)}
                         </p>
                       </div>
@@ -337,7 +337,7 @@ export default function Productos() {
                     ) : (
                       <Badge
                         variant="outline"
-                        className="text-[10px] bg-emerald-50 text-emerald-700 border-emerald-200"
+                        className="text-[10px] bg-exito/10 text-exito border-exito/30"
                       >
                         En POS
                       </Badge>

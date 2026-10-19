@@ -35,6 +35,7 @@ export const estadoDeVenta = definirComando<Transaccion, typeof entradaEstadoVen
   escribe: false,
   roles: [...ROLES_DE_MOSTRADOR],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaEstadoVenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId } = ctx.ambito;
@@ -163,6 +164,7 @@ export const ticketDeOrden = definirComando<Transaccion, typeof entradaTicket, T
   escribe: false,
   roles: [...ROLES_DE_MOSTRADOR],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaTicket,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

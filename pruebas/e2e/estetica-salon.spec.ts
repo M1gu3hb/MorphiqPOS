@@ -1,13 +1,14 @@
 import { expect, test, type APIResponse } from '@playwright/test';
 
+import { exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
-  abrirCajaPorLaRuta,
+  abrirLaCajaSiHaceFalta,
   abrirPantalla,
   type MarcaDePantalla,
   accionesDelTablero,
   cabecerasDeEscrituraDePrueba,
   cambiarDePlantilla,
-  cerrarCajaYCuadrar,
   consultarPuente,
   entrar,
   exigirDemostracion,
@@ -77,15 +78,42 @@ function enPesosDelSalon(centavos: number): string {
   );
 }
 
+/** La zona del negocio. La de la PRUEBA —la del proceso que la corre— no es de fiar. */
+const ZONA_DEL_NEGOCIO = 'America/Mexico_City';
+const MS_DIA = 86_400_000;
+
 /**
- * 'YYYY-MM-DD' del día LOCAL, que es el del negocio cuando el servidor es éste.
+ * 'YYYY-MM-DD' en la zona del NEGOCIO, no en la del proceso.
  *
- * Con `toISOString` la fecha se toma en UTC, y a las 19:00 de México eso ya es el día
- * siguiente: se pedirían los huecos de mañana para agendar hoy.
+ * Era `getFullYear()`/`getDate()` del proceso, y el proceso de CI corre en UTC: entre
+ * las 18:00 y la medianoche de México eso ya es mañana, así que la prueba pedía los
+ * huecos de un día y la agenda —que el navegador pinta en la zona del negocio— enseñaba
+ * otro.
  */
-function fechaLocalDePrueba(cuando: Date): string {
-  const dos = (n: number): string => String(n).padStart(2, '0');
-  return `${String(cuando.getFullYear())}-${dos(cuando.getMonth() + 1)}-${dos(cuando.getDate())}`;
+function fechaDelNegocio(ms: number): string {
+  return new Intl.DateTimeFormat('en-CA', { timeZone: ZONA_DEL_NEGOCIO }).format(new Date(ms));
+}
+
+/**
+ * EL DÍA DE LA PRUEBA: el próximo MIÉRCOLES, nunca hoy.
+ *
+ * La suite agendaba «hoy», y hoy depende de la hora y del día en que se corra: el salón
+ * de la demostración descansa los LUNES —su semana es de martes a domingo, como la de
+ * cualquier salón—, así que un lunes no había un solo hueco; y de noche los de hoy ya se
+ * habían gastado. Por eso estaba fuera de CI, y estética era el único modelo sin total
+ * cobrado verificado en CI.
+ *
+ * Un miércoles FUTURO trabajan las dos estilistas, y el día entero está libre en una base
+ * recién sembrada. Nada depende ya de la hora: iniciar la cita sella `inicio_real` con la
+ * hora de verdad —es el walk-in que llega antes—, y la agenda se lleva a ese día con su
+ * propio botón «Día siguiente», como lo haría la recepcionista.
+ */
+function diaDeLaPrueba(ahoraMs: number): { readonly fecha: string; readonly diasDesdeHoy: number } {
+  const hoy = fechaDelNegocio(ahoraMs);
+  const diaDeLaSemana = new Date(`${hoy}T12:00:00Z`).getUTCDay();
+  const MIERCOLES = 3;
+  const diasDesdeHoy = (MIERCOLES - diaDeLaSemana + 7) % 7 || 7;
+  return { fecha: fechaDelNegocio(ahoraMs + diasDesdeHoy * MS_DIA), diasDesdeHoy };
 }
 
 /** El fondo con el que la prueba abre la caja del salón, en centavos. */
@@ -113,8 +141,19 @@ interface ProfesionalDelPuente {
 interface ComisionDelPuente {
   readonly cita_servicio_id?: string;
   readonly profesional_id?: string;
+  /** EN PESOS: el puente convierte `base_centavos` con `dinero`. */
+  readonly base_centavos?: number;
   readonly monto_centavos?: number;
   readonly tasa_bp?: number;
+}
+
+/**
+ * El IVA que va DENTRO de un precio al público, extraído una vez: `total × tasa /
+ * (10000 + tasa)`, al centavo más cercano (`02-DINERO-Y-CAJA §2.1` del salón). La demo
+ * no configura otra tasa, así que es la general.
+ */
+function ivaIncluidoEn(centavos: number, tasaBp = 1600): number {
+  return Math.round((centavos * tasaBp) / (10_000 + tasaBp));
 }
 
 /**
@@ -392,7 +431,17 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     // que estaba rota —el ALTA DE LA CLIENTA, que publicaba en una ruta
     // inexistente— porque la demo tiene cero clientas y sin una no se pasa del
     // primer paso.
-    await abrirCajaPorLaRuta(page, FONDO_CENTAVOS);
+    // La caja, POR SU PANTALLA (C.6 de la 2.4): «Caja y corte» abre el día con su fondo.
+    await abrirLaCajaSiHaceFalta(
+      page,
+      {
+        ruta: '/estetica-salon/caja-y-corte',
+        boton: 'Abrir el día',
+        campoDelFondo: '#fondo',
+        señalAbierta: 'El día está abierto.',
+      },
+      (FONDO_CENTAVOS / 100).toFixed(2),
+    );
 
     const servicios = await consultarPuente<ServicioDelPuente>(page, 'ProductoTerminado', {
       filtro: { tipo_venta: 'servicio' },
@@ -493,8 +542,8 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * cuando de verdad se llena, el fallo lo dice con esas palabras y con el comando
      * que la vuelve a sembrar.
      */
-    const dia = fechaLocalDePrueba(new Date());
-    const diaSiguiente = fechaLocalDePrueba(new Date(Date.now() + 86_400_000));
+    const { fecha: dia, diasDesdeHoy } = diaDeLaPrueba(Date.now());
+    const diaSiguiente = fechaDelNegocio(Date.parse(`${dia}T12:00:00Z`) + MS_DIA);
     const respuestaHuecos = await page.request.post('/api/agenda/huecos', {
       headers: cabecerasDeEscrituraDePrueba(),
       data: { desde: dia, hasta: diaSiguiente, minutos: 30 },
@@ -536,7 +585,7 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
       .sort((a, b) => (b.minutos ?? 0) - (a.minutos ?? 0));
     expect(
       candidatos.length,
-      'La agenda de la demo no tiene un solo hueco libre en lo que queda del día, así que no ' +
+      `La agenda de la demo no tiene un solo hueco libre el ${dia}, el día de la prueba, así que no ` +
         'hay dónde agendar. No es un defecto del código: las corridas anteriores la ' +
         'llenaron, y una cita COBRADA sigue ocupando su hora. Vuelve a sembrarla:\n' +
         '  node --conditions=react-server scripts/sembrar-demos.mjs --solo demo-acople-estetica',
@@ -590,6 +639,41 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     expect(citaId, 'Agendar no devolvió la cita.').toBeTruthy();
     expect(citaServicioId, 'Agendar no devolvió el servicio de la cita.').toBeTruthy();
 
+    // LO QUE «MI DÍA» Y LA AGENDA LEEN DEL PUENTE (C.9 de la 2.4), contra la base viva: el
+    // servicio de la cita trae su nombre y sus minutos de procesado, y las faltas se leen.
+    const [delServicio] = await consultarPuente<{
+      servicio_nombre?: string | null;
+      minutos_procesado?: number | null;
+    }>(page, 'CitaServicio', { filtro: { id: citaServicioId }, limite: 1 });
+    expect(delServicio?.servicio_nombre, 'El servicio de la cita llega sin nombre.').toBeTruthy();
+    expect(
+      typeof delServicio?.minutos_procesado,
+      'El servicio de la cita llega sin sus minutos de procesado.',
+    ).toBe('number');
+    const faltas = await consultarPuente<{ cliente_id?: string | null }>(page, 'NoShow', {
+      limite: 5,
+    });
+    expect(Array.isArray(faltas), 'Las faltas no se pudieron leer del puente.').toBe(true);
+
+    /**
+     * 1b · EL ANTICIPO, EN EFECTIVO, el día que se agenda (C.3 de la 2.4).
+     *
+     * Entra al cajón HOY —con su propio movimiento, que antes no se escribía y el
+     * arqueo lo contaba como sobrante— y al cobrar se APLICA: la pantalla lo enseña
+     * ya restado y el cobro sólo pide lo que falta. Al final el cajón tiene el fondo
+     * más el precio entero: el anticipo y el resto, cada uno en su día.
+     */
+    const anticipoCentavos = Math.round(precioCentavos * 0.3);
+    const anticipo = await page.request.post('/api/anticipos', {
+      headers: cabecerasDeEscrituraDePrueba(),
+      data: { citaId, montoCentavos: anticipoCentavos, metodo: 'efectivo' },
+    });
+    expect(
+      anticipo.status(),
+      `Recibir el anticipo de la cita respondió ${String(anticipo.status())}: ` +
+        (await anticipo.text()).slice(0, 300),
+    ).toBe(200);
+
     /**
      * 2 · LA AGENDA DEL DÍA PINTA LA CITA, y tocarla la INICIA.
      *
@@ -605,6 +689,10 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * México caía en el día siguiente y la rejilla volvía a verse vacía—.
      */
     await abrirPantalla(page, '/estetica-salon/agenda-del-dia', /citas|ocupado/);
+    // Al día de la cita, con el botón de la propia agenda: la recepcionista hace lo mismo.
+    for (let paso = 0; paso < diasDesdeHoy; paso += 1) {
+      await page.getByRole('button', { name: 'Día siguiente' }).click();
+    }
     /**
      * EL BLOQUE DE ESTA CITA, por su HORA y por su clienta.
      *
@@ -650,6 +738,24 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * caja. Es el paso que `Cobrar` exige —lista las citas `terminada`— y el que
      * ninguna pantalla podía dar.
      */
+    // LA NOTA DE LA CITA Y LO QUE LE CUESTA AL SALÓN (C.10 de la 2.4): la nota se escribe con
+    // la clienta sentada y se guarda en la cita; el costo es material de cabina + comisión.
+    await expect(page.getByRole('heading', { name: 'Lo que le cuesta al salón' })).toBeVisible();
+    await page.getByLabel('Nota de la cita').fill('Prefiere el agua tibia');
+    await page.getByRole('button', { name: 'Guardar la nota' }).click();
+    await expect
+      .poll(
+        async () =>
+          (
+            await consultarPuente<{ readonly notas?: string | null }>(page, 'Cita', {
+              filtro: { id: citaId },
+              limite: 1,
+            })
+          )[0]?.notas ?? '',
+        { message: 'La nota escrita en la cita en curso no quedó en la cita.', timeout: 20_000 },
+      )
+      .toBe('Prefiere el agua tibia');
+
     const cerrar = page.getByRole('button', { name: 'Cerrar servicio' });
     await expect(
       cerrar,
@@ -715,11 +821,29 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
     ).toContainText(enPesosDelSalon(precioCentavos));
     await laCita.first().click();
 
+    // EL ANTICIPO YA RESTADO: se ve en su renglón y lo que se cobra hoy es el resto.
+    // Si hubiera que ir a buscarlo, se cobraría dos veces (descuadre 4).
+    const cobro = page.getByRole('complementary', { name: 'Cobro' });
+    await expect(
+      cobro.getByText('Anticipo ya pagado'),
+      'La pantalla de cobro no enseña el anticipo de la cita: el puente no lo trae o la ' +
+        'cotización no lo aplicó, y el mostrador cobraría la cita entera otra vez.',
+    ).toBeVisible({ timeout: 20_000 });
+    await expect(cobro).toContainText(enPesosDelSalon(precioCentavos - anticipoCentavos));
+
     await page.getByRole('button', { name: 'Efectivo', exact: true }).click();
+    // La propina, con un toque y A NOMBRE de quien atendió. A la mano: con efectivo es
+    // el camino por omisión, y no pasa por el cajón.
+    await page.getByRole('button', { name: '15%', exact: true }).click();
     await page.getByRole('button', { name: /^COBRAR/ }).click();
 
-    // El acuse de esta pantalla dice lo cobrado y su folio.
+    // El acuse de esta pantalla dice lo cobrado, su folio y a nombre de quién quedó
+    // la propina. Antes decía «se entrega en mano: todavía no queda anotada».
     await exigirCobroAceptado(page, /^Cobrado /);
+    await expect(
+      page.getByText(/anotada a nombre de/),
+      'El cobro salió, pero la propina no quedó anotada a nombre de nadie.',
+    ).toBeVisible();
 
     // La venta, con su total y su folio, en el servidor. El identificador no se
     // usa después —la comisión se busca por el SERVICIO de la cita, que es a lo
@@ -758,14 +882,147 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
      * comisión sobre 1 800 pesos, que son 7.20: un error de cien veces que en una
      * nómina se nota el día de pago y no antes.
      */
-    const esperadaCentavos = Math.round((precioCentavos * (laComision?.tasa_bp ?? 0)) / 100);
+    /**
+     * Y SOBRE LA BASE SIN IVA (§7.2, pregunta 2): «el IVA no es ingreso del salón». Se
+     * comisionaba el precio al público entero, con la regla diciendo `sobre_iva =
+     * false`: 16 % de comisión de más en cada servicio.
+     */
+    const baseSinIva = precioCentavos - ivaIncluidoEn(precioCentavos);
+    expect(
+      Math.round((laComision?.base_centavos ?? 0) * 100),
+      `La comisión se calculó sobre ${String(laComision?.base_centavos ?? 0)} pesos: la base es ` +
+        `el precio SIN IVA, ${String(baseSinIva)} centavos.`,
+    ).toBe(baseSinIva);
+    // Con el redondeo ÚNICO del sistema (`dinero/redondeo.ts`): la mitad se aleja del cero,
+    // en enteros. Truncaba: con un servicio de $1,800 (base $1,551.72 al 40 %, $620.688) la
+    // prueba esperaba $620.68 y el sistema —bien— causaba $620.69.
+    const esperadaCentavos = Math.floor((baseSinIva * (laComision?.tasa_bp ?? 0) + 50) / 100);
     expect(
       Math.round((laComision?.monto_centavos ?? 0) * 100),
       `La comisión no cuadra con su propia tasa: ${String(laComision?.tasa_bp ?? 0)} % sobre ` +
-        `${String(precioCentavos)} centavos son ${String(esperadaCentavos)}.`,
+        `${String(baseSinIva)} centavos son ${String(esperadaCentavos)}.`,
     ).toBe(esperadaCentavos);
 
-    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + precioCentavos);
+    // El cajón: el fondo, el anticipo del día que se dejó y el resto de hoy. La
+    // propina a la mano no entró.
+    // ── EL CORTE DEL DÍA, POR SU PANTALLA, Y SU PDF (C.6 de la 2.4) ─────────
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
+    await abrirPantalla(page, '/estetica-salon/caja-y-corte', /Caja y corte/);
+    await page.locator('#contado').fill((esperadoCentavos / 100).toFixed(2));
+    await page.locator('#dejado').fill((FONDO_CENTAVOS / 100).toFixed(2));
+    await page.getByRole('button', { name: 'Cerrar el día' }).click();
+    await expect(
+      page.getByRole('heading', { name: 'Día cerrado' }),
+      'El día del salón no se cerró desde su pantalla.',
+    ).toBeVisible({ timeout: 30_000 });
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DEL DÍA',
+      textos: [
+        'Arqueo de efectivo',
+        `Dinero dejado en caja ${enPesosDelSalon(FONDO_CENTAVOS)}`,
+        `Efectivo esperado ${enPesosDelSalon(esperadoCentavos)}`,
+        `Diferencia de efectivo ${enPesosDelSalon(0)}`,
+        // La cita de la prueba es de un miércoles FUTURO: la agenda de HOY está vacía en una
+        // demo recién sembrada y, sin filas, no se pinta. Lo que sí es de hoy es la comisión.
+        'Liquidación por profesional',
+      ],
+    });
+
+    // ── C.10 DE LA 2.4 · LO QUE LAS PANTALLAS DEL SALÓN DECÍAN QUE FALTABA ──────
+    //
+    // 1 · El corte ya enseña los cobros UNO POR UNO, con la clienta.
+    await expect(page.getByRole('heading', { name: 'Los cobros, uno por uno' })).toBeVisible();
+    await expect(
+      page.getByRole('table', { name: 'Cobros del día' }).getByText('Clienta de la demostración'),
+      'El corte del salón no enseña el cobro de la cita de esta prueba.',
+    ).toBeVisible({ timeout: 20_000 });
+
+    // 2 · EL CATÁLOGO da de alta un servicio con sus TRAMOS y QUIÉN LO DA. Antes su cuerpo
+    //     no pasaba el esquema de ningún comando y la agenda no dejaba agendar nada nuevo.
+    const [conNombre] = await consultarPuente<{
+      readonly id?: string;
+      readonly nombre_corto?: string | null;
+    }>(page, 'Profesional', { filtro: { id: profesional?.id ?? '' }, limite: 1 });
+    const nombreCorto = conNombre?.nombre_corto ?? '';
+    const servicioNuevo = `Servicio E2E ${String(Date.now()).slice(-6)}`;
+    await abrirPantalla(page, '/estetica-salon/catalogo-de-servicios', /servicio/i);
+    await page.getByRole('button', { name: /^Nuevo servicio/ }).click();
+    await page.locator('#nombre').fill(servicioNuevo);
+    await page.locator('#precio').fill('450.00');
+    await page.locator('#t-activa1').fill('40');
+    await page.locator('#t-pasiva').fill('0');
+    await page.locator('#t-activa2').fill('0');
+    await page.locator('#t-cierre').fill('10');
+    await page.getByRole('checkbox', { name: nombreCorto }).check();
+    await page.getByRole('button', { name: /^Guardar servicio/ }).click();
+    await expect
+      .poll(
+        async () => {
+          const [creado] = await consultarPuente<{ readonly duracion_activa_1_min?: number }>(
+            page,
+            'ProductoTerminado',
+            { filtro: { nombre: servicioNuevo }, limite: 1 },
+          );
+          return creado?.duracion_activa_1_min ?? 0;
+        },
+        { message: 'El servicio nuevo no quedó con sus tramos.', timeout: 20_000 },
+      )
+      .toBe(40);
+
+    // 3 · AGENDARLO: sólo con quien lo da, con los huecos del SERVIDOR, y al confirmar
+    //     se vuelve a la agenda (antes no pasaba nada y un segundo toque la duplicaba).
+    await abrirPantalla(page, '/estetica-salon/agendar', /1 · ¿Quién\?/);
+    await page.locator('#buscar-clienta').fill('Clienta de la demostración');
+    await page
+      .getByRole('button', { name: /Clienta de la demostración/ })
+      .first()
+      .click();
+    await page.getByRole('button', { name: new RegExp(servicioNuevo) }).click();
+    const conQuien = page.locator('section[aria-labelledby="paso-con-quien"]');
+    await expect(
+      conQuien.locator('[aria-pressed]'),
+      'Agendar ofrece el servicio nuevo con quien no lo da.',
+    ).toHaveCount(1);
+    await conQuien.locator('[aria-pressed]').first().click();
+    const cuando = page.locator('section[aria-labelledby="paso-cuando"]');
+    await expect(
+      cuando.locator('[aria-pressed]').first(),
+      'No hay huecos del servidor para el servicio nuevo.',
+    ).toBeVisible({ timeout: 30_000 });
+    await cuando.locator('[aria-pressed]').first().click();
+    await page.getByRole('button', { name: 'Confirmar la cita' }).click();
+    await expect(page, 'Al agendar no se volvió a la agenda.').toHaveURL(/agenda-del-dia/, {
+      timeout: 30_000,
+    });
+
+    // 4 · La AGENDA trae la lista de espera en su panel.
+    await expect(page.getByRole('region', { name: 'Lista de espera' }).first()).toBeVisible();
+
+    // 5 · La LIQUIDACIÓN trae lo pendiente de cada una en el periodo.
+    const hoy = new Date();
+    const inicioDeMes = new Date(hoy.getFullYear(), hoy.getMonth(), 1);
+    const iso = (d: Date) =>
+      `${String(d.getFullYear())}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    await abrirPantalla(page, '/estetica-salon/liquidacion', /Liquidación/);
+    await page.locator('#desde').fill(iso(inicioDeMes));
+    await page.locator('#hasta').fill(iso(new Date(hoy.getTime() + 2 * 86_400_000)));
+    await expect(page.getByRole('columnheader', { name: 'Pendiente' })).toBeVisible();
+    await expect(page.getByText('elige el periodo')).toHaveCount(0, { timeout: 20_000 });
+
+    // 6 · PRODUCTOS dice cuánto hay en el anaquel —antes «—» en todo: se leía una liga
+    //     que ningún producto dado de alta tiene— y no lista los servicios como productos.
+    await abrirPantalla(page, '/estetica-salon/productos', /cabina|Productos/i);
+    const anaquel = page.getByRole('table', { name: 'Productos del anaquel' });
+    const argan = anaquel.getByRole('row', { name: /Aceite de argán 60 ml/ });
+    await expect(argan.getByRole('cell').nth(1), 'El anaquel no dice cuánto hay.').not.toHaveText(
+      '—',
+      { timeout: 20_000 },
+    );
+    await expect(
+      anaquel.getByRole('row', { name: /Corte de dama/ }),
+      'Los servicios salen listados como productos del anaquel.',
+    ).toHaveCount(0);
+    await expect(page.getByText('No se pudo leer cuánto hay de cada producto')).toHaveCount(0);
 
     exigirSinFallos();
   });

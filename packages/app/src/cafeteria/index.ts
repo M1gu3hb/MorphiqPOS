@@ -69,6 +69,13 @@ export {
 } from './lealtad.ts';
 
 export {
+  entradaPrograma,
+  programaDeSellos,
+  type ClienteDelPrograma,
+  type ResultadoPrograma,
+} from './programa.ts';
+
+export {
   contarLeche,
   entradaContarLeche,
   type DiferenciaDeLeche,

@@ -23,9 +23,9 @@ const TIPO_ICON = {
 };
 
 const TIPO_COLOR = {
-  ordenar: 'bg-amber-100 text-amber-800 border-amber-200',
-  cuenta: 'bg-emerald-100 text-emerald-800 border-emerald-200',
-  ayuda: 'bg-rose-100 text-rose-800 border-rose-200',
+  ordenar: 'bg-advertencia/15 text-advertencia border-advertencia/30',
+  cuenta: 'bg-exito/15 text-exito border-exito/30',
+  ayuda: 'bg-peligro/15 text-peligro border-peligro/30',
 };
 
 /**
@@ -159,7 +159,7 @@ export default function SolicitudesQRTab() {
             <button
               key={f.key}
               onClick={() => setFiltroEstado(f.key)}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filtroEstado === f.key ? 'bg-primary text-white shadow-md' : 'bg-white border text-muted-foreground'}`}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${filtroEstado === f.key ? 'bg-primary text-primario-texto shadow-md' : 'bg-superficie border text-muted-foreground'}`}
             >
               {f.label}
             </button>
@@ -180,7 +180,7 @@ export default function SolicitudesQRTab() {
             variant="ghost"
             disabled={limpiando}
             onClick={vaciarDia}
-            className="h-8 gap-1.5 text-xs text-rose-600 hover:text-rose-700"
+            className="h-8 gap-1.5 text-xs text-peligro hover:text-peligro"
           >
             <Trash2 className="w-3.5 h-3.5" /> Vaciar todas
           </Button>
@@ -197,7 +197,7 @@ export default function SolicitudesQRTab() {
       <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3">
         {filtradas.map((s) => {
           const Icon = TIPO_ICON[s.tipo] || Bell;
-          const colorBadge = TIPO_COLOR[s.tipo] || 'bg-slate-100 text-slate-700 border-slate-200';
+          const colorBadge = TIPO_COLOR[s.tipo] || 'bg-fondo-sutil text-texto border-borde';
           const time = (() => {
             try {
               return s?.fecha_creacion
@@ -211,7 +211,7 @@ export default function SolicitudesQRTab() {
           return (
             <div
               key={s.id}
-              className={`rounded-xl border-2 p-3 bg-white ${esActiva ? 'border-amber-300' : 'border-slate-200'}`}
+              className={`rounded-xl border-2 p-3 bg-superficie ${esActiva ? 'border-advertencia/30' : 'border-borde'}`}
               style={{ boxShadow: '0 2px 6px rgba(0,0,0,0.05)' }}
             >
               <div className="flex items-start gap-2">
@@ -229,7 +229,7 @@ export default function SolicitudesQRTab() {
                     <Clock className="w-3 h-3" /> {time}
                   </p>
                   <span
-                    className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-semibold ${esActiva ? 'bg-amber-100 text-amber-800' : s.estado === 'resuelta' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-100 text-slate-600'}`}
+                    className={`inline-block mt-1 text-[10px] px-2 py-0.5 rounded-full font-semibold ${esActiva ? 'bg-advertencia/15 text-advertencia' : s.estado === 'resuelta' ? 'bg-exito/15 text-exito' : 'bg-fondo-sutil text-texto-sutil'}`}
                   >
                     {ESTADOS_LABEL[s.estado] || s.estado}
                   </span>
@@ -239,7 +239,7 @@ export default function SolicitudesQRTab() {
                     </p>
                   )}
                   {!s.mesero_destino_id && s.ruteo_modo === 'general' && (
-                    <p className="text-[10px] text-slate-500 mt-0.5">Cola general</p>
+                    <p className="text-[10px] text-texto-sutil mt-0.5">Cola general</p>
                   )}
                   {s.atendido_por_nombre && (
                     <p className="text-[10px] text-muted-foreground mt-0.5">
@@ -270,7 +270,7 @@ export default function SolicitudesQRTab() {
                   <Button
                     size="sm"
                     variant="ghost"
-                    className="h-7 text-xs text-slate-500"
+                    className="h-7 text-xs text-texto-sutil"
                     onClick={() => accion(s, 'cancelar')}
                   >
                     Cancelar

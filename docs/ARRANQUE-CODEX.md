@@ -31,9 +31,12 @@ pnpm db:up                      # Postgres 16 + almacenamiento, en contenedores
 pnpm dev                        # http://localhost:3000
 ```
 
-La aplicación abre en **`/estilos`**: el sistema de diseño en vivo. Cambia de estilo, de
-modo y de densidad desde ahí y verás la interfaz entera cambiar. En F1.1 la raíz pasa a
-ser el panel del negocio.
+La aplicación abre en **`/login-pos`**: la pantalla de acceso con PIN. Con una sesión
+abierta, la raíz `/` es el tablero del negocio y de ahí cuelga el menú de su plantilla.
+
+> **`/estilos` ya no existe.** Era la página del sistema de diseño de la Fase 1 y se
+> borró al portar el frontend. Esta línea seguía mandando ahí, y `verify:cabeceras`
+> seguía MIDIENDO ahí —es decir, sobre un 404— hasta la etapa 2.35.
 
 ### Genera tus secretos
 

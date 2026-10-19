@@ -70,7 +70,7 @@ export default function IngredienteAutocomplete({
       </div>
       {open && (
         <div
-          className="absolute left-0 right-0 mt-1 z-50 bg-white border rounded-lg shadow-lg max-h-72 overflow-y-auto"
+          className="absolute left-0 right-0 mt-1 z-50 bg-superficie border rounded-lg shadow-lg max-h-72 overflow-y-auto"
           style={{ boxShadow: '0 10px 30px rgba(0,0,0,0.12)' }}
         >
           {matches.length === 0 && (
@@ -112,7 +112,7 @@ export default function IngredienteAutocomplete({
             <button
               type="button"
               onClick={() => handlePick(exact)}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-amber-700 dark:text-amber-300 bg-amber-50 dark:bg-amber-950/30 hover:bg-amber-100 dark:hover:bg-amber-950/50 border-t"
+              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-advertencia bg-advertencia/10 hover:bg-advertencia/15 border-t"
             >
               ⚠ Ya existe "{exact.nombre}" — usar el existente para no duplicar
             </button>

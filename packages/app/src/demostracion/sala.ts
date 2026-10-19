@@ -1,7 +1,6 @@
 import 'server-only';
 
 import type { Transaccion } from '@morphiqpos/data';
-import { sql } from 'kysely';
 
 /**
  * La SALA de la demostración del restaurante (E11-2).
@@ -161,26 +160,7 @@ async function sembrarEstaciones(tx: Transaccion, organizacionId: string): Promi
    * `mantenimiento.purgar` al resembrar los mínimos de un restaurante: una sola
    * forma de la estación general en todo el sistema.
    */
-  const general = await tx
-    .selectFrom('estaciones_preparacion')
-    .select('id')
-    .where('organizacion_id', '=', organizacionId)
-    .where('es_general', '=', true)
-    .executeTakeFirst();
-  if (general === undefined) {
-    await tx
-      .insertInto('estaciones_preparacion')
-      .values({
-        organizacion_id: organizacionId,
-        nombre: 'Cocina general',
-        descripcion: 'Estación por defecto',
-        color: '#4A5568',
-        orden: 0,
-        es_general: true,
-      })
-      .execute();
-    creadas += 1;
-  }
+  creadas += await asegurarEstacionGeneral(tx, organizacionId, 'Cocina general');
 
   for (const [indice, estacion] of ESTACIONES.entries()) {
     const existente = await tx
@@ -245,23 +225,36 @@ async function sembrarMesas(
 }
 
 /**
- * Borra la sala. Va con `limpiar()` del reseteo, y en ESTE orden: las mesas
- * apuntan a órdenes y las órdenes a mesas, así que primero se suelta el lado
- * de la mesa o la clave foránea aborta la transacción entera.
+ * La estación GENERAL del negocio, si no la tiene: 1 si la creó, 0 si ya estaba.
+ *
+ * `resolverEstacion` cae a la general cuando la categoría del producto no tiene la
+ * suya, y sin general no se emite ninguna comanda. La usan la sala del restaurante
+ * («Cocina general») y la barra de la cafetería («Barra»), que tampoco tenía
+ * ninguna: su barra no recibía nada, ni de las ventas del mostrador ni de los
+ * apartados (C.14 de la 2.4).
  */
-export async function limpiarSala(tx: Transaccion, organizacionId: string): Promise<void> {
-  await sql`update mesas set orden_activa_id = null where organizacion_id = ${organizacionId}`.execute(
-    tx,
-  );
-  await sql`delete from comanda_items where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from comandas where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from solicitudes_qr where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from liquidaciones_propina where organizacion_id = ${organizacionId}`.execute(
-    tx,
-  );
-  await sql`delete from cortes_turno where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from compra_lineas where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from compras where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from gastos where organizacion_id = ${organizacionId}`.execute(tx);
-  await sql`delete from mesas where organizacion_id = ${organizacionId}`.execute(tx);
+export async function asegurarEstacionGeneral(
+  tx: Transaccion,
+  organizacionId: string,
+  nombre: string,
+): Promise<number> {
+  const general = await tx
+    .selectFrom('estaciones_preparacion')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('es_general', '=', true)
+    .executeTakeFirst();
+  if (general !== undefined) return 0;
+  await tx
+    .insertInto('estaciones_preparacion')
+    .values({
+      organizacion_id: organizacionId,
+      nombre,
+      descripcion: 'Estación por defecto',
+      color: '#4A5568',
+      orden: 0,
+      es_general: true,
+    })
+    .execute();
+  return 1;
 }

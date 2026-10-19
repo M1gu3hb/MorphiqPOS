@@ -2,7 +2,14 @@ import 'server-only';
 
 /** Los comandos de venta (F1.1-A-06, A-07, A-09, A-12). */
 
-export { agregarLinea, cambiarCantidad, crearOrden, quitarLinea } from './carrito.ts';
+export { agregarLinea, cambiarCantidad, crearOrden, quitarLinea, vaciarOrden } from './carrito.ts';
+export { entradaTotalizar, totalizarBorrador } from './totalizar.ts';
+export {
+  entradaMasVendidos,
+  masVendidos,
+  type ProductoMasVendido,
+  type ResultadoMasVendidos,
+} from './mas-vendidos.ts';
 
 export {
   devolverPedido,
@@ -29,14 +36,38 @@ export {
 } from './descuento.ts';
 
 export {
+  cancelarApartada,
+  entradaCancelarApartada,
   entradaRetomar,
   entradaSuspender,
   entradaSuspendidas,
   retomarVenta,
   suspenderVenta,
   ventasEnEspera,
+  type ResultadoCancelacionApartada,
   type ResultadoEnEspera,
   type ResultadoRetomada,
   type ResultadoSuspension,
   type VentaEnEspera,
 } from './suspender.ts';
+
+export {
+  aplicarDescuento,
+  entradaAplicarDescuento,
+  entradaTopeDeDescuento,
+  topeDeDescuento,
+  type QuienAutoriza,
+  type ResultadoDescuentoDeMostrador,
+  type ResultadoTopeDeDescuento,
+} from './descuento-de-mostrador.ts';
+
+export {
+  devolverVenta,
+  entradaDevolverVenta,
+  entradaVentaParaDevolver,
+  ventaParaDevolver,
+  type LineaDevuelta,
+  type LineaParaDevolver,
+  type ResultadoDevolucionDeVenta,
+  type VentaParaDevolver,
+} from './devolucion-de-venta.ts';

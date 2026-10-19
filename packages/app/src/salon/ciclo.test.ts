@@ -6,9 +6,10 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
+import { Rechazo } from '../fallos.ts';
+import { ambitoDe, EMPLEO, ORG, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
 import { cancelarCita, cerrarServicio, iniciarCita, marcarNoLlego } from './ciclo.ts';
-import { cobrarCita } from './cobro.ts';
+import { cobrarCita, cotizarCita } from './cobro.ts';
 
 /**
  * F-412, F-407, F-434 y el cobro · Lo que le pasa a una cita después de
@@ -62,6 +63,8 @@ function salon(extra: Partial<TablasFalsas> = {}): TablasFalsas {
       {
         id: KARLA,
         organizacion_id: ORG,
+        // La sesión de las pruebas con rol de estilista ES Karla: da el servicio de la cita.
+        empleo_id: EMPLEO,
         nombre_corto: 'Karla',
         activo: true,
         tipo_relacion: 'empleado_comision',
@@ -257,9 +260,55 @@ describe('agenda.iniciar_cita', () => {
     expect(base.campo('citas', 'estado')).toBe('en_curso');
     expect(base.campo('citas', 'inicio_real')).toEqual(AHORA);
   });
+
+  it('LA ESTILISTA NO EMPIEZA LA CITA DE OTRA (auditoría de la 2.4)', async () => {
+    // La sesión es Sol, y el servicio de la cita lo da Karla.
+    const base = baseDe({
+      profesionales: [
+        { id: KARLA, organizacion_id: ORG, empleo_id: null, nombre_corto: 'Karla', activo: true },
+        { id: SOL, organizacion_id: ORG, empleo_id: EMPLEO, nombre_corto: 'Sol', activo: true },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    expect(await codigoDe(() => iniciarCita.ejecutar(ctx, { citaId: CITA }))).toBe(
+      'PUENTE_SIN_PERMISO',
+    );
+    expect(base.campo('citas', 'estado')).toBe('agendada');
+  });
+
+  it('recepción sí empieza cualquiera', async () => {
+    const base = baseDe({ profesionales: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    await iniciarCita.ejecutar(ctx, { citaId: CITA });
+    expect(base.campo('citas', 'estado')).toBe('en_curso');
+  });
 });
 
 describe('agenda.cerrar_servicio', () => {
+  it('LA ESTILISTA NO CIERRA NI DESCUENTA CABINA EN LA CITA DE OTRA (auditoría de la 2.4)', async () => {
+    const base = baseDe({
+      profesionales: [
+        { id: KARLA, organizacion_id: ORG, empleo_id: null, nombre_corto: 'Karla', activo: true },
+        { id: SOL, organizacion_id: ORG, empleo_id: EMPLEO, nombre_corto: 'Sol', activo: true },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        cerrarServicio.ejecutar(ctx, {
+          citaServicioId: SERVICIO_CITA,
+          almacenId: ALMACEN_CABINA,
+          consumos: [{ productoId: PRODUCTO_TINTE, cantidadBase: '60' }],
+          formula: {},
+        }),
+      ),
+    ).toBe('PUENTE_SIN_PERMISO');
+    expect(base.filas('movimientos_stock')).toHaveLength(0);
+  });
+
   it('EL PRODUCTO SALE AL CERRAR, no al cobrar', async () => {
     // El tinte se mezcló cuando se mezcló. Descontarlo al cobrar haría que el
     // inventario de cabina fuera media hora atrás de la realidad.
@@ -351,8 +400,57 @@ describe('venta.cobrar_cita', () => {
 
     expect(base.campo('ordenes', 'total_centavos')).toBe(100_000n);
     expect(base.campo('orden_lineas', 'profesional_id')).toBe(KARLA);
-    expect(base.campo('comisiones_causadas', 'monto_centavos')).toBe(50_000n);
+    // El 50 % de los $862.07 SIN IVA, no de los $1,000 al público: la regla dice
+    // `sobre_iva = false` y el documento del giro lo pide así (§7.2, pregunta 2).
+    // Aquí decía 50 000: se comisionaba el IVA, $68.97 de más por servicio. Y son
+    // $431.035: con el redondeo único del sistema (`dinero/redondeo.ts`) la mitad sube, $431.04.
+    expect(base.campo('comisiones_causadas', 'monto_centavos')).toBe(43_104n);
     expect(salida.comisiones).toHaveLength(1);
+  });
+
+  it('COSTO + UTILIDAD = LA VENTA: la orden del salón ya no nace en cero', async () => {
+    // Con los dos en cero el margen del día decía que el salón no ganó nada, y la
+    // conciliación lo marcaba en cada cita cobrada. El costo es el del catálogo.
+    // La base falsa ignora el `leftJoin` con `productos`: la fila del servicio de la
+    // cita trae ya el costo que el join le pondría.
+    const base = baseDe({
+      cita_servicios: [
+        {
+          id: SERVICIO_CITA,
+          organizacion_id: ORG,
+          cita_id: CITA,
+          servicio_id: TINTE,
+          profesional_id: KARLA,
+          precio_centavos: 100_000n,
+          estado: 'cerrado',
+          cerrado_en: AHORA,
+          orden_linea_id: null,
+          costo_unitario_centavos: 12_000n,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, pagoCompleto);
+
+    expect(base.campo('ordenes', 'costo_total_centavos')).toBe(12_000n);
+    expect(base.campo('ordenes', 'utilidad_centavos')).toBe(88_000n);
+    expect(base.campo('orden_lineas', 'costo_unitario_centavos')).toBe(12_000n);
+    expect(base.campo('orden_lineas', 'utilidad_centavos')).toBe(88_000n);
+  });
+
+  it('LA ORDEN QUEDA EN LA CAJA QUE LA COBRÓ: sin eso el corte no la cuenta', async () => {
+    // El corte lee sus ventas por `ordenes.sesion_caja_id` (tickets, por método, el
+    // detalle uno por uno). La orden del salón nacía pagada SIN sesión: el pago y el
+    // movimiento sí entraban al cajón, pero el corte decía «cero ventas» — lo vio el
+    // e2e de C.10 al pedir los cobros del día.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, pagoCompleto);
+
+    expect(base.campo('ordenes', 'sesion_caja_id')).toBe(SESION_CAJA);
+    expect(base.campo('ordenes', 'terminal_id')).toBe(TERMINAL);
   });
 
   it('LA COMISIÓN GUARDA CON QUÉ VERSIÓN se calculó', async () => {
@@ -496,5 +594,307 @@ describe('venta.cobrar_cita', () => {
     expect(await codigoDe(() => cobrarCita.ejecutar(ctx, pagoCompleto))).toBe(
       'CONFIGURACION_INVALIDA',
     );
+  });
+});
+
+/**
+ * C.3 de la etapa 2.4 · Lo que el cobro de la estética capturaba y NO guardaba.
+ *
+ * `Cobrar.tsx` pedía la propina y la tiraba, se negaba a cobrar una cita con
+ * anticipo, no sabía de descuento ni de pago mixto y enseñaba el IVA con una tasa
+ * fija. Cada prueba de aquí es una frase de `02-DINERO-Y-CAJA` del salón, y se vio
+ * FALLAR contra el comando de antes.
+ */
+describe('venta.cobrar_cita · anticipo, descuento, IVA, propina y mixto', () => {
+  const ANTICIPO = 'e1111111-1111-4111-8111-111111111111';
+  const pagoCompleto = {
+    citaId: CITA,
+    pagos: [{ metodo: 'efectivo' as const, montoCentavos: 100_000 }],
+  };
+
+  const anticipoVivo = (monto: bigint) => ({
+    anticipos_cita: [
+      {
+        id: ANTICIPO,
+        organizacion_id: ORG,
+        cita_id: CITA,
+        monto_centavos: monto,
+        metodo: 'efectivo',
+        estado: 'vivo',
+        orden_id: null,
+        resuelto_en: null,
+      },
+    ],
+  });
+
+  const topes = {
+    topes_descuento: [
+      { organizacion_id: ORG, rol: 'cajero', tope_centavos: 20_000n, tope_bp: 1_000 },
+      { organizacion_id: ORG, rol: 'dueno', tope_centavos: 100_000_000n, tope_bp: 10_000 },
+    ],
+  };
+
+  async function rechazoDe(fn: () => Promise<unknown>): Promise<string> {
+    try {
+      await fn();
+      return 'NO LANZÓ';
+    } catch (error) {
+      if (error instanceof Rechazo) return error.codigo;
+      return esErrorDominio(error) ? error.codigo : `INESPERADO: ${String(error)}`;
+    }
+  }
+
+  it('EL IVA DE LA ORDEN se extrae del total una vez (§2.1)', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, pagoCompleto);
+
+    // $1,000 al público llevan $137.93 de IVA dentro. Antes la orden decía cero.
+    expect(base.campo('ordenes', 'impuestos_centavos')).toBe(13_793n);
+    expect(base.campo('ordenes', 'total_centavos')).toBe(100_000n);
+  });
+
+  it('EL ANTICIPO VIVO SE APLICA en el mismo cobro y baja lo que se paga hoy (§6.1)', async () => {
+    const base = baseDe(anticipoVivo(30_000n));
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      pagos: [{ metodo: 'efectivo', montoCentavos: 70_000 }],
+    });
+
+    // La VENTA es la cita completa; el anticipo sólo baja lo que entra hoy.
+    expect(base.campo('ordenes', 'total_centavos')).toBe(100_000n);
+    expect(base.campo('anticipos_cita', 'estado')).toBe('aplicado');
+    expect(base.campo('anticipos_cita', 'orden_id')).toBe(salida.ordenId);
+    expect(base.campo('anticipos_cita', 'resuelto_en')).toEqual(AHORA);
+    // Al cajón entra lo de hoy: el anticipo entró el día que se dejó.
+    expect(base.campo('movimientos_caja', 'monto_centavos')).toBe(70_000n);
+  });
+
+  it('COBRAR LA CITA ENTERA teniendo anticipo es cobrarlo dos veces (descuadre 4)', async () => {
+    const base = baseDe(anticipoVivo(30_000n));
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(await codigoDe(() => cobrarCita.ejecutar(ctx, pagoCompleto))).toBe('PAGO_NO_CUADRA');
+    expect(base.campo('anticipos_cita', 'estado')).toBe('vivo');
+  });
+
+  it('EL DESCUENTO DENTRO DEL TOPE baja el ticket, el IVA y la comisión (§3)', async () => {
+    const base = baseDe(topes);
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      descuentoBp: 1_000,
+      pagos: [{ metodo: 'efectivo', montoCentavos: 90_000 }],
+    });
+
+    expect(base.campo('ordenes', 'descuento_centavos')).toBe(10_000n);
+    expect(base.campo('ordenes', 'total_centavos')).toBe(90_000n);
+    expect(base.campo('ordenes', 'impuestos_centavos')).toBe(12_414n);
+    expect(base.campo('orden_lineas', 'descuento_centavos')).toBe(10_000n);
+    // Comisión sobre lo COBRADO sin IVA (la regla dice `cobrado`): 50 % de $775.86.
+    expect(base.campo('comisiones_causadas', 'monto_centavos')).toBe(38_793n);
+  });
+
+  it('POR ENCIMA DEL TOPE lo cobra quien lo autoriza, con su propia sesión (F-205)', async () => {
+    const base = baseDe(topes);
+    const cajero = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+    const conVeinte = {
+      citaId: CITA,
+      descuentoBp: 2_000,
+      pagos: [{ metodo: 'efectivo' as const, montoCentavos: 80_000 }],
+    };
+
+    expect(await rechazoDe(() => cobrarCita.ejecutar(cajero.ctx, conVeinte))).toBe('SIN_PERMISO');
+    expect(base.filas('ordenes')).toEqual([]);
+
+    const duena = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+    await cobrarCita.ejecutar(duena.ctx, conVeinte);
+    expect(base.campo('ordenes', 'descuento_centavos')).toBe(20_000n);
+    // Y queda en la bitácora, con el tope de quien lo aplicó.
+    expect(duena.auditorias[0]?.payload).toMatchObject({ descuentoCentavos: '20000' });
+  });
+
+  it('LA PROPINA EN TERMINAL va en el cargo y queda A NOMBRE de quien atendió (§4, F-260)', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      pagos: [{ metodo: 'tarjeta', montoCentavos: 100_000 }],
+      propinas: [{ profesionalId: KARLA, montoCentavos: 15_000, camino: 'terminal' }],
+    });
+
+    expect(base.campo('pagos', 'propina_centavos')).toBe(15_000n);
+    expect(base.campo('movimientos_propina', 'profesional_id')).toBe(KARLA);
+    expect(base.campo('movimientos_propina', 'tipo')).toBe('recibida');
+    expect(base.campo('movimientos_propina', 'monto_centavos')).toBe(15_000n);
+    expect(base.campo('movimientos_propina', 'medio')).toBe('tarjeta');
+    // Ni venta ni IVA: la propina no es del salón (§2.2).
+    expect(base.campo('ordenes', 'total_centavos')).toBe(100_000n);
+    expect(base.campo('ordenes', 'impuestos_centavos')).toBe(13_793n);
+    // Y la tarjeta no toca el cajón.
+    expect(base.filas('movimientos_caja')).toEqual([]);
+  });
+
+  it('LA PROPINA AL CAJÓN entra al arqueo y queda debida a la profesional', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      pagos: [{ metodo: 'efectivo', montoCentavos: 100_000 }],
+      propinas: [{ profesionalId: KARLA, montoCentavos: 5_000, camino: 'cajon' }],
+    });
+
+    const caja = base.filas('movimientos_caja');
+    expect(caja.map((m) => [m['tipo'], m['monto_centavos']])).toEqual([
+      ['venta', 100_000n],
+      ['propina', 5_000n],
+    ]);
+    expect(base.campo('pagos', 'propina_centavos')).toBe(5_000n);
+    expect(base.campo('pagos', 'recibido_centavos')).toBe(105_000n);
+    expect(base.campo('movimientos_propina', 'medio')).toBe('efectivo');
+    expect(base.campo('movimientos_propina', 'movimiento_caja_id')).toBe(caja[1]?.['id']);
+  });
+
+  it('LA PROPINA A LA MANO se registra y no mueve el cajón (§4.2)', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      pagos: [{ metodo: 'efectivo', montoCentavos: 100_000 }],
+      propinas: [{ profesionalId: KARLA, montoCentavos: 10_000, camino: 'mano' }],
+    });
+
+    const propinas = base.filas('movimientos_propina');
+    // Recibida y entregada en el mismo acto: queda en su cuenta y no se le debe.
+    expect(propinas.map((p) => [p['tipo'], p['monto_centavos']])).toEqual([
+      ['recibida', 10_000n],
+      ['entregada', -10_000n],
+    ]);
+    expect(base.filas('movimientos_caja').map((m) => m['tipo'])).toEqual(['venta']);
+    expect(base.campo('pagos', 'propina_centavos')).toBe(0n);
+  });
+
+  it('LA PROPINA DE ALGUIEN QUE NO ES DEL SALÓN no se anota', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        cobrarCita.ejecutar(ctx, {
+          ...pagoCompleto,
+          propinas: [
+            {
+              profesionalId: 'z9999999-9999-4999-8999-999999999999',
+              montoCentavos: 10_000,
+              camino: 'mano',
+            },
+          ],
+        }),
+      ),
+    ).toBe('PUENTE_NO_ENCONTRADO');
+    expect(base.filas('ordenes')).toEqual([]);
+  });
+
+  it('EL PAGO MIXTO: una fila por método, y al cajón sólo el efectivo (§5)', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      pagos: [
+        { metodo: 'efectivo', montoCentavos: 50_000 },
+        { metodo: 'tarjeta', montoCentavos: 50_000 },
+      ],
+    });
+
+    expect(base.filas('pagos').map((p) => [p['metodo'], p['monto_centavos']])).toEqual([
+      ['efectivo', 50_000n],
+      ['tarjeta', 50_000n],
+    ]);
+    expect(base.filas('movimientos_caja').map((m) => m['monto_centavos'])).toEqual([50_000n]);
+  });
+
+  it('LA TRANSFERENCIA A LA CUENTA DE LA PROFESIONAL queda declarada (descuadre 1)', async () => {
+    // «¿A qué cuenta?» se preguntaba y la respuesta se tiraba: el dinero que cae en
+    // la cuenta de Karla se le descuenta de su liquidación sólo si queda escrito.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      pagos: [
+        { metodo: 'transferencia', montoCentavos: 100_000, aCuentaDe: KARLA, porConfirmar: true },
+      ],
+    });
+
+    expect(base.campo('pagos', 'referencia')).toBe(`cuenta-profesional:${KARLA} por-confirmar`);
+  });
+
+  it('A LA CUENTA DEL SALÓN también se dice, para que el corte la distinga', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await cobrarCita.ejecutar(ctx, {
+      citaId: CITA,
+      pagos: [{ metodo: 'transferencia', montoCentavos: 100_000 }],
+    });
+
+    expect(base.campo('pagos', 'referencia')).toBe('cuenta-salon');
+  });
+});
+
+describe('venta.cotizar_cita', () => {
+  it('LA FRASE DEL §3: cuánto baja el ticket y cuánto la comisión de cada quien', async () => {
+    const base = baseDe({
+      topes_descuento: [
+        { organizacion_id: ORG, rol: 'cajero', tope_centavos: 20_000n, tope_bp: 1_000 },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const cotizada = await cotizarCita.ejecutar(ctx, { citaId: CITA, descuentoBp: 1_000 });
+
+    expect(cotizada.totalCentavos).toBe('90000');
+    expect(cotizada.impuestosCentavos).toBe('12414');
+    expect(cotizada.porCobrarCentavos).toBe('90000');
+    expect(cotizada.descuentoPasaDelTope).toBeNull();
+    expect(cotizada.cajaAbierta).toBe(true);
+    // Los mismos números que el cobro: 43 103 sin descuento, 38 793 con él.
+    expect(cotizada.comisiones).toEqual([
+      // D-36: $431.035 sube a $431.04; $387.93 es exacto.
+      { profesionalId: KARLA, sinDescuentoCentavos: '43104', conDescuentoCentavos: '38793' },
+    ]);
+    // Y no escribe nada.
+    expect(base.filas('ordenes')).toEqual([]);
+    expect(base.filas('comisiones_causadas')).toEqual([]);
+  });
+
+  it('AVISA ANTES de cobrar que el descuento pasa del tope, y de cuánto es el tope', async () => {
+    const base = baseDe({
+      topes_descuento: [
+        { organizacion_id: ORG, rol: 'cajero', tope_centavos: 20_000n, tope_bp: 1_000 },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const cotizada = await cotizarCita.ejecutar(ctx, { citaId: CITA, descuentoBp: 2_000 });
+
+    expect(cotizada.descuentoPasaDelTope).toEqual({ topeCentavos: '20000', topeBp: 1_000 });
+  });
+
+  it('SIN CAJA ABIERTA lo dice antes de cobrar: es el muro de la pantalla', async () => {
+    const base = baseDe({ sesiones_caja: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const cotizada = await cotizarCita.ejecutar(ctx, { citaId: CITA });
+
+    expect(cotizada.cajaAbierta).toBe(false);
   });
 });

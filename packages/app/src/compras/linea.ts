@@ -77,6 +77,8 @@ export async function escribirLinea(
       costo_total_centavos: costoTotal,
       caduca_el: linea.caducaEl ?? null,
       notas: linea.notas ?? null,
+      // La memoria de la nota siguiente (`compras.importar_nota`, camino 1).
+      clave_proveedor: linea.claveProveedor ?? null,
     })
     .execute();
 

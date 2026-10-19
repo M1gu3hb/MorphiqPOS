@@ -1,5 +1,12 @@
-import { expect } from '@playwright/test';
+import { expect, test } from '@playwright/test';
 import type { Locator, Page, PlaywrightWorkerArgs, Response, TestInfo } from '@playwright/test';
+
+import {
+  DEMOS,
+  NEGOCIOS_REALES,
+  demoPorSlug,
+  negocioReal,
+} from '../../../packages/contracts/src/negocios/index.ts';
 
 /**
  * El ayudante que comparten las cinco pruebas de plantilla (F2.3-REGLAS §8, condición 6).
@@ -137,12 +144,7 @@ export type Plantilla = 'tienda' | 'cafeteria' | 'restaurante' | 'ferreteria' | 
  * lista es explícita, y por eso la comprobación de verdad es la de abajo: que el
  * negocio servido sea EXACTAMENTE el que la suite declaró.
  */
-const SLUGS_VIVOS = [
-  'mh-restaurante',
-  'demo-cafe-jacaranda',
-  'demo-abarrotes-don-chuy',
-  'demo-ferreteria-la-broca',
-] as const;
+const SLUGS_VIVOS: readonly string[] = NEGOCIOS_REALES.map((n) => n.slug);
 
 /**
  * La plantilla con la que se da de alta cada giro (`paquetePermitidoParaGiro`).
@@ -176,6 +178,33 @@ const PLANTILLA_DE_ALTA: Readonly<Record<string, Plantilla>> = {
 const SLUG_DEMO = process.env['MORPHIQPOS_ORG_DEMO'] ?? '';
 const PIN_DEMO = process.env['MORPHIQPOS_DEMO_PIN'] ?? '';
 const PERSONA_DEMO = process.env['MORPHIQPOS_DEMO_PERSONA'] ?? '';
+
+/**
+ * La entrada de la demo: `/n/<slug>/login-pos` (bloque A de la 2.4). Desde la 2.4 la
+ * pantalla de acceso de un despliegue con varios negocios no enseña a nadie sin
+ * dirección, así que la suite entra por la de SU demo, y pide la lista de SU demo.
+ */
+export function entradaDe(slug: string): string {
+  return `/n/${slug}/login-pos`;
+}
+
+/** La lista de quién puede entrar en ESA demo, la misma que pide su pantalla de acceso. */
+export function empleadosDe(slug: string): string {
+  return `/api/auth/empleados?negocio=${encodeURIComponent(slug)}`;
+}
+
+/**
+ * Quién entra, cuando no es la persona de la corrida.
+ *
+ * El día completo de cada giro (bloque D de la 2.4) entra con el ROL que toca a cada
+ * paso —la cajera cobra, el mesero comanda, la estilista ve su día— y no con el dueño
+ * para todo. Sin esto, cada prueba entra con `MORPHIQPOS_DEMO_PERSONA`.
+ */
+export interface QuienEntra {
+  readonly slug: string;
+  readonly nombre: string;
+  readonly pin: string;
+}
 
 /** La plantilla de comando de A3 §4.1, con el giro que pide cada modelo. */
 function comandoDeAlta(giro: string): string {
@@ -245,8 +274,15 @@ interface RespuestaDeEmpleados {
 export async function exigirDemostracion(
   playwright: PlaywrightWorkerArgs['playwright'],
   info: TestInfo,
+  /** La demo, cuando la declara la prueba y no el entorno (el día completo de cada giro). */
+  slug?: string,
 ): Promise<void> {
-  if (SLUG_DEMO === '') {
+  const delEntorno = slug === undefined;
+  const SLUG = slug ?? SLUG_DEMO;
+  const EMPLEADOS = empleadosDe(SLUG);
+  const yaComprobada = `${String(info.project.use.baseURL)} · ${SLUG}`;
+  if (DEMOSTRACIONES_COMPROBADAS.has(yaComprobada)) return;
+  if (SLUG === '') {
     throw new Error(
       [
         'Falta MORPHIQPOS_ORG_DEMO.',
@@ -263,7 +299,24 @@ export async function exigirDemostracion(
     );
   }
 
-  if (!/^\d{4}$/.test(PIN_DEMO)) {
+  // LA REGLA POSITIVA (bloque B de la 2.4): la suite corre sólo sobre una de las cinco
+  // demos declaradas por ID en `packages/contracts/src/negocios`. Antes de abrir una
+  // conexión, porque todo lo de abajo ya habla con el despliegue.
+  if (demoPorSlug(SLUG) === null) {
+    const real = negocioReal(SLUG);
+    throw new Error(
+      [
+        `ALTO. MORPHIQPOS_ORG_DEMO dice «${SLUG}», que no es una demostración.`,
+        real === null
+          ? 'No está en la lista de demos de packages/contracts/src/negocios.'
+          : `Es ${real.nombre}: un NEGOCIO REAL que cobra. Nunca se prueba.`,
+        '',
+        `Las demos: ${DEMOS.map((d) => d.slug).join(', ')}.`,
+      ].join('\n'),
+    );
+  }
+
+  if (delEntorno && !/^\d{4}$/.test(PIN_DEMO)) {
     throw new Error(
       [
         `MORPHIQPOS_DEMO_PIN tiene que ser de CUATRO dígitos (llegó «${PIN_DEMO}»).`,
@@ -274,7 +327,7 @@ export async function exigirDemostracion(
         'puede teclear en esa pantalla, y la prueba se quedaría esperando un salto que',
         'nadie va a dar.',
         '',
-        `  pnpm db:bootstrap --org ${SLUG_DEMO} --persona "Demo" --pin 1234`,
+        `  pnpm db:bootstrap --org ${SLUG} --persona "Demo" --pin 1234`,
       ].join('\n'),
     );
   }
@@ -294,24 +347,23 @@ export async function exigirDemostracion(
 
   try {
     // `/api/auth/empleados` es una de las dos rutas del sistema sin ámbito previo, y
-    // por eso sirve de precondición: contesta ANTES de que exista sesión, y para
-    // contestar tiene que haber resuelto `negocioDelDespliegue`. Si la base no está
-    // migrada, si `ORGANIZACION` no apunta a nada o si el muro de Vercel está en
-    // medio, se sabe aquí y no a mitad del login.
-    const respuesta = await contexto.get('/api/auth/empleados');
+    // por eso sirve de precondición: contesta ANTES de que exista sesión. Desde la 2.4
+    // se le pregunta por UN negocio —el de esta corrida— y sólo contesta con él si el
+    // despliegue lo sirve; si no, 404, igual que si no existiera.
+    const respuesta = await contexto.get(EMPLEADOS);
 
     if (respuesta.status() !== 200) {
       throw new Error(
         [
-          `El despliegue no pudo resolver el negocio: /api/auth/empleados → ${respuesta.status()}.`,
+          `El despliegue no sirve a «${SLUG}»: ${EMPLEADOS} → ${respuesta.status()}.`,
           `URL: ${respuesta.url()}`,
           '',
           'Cuatro cosas lo explican, en orden de probabilidad:',
           '',
-          `1 · El despliegue no apunta a esta demo. \`ORGANIZACION\` tiene que valer`,
-          `    «${SLUG_DEMO}» EN EL ENTORNO DEL SERVIDOR, no sólo aquí. Contra el preview`,
-          '    se pone con `vercel env add ORGANIZACION preview` y hay que REDESPLEGAR:',
-          '    las variables se aplican al construir, no en caliente.',
+          `1 · Un 404: el despliegue no sirve a esta demo. \`ORGANIZACION\` tiene que`,
+          `    incluir «${SLUG}» EN EL ENTORNO DEL SERVIDOR, no sólo aquí. Contra el`,
+          '    preview se pone con `vercel env add ORGANIZACION preview` y hay que',
+          '    REDESPLEGAR: las variables se aplican al construir, no en caliente.',
           '',
           '2 · La demo no existe todavía:',
           '',
@@ -335,135 +387,40 @@ export async function exigirDemostracion(
     const cuerpo = (await respuesta.json()) as RespuestaDeEmpleados;
     const negocio = cuerpo.datos?.negocio ?? '';
     const servido = cuerpo.datos?.slug ?? '';
+    const negocios = (cuerpo.datos?.negocios ?? []).map((n) => n.slug ?? '');
     const todos = cuerpo.datos?.usuarios ?? [];
 
     /**
-     * LOS negocios que sirve el despliegue, que desde E3 pueden ser varios.
+     * FALLA CERRADA (bloque A de la 2.4).
      *
-     * `ORGANIZACION` admite una lista de slugs, así que un solo despliegue puede
-     * servir a las cinco demostraciones y la organización sale del EMPLEO de
-     * quien entra. La guarda tiene que seguir siendo igual de estricta con cinco
-     * que con uno, y de hecho aquí se vuelve MÁS estricta: antes miraba sólo el
-     * primero, y ahora mira **todos** buscando un negocio vivo.
-     *
-     * El `??` de reserva es para un despliegue anterior a este cambio, cuya
-     * respuesta no trae `negocios`: entonces el único servido es `slug`.
+     * Esto aceptaba personas SIN `negocioSlug` —«un despliegue anterior que no lo
+     * manda»— y personas de otros negocios, que filtraba. Con la respuesta de antes eso
+     * era prudente; con la de ahora es exactamente el hueco: si la respuesta cambiara
+     * de forma y dejara de marcar a cada persona, la suite entraría con «la primera»,
+     * que puede ser de un cliente. Ahora la respuesta tiene que decir, sin excepción,
+     * que es de ESTA demo y sólo de ella: el negocio, la lista de negocios y cada una
+     * de las personas. Cualquier otra forma, y no se sigue.
      */
-    const servidos = (cuerpo.datos?.negocios ?? [{ nombre: negocio, slug: servido }])
-      .map((n) => ({ nombre: n.nombre ?? '', slug: n.slug ?? '' }))
-      .filter((n) => n.slug !== '');
-
-    // Las personas de ESTA demo. Con cinco negocios en un despliegue, la lista
-    // trae a las veintitantas y entrar con «la primera» sería entrar en otro
-    // negocio. Cada persona viene con el suyo.
-    const usuarios = todos.filter(
-      (u) => u.negocioSlug === undefined || u.negocioSlug === SLUG_DEMO,
-    );
-
-    if (servido === '') {
-      throw new Error(
-        [
-          '/api/auth/empleados contestó 200 pero sin el SLUG del negocio.',
-          '',
-          'Eso sólo pasa si la respuesta cambió de forma: `datos.slug` es',
-          '`organizaciones.slug` y lo pone `negocioDelDespliegue`. Sin él esta',
-          'precondición no puede afirmar sobre QUÉ negocio va a operar la suite, y',
-          'operar a ciegas sobre la caja de un cliente es exactamente lo que §4.5',
-          'prohíbe. Revisa apps/web/app/api/auth/empleados/route.ts.',
-        ].join('\n'),
+    const ajenas = todos.filter((u) => u.negocioSlug !== SLUG);
+    if (servido !== SLUG || negocios.length !== 1 || negocios[0] !== SLUG || ajenas.length > 0) {
+      const vivo = [servido, ...negocios, ...todos.map((u) => u.negocioSlug ?? '')].find((slug) =>
+        SLUGS_VIVOS.includes(slug),
       );
-    }
-
-    // ── LA comprobación ────────────────────────────────────────────────────
-    // Identidad exacta, no un nombre y no una heurística de prefijo: el negocio
-    // que el despliegue sirve tiene que ser EXACTAMENTE el que esta corrida
-    // declaró. Así no hay forma de acabar operando sobre otro — ni sobre uno
-    // vivo, ni sobre la demo de otro modelo, que también ensuciaría el reporte.
-    // ── LO VIVO, que ya no es «no se sigue» sino «demuéstrame que no lo tocas» ──
-    //
-    // Esto fallaba en cuanto el despliegue servía a un negocio vivo, y protegía de
-    // verdad mientras `ORGANIZACION` llevaba UN slug. Desde que producción sirve a
-    // Restaurante MH **y** a las cinco demostraciones —que es lo que el encargo pedía:
-    // un despliegue, y el negocio lo decide quién entra— negarse a correr dejaría el
-    // rastreo sin producción contra la que correr, que es justo donde hay que mirar.
-    //
-    // Lo que protege la caja de un cliente no es que el despliegue no la sirva: es que
-    // esta suite no pueda ENTRAR en ella. Y eso se puede EXIGIR, que es más fuerte que
-    // negarse:
-    //
-    //   · la organización sale de la SESIÓN y nunca de un parámetro (R16), así que lo
-    //     único que decide en qué negocio opera esta corrida es CON QUIÉN entra;
-    //   · `entrar` filtra por `negocioSlug === SLUG_DEMO`, o sea que sólo puede elegir
-    //     a alguien de la demo;
-    //   · y para que ese filtro signifique algo, el despliegue tiene que decir de quién
-    //     es cada persona. Si NO lo dice y sirve a varios, no hay forma de distinguirlas
-    //     y entonces sí se para: elegir «la primera» podría ser el cajero de un cliente.
-    const vivo = servidos.find((n) => (SLUGS_VIVOS as readonly string[]).includes(n.slug));
-    if (vivo !== undefined) {
-      const conNegocio = todos.filter((u) => u.negocioSlug !== undefined && u.negocioSlug !== '');
-      const deLaDemo = todos.filter((u) => u.negocioSlug === SLUG_DEMO);
-      if (conNegocio.length !== todos.length || deLaDemo.length === 0) {
-        throw new Error(
-          [
-            `ALTO. El despliegue sirve a «${vivo.slug}» («${vivo.nombre}»), que es un NEGOCIO`,
-            'VIVO, y no dice de qué negocio es cada persona de la pantalla de acceso.',
-            '',
-            `Sirve a ${String(servidos.length)}: ${servidos.map((n) => n.slug).join(', ')}.`,
-            `De ${String(todos.length)} personas, ${String(conNegocio.length)} traen su negocio ` +
-              `y ${String(deLaDemo.length)} son de «${SLUG_DEMO}».`,
-            '',
-            'Sin esa marca por persona no hay forma de entrar a la demo y sólo a la demo, y',
-            'esta suite entra con PIN, CAMBIA la plantilla del negocio y COBRA una venta.',
-            'Sobre un cliente que cobra, eso le quita módulos que paga y le mete dinero que',
-            'no existe en su corte. F2.3-REGLAS §4.5. No se sigue.',
-            '',
-            'O quitas ese slug de `ORGANIZACION` en el entorno DEL SERVIDOR, o el despliegue',
-            'vuelve a mandar `negocioSlug` en cada persona de `/api/auth/empleados`.',
-          ].join('\n'),
-        );
-      }
-      info.annotations.push({
-        type: 'negocio-vivo-servido',
-        description:
-          `El despliegue sirve también a «${vivo.slug}». La corrida entra en «${SLUG_DEMO}» ` +
-          `—${String(deLaDemo.length)} persona(s) suyas, y ninguna otra es elegible— y la ` +
-          'organización sale de la sesión, nunca de un parámetro (R16).',
-      });
-    }
-
-    if (!servidos.some((n) => n.slug === SLUG_DEMO)) {
       throw new Error(
         [
-          `El despliegue sirve a «${servidos.map((n) => n.slug).join(', ')}» y esta corrida ` +
-            `declaró «${SLUG_DEMO}», que no está entre ellos.`,
+          `ALTO. ${EMPLEADOS} no contestó con «${SLUG}» y sólo con él.`,
           '',
-          'F2.3-REGLAS §4.5: «Si al terminar quedan ventas de prueba, cortes de prueba o mesas',
-          'abiertas en cualquiera de los cuatro negocios vivos, el acople está mal hecho',
-          'aunque todo lo demás esté bien.»',
+          `  slug: «${servido}» · negocios: [${negocios.join(', ')}]`,
+          `  ${String(todos.length)} personas, ${String(ajenas.length)} sin la marca de esta demo` +
+            (ajenas.length > 0
+              ? `: ${ajenas.map((u) => `${u.nombre} (${u.negocioSlug ?? 'sin negocio'})`).join(', ')}`
+              : ''),
+          vivo === undefined ? '' : `  Y trae «${vivo}», que es un NEGOCIO REAL.`,
           '',
-          'Esta suite entra con PIN y CAMBIA la plantilla del negocio. Sobre un cliente que',
-          'cobra, eso le quita o le da módulos que paga. No se sigue.',
-          '',
-          `\`ORGANIZACION\` en el entorno DEL SERVIDOR tiene que valer «${SLUG_DEMO}»; contra`,
-          'el preview se pone con `vercel env add ORGANIZACION preview` y hay que REDESPLEGAR,',
-          'porque las variables se aplican al construir.',
-          '',
-          comandoDeAlta('tienda'),
-        ].join('\n'),
-      );
-    }
-
-    if ((SLUGS_VIVOS as readonly string[]).includes(SLUG_DEMO)) {
-      throw new Error(
-        [
-          `ALTO. MORPHIQPOS_ORG_DEMO dice «${SLUG_DEMO}», que es un NEGOCIO VIVO.`,
-          '',
-          'La comprobación de arriba sólo exige que el despliegue sirva a lo que esta',
-          'corrida declaró; si lo declarado es la caja de un cliente, coincidir no ayuda.',
-          'Los cuatro negocios que cobran son Restaurante MH, Café Jacaranda, Abarrotes',
-          'Don Chuy y Ferretería La Broca, y sus slugs están en SLUGS_VIVOS.',
-          '',
-          'Las demos del acople se llaman `demo-acople-<giro>`.',
+          'Esta suite entra con PIN, CAMBIA la plantilla del negocio y COBRA una venta. Sin',
+          'la certeza de que cada persona es de la demo no hay forma de entrar en ella y',
+          'sólo en ella. Revisa apps/web/app/api/auth/empleados/route.ts antes de tocar',
+          'esta precondición.',
         ].join('\n'),
       );
     }
@@ -473,27 +430,39 @@ export async function exigirDemostracion(
         [
           '/api/auth/empleados contestó 200 pero sin nombre de negocio.',
           'Eso sólo pasa si la respuesta cambió de forma: `datos.negocio` es',
-          '`organizaciones.nombre` y lo pone `negocioDelDespliegue`. Revisa',
-          'apps/web/app/api/auth/empleados/route.ts antes de tocar esta prueba.',
+          '`organizaciones.nombre`. Revisa apps/web/app/api/auth/empleados/route.ts',
+          'antes de tocar esta prueba.',
         ].join('\n'),
       );
     }
 
-    if (usuarios.length === 0) {
+    if (todos.length === 0) {
       throw new Error(
         [
-          `La demo «${SLUG_DEMO}» existe y no tiene a nadie dado de alta, así que no hay`,
+          `La demo «${SLUG}» existe y no tiene a nadie dado de alta, así que no hay`,
           'forma de entrar. `alta-negocio` crea la organización y su primera sucursal;',
           'el dueño con PIN lo crea `bootstrap`, que es otro paso:',
           '',
-          `  pnpm db:bootstrap --org ${SLUG_DEMO} --persona "Demo" --pin ${PIN_DEMO}`,
+          `  pnpm db:bootstrap --org ${SLUG} --persona "Demo" --pin ${PIN_DEMO}`,
         ].join('\n'),
       );
     }
+    DEMOSTRACIONES_COMPROBADAS.add(yaComprobada);
   } finally {
     await contexto.dispose();
   }
 }
+
+/**
+ * Las demos que ya pasaron la precondición en ESTE proceso, por despliegue.
+ *
+ * Lo que comprueba es del despliegue —que sirve a la demo, sólo a ella y con gente dada
+ * de alta— y no cambia en una corrida. Preguntarlo antes de cada prueba gastaba la cuota
+ * de `/api/auth/empleados` (60 por red en cinco minutos, `LIMITES.empleados`): la matriz y
+ * el aislamiento juntos llegaban a 65 y el aislamiento caía con 429 en CI. Se pregunta una
+ * vez por demo; si falla, no se guarda y la siguiente prueba vuelve a preguntar.
+ */
+const DEMOSTRACIONES_COMPROBADAS = new Set<string>();
 
 /**
  * Entra con PIN y deja la sesión abierta en el navegador.
@@ -519,30 +488,37 @@ export async function exigirDemostracion(
  * empezaría a fallar con 429 al azar, que es el peor fallo posible: parece
  * fragilidad y es aritmética.
  */
-export async function entrar(page: Page): Promise<string> {
-  const respuesta = await page.request.get('/api/auth/empleados');
+export async function entrar(page: Page, quien?: QuienEntra): Promise<string> {
+  const SLUG = quien?.slug ?? SLUG_DEMO;
+  const PERSONA = quien?.nombre ?? PERSONA_DEMO;
+  const PIN = quien?.pin ?? PIN_DEMO;
+  /**
+   * LA LISTA QUE CARGÓ LA PANTALLA, no otra pedida aparte.
+   *
+   * Esto la pedía por su cuenta y luego abría la pantalla, que la pedía otra vez: dos
+   * llamadas a `/api/auth/empleados` por entrada, cuando una persona de verdad gasta una.
+   * Con 25 personas de cinco demos, la matriz sola gastaba 53 de las 60 que la red tiene en
+   * cinco minutos (`LIMITES.empleados`). Leer la respuesta de la pantalla es además lo más
+   * fiel: se elige a la persona de entre las tarjetas que la pantalla recibió.
+   */
+  const listaDeLaPantalla = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === '/api/auth/empleados' && r.request().method() === 'GET',
+  );
+  await page.goto(entradaDe(SLUG));
+  const respuesta = await listaDeLaPantalla;
   const cuerpo = (await respuesta.json()) as RespuestaDeEmpleados;
 
   /**
-   * Sólo la gente DE ESTA demo.
-   *
-   * Desde E3 un despliegue puede servir a los cinco negocios de demostración, y
-   * entonces esta lista trae a las veintitantas personas de los cinco. Elegir
-   * entre todas sería entrar en el negocio de otro: la pantalla de acceso enseña
-   * el negocio en cada tarjeta justamente porque el nombre y el rol no bastan
-   * —hay un dueño en cada uno—.
-   *
-   * El `undefined` es un despliegue anterior a este cambio, que no manda el
-   * negocio por persona: entonces sirve a uno solo y todas son de ése.
+   * Sólo la gente DE ESTA demo, y nadie sin marca: `exigirDemostracion` ya exigió que
+   * cada persona traiga `negocioSlug === SLUG`, y aquí se vuelve a filtrar con la
+   * misma regla, sin el `undefined` de antes (bloque A de la 2.4).
    */
-  const usuarios = (cuerpo.datos?.usuarios ?? []).filter(
-    (u) => u.negocioSlug === undefined || u.negocioSlug === SLUG_DEMO,
-  );
+  const usuarios = (cuerpo.datos?.usuarios ?? []).filter((u) => u.negocioSlug === SLUG);
 
   // `toLocaleLowerCase('es-MX')` en los dos lados: comparar con el `toLowerCase()`
   // invariante haría que «MARÍA» y «maría» no casaran en algunas configuraciones, y el
   // fallo diría «esa persona no está dada de alta» sobre alguien que sí está.
-  const buscado = PERSONA_DEMO.toLocaleLowerCase('es-MX');
+  const buscado = PERSONA.toLocaleLowerCase('es-MX');
 
   // Con VARIAS personas dadas de alta, «la primera» es una lotería.
   //
@@ -552,7 +528,7 @@ export async function entrar(page: Page): Promise<string> {
   // almacenista — y el PIN de la corrida no es el suyo. El fallo salía cuatro
   // líneas más abajo, en `waitForURL`, diciendo «no salió de /login-pos»: el PIN
   // era correcto, para otra persona.
-  if (PERSONA_DEMO === '' && usuarios.length > 1) {
+  if (PERSONA === '' && usuarios.length > 1) {
     throw new Error(
       [
         `La demo tiene ${String(usuarios.length)} personas dadas de alta y esta corrida no dijo`,
@@ -569,22 +545,20 @@ export async function entrar(page: Page): Promise<string> {
   }
 
   const elegido =
-    PERSONA_DEMO === ''
+    PERSONA === ''
       ? usuarios[0]
       : usuarios.find((u) => u.nombre.toLocaleLowerCase('es-MX') === buscado);
 
   if (elegido === undefined) {
     throw new Error(
       [
-        PERSONA_DEMO === ''
+        PERSONA === ''
           ? 'La demo no devolvió ningún empleado con el que entrar.'
-          : `MORPHIQPOS_DEMO_PERSONA dice «${PERSONA_DEMO}» y la demo no tiene a nadie así.`,
+          : `MORPHIQPOS_DEMO_PERSONA dice «${PERSONA}» y la demo no tiene a nadie así.`,
         `Dados de alta: ${usuarios.map((u) => u.nombre).join(', ') || '(ninguno)'}`,
       ].join('\n'),
     );
   }
-
-  await page.goto('/login-pos');
 
   /**
    * LA TARJETA DE ESTA PERSONA, EN ESTE NEGOCIO.
@@ -604,31 +578,88 @@ export async function entrar(page: Page): Promise<string> {
   const conNombre = page
     .getByRole('button')
     .filter({ has: page.getByText(elegido.nombre, { exact: true }) });
-  const tarjeta =
+
+  /**
+   * Y CUÁNDO EL NEGOCIO NO SALE EN LA TARJETA.
+   *
+   * La pantalla de acceso escribe el negocio en cada tarjeta sólo cuando el
+   * despliegue sirve a VARIOS —y hace bien: en un despliegue de un solo negocio, ese
+   * nombre es la misma línea repetida en todas las tarjetas—. Producción sirve a
+   * seis, así que ahí sale; un trabajo de CI levanta un servidor con UNA
+   * `ORGANIZACION`, así que ahí no.
+   *
+   * La primera corrida del rastreo en CI murió justo aquí, con la tarjeta delante:
+   * `button "D Demo Administrador"`, sin el negocio. Así que se busca por nombre Y
+   * negocio cuando eso da una, y por nombre a secas cuando el negocio no se pinta.
+   * Lo que NO se relaja es la conclusión: tiene que haber exactamente UNA. Si dos
+   * personas se llaman igual en el mismo negocio, esto sigue fallando en vez de
+   * entrar con una al azar.
+   */
+  const conNegocio =
     elegido.negocio === undefined || elegido.negocio === ''
       ? conNombre
       : conNombre.filter({ has: page.getByText(elegido.negocio, { exact: true }) });
+  const tarjeta = (await conNegocio.count()) === 1 ? conNegocio : conNombre;
 
   await expect(
     tarjeta,
     `La pantalla de acceso no enseña UNA tarjeta de «${elegido.nombre}»` +
       (elegido.negocio === undefined ? '' : ` en «${elegido.negocio}»`) +
-      '. Con varios negocios en un despliegue hay un dueño en cada uno, y la tarjeta se ' +
-      'identifica por nombre Y negocio.',
+      '. Con varios negocios en un despliegue hay un dueño en cada uno, y la tarjeta ' +
+      'lleva el negocio; con uno solo, no lo lleva y basta el nombre. En los dos casos ' +
+      'tiene que haber exactamente una.',
   ).toHaveCount(1);
   await tarjeta.click();
   await expect(page.getByText(`Iniciando como: ${elegido.nombre}`)).toBeVisible();
 
+  /**
+   * QUÉ CONTESTÓ EL SERVIDOR AL PIN, porque «no salió de /login-pos» no lo dice.
+   *
+   * ── Lo que costó ──────────────────────────────────────────────────────────
+   * El fallo salía como `waitForURL: Timeout 30000ms exceeded` con la pantalla de
+   * acceso en la captura, y de ahí no se deduce NADA: puede ser el PIN cambiado, la
+   * credencial bloqueada por intentos, la persona equivocada… o un **403 de la
+   * frontera de escritura** porque el `APP_URL` del servidor no coincide con el
+   * origen del navegador (R-17). Fue lo último, tres corridas seguidas, y ni el
+   * contador de intentos fallidos se movió —el PIN nunca llegó a comprobarse—.
+   *
+   * Se escucha la RESPUESTA de `/api/auth/entrar` y se dice su estado. El vigilante
+   * de fallos también la vería, pero su `expect` corre al FINAL de la prueba: cuando
+   * la sesión no arranca, esta función se cae antes y ese aviso nunca se lee.
+   */
+  const respuestaDelPin = page
+    .waitForResponse((respuesta) => new URL(respuesta.url()).pathname === '/api/auth/entrar', {
+      timeout: 15_000,
+    })
+    .catch(() => null);
+
   // El teclado son botones con el dígito como nombre accesible. `exact` porque sin
   // él «1» también casaría con «10» si algún día hay uno.
-  for (const digito of PIN_DEMO) {
+  for (const digito of PIN) {
     await page.getByRole('button', { name: digito, exact: true }).click();
+  }
+
+  const delPin = await respuestaDelPin;
+  if (delPin !== null && delPin.status() !== 200) {
+    const estado = delPin.status();
+    throw new Error(
+      [
+        `El servidor contestó ${String(estado)} al PIN de «${elegido.nombre}».`,
+        estado === 403
+          ? 'Un 403 aquí es la frontera de escritura (R-17): el `APP_URL` del servidor no ' +
+            'coincide con el origen del navegador. Las suites locales corren en el 3200, así ' +
+            'que hace falta `APP_URL=http://localhost:3200` — el `.env` de desarrollo apunta ' +
+            'al 3000 y con él ninguna escritura pasa, empezando por entrar.'
+          : 'Un 401 es el PIN; un 423 o un 429, la credencial bloqueada por intentos; un 400, ' +
+            'la forma del cuerpo.',
+      ].join(' '),
+    );
   }
 
   // `POSLogin` manda el PIN solo al cuarto dígito y salta a `ROLE_HOME_ROUTES`. Un
   // dueño llega como administrador, y su casa es la raíz: el dashboard. Se espera
   // por la URL —una condición— y no por un tiempo.
-  await page.waitForURL((url) => !url.pathname.startsWith('/login-pos'));
+  await page.waitForURL((url) => !url.pathname.endsWith('/login-pos'));
 
   return elegido.nombre;
 }
@@ -914,7 +945,9 @@ export function accionesDelTablero(page: Page, titulo = 'Buen día'): Locator {
  */
 export async function menuLateral(page: Page): Promise<Locator> {
   const hamburguesa = page.getByRole('button', { name: 'Abrir menú' });
-  const menu = page.getByRole('navigation').filter({ visible: true });
+  // Por su NOMBRE: las pantallas de modelo traen su propia navegación —las categorías del
+  // cobro de la cafetería— y «el primer <nav>» dejó de ser el menú.
+  const menu = page.getByRole('navigation', { name: 'Menú principal' }).filter({ visible: true });
 
   // Se espera a que exista UNA de las dos: en cuanto el marco hidrató, la decisión
   // de si hay que abrir el cajón ya es estable. Es una condición, no un tiempo.
@@ -931,6 +964,36 @@ export function entradaDeMenu(menu: Locator, etiqueta: string): Locator {
   // con «Productos y categorías». La prueba afirma sobre la etiqueta EXACTA que
   // devuelve `etiquetaDeNavegacion`, que es la que el dueño lee.
   return menu.getByRole('link', { name: etiqueta, exact: true });
+}
+
+/**
+ * LLEGA A UNA PANTALLA TOCANDO EL MENÚ, como lo hace quien trabaja (D.1 de la 2.4).
+ *
+ * `abrirPantalla` teclea la URL, y eso prueba que la pantalla existe, no que esa persona
+ * puede llegar a ella: un cajero sin «Caja» en su menú no tiene caja, aunque la ruta
+ * responda. El día completo navega por aquí, así que cada paso afirma también que la
+ * entrada está en el menú DE ESE ROL, con la etiqueta de su giro. En el teléfono el
+ * menú es un cajón: se abre, se toca y se cierra solo al navegar.
+ */
+export async function irPorElMenu(
+  page: Page,
+  etiqueta: string,
+  marca: MarcaDePantalla,
+): Promise<void> {
+  const menu = await menuLateral(page);
+  const entrada = entradaDeMenu(menu, etiqueta);
+  await expect(
+    entrada,
+    `El menú de esta persona no tiene «${etiqueta}». Sale de \`navegacionParaRolYPlantilla\` ` +
+      '(la plantilla del negocio y el permiso del rol): si falta, esta persona no puede llegar ' +
+      'a esa pantalla aunque la ruta responda.',
+  ).toBeVisible();
+  const destino = (await entrada.getAttribute('href')) ?? '';
+  expect(destino, `«${etiqueta}» del menú no lleva a ninguna parte.`).not.toBe('');
+  await entrada.click();
+  const camino = new URL(destino, page.url()).pathname;
+  await page.waitForURL((url) => url.pathname === camino);
+  await exigirLoSuyo(page, camino, marca);
 }
 
 /** Lo que el menú de este negocio tiene que decir, y lo que no puede decir. */
@@ -1027,14 +1090,29 @@ export async function abrirPantalla(
       'navegador» (F2.3-REGLAS §8, condición 6).',
   ).toBe(200);
 
+  await exigirLoSuyo(page, ruta, marca);
+}
+
+/**
+ * Lo que una pantalla ya abierta tiene que enseñar: su marca, y no el muro genérico.
+ * Lo comparten `abrirPantalla` (por la URL) e `irPorElMenu` (tocando el menú).
+ */
+export async function exigirLoSuyo(
+  page: Page,
+  ruta: string,
+  marca: MarcaDePantalla,
+): Promise<void> {
   // Por ATRIBUTO y no con `getByLabel`: ése busca la etiqueta de un control de
   // formulario, y estas tres marcas son el `aria-label` de una región —un `aside`,
   // un `main`— que es donde vive el título de una pantalla que no puede gastar sitio
   // en un encabezado grande.
+  // Lo VISIBLE: una pantalla responsiva pinta el mismo texto dos veces —el paso a paso del
+  // teléfono y el encabezado de la tablet— y esconde uno según el ancho. Quedarse con el
+  // primero del DOM daba «no enseñó lo suyo» en tablet con la pantalla bien pintada.
   const suyo =
     marca instanceof RegExp
-      ? page.getByText(marca).first()
-      : page.locator(`[aria-label="${marca.etiqueta}"]`).first();
+      ? page.getByText(marca).filter({ visible: true }).first()
+      : page.locator(`[aria-label="${marca.etiqueta}"]`).filter({ visible: true }).first();
   const comoSeLlama = marca instanceof RegExp ? String(marca) : `aria-label «${marca.etiqueta}»`;
   await expect(
     suyo,
@@ -1137,8 +1215,27 @@ function loQuePedia(respuesta: Response): string {
   }
 }
 
-export function vigilarFallos(page: Page): () => void {
+/**
+ * QUÉ SE LE PERDONA AL SERVIDOR MIENTRAS SE LE MANDA BASURA A PROPÓSITO.
+ *
+ * El rastreador envía formularios con datos de sonda para comprobar que el camino del
+ * `<form>` existe. El servidor hace lo correcto: los rechaza. Un 400
+ * `ENTRADA_INVALIDA` ahí no es una respuesta rota —es la validación funcionando—, y
+ * contarlo como fallo haría que la aplicación pareciera reventar justo cuando mejor se
+ * comporta.
+ *
+ * Se perdona SOLO el 400 y el 422, SOLO mientras `sondeando()` diga que sí, y se
+ * cuenta para que salga en el resumen. Un 404 sigue siendo una ruta que no existe, un
+ * 5xx sigue siendo que revienta y un `{ok:false}` con 200 sigue siendo un dato que no
+ * llegó.
+ */
+export interface OpcionesDeVigilancia {
+  readonly sondeando?: () => boolean;
+}
+
+export function vigilarFallos(page: Page, opciones: OpcionesDeVigilancia = {}): () => void {
   const reventadas: string[] = [];
+  const rechazosDeSonda: string[] = [];
   const cuerpos: Promise<void>[] = [];
 
   page.on('response', (respuesta) => {
@@ -1147,6 +1244,10 @@ export function vigilarFallos(page: Page): () => void {
 
     // Sólo la API: un 404 de un `.map` o de un icono no es un botón roto.
     const esApi = ruta.startsWith('/api/');
+    if (esApi && (estado === 400 || estado === 422) && opciones.sondeando?.() === true) {
+      rechazosDeSonda.push(`${String(estado)} ${ruta}`);
+      return;
+    }
     if (estado >= 500 || (esApi && estado >= 400)) {
       reventadas.push(`${String(estado)} ${ruta}${loQuePedia(respuesta)}`);
       return;
@@ -1172,6 +1273,12 @@ export function vigilarFallos(page: Page): () => void {
   });
 
   return function exigirSinFallos(): void {
+    if (rechazosDeSonda.length > 0) {
+      test.info().annotations.push({
+        type: 'sondas-rechazadas',
+        description: `${String(rechazosDeSonda.length)} formulario(s) de sonda rechazados por el servidor: ${[...new Set(rechazosDeSonda)].join(', ')}`,
+      });
+    }
     /**
      * Una declaración de `<código> <ruta>` cubre TAMBÉN sus sufijos de entidad.
      *
@@ -1313,7 +1420,7 @@ export interface VentaDelServidor {
 }
 
 /** Los centavos de una venta que el puente sirvió en pesos. */
-function centavosDeVenta(venta: VentaDelServidor): number {
+export function centavosDeVenta(venta: VentaDelServidor): number {
   return Math.round((venta.total ?? 0) * 100);
 }
 
@@ -1418,7 +1525,12 @@ export async function exigirVentaCobrada(
  */
 export async function exigirCobroAceptado(page: Page, señalDeReposo: RegExp): Promise<void> {
   const reposo = page.getByText(señalDeReposo).first();
-  const queja = page.locator('[role="alert"]').filter({ hasText: /\S/ }).first();
+  // Sin el anunciador de rutas de Next: también es `role="alert"` y, al navegar por el
+  // menú, lleva el título de la página —«MH Astral POS»—, que no es ninguna queja.
+  const queja = page
+    .locator('[role="alert"]:not(#__next-route-announcer__)')
+    .filter({ hasText: /\S/ })
+    .first();
 
   await expect(reposo.or(queja), 'La pantalla de cobro no contestó nada al confirmar.').toBeVisible(
     {

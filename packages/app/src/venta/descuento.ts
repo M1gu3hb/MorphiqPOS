@@ -56,6 +56,7 @@ export const autorizarDescuento = definirComando<
   escribe: true,
   roles: [...ROLES_QUE_AUTORIZAN],
   paquetes: PAQUETES_TODOS,
+  sucursal: { ordenId: 'ordenes', solicitaEmpleoId: 'empleos' },
   entrada: entradaAutorizarDescuento,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId, sucursalId, rol } = ctx.ambito;
@@ -145,6 +146,10 @@ export const autorizarDescuento = definirComando<
           autoriza_rol: rol,
           descuento_centavos: descuento,
           tope_centavos: topeSolicitante.topeCentavos,
+          // Las dos ramas del tope (180): sin la base y el porcentaje, la base sólo podría
+          // comprobar la del importe y rechazaría la autorización que pasa por porcentaje.
+          base_centavos: base,
+          tope_bp: topeSolicitante.topeBp,
           motivo: entrada.motivo,
           created_at: ctx.ahora,
         })
@@ -180,7 +185,10 @@ export const autorizarDescuento = definirComando<
  * pasa por autorización hasta que alguien configure los topes, que es molesto un
  * día y es lo correcto siempre.
  */
-async function topeDe(ctx: ContextoComando<Transaccion>, rol: string): Promise<TopeDePuesto> {
+export async function topeDe(
+  ctx: ContextoComando<Transaccion>,
+  rol: string,
+): Promise<TopeDePuesto> {
   if (!(ROLES as readonly string[]).includes(rol)) {
     throw new ErrorDominio('PUESTO_INVALIDO', `«${rol}» no es uno de los puestos del sistema.`);
   }

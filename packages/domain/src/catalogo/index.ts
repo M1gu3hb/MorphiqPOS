@@ -6,7 +6,7 @@ export {
   ESCALA_CANTIDAD,
   type Cantidad,
 } from './cantidades.ts';
-export { convertirUnidad, normalizarUnidad, type Unidad } from './unidades.ts';
+export { convertirUnidad, mismaDimension, normalizarUnidad, type Unidad } from './unidades.ts';
 export {
   resolverTipoVenta,
   TIPOS_VENTA,

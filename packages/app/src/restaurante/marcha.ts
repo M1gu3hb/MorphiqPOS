@@ -78,6 +78,7 @@ export const marcharTiempo = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes' },
   modulo: 'cocina',
   entrada: entradaMarcharTiempo,
   async ejecutar(ctx, entrada) {

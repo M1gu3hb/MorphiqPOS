@@ -1,5 +1,7 @@
 'use client';
 import React, { useState } from 'react';
+
+import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
 import { api } from '@/api/cliente';
 import { useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -48,7 +50,7 @@ const PACKAGE_ORDER = [...PLANTILLAS].sort(
 );
 
 function CompareCell({ value }) {
-  if (value === true) return <Check className="w-4 h-4 text-emerald-600 mx-auto" />;
+  if (value === true) return <Check className="w-4 h-4 text-exito mx-auto" />;
   if (value === false) return <X className="w-4 h-4 text-muted-foreground/50 mx-auto" />;
   if (value === 'addon')
     return (
@@ -162,6 +164,12 @@ export default function ModoPresentacion({ cfg }) {
   // ---------- Contenido de la pestaña ----------
   return (
     <div className="space-y-6">
+      {/* El selector de ESTILO VISUAL. Vive en apps/web/src porque esta pantalla la
+          compara `verify:aspecto` clase por clase contra el commit en que Miguel la
+          entrego, y escribir la seccion aqui dentro haria fallar esa puerta por
+          decenas de testigos nuevos. Se monta con una linea. */}
+      <SelectorDeApariencia />
+
       {/* A) Encabezado */}
       <Card>
         <CardHeader>
@@ -225,7 +233,7 @@ export default function ModoPresentacion({ cfg }) {
                 <div className="flex flex-wrap items-center gap-1 text-[10px]">
                   {PACKAGE_FLOW[key].pasos.map((paso, i) => (
                     <React.Fragment key={i}>
-                      <span className="px-1.5 py-0.5 rounded bg-white border">{paso}</span>
+                      <span className="px-1.5 py-0.5 rounded bg-superficie border">{paso}</span>
                       {i < PACKAGE_FLOW[key].pasos.length - 1 && (
                         <ArrowRight className="w-2.5 h-2.5 text-muted-foreground" />
                       )}
@@ -237,7 +245,7 @@ export default function ModoPresentacion({ cfg }) {
               <ul className="space-y-1">
                 {PACKAGE_FEATURES[key].map((f, i) => (
                   <li key={i} className="text-xs flex items-start gap-1.5">
-                    <Check className="w-3 h-3 text-emerald-600 mt-0.5 shrink-0" />
+                    <Check className="w-3 h-3 text-exito mt-0.5 shrink-0" />
                     <span>{f}</span>
                   </li>
                 ))}
@@ -322,7 +330,7 @@ export default function ModoPresentacion({ cfg }) {
       </Card>
 
       {/* F) Aviso */}
-      <div className="flex items-start gap-2 p-3 rounded-lg bg-amber-50 border border-amber-200 text-amber-900">
+      <div className="flex items-start gap-2 p-3 rounded-lg bg-advertencia/10 border border-advertencia/30 text-advertencia">
         <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
         <p className="text-xs">
           <strong>Tienda</strong> y <strong>Cafetería</strong> funcionan como POS de mostrador /

@@ -12,6 +12,7 @@ import { fallo, mensajeDe, validar } from './errores.ts';
 import { atenderReintento, PasoInexistente, Rechazo, Reintento, SinRastro } from './fallos.ts';
 import type { RepositorioComandos } from './repositorio.ts';
 import { huella } from './saneado.ts';
+import { dentroDeLaSucursal, fronteraDelAmbito } from './sucursal/frontera.ts';
 import { registrar } from './observabilidad.ts';
 
 export { definirComando } from './definicion.ts';
@@ -141,7 +142,12 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
         entradaValidada = validada.datos;
 
         // ── Clave de idempotencia (R10) ─────────────────────────────────────
-        const clave = peticion.idempotencyKey;
+        // Sólo para lo que ESCRIBE. Una lectura no tiene nada que no repetir, y guardarle
+        // la respuesta la congelaba: Cobrar abortaba su `caja.estado` al navegar, el
+        // cliente conservaba la clave del intento sin respuesta y la lectura siguiente
+        // —ya con la caja abierta— recibía la foto vieja, «la caja está cerrada» (bloque D
+        // de la 2.4). Para una lectura, la clave que traiga se ignora.
+        const clave = definicion.escribe ? peticion.idempotencyKey : undefined;
         if (definicion.escribe && (clave === undefined || clave.length < CLAVE_MINIMA)) {
           throw new Rechazo('IDEMPOTENCIA_REQUERIDA', null);
         }
@@ -178,6 +184,30 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
           if (reclamacion === 'ocupada') throw new Rechazo('COMANDO_EN_CURSO', 'conflicto');
         }
 
+        // ── Frontera por sucursal (D-36) ────────────────────────────────────
+        // Después del rol, del paquete y de la forma, como todo lo que lee la base. Un id
+        // de OTRA sucursal, para quien opera en ésta, no existe: llega al cuerpo cambiado
+        // por uno que no existe en ninguna parte, y el comando contesta lo mismo que a un
+        // id al azar. Lo que se audita sigue siendo lo que se pidió.
+        const frontera =
+          definicion.sucursal === undefined ? null : fronteraDelAmbito(ambito, definicion.escribe);
+        const entrada =
+          definicion.sucursal === undefined || frontera === null
+            ? validada.datos
+            : await dentroDeLaSucursal(
+                definicion.sucursal,
+                validada.datos,
+                (tabla, ids) =>
+                  repositorio.fueraDeLaSucursal(
+                    tx,
+                    ambito.organizacionId,
+                    frontera.sucursalId,
+                    tabla,
+                    ids,
+                  ),
+                nuevoId,
+              );
+
         // ── Cuerpo ──────────────────────────────────────────────────────────
         const rastro: { entidadId: string | null; payload: Record<string, unknown> }[] = [];
         const pasosVistos = new Set<string>();
@@ -199,7 +229,7 @@ export function crearComando<TX>(deps: Dependencias<TX>) {
           },
         };
 
-        const salida = await definicion.ejecutar(ctx, validada.datos);
+        const salida = await definicion.ejecutar(ctx, entrada);
 
         // Si se pidió interrumpir un paso y el comando terminó sin ejecutarlo,
         // el nombre está mal escrito. Dejarlo pasar haría que la prueba de

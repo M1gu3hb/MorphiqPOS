@@ -6,13 +6,13 @@ import { cn } from '../utilidades/cn'
 import { Toggle as TogglePrimitive } from "radix-ui"
 
 const toggleVariants = cva(
-  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,box-shadow] outline-none hover:bg-muted hover:text-muted-foreground focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 data-[state=on]:bg-accent data-[state=on]:text-accent-foreground oscuro:aria-invalid:ring-destructive/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
+  "inline-flex items-center justify-center gap-2 rounded-md text-sm font-medium whitespace-nowrap transition-[color,box-shadow] outline-none hover:bg-fondo-sutil hover:text-texto-sutil focus-visible:border-anillo focus-visible:ring-[3px] focus-visible:ring-anillo/50 disabled:pointer-events-none disabled:opacity-50 aria-invalid:border-peligro aria-invalid:ring-peligro/20 data-[state=on]:bg-acento-suave data-[state=on]:text-acento-suave-texto oscuro:aria-invalid:ring-peligro/40 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4",
   {
     variants: {
       variant: {
         default: "bg-transparent",
         outline:
-          "border border-input bg-transparent shadow-1 hover:bg-accent hover:text-accent-foreground",
+          "border border-borde-fuerte bg-transparent shadow-1 hover:bg-acento-suave hover:text-acento-suave-texto",
       },
       size: {
         default: "h-(--altura-control) min-w-9 px-2",

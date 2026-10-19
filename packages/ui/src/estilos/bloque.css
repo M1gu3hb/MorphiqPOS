@@ -1,0 +1,125 @@
+/**
+ * Estilo `bloque` — brutalismo. Feo a propósito y funcional a propósito.
+ *
+ * PARA: mostrador rápido, taquería en hora pico, food truck, tortillería. Donde se
+ * cobra de pie, con ruido, con fila, y donde quien cobra mira la pantalla de reojo
+ * desde metro y medio.
+ *
+ * SU PUNTO DE VISTA: **máxima legibilidad a distancia**. Nada sutil sobrevive a una
+ * hora pico. Color plano y saturado, cero radio, bordes gruesos, sombra dura
+ * desplazada —la de un sello, no la de una nube— y la densidad `guantes`, que sube
+ * los controles a 56 px.
+ *
+ * Las tres cosas las hacen las PERILLAS (`redondeo: nula`, `elevacion: linea-dura`,
+ * `densidad: guantes`), no este archivo: aquí sólo va el color. Esa es toda la
+ * gracia del sistema —un estilo es una paleta y cuatro decisiones, no una segunda
+ * librería de componentes—.
+ *
+ * El fondo es un hueso cálido y no blanco puro: el blanco puro con negro a 3 px de
+ * grosor vibra, y vibrar a las dos de la tarde en una fila de doce personas cansa.
+ */
+
+[data-estilo='bloque'] {
+  /* La sombra dura no se difumina: su tinte es el negro de la tinta, opaco. */
+  --sombra-tinte: 0 0% 8%;
+
+  --fondo: 48 30% 94%;
+  --fondo-sutil: 48 24% 88%;
+  --superficie: 0 0% 100%;
+  --superficie-elevada: 0 0% 100%;
+
+  --texto: 0 0% 8%;
+  --texto-sutil: 0 0% 26%;
+  --texto-tenue: 0 0% 40%;
+
+  --borde: 0 0% 8%;
+  --borde-fuerte: 0 0% 8%;
+  --anillo: 250 90% 50%;
+
+  /* Azul eléctrico plano. Sin degradados: un degradado en brutalismo es una
+     contradicción, y además se lee peor de lejos que un plano. */
+  --primario: 250 90% 50%;
+  --primario-texto: 0 0% 100%;
+  --acento: 320 85% 42%;
+  --acento-texto: 0 0% 100%;
+  --acento-suave: 320 80% 92%;
+  --acento-suave-texto: 320 85% 24%;
+
+  --exito: 140 80% 24%;
+  --exito-texto: 0 0% 100%;
+  --advertencia: 45 100% 50%;
+  --advertencia-texto: 0 0% 8%;
+  --peligro: 0 85% 42%;
+  --peligro-texto: 0 0% 100%;
+  --info: 205 90% 34%;
+  --info-texto: 0 0% 100%;
+
+  --grafico-1: 250 90% 55%;
+  --grafico-2: 45 100% 50%;
+  --grafico-3: 140 75% 32%;
+  --grafico-4: 320 85% 50%;
+  --grafico-5: 190 90% 38%;
+  --grafico-6: 20 95% 48%;
+
+  --velo: 0 0% 8%;
+
+  --lateral-fondo: 0 0% 8%;
+  --lateral-texto: 48 30% 94%;
+  --lateral-activo: 45 100% 50%;
+  /* Tinta negra sobre el amarillo: blanco sobre amarillo es ilegible, y el amarillo
+     es lo que se ve de lejos. */
+  --lateral-activo-texto: 0 0% 8%;
+  --lateral-hover: 0 0% 18%;
+  --lateral-borde: 0 0% 30%;
+}
+
+[data-estilo='bloque'][data-modo='oscuro'] {
+  --sombra-tinte: 48 30% 94%;
+
+  --fondo: 0 0% 8%;
+  --fondo-sutil: 0 0% 14%;
+  --superficie: 0 0% 12%;
+  --superficie-elevada: 0 0% 16%;
+
+  --texto: 48 30% 94%;
+  --texto-sutil: 48 12% 76%;
+  --texto-tenue: 0 0% 60%;
+
+  /* En oscuro el borde es CLARO: la línea gruesa sigue siendo lo que separa, y una
+     línea negra sobre un fondo negro no separa nada. */
+  --borde: 48 30% 94%;
+  --borde-fuerte: 48 30% 94%;
+  --anillo: 250 100% 76%;
+
+  --primario: 250 100% 76%;
+  --primario-texto: 0 0% 8%;
+  --acento: 320 95% 70%;
+  --acento-texto: 0 0% 8%;
+  --acento-suave: 320 40% 22%;
+  --acento-suave-texto: 320 90% 86%;
+
+  --exito: 140 70% 58%;
+  --exito-texto: 0 0% 8%;
+  --advertencia: 45 100% 58%;
+  --advertencia-texto: 0 0% 8%;
+  --peligro: 0 95% 68%;
+  --peligro-texto: 0 0% 8%;
+  --info: 205 95% 66%;
+  --info-texto: 0 0% 8%;
+
+  --grafico-1: 250 100% 76%;
+  --grafico-2: 45 100% 58%;
+  --grafico-3: 140 70% 56%;
+  --grafico-4: 320 95% 70%;
+  --grafico-5: 190 95% 58%;
+  --grafico-6: 20 100% 62%;
+
+  --velo: 0 0% 4%;
+
+  --lateral-fondo: 0 0% 4%;
+  --lateral-texto: 48 30% 94%;
+  --lateral-activo: 45 100% 58%;
+  --lateral-activo-texto: 0 0% 8%;
+  --lateral-hover: 0 0% 16%;
+  --lateral-borde: 0 0% 40%;
+}

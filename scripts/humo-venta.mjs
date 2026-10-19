@@ -2,7 +2,7 @@
 /**
  * Humo de la venta de punta a punta, contra un servidor REAL (F1.1-C-08/C-18).
  *
- *   node scripts/humo-venta.mjs [--base http://localhost:3000] [--pin 4821]
+ *   node scripts/humo-venta.mjs [--base http://localhost:3000] --negocio demo-acople-<giro> [--pin 1234]
  *
  * Recorre la cadena entera por HTTP, como lo haría el navegador: entrar, abrir
  * caja, agregar, cobrar, ticket. **No importa una sola línea del
@@ -13,6 +13,13 @@
  * que pide `morphiq-prs §23`.
  */
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
+import {
+  demoDeLaCorrida,
+  enLaDemo,
+  empleadosDeLaDemo,
+  personaConRol,
+  PIN_DE_DEMO,
+} from './lib/demo-de-la-corrida.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -20,12 +27,15 @@ function bandera(nombre, porOmision) {
 }
 
 const BASE = bandera('base', 'http://localhost:3000');
-const PIN = bandera('pin', '4821');
+
+// ANTES DE CUALQUIER PETICIÓN: el negocio es explícito y es una demo (bloque B.3).
+const DEMO = demoDeLaCorrida('humo-venta');
+const PIN = bandera('pin', PIN_DE_DEMO.dueno);
 
 const llamar = (ruta, cuerpo, opciones) => llamarBase(BASE, ruta, cuerpo, opciones);
 
 paso(1, 'Listar quién puede entrar');
-const { empleados } = exigir('GET /api/auth/empleados', await llamar('/api/auth/empleados'));
+const empleados = await empleadosDeLaDemo(llamar, DEMO);
 if (!Array.isArray(empleados) || empleados.length === 0) {
   console.error('✗ El servidor no lista a nadie. Corre `pnpm db:bootstrap` primero.');
   process.exit(1);
@@ -35,18 +45,24 @@ console.log(
 );
 
 paso(2, 'Entrar con PIN');
-const primero = empleados[0];
-exigir(
-  'POST /api/auth/entrar',
-  await llamar('/api/auth/entrar', { empleoId: primero.empleoId, pin: PIN }),
+const primero = personaConRol(empleados, 'dueno');
+enLaDemo(
+  exigir(
+    'POST /api/auth/entrar',
+    await llamar('/api/auth/entrar', { empleoId: primero.empleoId, pin: PIN, negocio: DEMO.slug }),
+  ),
+  DEMO,
+  'humo-venta',
 );
 
 paso(3, 'Estado de la venta (la sesión existe)');
 const estado = exigir('POST /api/venta/estado', await llamar('/api/venta/estado', {}));
 
 paso(4, 'Abrir caja');
-if (estado.sesionCajaId === null) {
-  exigir('POST /api/caja/abrir', await llamar('/api/caja/abrir', { fondoInicialCentavos: 50000 }));
+const FONDO = 50000;
+const abrioLaCaja = estado.sesionCajaId === null;
+if (abrioLaCaja) {
+  exigir('POST /api/caja/abrir', await llamar('/api/caja/abrir', { fondoInicialCentavos: FONDO }));
 } else {
   console.log('✓ ya había una caja abierta');
 }
@@ -128,6 +144,25 @@ const ticket = exigir('POST /api/venta/ticket', await llamar('/api/venta/ticket'
 console.log(
   `  ${ticket.organizacionNombre} · ${ticket.serie}-${ticket.folio} · total ${ticket.totalCentavos}`,
 );
+
+// LA CAJA SE CIERRA COMO SE ENCONTRÓ (2.4): la base admite UNA caja abierta por
+// sucursal, y la que este humo abría en su terminal —una nueva en cada corrida— se
+// quedaba abierta. El siguiente guion, desde otra terminal, ya no podía abrir la suya
+// («Esta sucursal ya tiene una caja abierta, en la terminal Caja 2»). Se cierra con el
+// efectivo esperado: fondo más lo cobrado en efectivo, que es todo el total.
+if (abrioLaCaja) {
+  paso(11, 'Cerrar la caja que se abrió');
+  const cierre = exigir(
+    'POST /api/caja/cerrar',
+    await llamar('/api/caja/cerrar', { efectivoContadoCentavos: FONDO + Number(total) }),
+  );
+  const diferencia = Number(cierre.diferenciaCentavos ?? 0);
+  if (diferencia !== 0) {
+    console.error(`✗ El corte no cuadra: diferencia ${String(diferencia)} centavos.`);
+    process.exit(1);
+  }
+  console.log('✓ cuadra al centavo: diferencia 0');
+}
 
 console.log(
   `\n✓ HUMO COMPLETO contra ${BASE}\n  orden ${ordenId}\n  folio ${cobro.serie}-${cobro.folio}\n`,

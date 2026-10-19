@@ -5,6 +5,8 @@
 import { readFileSync, readdirSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
+
 const RAIZ = 'packages/app/src';
 const RUTAS = 'apps/web/app/api';
 
@@ -106,8 +108,7 @@ for (const f of archivos(RAIZ, (e) => e.endsWith('.ts') && !e.includes('.test.')
         }
       }
     }
-    const cuerpo = t
-      .slice(m.index, fin + 1)
+    const cuerpo = sinFalsosDelimitadores(t.slice(m.index, fin + 1))
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/^\s*\/\/.*$/gm, '');
     esquemas.set(

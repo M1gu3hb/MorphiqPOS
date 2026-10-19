@@ -6,7 +6,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, EMPLEO, ORG } from '../restaurante/pruebas/sala.ts';
 import { autorizacionesDeCredito, autorizarVentaACredito } from './autorizacion-credito.ts';
 
 /**
@@ -28,6 +28,8 @@ import { autorizacionesDeCredito, autorizarVentaACredito } from './autorizacion-
 const AHORA = new Date('2026-09-16T12:00:00.000Z');
 const CLIENTE = 'f8000000-0000-4000-8000-000000000001';
 const OTRO = 'f8000000-0000-4000-8000-000000000002';
+/** Karla, del mostrador: es quien pide la llave. */
+const KARLA = 'e5000000-0000-4000-8000-000000000009';
 
 const dias = (n: number) => new Date(AHORA.getTime() + n * 86_400_000);
 
@@ -43,6 +45,10 @@ function baseDe(extra: Partial<TablasFalsas> = {}) {
         },
       ],
       autorizaciones_descuento: [],
+      empleos: [
+        { id: KARLA, organizacion_id: ORG, rol: 'cajero', activo: true },
+        { id: EMPLEO, organizacion_id: ORG, rol: 'dueno', activo: true },
+      ],
       ...extra,
     },
     { predeterminados: { autorizaciones_descuento: { orden_id: null, sucursal_id: null } } },
@@ -74,11 +80,61 @@ async function codigoDe(fn: () => Promise<unknown>): Promise<string> {
 }
 
 describe('la llave del dueño', () => {
+  it('SE LE DA A QUIEN LA PIDE: el dueño no se la da a sí mismo', async () => {
+    // La base lo exige (`autorizacion_no_es_de_uno_mismo`): el comando escribía al dueño
+    // como quien pide y como quien autoriza, y contra Postgres la llave NUNCA se pudo dar.
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    await autorizarVentaACredito.ejecutar(ctx, {
+      solicitaEmpleoId: KARLA,
+      clienteId: CLIENTE,
+      importeCentavos: 4_000_000,
+      ordenId: null,
+      motivo: 'obra grande, paga el viernes',
+      vigenciaHoras: 8,
+    });
+    expect(base.campo('autorizaciones_descuento', 'solicita_empleo_id')).toBe(KARLA);
+    expect(base.campo('autorizaciones_descuento', 'autoriza_empleo_id')).toBe(EMPLEO);
+
+    expect(
+      await codigoDe(() =>
+        autorizarVentaACredito.ejecutar(ctx, {
+          solicitaEmpleoId: EMPLEO,
+          clienteId: CLIENTE,
+          importeCentavos: 4_000_000,
+          ordenId: null,
+          motivo: 'obra grande, paga el viernes',
+          vigenciaHoras: 8,
+        }),
+      ),
+    ).toBe('CONFIGURACION_INVALIDA');
+  });
+
+  it('quien pide tiene que ser de este negocio', async () => {
+    const base = baseDe({ empleos: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        autorizarVentaACredito.ejecutar(ctx, {
+          solicitaEmpleoId: KARLA,
+          clienteId: CLIENTE,
+          importeCentavos: 4_000_000,
+          ordenId: null,
+          motivo: 'obra grande, paga el viernes',
+          vigenciaHoras: 8,
+        }),
+      ),
+    ).toBe('PUENTE_NO_ENCONTRADO');
+  });
+
   it('QUEDA REGISTRADA con quién, cuánto y por qué', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
 
     const salida = await autorizarVentaACredito.ejecutar(ctx, {
+      solicitaEmpleoId: KARLA,
       clienteId: CLIENTE,
       importeCentavos: 4_000_000,
       ordenId: null,
@@ -101,6 +157,7 @@ describe('la llave del dueño', () => {
     const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
 
     const salida = await autorizarVentaACredito.ejecutar(ctx, {
+      solicitaEmpleoId: KARLA,
       clienteId: CLIENTE,
       importeCentavos: 100_000,
       ordenId: null,
@@ -118,6 +175,7 @@ describe('la llave del dueño', () => {
 
     const codigo = await codigoDe(() =>
       autorizarVentaACredito.ejecutar(ctx, {
+        solicitaEmpleoId: KARLA,
         clienteId: CLIENTE,
         importeCentavos: 100_000,
         ordenId: null,
@@ -136,6 +194,7 @@ describe('la llave del dueño', () => {
     const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
 
     const salida = await autorizarVentaACredito.ejecutar(ctx, {
+      solicitaEmpleoId: KARLA,
       clienteId: CLIENTE,
       importeCentavos: 100_000,
       ordenId: null,
@@ -152,6 +211,7 @@ describe('la llave del dueño', () => {
 
     const codigo = await codigoDe(() =>
       autorizarVentaACredito.ejecutar(ctx, {
+        solicitaEmpleoId: KARLA,
         clienteId: CLIENTE,
         importeCentavos: 100_000,
         ordenId: null,

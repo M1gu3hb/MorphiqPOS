@@ -36,6 +36,7 @@ import PropinasDashboardSection from '@/components/propinas/PropinasDashboardSec
 import { tipsEnabled } from '@/utils/tipsUtils';
 import LoadingState from '@/components/common/LoadingState';
 import PrimerosPasosCard from '@/components/dashboard/PrimerosPasosCard';
+import { AccesosDelDueno } from '~/restaurante/AccesosDelDueno';
 
 /**
  * Un negocio de mostrador: cobra en Caja, sin mesas de por medio.
@@ -273,6 +274,8 @@ export default function Dashboard() {
         }
       />
 
+      <AccesosDelDueno />
+
       {/* Card informativa de Primeros pasos — solo aparece si quedan pasos
           pendientes, el admin no la ha ocultado y los queries terminaron su
           primer fetch (ready). Sin `ready` la card no se renderiza nunca,
@@ -287,7 +290,7 @@ export default function Dashboard() {
           <p className="flex-1">Verificando caja abierta…</p>
         </div>
       ) : !hayCaja ? (
-        <div className="px-4 py-3 rounded-xl bg-amber-50 border border-amber-200 text-sm text-amber-800 flex items-center gap-3">
+        <div className="px-4 py-3 rounded-xl bg-advertencia/10 border border-advertencia/30 text-sm text-advertencia flex items-center gap-3">
           <AlertTriangle className="w-4 h-4 shrink-0" />
           <p className="flex-1">
             <span className="font-semibold">No hay caja abierta.</span> Abre caja para comenzar
@@ -470,7 +473,7 @@ function ChartsRow({ showInventario, paymentData, alertIngredients }) {
         >
           <CardHeader className="pb-2 flex flex-row items-center justify-between">
             <CardTitle className="text-sm font-heading flex items-center gap-2">
-              <AlertTriangle className="w-4 h-4 text-orange-500" /> Alertas de inventario
+              <AlertTriangle className="w-4 h-4 text-advertencia" /> Alertas de inventario
             </CardTitle>
             <Link to="/inventario">
               <Button variant="ghost" size="sm" className="text-xs">
@@ -498,7 +501,7 @@ function ChartsRow({ showInventario, paymentData, alertIngredients }) {
               </div>
             ) : (
               <div className="text-center py-8">
-                <Package className="w-8 h-8 text-emerald-400 mx-auto mb-2" />
+                <Package className="w-8 h-8 text-exito mx-auto mb-2" />
                 <p className="text-sm text-muted-foreground">Inventario en buen estado</p>
               </div>
             )}

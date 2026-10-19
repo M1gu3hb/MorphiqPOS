@@ -1,5 +1,5 @@
 import { esErrorDominio } from '@morphiqpos/contracts';
-import { describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 
 import {
   contextoFalso,
@@ -8,6 +8,15 @@ import {
 } from '../restaurante/pruebas/base-falsa.ts';
 import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
 import { guardarFotoDeMostrador } from './foto-mostrador.ts';
+
+// La foto que el sistema acepta es la que devolvió `archivos/subir`: del origen de
+// `APP_URL` y bajo `privado/<este negocio>/` (auditoría de la 2.4).
+beforeAll(() => {
+  vi.stubEnv('APP_URL', 'https://pos.example.mx');
+});
+afterAll(() => {
+  vi.unstubAllEnvs();
+});
 
 /**
  * F-061 · La foto de mostrador.
@@ -23,7 +32,7 @@ import { guardarFotoDeMostrador } from './foto-mostrador.ts';
 const AHORA = new Date('2026-09-16T12:00:00.000Z');
 const PRODUCTO = 'b0000000-0000-4000-8000-000000000001';
 const GAVETA = 'c0000000-0000-4000-8000-000000000002';
-const URL = 'https://archivos.morphiqpos.mx/fotos/tornillo-1-4.jpg';
+const URL = `https://pos.example.mx/api/archivos/privado/${ORG}/2026/09/00000001-0000-4000-8000-000000000001.jpg`;
 
 const baseDe = (extra: Partial<TablasFalsas> = {}) =>
   crearBaseFalsa({

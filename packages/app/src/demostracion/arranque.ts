@@ -1,7 +1,6 @@
 import 'server-only';
 
 import type { Transaccion } from '@morphiqpos/data';
-import { sql } from 'kysely';
 
 import type { SemillaDemo } from './datos.ts';
 
@@ -130,16 +129,4 @@ async function asegurarTerminal(
     })
     .returning(['id', 'nombre'])
     .executeTakeFirstOrThrow();
-}
-
-/**
- * Borra lo que siembra este módulo.
- *
- * Las terminales NO se borran: una terminal enrolada es un dispositivo de
- * verdad, y un reseteo de demostración no tiene por qué desenrolar la tablet de
- * nadie. Las sesiones de caja sí, y las borra `limpiar()` del reseteo antes de
- * llegar aquí.
- */
-export async function limpiarArranque(tx: Transaccion, organizacionId: string): Promise<void> {
-  await sql`delete from proveedores where organizacion_id = ${organizacionId}`.execute(tx);
 }

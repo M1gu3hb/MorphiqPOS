@@ -108,7 +108,7 @@ export default function QRMesaDialog({ mesa, open, onClose, config }) {
           </DialogTitle>
         </DialogHeader>
         <div className="flex flex-col items-center gap-3 py-2">
-          <div className="bg-white border-2 border-slate-200 rounded-xl p-3 shadow-sm">
+          <div className="bg-superficie border-2 border-borde rounded-xl p-3 shadow-sm">
             <QRCanvas value={url} size={220} />
           </div>
           <p className="text-xs text-muted-foreground break-all text-center max-w-full px-2">

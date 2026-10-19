@@ -1,6 +1,14 @@
-import { agregarLinea, cobrarOrden, crearOrden } from '@morphiqpos/app/venta';
+import { aplicarDescuento, cobrarOrden } from '@morphiqpos/app/venta';
 import { z } from 'zod';
 
+import {
+  LineaDeMostrador,
+  armarCarrito,
+  fronteraDelMostrador,
+  datosSiSalio,
+  pasosDe,
+  respuestaJson,
+} from '~/servidor/carrito-de-mostrador';
 import { manejadorDeComando } from '~/servidor/ruta';
 
 /**
@@ -36,49 +44,96 @@ import { manejadorDeComando } from '~/servidor/ruta';
  * ── Qué pasa si falla a mitad ──────────────────────────────────────────────
  * El DINERO sigue siendo atómico, que es lo que importa: el cobro es el último
  * paso y es una transacción entera; si falla, no hay pago, ni folio, ni stock
- * descontado. Lo que puede quedar es un BORRADOR con algunos renglones — el mismo
- * estado en el que está cualquier venta a medio armar, que la pantalla de registros
- * lista y `venta.suspender` retoma. Un borrador huérfano no es dinero perdido ni un
- * hueco en la numeración; un cobro a medias sí lo sería.
+ * descontado. Lo que puede quedar es un BORRADOR con algunos renglones, y el siguiente
+ * cobro de esa caja lo VACÍA antes de meter los suyos (`armarCarrito`, C.10 de la 2.4):
+ * antes los metía encima y el total ya nunca cuadraba. Un borrador huérfano no es dinero
+ * perdido ni un hueco en la numeración; un cobro a medias sí lo sería.
  *
  * ── La idempotencia ────────────────────────────────────────────────────────
  * La pantalla manda UNA clave para toda la venta. Aquí se derivan las de cada
- * paso —`<clave>:orden`, `<clave>:l0`, `<clave>:cobro`— porque cada comando tiene
+ * paso —`<clave>:orden`, `<clave>:vaciar`, `<clave>:l0`, `<clave>:cobro`— porque cada comando tiene
  * su propio registro de claves. El efecto es el que se quiere: un doble Enter
  * reusa el mismo borrador, no duplica los renglones y no cobra dos veces.
  */
 
 export const runtime = 'nodejs';
 
-const Linea = z.object({
-  productoId: z.uuid(),
-  /** La pantalla la manda como texto, igual que `venta.agregar_linea` la espera. */
-  cantidad: z.union([z.string().min(1).max(20), z.number()]),
+/**
+ * Un renglón de un pago MIXTO (D.1 de la 2.4): el cobro de la tienda sólo aceptaba un
+ * método, y su `02-DINERO-Y-CAJA §5` define el mixto —«le abono $100 y llevo estas
+ * cosas», efectivo con tarjeta—. `venta.cobrar` ya reparte varios pagos (P1-11); faltaba
+ * dejarlos pasar. El recibido, sólo en efectivo: es de donde sale el cambio.
+ */
+const PagoDeMostrador = z.object({
+  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia', 'fiado']),
+  montoCentavos: z.number().int().positive(),
+  recibidoCentavos: z.number().int().nonnegative().optional(),
+});
+
+/**
+ * El descuento de la venta (F-205, D-28): importe, motivo y, si pasa del tope de quien
+ * cobra, la autorización firmada del supervisor. Se aplica al borrador ANTES de cobrar,
+ * con `venta.aplicar_descuento`, y el total esperado ya viene descontado.
+ */
+const DescuentoDeMostrador = z.object({
+  centavos: z.number().int().positive(),
+  motivo: z.string().trim().min(4).max(200),
+  autorizacion: z.string().min(20).max(2_000).optional(),
 });
 
 const Entrada = z.object({
-  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia']),
+  /**
+   * `fiado` (F11) entrega a cuenta de `clienteId` (F4). La ruta aceptaba sólo tres métodos
+   * mientras la pantalla mandaba cuatro: F11 contestaba «La venta llegó incompleta» y la
+   * tienda no podía fiar desde su cobro (C.10 de la 2.4).
+   */
+  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia', 'fiado']),
+  clienteId: z.uuid().optional(),
   totalEsperadoCentavos: z.number().int().nonnegative(),
   recibidoCentavos: z.number().int().nonnegative(),
-  lineas: z.array(Linea).min(1).max(120),
+  lineas: z.array(LineaDeMostrador).min(1).max(120),
+  /**
+   * El canal y el nombre con el que se grita el pedido: los manda el mostrador de la
+   * cafetería (C.10 de la 2.4), que cobra por aquí desde que sus bebidas llevan opciones.
+   * La tienda no los manda y `venta.cobrar` los trata como siempre.
+   */
+  canal: z.enum(['aqui', 'llevar']).optional(),
+  nombrePedido: z.string().trim().min(1).max(60).optional(),
+  /** Si llega, manda sobre `metodo`: la venta se paga con estos renglones. */
+  pagos: z.array(PagoDeMostrador).min(2).max(4).optional(),
+  descuento: DescuentoDeMostrador.optional(),
 });
 
-const crear = manejadorDeComando(crearOrden);
-const meter = manejadorDeComando(agregarLinea);
 const cobrar = manejadorDeComando(cobrarOrden);
+const descontar = manejadorDeComando(aplicarDescuento);
 
-function json(estado: number, cuerpo: unknown): Response {
-  return new Response(JSON.stringify(cuerpo), {
-    status: estado,
-    headers: { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' },
-  });
+/** Los pagos que se mandan a `venta.cobrar`: el mixto tal cual, o el método único por el total. */
+function pagosDe(datos: z.infer<typeof Entrada>) {
+  if (datos.pagos !== undefined) {
+    return datos.pagos.map((p) => ({
+      metodo: p.metodo,
+      montoCentavos: p.montoCentavos,
+      ...(p.metodo === 'efectivo' && p.recibidoCentavos !== undefined
+        ? { recibidoCentavos: p.recibidoCentavos }
+        : {}),
+    }));
+  }
+  return [
+    {
+      metodo: datos.metodo,
+      montoCentavos: datos.totalEsperadoCentavos,
+      ...(datos.metodo === 'efectivo' ? { recibidoCentavos: datos.recibidoCentavos } : {}),
+    },
+  ];
 }
 
 export async function POST(peticion: Request): Promise<Response> {
+  const frontera = fronteraDelMostrador(peticion);
+  if (frontera !== null) return frontera;
   const cuerpo: unknown = await peticion.json().catch(() => null);
   const validada = Entrada.safeParse(cuerpo);
   if (!validada.success) {
-    return json(400, {
+    return respuestaJson(400, {
       ok: false,
       error: {
         codigo: 'ENTRADA_INVALIDA',
@@ -87,66 +142,25 @@ export async function POST(peticion: Request): Promise<Response> {
     });
   }
 
-  const clave = peticion.headers.get('idempotency-key') ?? crypto.randomUUID();
+  const paso = pasosDe(peticion);
+  const carrito = await armarCarrito(paso, validada.data.lineas);
+  if (!carrito.ok) return carrito.respuesta;
+  const { ordenId } = carrito;
 
-  /**
-   * Una petición hermana para cada paso.
-   *
-   * Lleva las MISMAS cabeceras que llegaron —la cookie de sesión y la del
-   * dispositivo entre ellas, que es de donde sale el ámbito— y cambia dos cosas:
-   * el cuerpo y la clave de idempotencia. La URL se conserva porque
-   * `peticionDeEscrituraValida` compara el origen con `APP_URL`.
-   */
-  function paso(datos: unknown, sufijo: string): Request {
-    const texto = JSON.stringify(datos);
-    const cabeceras = new Headers(peticion.headers);
-    cabeceras.set('content-type', 'application/json');
-    cabeceras.set('idempotency-key', `${clave}:${sufijo}`);
-    // `content-length` tiene que ser el del cuerpo NUEVO, y tiene que estar:
-    // `cuerpoDentroDelLimite` falla cerrado si no se declara —correctamente, un
-    // cuerpo sin longitud declarada no se puede acotar antes de leerlo— así que
-    // borrarla hacía que cada paso respondiera «El cuerpo supera 256 KiB» con un
-    // cuerpo de doscientos bytes. Se mide en BYTES y no en caracteres: «Aceite de
-    // maíz» ocupa más bytes que letras.
-    cabeceras.set('content-length', String(new TextEncoder().encode(texto).length));
-    return new Request(peticion.url, { method: 'POST', headers: cabeceras, body: texto });
-  }
-
-  // Un paso que falla se devuelve TAL CUAL: su código, su mensaje y su estado.
-  // Envolverlo en un error propio de esta ruta escondería «CAJA_CERRADA» o
-  // «TOTAL_DESACTUALIZADO» detrás de un 500 genérico, y esos dos mensajes son
-  // exactamente los que el cajero necesita leer.
-  const respuestaOrden = await crear(paso({}, 'orden'));
-  const datosOrden = (await respuestaOrden
-    .clone()
-    .json()
-    .catch(() => null)) as {
-    ok?: boolean;
-    datos?: { ordenId?: string };
-  } | null;
-  if (datosOrden?.ok !== true || typeof datosOrden.datos?.ordenId !== 'string') {
-    return respuestaOrden;
-  }
-  const ordenId = datosOrden.datos.ordenId;
-
-  for (const [indice, linea] of validada.data.lineas.entries()) {
-    const respuestaLinea = await meter(
+  const { descuento } = validada.data;
+  if (descuento !== undefined) {
+    const respuestaDescuento = await descontar(
       paso(
         {
           ordenId,
-          productoId: linea.productoId,
-          cantidad: typeof linea.cantidad === 'number' ? String(linea.cantidad) : linea.cantidad,
+          descuentoCentavos: descuento.centavos,
+          motivo: descuento.motivo,
+          ...(descuento.autorizacion === undefined ? {} : { autorizacion: descuento.autorizacion }),
         },
-        `l${String(indice)}`,
+        'descuento',
       ),
     );
-    const datosLinea = (await respuestaLinea
-      .clone()
-      .json()
-      .catch(() => null)) as {
-      ok?: boolean;
-    } | null;
-    if (datosLinea?.ok !== true) return respuestaLinea;
+    if ((await datosSiSalio(respuestaDescuento)) === null) return respuestaDescuento;
   }
 
   // El total viaja para que el servidor RECHACE si no coincide con el suyo:
@@ -158,28 +172,19 @@ export async function POST(peticion: Request): Promise<Response> {
       {
         ordenId,
         totalEsperadoCentavos: validada.data.totalEsperadoCentavos,
-        pagos: [
-          {
-            metodo: validada.data.metodo,
-            montoCentavos: validada.data.totalEsperadoCentavos,
-            ...(validada.data.metodo === 'efectivo'
-              ? { recibidoCentavos: validada.data.recibidoCentavos }
-              : {}),
-          },
-        ],
+        ...(validada.data.clienteId === undefined ? {} : { clienteId: validada.data.clienteId }),
+        ...(validada.data.canal === undefined ? {} : { canal: validada.data.canal }),
+        ...(validada.data.nombrePedido === undefined
+          ? {}
+          : { nombrePedido: validada.data.nombrePedido }),
+        pagos: pagosDe(validada.data),
       },
       'cobro',
     ),
   );
-  const datosCobro = (await respuestaCobro
-    .clone()
-    .json()
-    .catch(() => null)) as {
-    ok?: boolean;
-  } | null;
-  if (datosCobro?.ok !== true) return respuestaCobro;
+  if ((await datosSiSalio(respuestaCobro)) === null) return respuestaCobro;
 
   // `ventaId` es el identificador de la ORDEN, que es lo que la pantalla usa para
   // abrir el ticket. No se inventa un identificador nuevo para el mostrador.
-  return json(200, { ok: true, datos: { ventaId: ordenId } });
+  return respuestaJson(200, { ok: true, datos: { ventaId: ordenId } });
 }

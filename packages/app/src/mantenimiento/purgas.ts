@@ -100,6 +100,9 @@ export const TABLAS_POR_SECCION: Readonly<Record<Seccion, readonly string[]>> = 
     'comanda_items',
     'comandas',
     'orden_linea_modificadores',
+    // 178 · Las devoluciones apuntan a la venta y a sus líneas: se van antes que ellas.
+    'devoluciones_lineas',
+    'devoluciones',
     'orden_lineas',
     'pagos',
     'movimientos_caja',

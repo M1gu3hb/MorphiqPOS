@@ -152,6 +152,7 @@ export const abrirCajon = definirComando<Transaccion, typeof entradaAbrirCajon, 
   escribe: true,
   roles: [...CAJA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { sesionCajaId: 'sesiones_caja' },
   entrada: entradaAbrirCajon,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId, empleoId } = ctx.ambito;

@@ -16,10 +16,21 @@
     "la ÚNICA referencia que responde a la pregunta que importa —«¿ve Miguel SU",
     "sistema?»— y por eso es la de por omisión. Comparar contra HEAD, como hacía",
     "esta puerta al principio, la deja INERTE en un árbol comprometido: no hay",
-    "nada que comparar y sale verde sin haber mirado un solo archivo."
+    "nada que comparar y sale verde sin haber mirado un solo archivo.",
+    "",
+    "`baseAnterior` y `porqueSeMovioLaBase`: la base se movió UNA vez, al commit de C.16 que sólo",
+    "traduce colores. La puerta vuelve a demostrarlo cada vez que corre, así que mover la base otra",
+    "vez sin esa prueba la pone en rojo."
   ],
-  "base": "89830e59aed8688042d98c06d3521c35e95a9906",
+  "base": "a92c3431a9dd40b47a7385730fc1553e5ebf94a9",
+  "baseAnterior": "89830e59aed8688042d98c06d3521c35e95a9906",
+  "porqueSeMovioLaBase": "C.16 de la etapa 2.4: el commit a92c343 traduce SÓLO colores de paleta a tokens del sistema en 111 archivos del heredado (en Noche y Terminal se veía roto; D-19 deroga D-14 en lo que toca al color). La puerta lo demuestra en cada corrida: todo testigo que cambia entre `baseAnterior` y `base` es, o una excepción motivada de esta lista, o una clase de color (`scripts/lib/clases-de-color.mjs`). Composición, textos e iconos siguen intocables.",
   "permitidos": [
+    {
+      "archivo": "apps/web/heredado/components/ui/toast.jsx",
+      "porque": "La rejilla de avisos es un div `fixed` de 420 px de ancho anclado abajo a la derecha, con `pointer-events: auto` y VACÍO la mayor parte del tiempo. Eso deja esa esquina MUERTA a los clics en todas las pantallas: la puerta de los ocho estilos midió `elementFromPoint` sobre el destino «Caja» del abanico inferior y lo que recibía el toque era esta rejilla, no el botón. Y son dos, porque `ToastProvider` pinta otro div idéntico por fuera. `pointer-events-none` en la rejilla es lo que trae shadcn de origen —esta copia lo perdió— y los avisos siguen siendo interactivos porque cada uno lleva ya `pointer-events-auto` en `toastVariants`. No cambia un píxel de lo que Miguel ve: cambia dónde llega el dedo.",
+      "testigos": ["+ clase:pointer-events-none", "+ clase:pointer-events-none"]
+    },
     {
       "archivo": "apps/web/heredado/components/portalqr/PedirCuentaQR.jsx",
       "porque": "El bloque «Cargando tu cuenta…» cubría un `api.entidades.Venta.get` que este diálogo hacía al abrirse. Esa lectura ya no existe: la cuenta llega con el resto del portal en la lectura pública única, y el diálogo sólo se abre cuando el padre ya la tiene. Mantener el bloque sería dejar un giro de carga que no puede pintarse nunca.",
@@ -406,7 +417,7 @@
     },
     {
       "archivo": "apps/web/heredado/components/common/Sidebar.jsx",
-      "porque": "Veintinueve iconos NUEVOS, uno por cada entrada de menu que antes no existia. El menu lateral tenia doce entradas fijas y ninguna llevaba a una pantalla de modelo: las 61 respondian y solo se abrian tecleando la URL. Ahora cada plantilla trae el menu de SU negocio -mostrador, corte de material, agenda, cita, liquidacion, barra, recogida- y cada entrada necesita su icono. Ninguno de los que Miguel ya veia se quito.",
+      "porque": "Veintinueve iconos NUEVOS, uno por cada entrada de menu que antes no existia. El menu lateral tenia doce entradas fijas y ninguna llevaba a una pantalla de modelo: las 61 respondian y solo se abrian tecleando la URL. Ahora cada plantilla trae el menu de SU negocio -mostrador, corte de material, agenda, cita, liquidacion, barra, recogida- y cada entrada necesita su icono. Ninguno de los que Miguel ya veia se quito. Y el <nav> del menú lleva nombre, «Menú principal» (bloque D de la 2.4): las pantallas de modelo traen su propia navegación —las categorías del cobro— y un lector de pantalla tiene que distinguir la principal. Es un atributo: no cambia nada de lo que Miguel ve.",
       "testigos": [
         "+ icono:BellRing",
         "+ icono:CalendarDays",
@@ -436,7 +447,9 @@
         "+ icono:UserCheck",
         "+ icono:Users",
         "+ icono:Wallet",
-        "+ icono:Wrench"
+        "+ icono:Wrench",
+        "+ aria-label:Menú principal",
+        "+ label:Menú principal"
       ]
     },
     {
@@ -448,6 +461,21 @@
         "+ clase:text-[9px]",
         "+ clase:mt-0.5"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/common/AppLayout.jsx",
+      "porque": "Bloque D de la 2.4 · las 61 pantallas de los cinco modelos no tenian NINGUN menu: su layout montaba solo el contenido y la cajera en Caja no tenia como llegar a Cobrar sin teclear la direccion. Entran en este mismo AppLayout con la variante marco=\"modelo\": la barra empieza colapsada y el contenido va sin el relleno de las paginas internas, con solo el hueco de la hamburguesa en tableta y telefono (pt-14 lg:pt-0). Las paginas internas de Miguel conservan EXACTAMENTE sus clases (p-4 md:p-6 lg:p-8 pt-14 lg:pt-6): la variante solo existe para las de modelo.",
+      "testigos": ["+ clase:pt-14", "+ clase:lg:pt-0"]
+    },
+    {
+      "archivo": "apps/web/heredado/lib/PageNotFound.jsx",
+      "borrado": true,
+      "porque": "Bloque D de la 2.4 · era el 404 de la plataforma anterior, en ingles (\"Page Not Found\", \"Go Home\") y con una \"Admin Note\" que decia que \"la IA todavia no implemento esta pagina\" y que se pidiera \"en el chat\". Lo sustituye apps/web/app/not-found.tsx, en espanol, con el sistema de diseno y un 404 de verdad sin indexar. Miguel no lo vera menos: nunca debio verlo."
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Solicitud explícita de Miguel del 19 de octubre de 2026: los ocho estilos deben poder cambiarse desde una pestaña visible de Apariencia, sin quedar escondidos tras el candado de presentación. Se conserva toda la configuración anterior.",
+      "testigos": ["+ texto:Apariencia"]
     }
   ]
 }

@@ -13,6 +13,7 @@ import {
 
 import { crearComando } from './comando.ts';
 import type { RepositorioComandos } from './repositorio.ts';
+import { fueraDeLaSucursal } from './sucursal/fuera.ts';
 
 /**
  * El `comando()` de producción: el puerto enlazado a Postgres.
@@ -76,6 +77,11 @@ const repositorio: RepositorioComandos<Transaccion> = {
 
     return modulosActivos(plantilla, perillas);
   },
+
+  // La frontera por sucursal (D-36): dentro de la transacción del comando, para que lo que
+  // se compruebe sea lo mismo que el cuerpo va a leer.
+  fueraDeLaSucursal: (tx, organizacionId, sucursalId, tabla, ids) =>
+    fueraDeLaSucursal(tx, organizacionId, sucursalId, tabla, ids),
 
   reclamarClave: (tx, datos) => repoComandos.reclamarClave(tx, datos),
 

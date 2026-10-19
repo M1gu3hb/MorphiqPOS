@@ -244,7 +244,7 @@ export default function ProductoQRDialog({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-50 bg-velo/50 flex items-end sm:items-center justify-center"
     >
       <motion.div
         initial={{ y: 40 }}
@@ -268,7 +268,7 @@ export default function ProductoQRDialog({
           <button
             type="button"
             onClick={onClose}
-            className="absolute top-3 right-3 w-10 h-10 rounded-full bg-black/60 text-white flex items-center justify-center backdrop-blur"
+            className="absolute top-3 right-3 w-10 h-10 rounded-full bg-velo/60 text-primario-texto flex items-center justify-center backdrop-blur"
             aria-label="Cerrar"
           >
             <X className="w-5 h-5" />
@@ -284,20 +284,20 @@ export default function ProductoQRDialog({
               <p className="text-sm text-muted-foreground mt-1">{producto.descripcion}</p>
             )}
             {mostrarPrecios && !esVariable && precio > 0 && (
-              <p className="mt-2 font-heading font-black text-xl text-emerald-700 dark:text-emerald-400">
+              <p className="mt-2 font-heading font-black text-xl text-exito">
                 {formatCurrency(precio)}
               </p>
             )}
             {/* 6B / 1.E — Header de precio para producto variable */}
             {mostrarPrecios && esVariableMedida && (
-              <p className="mt-2 font-heading font-bold text-base text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1.5">
+              <p className="mt-2 font-heading font-bold text-base text-exito inline-flex items-center gap-1.5">
                 <Scale className="w-4 h-4" />
                 {formatCurrency(Number(producto?.precio_por_unidad_variable) || 0)} /{' '}
                 {producto?.unidad_variable || 'g'}
               </p>
             )}
             {mostrarPrecios && esPorcionContenedor && (
-              <p className="mt-2 font-heading font-bold text-base text-emerald-700 dark:text-emerald-400 inline-flex items-center gap-1.5">
+              <p className="mt-2 font-heading font-bold text-base text-exito inline-flex items-center gap-1.5">
                 <Beaker className="w-4 h-4" />
                 {formatCurrency(Number(producto?.precio_por_porcion) || 0)} /{' '}
                 {producto?.nombre_porcion || 'porción'}
@@ -362,7 +362,7 @@ export default function ProductoQRDialog({
               </div>
 
               {!validacionVariable.ok && validacionVariable.msg && (
-                <p className="text-[11px] text-rose-600 font-semibold">{validacionVariable.msg}</p>
+                <p className="text-[11px] text-peligro font-semibold">{validacionVariable.msg}</p>
               )}
             </div>
           )}
@@ -374,7 +374,7 @@ export default function ProductoQRDialog({
               <div
                 key={g.nombre}
                 className={`rounded-2xl border p-3 ${
-                  errores[g.nombre] ? 'border-rose-400 bg-rose-50/60 dark:bg-rose-950/30' : ''
+                  errores[g.nombre] ? 'border-peligro bg-peligro/60' : ''
                 }`}
               >
                 <div className="flex items-center justify-between gap-2 mb-2">
@@ -403,7 +403,7 @@ export default function ProductoQRDialog({
                         <span
                           className={`w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] ${
                             checked
-                              ? 'border-primary bg-primary text-white'
+                              ? 'border-primary bg-primary text-primario-texto'
                               : 'border-muted-foreground/30'
                           }`}
                         >
@@ -414,7 +414,7 @@ export default function ProductoQRDialog({
                   })}
                 </div>
                 {errores[g.nombre] && (
-                  <p className="text-[11px] text-rose-600 mt-1.5 font-semibold">
+                  <p className="text-[11px] text-peligro mt-1.5 font-semibold">
                     Selecciona una opción en: {g.nombre}
                   </p>
                 )}

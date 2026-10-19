@@ -134,12 +134,15 @@ interface OrdenParaCobrar {
 }
 
 async function ordenParaCobrar(ctx: ContextoPortal): Promise<OrdenParaCobrar> {
+  // Con candado (igual que `enviar_pedido`): un pedido de otro teléfono de la mesa que esté a
+  // medias termina primero, y la cuenta se calcula con sus renglones dentro.
   const orden = await ctx.tx
     .selectFrom('ordenes')
     .select(['id', 'estado', 'version', 'codigo_caja', 'propina_tipo', 'propina_origen'])
     .where('organizacion_id', '=', ctx.ambito.organizacionId)
     .where('mesa_id', '=', ctx.ambito.mesaId)
     .where('estado', 'in', ORDEN_ACTIVA)
+    .forUpdate()
     .executeTakeFirst();
 
   if (orden === undefined) {

@@ -43,6 +43,17 @@ function interpretar(texto) {
  */
 const BYPASS = process.env['VERCEL_AUTOMATION_BYPASS_SECRET'];
 
+/**
+ * El ORIGEN que se declara al escribir, cuando no es el host al que se llama.
+ *
+ * Un despliegue concreto de Vercel (`…-<hash>.vercel.app`) no es el origen de la
+ * aplicación: su `APP_URL` es el alias de la rama, y la frontera de escritura rechaza
+ * con 403 todo `Origin` que no sea ése. Y la cookie de un enlace compartido sólo vale en
+ * el host que la emitió —el del despliegue—. Así que se llama al despliegue y se declara
+ * el alias: `MORPHIQPOS_ORIGEN=https://<alias>`. Sin la variable, el origen es la base.
+ */
+export const ORIGEN = process.env['MORPHIQPOS_ORIGEN'];
+
 export async function llamar(base, ruta, cuerpo, opciones = {}) {
   const respuesta = await fetch(`${base}${ruta}`, {
     method: cuerpo === undefined ? 'GET' : 'POST',
@@ -52,7 +63,7 @@ export async function llamar(base, ruta, cuerpo, opciones = {}) {
       // Sin esta cabecera, `peticionDeEscrituraValida` rechaza la escritura.
       // Un formulario de otro origen no puede ponerla sin disparar el preflight.
       'x-morphiqpos-request': '1',
-      origin: base,
+      origin: ORIGEN ?? base,
       ...(BYPASS === undefined ? {} : { 'x-vercel-protection-bypass': BYPASS }),
       ...(tarro.size === 0 ? {} : { cookie: cabeceraCookie() }),
     },

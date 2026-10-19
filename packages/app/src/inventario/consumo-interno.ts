@@ -74,6 +74,7 @@ export const registrarConsumoInterno = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaConsumoInterno,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;

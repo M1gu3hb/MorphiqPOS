@@ -127,6 +127,28 @@ describe('inventario.abrir_conteo', () => {
     expect(base.campo('tomas_inventario', 'zona_id')).toBe(ZONA);
   });
 
+  it('EL ALMACÉN LO PONE LA SESIÓN, no la pantalla (C.8 de la 2.4)', async () => {
+    // Existencias no sabe en qué almacén está: el almacén es ámbito. Exigirlo en
+    // la entrada es por lo que NADIE llamaba a este comando y la toma no se podía
+    // abrir desde ninguna pantalla.
+    const base = baseDe({
+      almacenes: [
+        {
+          id: ALMACEN,
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          activo: true,
+          principal: true,
+        },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    await abrirConteo.ejecutar(ctx, { alcance: 'zona', zonaId: ZONA });
+
+    expect(base.campo('tomas_inventario', 'almacen_id')).toBe(ALMACEN);
+  });
+
   it('UN CONTEO POR ZONA SIN ZONA no es un alcance', async () => {
     // Aceptarlo dejaría tomas que dicen ser de una zona y cuentan toda la
     // tienda: el «conteo de veinte minutos» que en realidad es el domingo.

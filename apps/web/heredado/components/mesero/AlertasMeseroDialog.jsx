@@ -144,7 +144,7 @@ export default function AlertasMeseroDialog({ open, onClose }) {
                   <button
                     key={m.v}
                     onClick={() => update({ modo: m.v })}
-                    className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-semibold transition-all text-left ${active ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-white text-slate-600 hover:bg-muted'}`}
+                    className={`flex items-center gap-2 p-2.5 rounded-xl border-2 text-xs font-semibold transition-all text-left ${active ? 'border-primary bg-primary/10 text-primary' : 'border-border bg-superficie text-texto-sutil hover:bg-muted'}`}
                   >
                     <Icon className="w-4 h-4 shrink-0" />
                     <span className="truncate">{m.label}</span>
@@ -216,7 +216,7 @@ export default function AlertasMeseroDialog({ open, onClose }) {
                   {voiceInfo.available ? (
                     <p className="text-[11px] text-muted-foreground truncate">
                       {voiceInfo.name} <span className="opacity-70">({voiceInfo.lang})</span>
-                      {voiceInfo.local && <span className="ml-1 text-emerald-600">· local</span>}
+                      {voiceInfo.local && <span className="ml-1 text-exito">· local</span>}
                       {voiceInfo.manual && <span className="ml-1 text-primary">· manual</span>}
                     </p>
                   ) : (
@@ -233,7 +233,7 @@ export default function AlertasMeseroDialog({ open, onClose }) {
           )}
 
           {!voiceOk && (
-            <p className="text-xs text-amber-700 bg-amber-50 border border-amber-200 rounded-md px-2 py-1.5">
+            <p className="text-xs text-advertencia bg-advertencia/10 border border-advertencia/30 rounded-md px-2 py-1.5">
               La voz local no está disponible en este navegador. Se usará solo sonido.
             </p>
           )}

@@ -7,6 +7,8 @@ import { z } from 'zod';
 import { registrarCompra } from '../compras/compras.ts';
 import { entradaRegistrarCompra } from '../compras/esquemas.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { descontarExistencia } from '../inventario/merma.ts';
+import { exigirMotivoDeMerma } from '../inventario/motivos.ts';
 
 /**
  * F-106 + F-631 · Recibir la nota del repartidor, con sus caducidades.
@@ -37,7 +39,13 @@ import { definirComando, type ContextoComando } from '../definicion.ts';
  * conteste cualquier cosa. Lo que no trae fecha, no entra a la lista.
  */
 
-const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
+/**
+ * Quién recibe al repartidor. El ALMACÉN también (bloque D de la 2.4): es su trabajo, el
+ * menú le daba «Entradas» y el comando lo rechazaba con «Tu puesto no tiene permiso» a media
+ * nota. Recibir no toca el cajón —pagarle al proveedor es otro movimiento, de quien sí lo
+ * toca—, así que esto no le abre la caja.
+ */
+const ROLES = ['cajero', 'almacen', 'gerente', 'administrador', 'dueno'] as const;
 
 /**
  * El almacén principal de la sucursal de la SESIÓN.
@@ -46,7 +54,7 @@ const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
  * está» en «el servidor ya lo sabe»: el ámbito sale de la sesión, nunca de la
  * petición, y una pantalla que no puede contestarlo se quedaba en blanco.
  */
-async function almacenDeLaSesion(ctx: ContextoComando<Transaccion>): Promise<string> {
+export async function almacenDeLaSesion(ctx: ContextoComando<Transaccion>): Promise<string> {
   const { organizacionId, sucursalId } = ctx.ambito;
   if (sucursalId === null) {
     throw new ErrorDominio(
@@ -77,6 +85,26 @@ export const entradaRecibirNota = z.object({
    * la cadena vacía, sin consultar nada y en blanco. El ámbito sale de la sesión.
    */
   almacenId: z.uuid().optional(),
+  /**
+   * EL CANJE EN LA MISMA NOTA (F-632, C.10 de la 2.4).
+   *
+   * «La nota de Bimbo es +18 piezas frescas, −6 piezas de canje. Dos movimientos, un
+   * documento. Si se capturan por separado, uno de los dos se olvida» (`01-FUNCIONES` de
+   * abarrotes §3.13). Lo que el repartidor se lleva sale del inventario como devolución al
+   * proveedor, con su motivo, y lo que valía se le descuenta a la nota.
+   */
+  canjes: z
+    .array(
+      z.object({
+        insumoId: z.uuid(),
+        /** En unidad BASE: las piezas que se lleva. */
+        cantidad: z.string().regex(/^\d{1,10}(?:\.\d{1,4})?$/, 'Usa hasta cuatro decimales.'),
+        /** LA CLAVE de `motivos_merma`: casi siempre lo caducado. */
+        motivo: z.string().trim().min(2).max(40).default('caducado'),
+      }),
+    )
+    .max(100)
+    .optional(),
 });
 
 export interface ResultadoRecepcion {
@@ -92,9 +120,97 @@ export interface ResultadoRecepcion {
    * la mañana enseña qué REMATAR, y un insumo que no se vende no se remata.
    */
   readonly sinProducto: number;
+  /** Lo que el canje le descontó a la nota. */
+  readonly canjeCentavos: string;
 }
 
 const ESCALA = 10_000n;
+
+type Canjes = NonNullable<z.infer<typeof entradaRecibirNota>['canjes']>;
+
+interface InsumoDelCanje {
+  readonly unidad: string;
+  /** El costo ANTES de esta nota: a eso se compró lo que se devuelve. */
+  readonly costo: bigint;
+}
+
+/**
+ * Lo que vale lo que se lleva el repartidor, leído ANTES de la compra: la compra recalcula
+ * el costo promedio, y lo devuelto se compró al de antes. El precio lo pone el servidor; el
+ * navegador sólo dice qué y cuánto.
+ */
+async function leerInsumosDelCanje(
+  ctx: ContextoComando<Transaccion>,
+  canjes: Canjes,
+): Promise<ReadonlyMap<string, InsumoDelCanje>> {
+  if (canjes.length === 0) return new Map();
+  // Los motivos, ANTES de escribir nada: ni la compra ni el canje.
+  for (const motivo of new Set(canjes.map((c) => c.motivo))) {
+    await exigirMotivoDeMerma(ctx, motivo);
+  }
+  const filas = await ctx.paso('leer_insumos_del_canje', () =>
+    ctx.tx
+      .selectFrom('insumos')
+      .select(['id', 'unidad_base', 'costo_unitario_centavos'])
+      .where('organizacion_id', '=', ctx.ambito.organizacionId)
+      .where(
+        'id',
+        'in',
+        canjes.map((c) => c.insumoId),
+      )
+      .execute(),
+  );
+  const leidos = new Map(
+    filas.map((f) => [f.id, { unidad: f.unidad_base, costo: f.costo_unitario_centavos }]),
+  );
+  if (canjes.some((c) => !leidos.has(c.insumoId))) {
+    throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese artículo del canje no es de este negocio.');
+  }
+  return leidos;
+}
+
+/**
+ * Lo que se lleva el repartidor, fuera del inventario y de la cuenta. Cada canje es un
+ * movimiento `devolucion_proveedor` ligado a ESTA compra —el kardex dice de qué nota salió— y
+ * la existencia no queda negativa: no se devuelve lo que no hay.
+ */
+async function aplicarCanjes(
+  ctx: ContextoComando<Transaccion>,
+  almacenId: string,
+  compraId: string,
+  canjes: Canjes,
+  insumos: ReadonlyMap<string, InsumoDelCanje>,
+): Promise<bigint> {
+  const { organizacionId, empleoId } = ctx.ambito;
+  let credito = 0n;
+  for (const canje of canjes) {
+    const insumo = insumos.get(canje.insumoId);
+    if (insumo === undefined) continue;
+    const unidad = insumo.unidad;
+    await descontarExistencia(ctx, almacenId, canje.insumoId, `-${canje.cantidad}`);
+    await ctx.paso('anotar_canje', () =>
+      ctx.tx
+        .insertInto('movimientos_stock')
+        .values({
+          organizacion_id: organizacionId,
+          almacen_id: almacenId,
+          insumo_id: canje.insumoId,
+          tipo: 'devolucion_proveedor',
+          cantidad: `-${canje.cantidad}`,
+          unidad,
+          costo_unitario_centavos: insumo.costo,
+          referencia_tipo: 'compra',
+          referencia_id: compraId,
+          motivo: canje.motivo,
+          nota: 'canje en la nota del proveedor',
+          empleado_id: empleoId,
+        })
+        .execute(),
+    );
+    credito += (insumo.costo * aEscala(canje.cantidad)) / ESCALA;
+  }
+  return credito;
+}
 
 export const recibirNota = definirComando<
   Transaccion,
@@ -106,6 +222,7 @@ export const recibirNota = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { almacenId: 'almacenes' },
   entrada: entradaRecibirNota,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -125,7 +242,55 @@ export const recibirNota = definirComando<
 
     // El asiento entero, tal cual. Copiar aquí el costo promedio ponderado daría
     // dos aritméticas de costo, y la de este comando sería la que nadie revisa.
+    const canjes = entrada.canjes ?? [];
+    const insumosDelCanje = await leerInsumosDelCanje(ctx, canjes);
+
     const compra = await registrarCompra.ejecutar(ctx, entrada);
+
+    // EL PRIMER PROVEEDOR QUE LO TRAE queda como su proveedor (D-32 de la 2.4). Sin esto, un
+    // producto dado de alta en el mostrador no era de NADIE: el sugerido de pedido y el canje
+    // —que listan «lo que se le compra a este proveedor»— no lo veían nunca, y la tienda no
+    // podía ni pedirlo ni devolverlo. Sólo donde no hay proveedor: nunca se pisa el que ya
+    // tiene, porque cambiarlo es una decisión del dueño, no un efecto de recibir una nota.
+    // De las líneas YA GUARDADAS de esta compra, no de la entrada: así entran también los
+    // insumos que la nota dio de alta (`nuevo`), que en la entrada todavía no tienen id.
+    const recibidos = (
+      await ctx.paso('leer_lineas_recibidas', () =>
+        ctx.tx
+          .selectFrom('compra_lineas')
+          .select('insumo_id')
+          .where('organizacion_id', '=', organizacionId)
+          .where('compra_id', '=', compra.compraId)
+          .execute(),
+      )
+    ).map((l) => l.insumo_id);
+    if (entrada.proveedorId !== undefined && recibidos.length > 0) {
+      const proveedorId = entrada.proveedorId;
+      await ctx.paso('ligar_al_proveedor', () =>
+        ctx.tx
+          .updateTable('insumos')
+          .set({ proveedor_id: proveedorId })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', 'in', recibidos)
+          .where('proveedor_id', 'is', null)
+          .execute(),
+      );
+    }
+
+    // El canje, en la MISMA transacción: lo que se lleva sale del inventario y de la cuenta.
+    const canje = await aplicarCanjes(ctx, almacenId, compra.compraId, canjes, insumosDelCanje);
+    const bruto = BigInt(compra.totalCentavos);
+    const total = canje > bruto ? 0n : bruto - canje;
+    if (canje > 0n) {
+      await ctx.paso('descontar_canje', () =>
+        ctx.tx
+          .updateTable('compras')
+          .set({ total_centavos: total })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', '=', compra.compraId)
+          .execute(),
+      );
+    }
 
     // Sólo las que TRAEN fecha. El pan no caduca y obligar a contestar los doce
     // renglones es lo que hace que se conteste cualquier cosa.
@@ -136,10 +301,11 @@ export const recibirNota = definirComando<
     if (conFecha.length === 0) {
       return {
         compraId: compra.compraId,
-        totalCentavos: compra.totalCentavos,
+        totalCentavos: total.toString(),
         lineas: compra.lineas,
         caducidadesRegistradas: 0,
         sinProducto: 0,
+        canjeCentavos: canje.toString(),
       };
     }
 
@@ -229,10 +395,11 @@ export const recibirNota = definirComando<
     });
     return {
       compraId: compra.compraId,
-      totalCentavos: compra.totalCentavos,
+      totalCentavos: total.toString(),
       lineas: compra.lineas,
       caducidadesRegistradas: registradas,
       sinProducto,
+      canjeCentavos: canje.toString(),
     };
   },
 });

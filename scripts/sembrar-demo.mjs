@@ -1,26 +1,34 @@
 #!/usr/bin/env node
 /**
- * Siembra una organización de demostración con el comando REAL (F1.1-C-14).
+ * Siembra UNA demostración con el comando REAL, por HTTP (F1.1-C-14).
  *
- *   node scripts/sembrar-demo.mjs [--org <slug>] [--base URL] [--pin 4821]
+ *   node scripts/sembrar-demo.mjs --negocio demo-acople-<giro> [--base URL]
  *
  * Hasta F1.1 los datos de Supabase eran atrezzo insertado por SQL directo en
  * las migraciones 042 y 043: ni una fila había pasado por un comando, y
  * `auditoria` lo delataba con cero filas. Esto los siembra por la puerta de
  * siempre — sesión, rol, transacción, idempotencia y rastro.
  *
- * ── Por qué ya no siembra las tres de golpe ────────────────────────────────
- * Al retirarse el enrolamiento de terminal (T2 del port del restaurante), la
- * pantalla de acceso necesita saber a qué negocio sirve el despliegue, y eso lo
- * dice `ORGANIZACION` en el servidor. Un mismo servidor ya no puede atender a
- * tres organizaciones distintas por HTTP, así que este script siembra la que le
- * digas — y esa tiene que ser la misma que tenga el servidor.
+ * Entra como el dueño de la demo (PIN publicado, `ACCESOS-DEMO.md` §2) y ejecuta
+ * `resetearDemo`, que la deja como recién nacida: catálogo, equipo con sus PIN,
+ * plantilla, estilo, IVA y topes.
  *
- * Corre `db:bootstrap`, entra y ejecuta `resetearDemo`.
+ * ── Lo que cambió en la 2.4 (bloque B) ─────────────────────────────────────
+ * Sembraba por omisión `demo-ferreteria-la-broca`, y sus otras dos opciones eran
+ * Jacaranda y Don Chuy: **los tres son negocios REALES** que nacieron como demos y se
+ * quedaron a cobrar. Primero les corría `db:bootstrap` —que rota el PIN del dueño— y
+ * después RESETEABA su negocio entero con `empleados[0]`. Hoy el negocio es explícito,
+ * tiene que estar en la lista de demos (se comprueba antes de pedir nada), no corre
+ * `db:bootstrap` —las demos ya tienen dueño— y el servidor además se niega a resetear
+ * cualquier cosa que no sea una demo.
  */
-import { spawnSync } from 'node:child_process';
-
 import { exigir, llamar as llamarBase, paso } from './lib/cliente-humo.mjs';
+import {
+  demoDeLaCorrida,
+  empleadosDeLaDemo,
+  personaConRol,
+  PIN_DE_DEMO,
+} from './lib/demo-de-la-corrida.mjs';
 
 function bandera(nombre, porOmision) {
   const i = process.argv.indexOf(`--${nombre}`);
@@ -28,60 +36,22 @@ function bandera(nombre, porOmision) {
 }
 
 const BASE = bandera('base', 'http://localhost:3000');
-const PIN = bandera('pin', '4821');
-const SLUG = bandera('org', 'demo-ferreteria-la-broca');
 
-const PERSONAS = {
-  'demo-ferreteria-la-broca': 'Elena',
-  'demo-abarrotes-don-chuy': 'Jesús',
-  'demo-cafe-jacaranda': 'Mariana',
-};
-
-const persona = bandera('persona', PERSONAS[SLUG] ?? 'Encargada');
-
-/** Corre `pnpm db:bootstrap`. Falla ruidosamente si el arranque no pudo. */
-function arrancar(slug, nombrePersona) {
-  // `node` directo y no `pnpm`: en Windows `spawnSync` con un `.cmd` necesita
-  // shell, y con shell el nombre con acento de la persona se rompe. El binario
-  // del arranque es el mismo que ejecuta `pnpm db:bootstrap`.
-  const salida = spawnSync(
-    process.execPath,
-    [
-      '--conditions=react-server',
-      'packages/app/bin/bootstrap.mjs',
-      '--org',
-      slug,
-      '--persona',
-      nombrePersona,
-      '--pin',
-      PIN,
-    ],
-    { encoding: 'utf8', timeout: 120_000 },
-  );
-  if (salida.status !== 0) {
-    console.error(`✗ el arranque de ${slug} falló:\n${salida.stdout ?? ''}${salida.stderr ?? ''}`);
-    process.exit(1);
-  }
-  console.log(`  dueño ${nombrePersona} con PIN listo`);
-}
+// ANTES DE CUALQUIER PETICIÓN: el negocio es explícito y es una demo.
+const DEMO = demoDeLaCorrida('sembrar-demo');
+const PIN = bandera('pin', PIN_DE_DEMO.dueno);
 
 const llamar = (ruta, cuerpo) => llamarBase(BASE, ruta, cuerpo);
 
-paso(1, `Dar de alta al dueño de ${SLUG}`);
-arrancar(SLUG, persona);
+paso(1, `Entrar como el dueño de ${DEMO.slug}`);
+const empleados = await empleadosDeLaDemo(llamar, DEMO);
+const dueno = personaConRol(empleados, 'dueno');
+exigir(
+  'entrar',
+  await llamar('/api/auth/entrar', { empleoId: dueno.empleoId, pin: PIN, negocio: DEMO.slug }),
+);
 
-paso(2, 'Entrar');
-const { empleados } = exigir('empleados', await llamar('/api/auth/empleados'));
-if (!Array.isArray(empleados) || empleados.length === 0) {
-  console.error(
-    `✗ El servidor no lista a nadie. ¿Tiene ORGANIZACION=${SLUG}?\n` +
-      '  La pantalla de acceso sirve a UN negocio, y tiene que ser el mismo que siembras.',
-  );
-  process.exit(1);
-}
-exigir('entrar', await llamar('/api/auth/entrar', { empleoId: empleados[0].empleoId, pin: PIN }));
-
-paso(3, 'Sembrar el catálogo con el comando real');
+paso(2, 'Sembrar con el comando real');
 const sembrado = exigir(
   'resetear demostración',
   await llamar('/api/catalogo/demostracion/resetear', { confirmacion: 'RESETEAR' }),
@@ -91,5 +61,5 @@ console.log(
 );
 
 console.log('\n═══ Listo para la demostración ═══\n');
-console.log(`  ${SLUG.padEnd(28)} ${persona.padEnd(10)} PIN ${PIN}`);
-console.log('\n  Abre /login-pos, toca el nombre y teclea el PIN.\n');
+console.log(`  ${DEMO.slug.padEnd(28)} ${dueno.nombre.padEnd(10)} PIN ${PIN}`);
+console.log(`\n  Entrada: ${BASE}/n/${DEMO.slug}/login-pos\n`);

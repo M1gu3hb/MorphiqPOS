@@ -18,7 +18,7 @@ export default function PreCuentaInlineView({ open, data, config, onClose, onPri
   const codigo = data.codigo || venta?.codigo_caja || '';
 
   return (
-    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/55">
+    <div className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-velo/55">
       <div
         className="w-full max-w-md bg-card rounded-2xl shadow-2xl flex flex-col max-h-[90dvh] overflow-hidden"
         role="dialog"

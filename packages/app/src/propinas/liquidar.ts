@@ -76,6 +76,12 @@ export const liquidarPropinas = definirComando<
   roles: ROLES,
   // La propina es dinero de meseros: existe donde se sirve comida en mesa.
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: {
+    meseroId: 'empleos',
+    'ordenIds[]': 'ordenes',
+    esquemaId: 'esquemas_propina',
+    'beneficiarios[].empleoId': 'empleos',
+  },
   entrada: entradaLiquidarPropinas,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;

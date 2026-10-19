@@ -11,6 +11,17 @@ export function extraerIndicesUnicos(sql: string): string[] {
     .filter((nombre): nombre is string => nombre !== undefined);
 }
 
+/**
+ * Los índices críticos que una migración posterior SUSTITUYÓ por otra cosa, con el
+ * disparador que ahora hace cumplir la misma regla. Dejan de exigirse como índice SÓLO
+ * si su sustituto está en la base: quitar el índice sin poner el disparador sería
+ * perder la regla, y esta puerta lo tiene que ver.
+ */
+export const SUSTITUIDOS: Readonly<Record<string, string>> = {
+  // 179 · F-235: el cupo de cajas es de la sucursal; un índice único no sabe contar hasta dos.
+  sesiones_caja_una_abierta_por_sucursal: 'sesiones_caja_cupo_de_la_sucursal',
+};
+
 export const INDICES_UNICOS_046 = [
   ...MIGRACIONES_INDICES_CRITICOS.flatMap((ruta) =>
     extraerIndicesUnicos(readFileSync(ruta, 'utf8')),
@@ -42,6 +53,8 @@ export interface EstadoSeguridad {
   readonly relaciones: readonly RelacionSeguridad[];
   readonly indices: readonly IndiceSeguridad[];
   readonly funciones: readonly FuncionSeguridad[];
+  /** Los disparadores del esquema, por nombre. Opcional: un estado viejo no los traía. */
+  readonly disparadores?: readonly string[];
 }
 
 /** Convierte el estado vivo de PostgreSQL en fallos concretos para CI. */
@@ -67,8 +80,16 @@ export function problemasDeSeguridad(estado: EstadoSeguridad): string[] {
   }
 
   const indices = new Map(estado.indices.map((indice) => [indice.nombre, indice]));
+  const disparadores = new Set(estado.disparadores ?? []);
   for (const nombre of INDICES_UNICOS_046) {
     const indice = indices.get(nombre);
+    const sustituto = SUSTITUIDOS[nombre];
+    if (indice === undefined && sustituto !== undefined) {
+      if (!disparadores.has(sustituto)) {
+        problemas.push(`${nombre}: ni el índice 046 ni su sustituto (${sustituto}) están`);
+      }
+      continue;
+    }
     if (indice === undefined) {
       problemas.push(`${nombre}: índice 046 ausente`);
       continue;

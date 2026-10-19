@@ -185,3 +185,68 @@ describe('B-12 · quitar el último ingrediente deja el producto SIN receta', ()
     expect(actualiza?.parameters).not.toContain('receta');
   });
 });
+
+describe('F-027 · la receta declara qué línea sustituye cada grupo de opciones', () => {
+  const productoId = crypto.randomUUID();
+  const lecheId = crypto.randomUUID();
+  const grupoLeche = crypto.randomUUID();
+  const entrada = () =>
+    guardarReceta.entrada.parse({
+      productoId,
+      ingredientes: [
+        {
+          insumoId: lecheId,
+          cantidad: '180',
+          unidad: 'ml',
+          mermaBp: 0,
+          sustituiblePorGrupoId: grupoLeche,
+        },
+      ],
+    });
+
+  it('escribe el grupo en la línea: sin eso el latte de avena descontaba leche entera', async () => {
+    const { ctx, conexion } = contexto([
+      [{ id: productoId }],
+      [{ id: lecheId, unidad_base: 'ml' }],
+      [{ id: grupoLeche }],
+    ]);
+
+    await guardarReceta.ejecutar(ctx, entrada());
+
+    const inserta = conexion.consultas.find((c) => /insert\s+into\s+recetas/i.test(c.sql));
+    expect(inserta?.sql).toMatch(/sustituible_por_grupo_id\)\s*values/i);
+    expect(inserta?.parameters.at(-1)).toBe(grupoLeche);
+  });
+
+  it('un grupo que no es de este negocio se rechaza ANTES de borrar la receta', async () => {
+    const { ctx, conexion } = contexto([
+      [{ id: productoId }],
+      [{ id: lecheId, unidad_base: 'ml' }],
+      [],
+    ]);
+
+    await expect(guardarReceta.ejecutar(ctx, entrada())).rejects.toMatchObject({
+      codigo: 'CATALOGO_INVALIDO',
+    });
+    const grupos = conexion.consultas.find((c) => /from\s+"modificadores"/i.test(c.sql));
+    expect(grupos?.sql).toMatch(/"organizacion_id"\s*=\s*\$1/);
+    expect(conexion.consultas.some((c) => /delete\s+from\s+recetas/i.test(c.sql))).toBe(false);
+  });
+
+  it('una línea sin grupo no pregunta por grupos y escribe nulo', async () => {
+    const { ctx, conexion } = contexto([
+      [{ id: productoId }],
+      [{ id: lecheId, unidad_base: 'ml' }],
+    ]);
+    const sinGrupo = guardarReceta.entrada.parse({
+      productoId,
+      ingredientes: [{ insumoId: lecheId, cantidad: '180', unidad: 'ml', mermaBp: 0 }],
+    });
+
+    await guardarReceta.ejecutar(ctx, sinGrupo);
+
+    expect(conexion.consultas.some((c) => /from\s+"modificadores"/i.test(c.sql))).toBe(false);
+    const inserta = conexion.consultas.find((c) => /insert\s+into\s+recetas/i.test(c.sql));
+    expect(inserta?.parameters.at(-1)).toBeNull();
+  });
+});

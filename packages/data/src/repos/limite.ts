@@ -96,6 +96,27 @@ export async function contarIntento(
 }
 
 /**
+ * Devuelve un intento ya contado: el de una entrada cuyo PIN era correcto.
+ *
+ * El límite de la entrada frena a quien FALLA —barrer la plantilla probando el mismo PIN—,
+ * no a la tableta que pasa de mesero en mesero: todas las cajas de un negocio salen a
+ * internet por la misma IP, y contar cada entrada correcta dejaba al restaurante entero sin
+ * entrar a media comida. El intento se sigue contando ANTES de verificar, con la sentencia
+ * atómica de arriba —cada petición en vuelo ocupa su lugar, y veinte simultáneas no pasan
+ * todas—; ésta sólo devuelve el lugar de la que salió bien.
+ *
+ * Nunca baja de cero. Si la ventana se reinició entre contar y devolver, descuenta de la
+ * nueva: un intento de menos en un contador que acaba de empezar.
+ */
+export async function devolverIntento(clave: string): Promise<void> {
+  await obtenerDb()
+    .updateTable('limite_tasa')
+    .set({ intentos: sql<number>`greatest(intentos - 1, 0)` })
+    .where('clave', '=', clave)
+    .execute();
+}
+
+/**
  * Borra las ventanas ya vencidas.
  *
  * No corre sola: la llama el propio limitador de vez en cuando. Un `cron` para

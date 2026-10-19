@@ -35,21 +35,21 @@ export const STOCK_STATUS = {
 export const STOCK_STATUS_CONFIG = {
   suficiente: {
     label: 'Suficiente',
-    color: 'bg-emerald-100 text-emerald-700 border-emerald-200',
-    dot: 'bg-emerald-500',
+    color: 'bg-exito/15 text-exito border-exito/30',
+    dot: 'bg-exito',
   },
   medio: {
     label: 'Medio',
-    color: 'bg-yellow-100 text-yellow-700 border-yellow-200',
-    dot: 'bg-yellow-500',
+    color: 'bg-advertencia/15 text-advertencia border-advertencia/30',
+    dot: 'bg-advertencia',
   },
   bajo: {
     label: 'Bajo',
-    color: 'bg-orange-100 text-orange-700 border-orange-200',
-    dot: 'bg-orange-500',
+    color: 'bg-advertencia/15 text-advertencia border-advertencia/30',
+    dot: 'bg-advertencia',
   },
-  critico: { label: 'Crítico', color: 'bg-red-100 text-red-700 border-red-200', dot: 'bg-red-500' },
-  agotado: { label: 'Agotado', color: 'bg-red-200 text-red-900 border-red-300', dot: 'bg-red-800' },
+  critico: { label: 'Crítico', color: 'bg-peligro/15 text-peligro border-peligro/30', dot: 'bg-peligro' },
+  agotado: { label: 'Agotado', color: 'bg-peligro/20 text-peligro border-peligro/30', dot: 'bg-peligro' },
 };
 
 // Estados completos del flujo de mesa — colores vivos pero elegantes (skeuomorphic)
@@ -82,14 +82,14 @@ export const MESA_STATUS_CONFIG = {
 };
 
 export const PREP_STATUS_CONFIG = {
-  nuevo: { label: 'Nuevo', color: 'bg-blue-100 text-blue-700 border-blue-200' },
+  nuevo: { label: 'Nuevo', color: 'bg-info/15 text-info border-info/30' },
   en_preparacion: {
     label: 'En preparación',
-    color: 'bg-orange-100 text-orange-700 border-orange-200',
+    color: 'bg-advertencia/15 text-advertencia border-advertencia/30',
   },
-  listo: { label: 'Listo', color: 'bg-emerald-100 text-emerald-700 border-emerald-200' },
-  entregado: { label: 'Entregado', color: 'bg-gray-100 text-gray-600 border-gray-200' },
-  cancelado: { label: 'Cancelado', color: 'bg-red-100 text-red-700 border-red-200' },
+  listo: { label: 'Listo', color: 'bg-exito/15 text-exito border-exito/30' },
+  entregado: { label: 'Entregado', color: 'bg-fondo-sutil text-texto-sutil border-borde' },
+  cancelado: { label: 'Cancelado', color: 'bg-peligro/15 text-peligro border-peligro/30' },
 };
 
 export const MARGIN_THRESHOLDS = {
@@ -98,9 +98,9 @@ export const MARGIN_THRESHOLDS = {
 };
 
 export const MARGIN_CONFIG = {
-  high: { label: 'Margen alto', color: 'text-emerald-600', bg: 'bg-emerald-50' },
-  medium: { label: 'Margen aceptable', color: 'text-yellow-600', bg: 'bg-yellow-50' },
-  low: { label: 'Margen bajo', color: 'text-red-600', bg: 'bg-red-50' },
+  high: { label: 'Margen alto', color: 'text-exito', bg: 'bg-exito/10' },
+  medium: { label: 'Margen aceptable', color: 'text-advertencia', bg: 'bg-advertencia/10' },
+  low: { label: 'Margen bajo', color: 'text-peligro', bg: 'bg-peligro/10' },
 };
 
 export const ROLES = {

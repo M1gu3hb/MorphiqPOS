@@ -55,3 +55,72 @@ describe('C-11 · límites del documento de configuración', () => {
     expect(fuente).toContain('nombre.length > 160');
   });
 });
+
+describe('F-148 · la báscula de etiquetas se valida al guardar (C.10 de la 2.4)', () => {
+  const PESO = {
+    prefijos: ['2'],
+    digitosArticulo: 6,
+    digitosValor: 5,
+    contenido: 'peso',
+    decimales: 3,
+    verificadorInterno: false,
+  };
+
+  it('un layout que no cabe en trece dígitos no se guarda', async () => {
+    // 1 + 6 + 6 = 13: el dígito de control se leería como parte del peso.
+    expect(
+      await codigoDe(
+        guardarConfiguracionParcial({} as Transaccion, ORG, {
+          bascula_etiqueta: { ...PESO, digitosValor: 6 },
+        }),
+      ),
+    ).toBe('PUENTE_CAMPO_INVALIDO');
+  });
+
+  it('ni uno con prefijo fuera del rango interno de GS1, ni con claves de más', async () => {
+    for (const malo of [
+      { ...PESO, prefijos: ['7'] },
+      { ...PESO, precio: true },
+    ]) {
+      expect(
+        await codigoDe(
+          guardarConfiguracionParcial({} as Transaccion, ORG, { bascula_etiqueta: malo }),
+        ),
+      ).toBe('PUENTE_CAMPO_INVALIDO');
+    }
+  });
+
+  it('uno que cabe pasa la validación y llega a la base', async () => {
+    // La transacción vacía revienta al CONSULTAR: si llega ahí, la validación lo dejó pasar.
+    expect(
+      await codigoDe(
+        guardarConfiguracionParcial({} as Transaccion, ORG, { bascula_etiqueta: PESO }),
+      ),
+    ).toBe('INESPERADO');
+    expect(
+      await codigoDe(
+        guardarConfiguracionParcial({} as Transaccion, ORG, { bascula_etiqueta: null }),
+      ),
+    ).toBe('INESPERADO');
+  });
+});
+
+describe('la tasa de la terminal se valida al guardar (C.10 de la 2.4)', () => {
+  it('fuera de 0 a 1000 puntos base, o con decimales, no se guarda', async () => {
+    for (const mala of [1_001, -1, 3.6, '360']) {
+      expect(
+        await codigoDe(
+          guardarConfiguracionParcial({} as Transaccion, ORG, { comision_terminal_bp: mala }),
+        ),
+      ).toBe('PUENTE_CAMPO_INVALIDO');
+    }
+  });
+
+  it('una tasa de verdad pasa la validación y llega a la base', async () => {
+    expect(
+      await codigoDe(
+        guardarConfiguracionParcial({} as Transaccion, ORG, { comision_terminal_bp: 360 }),
+      ),
+    ).toBe('INESPERADO');
+  });
+});

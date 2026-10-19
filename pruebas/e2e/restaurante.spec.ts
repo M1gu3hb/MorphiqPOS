@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { enPesos, exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
   abrirCajaPorLaRuta,
   abrirPantalla,
@@ -7,7 +9,6 @@ import {
   accionesDelTablero,
   cabecerasDeEscrituraDePrueba,
   cambiarDePlantilla,
-  cerrarCajaYCuadrar,
   consultarPuente,
   entrar,
   exigirCobroAceptado,
@@ -99,7 +100,12 @@ const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   // «Cuenta actual», no «Pedido actual»: la marca afirma TAMBIÉN el vocabulario
   // del giro —«pedido» es de la cafetería— y se cae el día que alguien lo cambie.
   ['mesa-activa', /Cuenta actual|Mesa/],
-  ['portal-del-comensal', /QR de la mesa|carta/i],
+  // El portal es el de Miguel (D-25). Esta ruta NO trae token —la del comensal es la del
+  // QR, `/qr/<token>`— y sin token la pantalla dice exactamente «QR inválido»; «Mesa no
+  // encontrada» es la de un token que no es de nadie, y no puede salir aquí. La corrida
+  // 37887596900 de CI cayó por esperar la segunda: la expectativa era la del componente que
+  // D-25 retiró. El portal CON token, con su menú y su cuenta, lo recorre el día completo.
+  ['portal-del-comensal', /QR inválido/],
   ['precuenta', /Aquí se imprime la precuenta|PRE-CUENTA/],
   // «Platillos», que es como un restaurante llama a su catálogo.
   ['productos', /Platillos|margen sano/],
@@ -319,9 +325,22 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     await page.getByRole('button', { name: 'efectivo', exact: false }).first().click();
     await page.getByRole('button', { name: /^COBRAR/ }).click();
 
-    // El reposo de esta pantalla es el acuse: «Cobrado · cambio … · la mesa pasa
-    // sola a limpieza».
-    await exigirCobroAceptado(page, /Cobrado · cambio/);
+    /**
+     * El reposo de esta pantalla es el acuse, y la frase cambió con el rediseño.
+     *
+     * Era una línea —«Cobrado · cambio $12.00 · la mesa pasa sola a limpieza»— y el
+     * bloque 4.1 la partió en jerarquía: «Cobrado» arriba, el CAMBIO en grande
+     * —porque es lo único que queda por hacer, contarlo y darlo— y el total y la mesa
+     * debajo, en pequeño. La señal tenía que moverse con la copia, y no se movió: la
+     * suite pedía un literal que ya no existe y fallaba diciendo «la pantalla de cobro
+     * no contestó nada al confirmar», que es lo contrario de lo que pasaba.
+     *
+     * Se apunta a «pasa sola a limpieza» y no a «Cobrado»: sigue siendo exclusivo del
+     * acuse —no aparece en ningún otro estado de esta pantalla— y no depende del
+     * diccionario del giro, que es lo que decide si delante dice «la mesa» o «la
+     * estación».
+     */
+    await exigirCobroAceptado(page, /pasa sola a limpieza/);
 
     const venta = await exigirVentaCobrada(page, precioCentavos, idsDeAntes);
     test.info().annotations.push({
@@ -386,7 +405,32 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
       'La mesa se marcó limpia y no volvió a `libre`: el ciclo de la mesa no se cierra.',
     ).toBe('libre');
 
-    await cerrarCajaYCuadrar(page, FONDO_CENTAVOS + precioCentavos);
+    // ── EL CIERRE, POR SU PANTALLA, Y SU PDF (C.6 de la 2.4) ──────────────
+    //
+    // Cerraba por la API, y por eso nadie vio que el botón de la pantalla mandaba el
+    // contado como TEXTO y el servidor lo rechazaba: el cierre del restaurante no
+    // funcionaba. Ahora se cuenta, se deja el fondo de mañana, se confirma y se exige el
+    // PDF del corte con lo que su §9.3 pide.
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
+    await abrirPantalla(page, '/restaurante/cierre-diario-y-arqueo', /Cierre diario/);
+    await page.locator('#contado').fill((esperadoCentavos / 100).toFixed(2));
+    await page.locator('#fondo').fill((FONDO_CENTAVOS / 100).toFixed(2));
+    await page.getByRole('button', { name: 'CERRAR CAJA' }).click();
+    await page.getByRole('button', { name: 'Sí, cerrar el día' }).click({ timeout: 30_000 });
+    await expect(
+      page.getByRole('heading', { name: 'Caja cerrada' }),
+      'El cierre del día no se completó desde su pantalla.',
+    ).toBeVisible({ timeout: 30_000 });
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE CAJA',
+      textos: [
+        `Dinero dejado en caja ${enPesos(FONDO_CENTAVOS)}`,
+        `Efectivo esperado ${enPesos(esperadoCentavos)}`,
+        `Diferencia de efectivo ${enPesos(0)}`,
+        'Resumen financiero (sin propinas)',
+        'Detalle de ventas (',
+      ],
+    });
 
     exigirSinFallos();
   });

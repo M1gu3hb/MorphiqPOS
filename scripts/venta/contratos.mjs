@@ -11,6 +11,8 @@
  */
 import { readFileSync } from 'node:fs';
 
+import { sinFalsosDelimitadores } from '../lib/sin-prosa.mjs';
+
 const COBRAR = 'packages/app/src/venta/cobrar.ts';
 const PAGOS = 'packages/app/src/venta/pagos.ts';
 const CIERRE = 'packages/data/src/repos/ordenes/cierre.ts';
@@ -22,7 +24,9 @@ const ESQUEMAS = 'packages/app/src/venta/esquemas.ts';
 
 /** Quita comentarios y cadenas de plantilla vacías, conservando el código. */
 export function sinComentarios(codigo) {
-  return codigo.replace(/\/\*[\s\S]*?\*\//g, ' ').replace(/(^|[^:])\/\/[^\n]*/g, '$1');
+  return sinFalsosDelimitadores(codigo)
+    .replace(/\/\*[\s\S]*?\*\//g, ' ')
+    .replace(/(^|[^:])\/\/[^\n]*/g, '$1');
 }
 
 /**

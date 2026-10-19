@@ -68,6 +68,7 @@ export const registrarMerma = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenId: 'almacenes' },
   modulo: 'movimientos_inventario',
   entrada: entradaRegistrarMerma,
   async ejecutar(ctx, entrada) {
@@ -183,7 +184,8 @@ async function cargarMotivo(
 }
 
 /** Descuenta con guarda atómica. `delta` viene NEGATIVO del dominio. */
-async function descontarExistencia(
+/** Baja la existencia sin dejarla negativa: lo que no hay no se merma ni se devuelve. */
+export async function descontarExistencia(
   ctx: ContextoComando<Transaccion>,
   almacenId: string,
   insumoId: string,

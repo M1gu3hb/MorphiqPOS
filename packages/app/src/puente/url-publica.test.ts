@@ -26,9 +26,10 @@ describe('R-27 · URLs que llegan al portal público', () => {
     expect(esUrlHttp('http://localhost:9000/producto.webp')).toBe(true);
     expect(esUrlHttp('javascript:alert(1)')).toBe(false);
     expect(esUrlHttp('data:text/html,peligro')).toBe(false);
-    expect(readFileSync(FUENTE_VALIDADOR, 'utf8')).toContain(
-      "protocolo === 'https:' || protocolo === 'http:'",
-    );
+    // Lo que no es URL se contesta, no revienta: el `refine` con `new URL` lanzaba (zod 4).
+    expect(esUrlHttp('abc')).toBe(false);
+    expect(esUrlHttp('ftp://imagenes.example/producto.webp')).toBe(false);
+    expect(readFileSync(FUENTE_VALIDADOR, 'utf8')).toContain('protocol: /^https?$/');
   });
 
   it('los comandos directos de producto usan la misma política', () => {

@@ -127,7 +127,7 @@ export default function PropinasRegistros() {
   return (
     <div className="space-y-4">
       {/* Filtros */}
-      <Card className="p-4 bg-white/80 backdrop-blur-sm">
+      <Card className="p-4 bg-superficie/80 backdrop-blur-sm">
         <div className="flex items-center gap-2 mb-3 flex-wrap">
           <Calendar className="w-4 h-4 text-primary" />
           <h3 className="font-heading font-bold text-sm">Filtros</h3>
@@ -145,7 +145,7 @@ export default function PropinasRegistros() {
               size="sm"
               onClick={() => setShowLiquidar(true)}
               disabled={totalPendientes <= 0}
-              className="h-8 text-xs text-white"
+              className="h-8 text-xs text-exito-texto"
               style={{
                 background: 'linear-gradient(135deg, hsl(152,60%,40%) 0%, hsl(152,60%,32%) 100%)',
               }}
@@ -161,7 +161,7 @@ export default function PropinasRegistros() {
               key={r.id}
               type="button"
               onClick={() => setRango(r.id)}
-              className={`px-2.5 py-1 rounded-full text-xs font-medium ${rango === r.id ? 'bg-primary text-white' : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
+              className={`px-2.5 py-1 rounded-full text-xs font-medium ${rango === r.id ? 'bg-primary text-primario-texto' : 'bg-muted text-muted-foreground hover:bg-muted/70'}`}
             >
               {r.label}
             </button>
@@ -246,7 +246,7 @@ export default function PropinasRegistros() {
 
       {/* Historial de liquidaciones */}
       {verHistorial && (
-        <Card className="p-4 bg-white/80">
+        <Card className="p-4 bg-superficie/80">
           <h3 className="font-heading font-bold text-sm mb-3 flex items-center gap-2">
             <History className="w-4 h-4" /> Historial de liquidaciones
           </h3>
@@ -259,7 +259,7 @@ export default function PropinasRegistros() {
               {liquidaciones.map((l) => (
                 <div
                   key={l.id}
-                  className="flex items-center gap-3 flex-wrap p-2.5 rounded-lg border bg-white"
+                  className="flex items-center gap-3 flex-wrap p-2.5 rounded-lg border bg-superficie"
                 >
                   <div className="flex-1 min-w-[180px]">
                     <p className="font-mono font-bold text-xs">{l.folio}</p>
@@ -274,7 +274,7 @@ export default function PropinasRegistros() {
                   <Badge variant="secondary" className="text-[10px]">
                     {l.numero_ventas || 0} ventas
                   </Badge>
-                  <p className="font-heading font-black text-emerald-700 min-w-[80px] text-right">
+                  <p className="font-heading font-black text-exito min-w-[80px] text-right">
                     {formatCurrency(l.total_liquidado)}
                   </p>
                 </div>
@@ -286,7 +286,7 @@ export default function PropinasRegistros() {
 
       {/* Desglose por mesero */}
       {desglose.length > 0 && (
-        <Card className="p-4 bg-white/80">
+        <Card className="p-4 bg-superficie/80">
           <h3 className="font-heading font-bold text-sm mb-3">Por mesero</h3>
           <div className="space-y-1.5">
             {desglose.map((m, i) => (
@@ -298,7 +298,7 @@ export default function PropinasRegistros() {
                   <p className="font-medium text-sm">{m.mesero_nombre}</p>
                   <p className="text-[10px] text-muted-foreground">{m.num_ventas} ventas</p>
                 </div>
-                <p className="font-bold text-rose-600">{formatCurrency(m.total)}</p>
+                <p className="font-bold text-peligro">{formatCurrency(m.total)}</p>
               </div>
             ))}
           </div>
@@ -306,10 +306,10 @@ export default function PropinasRegistros() {
       )}
 
       {/* Lista de ventas */}
-      <Card className="p-0 bg-white/80 overflow-hidden">
+      <Card className="p-0 bg-superficie/80 overflow-hidden">
         <div className="px-4 py-3 border-b flex items-center justify-between flex-wrap gap-2">
           <h3 className="font-heading font-bold text-sm flex items-center gap-2">
-            <Heart className="w-4 h-4 text-rose-500" />
+            <Heart className="w-4 h-4 text-peligro" />
             Propinas ({ventasFiltradas.length})
           </h3>
           <p className="text-[10px] text-muted-foreground">
@@ -344,7 +344,7 @@ export default function PropinasRegistros() {
                   {v.metodo_pago || '—'}
                 </Badge>
                 <Badge
-                  className={`text-[10px] ${v.propina_liquidada ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-amber-100 text-amber-700 border-amber-200'}`}
+                  className={`text-[10px] ${v.propina_liquidada ? 'bg-exito/15 text-exito border-exito/30' : 'bg-advertencia/15 text-advertencia border-advertencia/30'}`}
                   variant="outline"
                 >
                   {v.propina_liquidada ? 'Liquidada' : 'Pendiente'}
@@ -352,7 +352,7 @@ export default function PropinasRegistros() {
                 <Badge variant="secondary" className="text-[10px] capitalize">
                   {v.propina_origen || '—'}
                 </Badge>
-                <p className="font-heading font-black min-w-[80px] text-right text-rose-600">
+                <p className="font-heading font-black min-w-[80px] text-right text-peligro">
                   {formatCurrency(propinaDerivada(v))}
                 </p>
               </div>
@@ -375,13 +375,13 @@ export default function PropinasRegistros() {
 function SummaryCard({ label, value, color, highlight, isCount }) {
   const palette =
     {
-      rose: 'text-rose-600',
-      amber: 'text-amber-700',
-      emerald: 'text-emerald-700',
-      slate: 'text-slate-700',
+      rose: 'text-peligro',
+      amber: 'text-advertencia',
+      emerald: 'text-exito',
+      slate: 'text-texto',
     }[color] || 'text-foreground';
   return (
-    <div className={`rounded-xl bg-white border p-3 ${highlight ? 'ring-2 ring-amber-200' : ''}`}>
+    <div className={`rounded-xl bg-superficie border p-3 ${highlight ? 'ring-2 ring-advertencia/40' : ''}`}>
       <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground flex items-center gap-1">
         <Filter className="w-3 h-3" />
         {label}

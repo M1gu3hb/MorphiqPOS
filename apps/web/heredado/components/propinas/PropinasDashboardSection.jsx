@@ -89,7 +89,7 @@ export default function PropinasDashboardSection() {
   const cardShadow = isDark
     ? '0 1px 0 rgba(255,255,255,0.06) inset, 0 8px 20px rgba(244,63,94,0.18)'
     : '0 1px 0 rgba(255,255,255,0.9) inset, 0 8px 20px rgba(244,63,94,0.08)';
-  const cardBorder = isDark ? 'border-rose-900/80' : 'border-rose-200/60';
+  const cardBorder = isDark ? 'border-peligro/80' : 'border-peligro/60';
 
   return (
     <>
@@ -99,7 +99,7 @@ export default function PropinasDashboardSection() {
       >
         <CardHeader className="pb-2 flex flex-row items-center justify-between gap-2 flex-wrap">
           <CardTitle className="text-sm font-heading flex items-center gap-2">
-            <Heart className="w-4 h-4 text-rose-500" />
+            <Heart className="w-4 h-4 text-peligro" />
             Propinas
           </CardTitle>
           <div className="flex gap-1.5 flex-wrap">
@@ -111,7 +111,7 @@ export default function PropinasDashboardSection() {
             <Button
               size="sm"
               onClick={() => setShowLiquidar(true)}
-              className="text-xs h-8 text-white"
+              className="text-xs h-8 text-exito-texto"
               style={{
                 background: 'linear-gradient(135deg, hsl(152,60%,40%) 0%, hsl(152,60%,32%) 100%)',
               }}
@@ -154,7 +154,7 @@ export default function PropinasDashboardSection() {
             />
             <div
               className={`col-span-2 lg:col-span-1 rounded-xl border p-3 ${
-                isDark ? 'bg-rose-950/50 border-rose-900' : 'bg-white/70 border-rose-200/60'
+                isDark ? 'bg-peligro/50 border-peligro' : 'bg-superficie/70 border-peligro/60'
               }`}
             >
               <p className="text-[10px] uppercase tracking-wide font-semibold text-muted-foreground flex items-center gap-1">
@@ -167,7 +167,7 @@ export default function PropinasDashboardSection() {
                   </p>
                   <p
                     className={`font-bold text-sm ${
-                      colorize ? (isDark ? 'text-rose-300' : 'text-rose-600') : 'text-foreground'
+                      colorize ? (isDark ? 'text-peligro' : 'text-peligro') : 'text-foreground'
                     }`}
                   >
                     {formatCurrency(stats.topMesero.total)}
@@ -183,8 +183,8 @@ export default function PropinasDashboardSection() {
             <div
               className={`mt-3 px-3 py-2 rounded-lg border text-xs flex items-center justify-between gap-2 ${
                 isDark
-                  ? 'bg-amber-950/60 border-amber-900 text-amber-200'
-                  : 'bg-amber-50 border-amber-200 text-amber-800'
+                  ? 'bg-advertencia/60 border-advertencia text-advertencia'
+                  : 'bg-advertencia/10 border-advertencia/30 text-advertencia'
               }`}
             >
               <span>
@@ -214,16 +214,16 @@ export default function PropinasDashboardSection() {
 function MetricMini({ label, value, color, highlight, isDark, colorize = true }) {
   const palette = {
     rose: isDark
-      ? { text: 'text-rose-300', bg: 'bg-rose-950/50', border: 'border-rose-900' }
-      : { text: 'text-rose-600', bg: 'bg-white/70', border: 'border-rose-200/60' },
+      ? { text: 'text-peligro', bg: 'bg-peligro/50', border: 'border-peligro' }
+      : { text: 'text-peligro', bg: 'bg-superficie/70', border: 'border-peligro/60' },
     amber: isDark
-      ? { text: 'text-amber-300', bg: 'bg-amber-950/50', border: 'border-amber-900' }
-      : { text: 'text-amber-700', bg: 'bg-white/70', border: 'border-amber-200/60' },
+      ? { text: 'text-advertencia', bg: 'bg-advertencia/50', border: 'border-advertencia' }
+      : { text: 'text-advertencia', bg: 'bg-superficie/70', border: 'border-advertencia/60' },
     emerald: isDark
-      ? { text: 'text-emerald-300', bg: 'bg-emerald-950/50', border: 'border-emerald-900' }
-      : { text: 'text-emerald-700', bg: 'bg-white/70', border: 'border-emerald-200/60' },
+      ? { text: 'text-exito', bg: 'bg-exito/50', border: 'border-exito' }
+      : { text: 'text-exito', bg: 'bg-superficie/70', border: 'border-exito/60' },
   }[color] || { text: 'text-foreground', bg: 'bg-card', border: 'border-border' };
-  const ring = highlight ? (isDark ? 'ring-2 ring-amber-800/70' : 'ring-2 ring-amber-200') : '';
+  const ring = highlight ? (isDark ? 'ring-2 ring-advertencia/70' : 'ring-2 ring-advertencia/40') : '';
   // Si colorize=false, el monto va neutro (foreground); el fondo y borde de
   // identidad del estado SE MANTIENEN para distinguir tarjetas.
   const valueClass = colorize ? palette.text : 'text-foreground';

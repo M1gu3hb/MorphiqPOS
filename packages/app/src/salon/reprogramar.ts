@@ -92,6 +92,7 @@ export const reprogramarCita = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaId: 'citas' },
   entrada: entradaReprogramar,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -259,6 +260,7 @@ export const agendarWalkIn = definirComando<Transaccion, typeof entradaWalkIn, R
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { 'servicios[].profesionalId': 'profesionales' },
   entrada: entradaWalkIn,
   async ejecutar(ctx, entrada) {
     // Delega en `agendarCita` y NO reimplementa nada. Un segundo camino para

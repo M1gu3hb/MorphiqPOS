@@ -34,7 +34,14 @@ FASE 2   LOS ~78 MODELOS DE NEGOCIO DEL MAPA                   ⬅ ESTO
          · 2.3  ACOPLE de esos cinco al punto de venta vivo    ✅ 17-09-2026
                 migraciones aplicadas, plantillas, menú,
                 datos de demostración y producción
-         · 2.4  La siguiente tanda de diez: farmacia, taller
+         · 2.35 El lenguaje visual: el sistema enchufado, ocho  ✅ 24-09-2026
+                estilos, la biblioteca y las pantallas
+                recompuestas (`verify:adopcion` es su marcador)
+         · 2.4  PRUEBAS Y CIERRE EN PRODUCCIÓN: la entrada por  🔄 en curso
+                negocio, las guardas de lo real, los días
+                completos con el dinero al centavo y la red
+                que prueba producción sola
+         · 2.5  La siguiente tanda de diez: farmacia, taller
                 mecánico, panadería-pastelería, barbería…      ⬜ pendiente
          · …    y así, de diez en diez, hasta los 78           ⬜ pendiente
 FASE 3   No ha empezado, y le falta mucho                      ⬜
@@ -121,7 +128,8 @@ Next.js 16 App Router · React 19 · TypeScript estricto · Tailwind 4
 Kysely + pg · PostgreSQL 17.6 en Supabase (wyqmzhliurwyxuyxznpb)
 Vitest · Playwright · pnpm + Turborepo · desplegado en Vercel
 
-Monorepo:  apps/web  ·  apps/web/heredado (244 archivos de Miguel, NO tocar)
+Monorepo:  apps/web  ·  apps/web/heredado (244 archivos de Miguel: estructura NO se toca;
+                                     el COLOR usa tokens desde C.16, D-19)
            packages/{contracts,domain,data,app,ui,testing}
 ```
 

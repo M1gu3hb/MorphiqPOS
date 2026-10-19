@@ -54,7 +54,12 @@ export async function reclamarClave(
   await sql`set local lock_timeout = '3s'`.execute(tx);
 
   try {
-    await tx
+    // `on conflict do nothing` y no atrapar el 23505 (auditoría de la 2.4): un error dentro
+    // de la transacción la ABORTA, y la consulta siguiente —leer la ejecución confirmada
+    // para servirla como reintento— fallaba con 25P02. El camino «duplicada» no funcionaba
+    // nunca contra Postgres de verdad: dos peticiones con la misma clave a la vez daban un
+    // 500 a la segunda. Sin error, la transacción sigue viva y el reintento se sirve.
+    const reclamada = await tx
       .insertInto('comandos_ejecutados')
       .values({
         organizacion_id: datos.organizacionId,
@@ -64,11 +69,16 @@ export async function reclamarClave(
         identidad_id: datos.identidadId,
         correlation_id: datos.correlationId,
       })
-      .execute();
-    return 'reclamada';
+      .onConflict((conflicto) =>
+        conflicto.columns(['organizacion_id', 'comando', 'idempotency_key']).doNothing(),
+      )
+      .returning('idempotency_key')
+      .executeTakeFirst();
+    // Ya hay una fila con esa clave —confirmada, o confirmada mientras ésta esperaba—.
+    return reclamada === undefined ? 'duplicada' : 'reclamada';
   } catch (error) {
     const codigo = sqlstate(error);
-    // Ya hay una fila confirmada con esa clave: es un reintento.
+    // Una carrera que el `on conflict` no absorbe sigue siendo un reintento.
     if (codigo === VIOLACION_DE_UNICIDAD) return 'duplicada';
     // Otra ejecución la tiene tomada y sigue abierta.
     if (codigo === TIEMPO_DE_BLOQUEO_AGOTADO) return 'ocupada';

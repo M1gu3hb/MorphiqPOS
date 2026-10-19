@@ -69,6 +69,7 @@ export const anotarPropinaPorEntregar = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { empleoBeneficiarioId: 'empleos', ordenId: 'ordenes' },
   entrada: entradaAnotarPropinaPorEntregar,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId, sucursalId } = ctx.ambito;
@@ -146,6 +147,7 @@ export const entregarPropina = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { empleoBeneficiarioId: 'empleos' },
   entrada: entradaEntregarPropina,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId, sucursalId, terminalId } = ctx.ambito;

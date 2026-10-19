@@ -190,6 +190,7 @@ export const devolverRenta = definirComando<
   escribe: true,
   roles: [...MOSTRADOR],
   paquetes: PAQUETES_TODOS,
+  sucursal: { rentaId: 'rentas_herramienta' },
   entrada: entradaDevolverRenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

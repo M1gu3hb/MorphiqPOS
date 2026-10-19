@@ -33,6 +33,56 @@ const PRIMITIVAS = join(RAIZ, 'packages', 'ui', 'src', 'primitivas');
  * Los tamanos derivados se calculan sobre ella, para que las tres densidades
  * escalen juntas en vez de quedarse fijas.
  */
+/**
+ * ESPACIO, TIPOGRAFIA Y DURACION contra sus perillas.
+ *
+ * shadcn escribe `p-4`, `gap-2` y `duration-200` literales. Los tres PUENTEAN una
+ * perilla: con `gap-4` fijo, cambiar la densidad a `compacta` no junta nada, y con
+ * `duration-200` el estilo TERMINAL —que pone las duraciones a cero a proposito—
+ * sigue animando.
+ *
+ * Los espacios de 0 a 2 se dejan: son ajustes opticos de un icono o de un borde,
+ * no ritmo, y atarlos a la densidad hace que un icono baile dentro de su boton.
+ */
+const ESPACIOS = new Map(
+  [
+    'p',
+    'px',
+    'py',
+    'pt',
+    'pb',
+    'pl',
+    'pr',
+    'm',
+    'mx',
+    'my',
+    'mt',
+    'mb',
+    'ml',
+    'mr',
+    'gap',
+    'gap-x',
+    'gap-y',
+    'space-x',
+    'space-y',
+  ].flatMap((prefijo) =>
+    ['3', '4', '5', '6', '8', '10', '12', '16'].map((paso) => [
+      `${prefijo}-${paso}`,
+      `${prefijo}-(--espacio-${paso})`,
+    ]),
+  ),
+);
+
+const DURACIONES = new Map([
+  ['duration-75', 'duration-(--duracion-rapida)'],
+  ['duration-100', 'duration-(--duracion-rapida)'],
+  ['duration-150', 'duration-(--duracion-rapida)'],
+  ['duration-200', 'duration-(--duracion-normal)'],
+  ['duration-300', 'duration-(--duracion-normal)'],
+  ['duration-500', 'duration-(--duracion-lenta)'],
+  ['duration-700', 'duration-(--duracion-lenta)'],
+]);
+
 const ALTURAS = new Map([
   ['h-6', 'h-[calc(var(--altura-control)*0.6)]'],
   ['h-7', 'h-[calc(var(--altura-control)*0.7)]'],
@@ -164,7 +214,17 @@ export function tokenizar(fuente) {
     );
   }
 
-  // 7 · Transiciones: nunca animar propiedades que provocan reflujo.
+  // 7 · Espacio y duracion contra sus perillas.
+  for (const tabla of [ESPACIOS, DURACIONES]) {
+    for (const [literal, token] of tabla) {
+      salida = salida.replaceAll(
+        new RegExp(`(^|[\\s"'\`:])${literal}(?=[\\s"'\`]|$)`, 'g'),
+        `$1${token}`,
+      );
+    }
+  }
+
+  // 8 · Transiciones: nunca animar propiedades que provocan reflujo.
   for (const [literal, token] of TRANSICIONES) {
     salida = salida.replaceAll(
       new RegExp(`(^|[\\s"'\`:])${literal}(?=[\\s"'\`]|$)`, 'g'),

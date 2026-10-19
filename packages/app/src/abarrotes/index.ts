@@ -17,11 +17,14 @@ export {
 export {
   entradaAbonoFiado,
   entradaDepositoEnvase,
+  entradaPasivosDelDia,
   entradaRegistrarComision,
   moverDepositoEnvase,
+  pasivosDelDia,
   registrarAbonoFiado,
   registrarComision,
   uuidDeProveedor,
+  type DineroAjeno,
   type ResultadoComision,
   type ResultadoPasivo,
 } from './pasivos.ts';
@@ -46,6 +49,15 @@ export {
   type ResultadoCapturarConteo,
   type ResultadoCerrarConteo,
 } from './conteo.ts';
+
+export {
+  asignarZona,
+  entradaAsignarZona,
+  entradaGuardarZona,
+  guardarZona,
+  type ZonaAsignada,
+  type ZonaGuardada,
+} from './zonas.ts';
 
 export {
   entradaSugerirPedido,

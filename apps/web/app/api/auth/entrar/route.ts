@@ -1,13 +1,22 @@
 import { validarEntorno } from '@morphiqpos/contracts';
-import { cuerpoDentroDelLimite, cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
+import {
+  cuerpoDentroDelLimite,
+  cookieDeSesion,
+  devolver,
+  leerCookie,
+  permitir,
+} from '@morphiqpos/app/http';
 import { entrarConPin, organizacionDeQuienEntra } from '@morphiqpos/app/identidad';
-import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
+import { elegirNegocioDeLaEntrada, negociosDelDespliegue } from '@morphiqpos/app/negocio';
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
-import { etiquetaDeRol, rolMH } from '@morphiqpos/app/puente';
+import { terminosDeLaOrganizacion } from '@morphiqpos/app/configuracion';
+import { etiquetaDeRol, etiquetaDeRolEnElGiro, rolMH } from '@morphiqpos/app/puente';
 import { z } from 'zod';
 
 import { cookieDeDispositivo, NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
+import { cookieDeEntrada } from '~/servidor/entrada';
 import { peticionDeEscrituraValida } from '~/servidor/seguridad-http';
+import { cookieDePresentacion } from '~/servidor/cookie-presentacion';
 
 /**
  * Entrada con PIN (F1.1-A-03, revisada en T2 del port del restaurante).
@@ -32,6 +41,10 @@ export const runtime = 'nodejs';
 const Entrada = z.object({
   empleoId: z.uuid(),
   pin: z.string().min(4).max(8),
+  // El slug de la entrada por la que se llegó (`/n/<slug>/login-pos`). Opcional: los
+  // guiones y un despliegue de un solo negocio no lo mandan. Si viene, ACOTA —el
+  // empleo tiene que ser de ese negocio— y nunca amplía lo que el servidor sirve.
+  negocio: z.string().max(64).optional(),
 });
 
 export async function POST(peticion: Request): Promise<Response> {
@@ -102,12 +115,16 @@ export async function POST(peticion: Request): Promise<Response> {
    * el PIN, con Argon2id y pimienta, contra la credencial de ESE empleo.
    */
   let servidas: readonly string[];
+  let negocios: Awaited<ReturnType<typeof negociosDelDespliegue>>;
   try {
-    const negocios = await negociosDelDespliegue(
-      entorno.ORGANIZACION,
-      peticion.headers.get('host'),
-    );
-    servidas = negocios.map((n) => n.organizacionId);
+    negocios = await negociosDelDespliegue(entorno.ORGANIZACION, peticion.headers.get('host'));
+    const pedido = validada.data.negocio;
+    if (pedido === undefined) {
+      servidas = negocios.map((n) => n.organizacionId);
+    } else {
+      const deLaEntrada = elegirNegocioDeLaEntrada(negocios, pedido);
+      servidas = deLaEntrada === null ? [] : [deLaEntrada.organizacionId];
+    }
   } catch {
     registrar({
       nivel: 'error',
@@ -156,10 +173,15 @@ export async function POST(peticion: Request): Promise<Response> {
     return json(401, { ok: false, error: fallo('Empleado o PIN incorrectos.') });
   }
 
+  // El PIN era correcto: su intento se devuelve. La cuota de la red cuenta los que FALLAN
+  // (`LIMITES.entrar`), y la tableta que pasa de mesero en mesero no la gasta entrando bien.
+  await devolver('entrar', peticion.headers, entorno.PIN_PEPPER);
+
   // Sin HTTPS el navegador descarta una cookie `Secure`, y en la red local de
   // una demostración eso significaría no poder entrar nunca.
   const seguro = entorno.NODE_ENV === 'production';
   const cookies = [
+    cookieDePresentacion('', seguro, 0),
     cookieDeSesion({
       token: resultado.token,
       maxEdadSegundos: resultado.maxEdadSegundos,
@@ -175,6 +197,13 @@ export async function POST(peticion: Request): Promise<Response> {
       }),
     );
   }
+  // Y la entrada de SU negocio, para que cerrar sesión vuelva a ella (bloque A).
+  const suNegocio = negocios.find((n) => n.organizacionId === resultado.organizacionId);
+  if (suNegocio !== undefined) cookies.push(cookieDeEntrada(suNegocio.slug, seguro));
+
+  // El rol, como lo llama SU giro: la estilista no es «Mesero» (A.8). Es un rótulo: si
+  // la configuración no se pudiera leer, la sesión ya nació y se rotula con el genérico.
+  const terminos = await terminosDeLaOrganizacion(resultado.organizacionId).catch(() => null);
 
   return json(
     200,
@@ -188,7 +217,10 @@ export async function POST(peticion: Request): Promise<Response> {
         id: validada.data.empleoId,
         nombre: resultado.nombre,
         rol: rolMH(resultado.rol) ?? resultado.rol,
-        etiqueta: etiquetaDeRol(resultado.rol),
+        etiqueta:
+          terminos === null
+            ? etiquetaDeRol(resultado.rol)
+            : etiquetaDeRolEnElGiro(resultado.rol, terminos.giro, terminos.personalizado),
         activo: true,
         organizacionId: resultado.organizacionId,
       },

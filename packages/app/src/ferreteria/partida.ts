@@ -39,6 +39,12 @@ export const entradaAgregarPartida = z.object({
     .regex(/^\d{1,10}(\.\d{1,4})?$/, 'La cantidad va con hasta cuatro decimales.'),
   /** «pieza», «caja», «kilo»: la forma en que se está vendiendo esta partida. */
   unidad: z.string().trim().min(1).max(10).optional(),
+  /**
+   * La PRESENTACIÓN que se vende —la caja de 500—, cuando no es la base. La línea dice
+   * «1 caja (500 pz)», lleva el precio de la caja y descuenta 500 (F-147). Sin esto la
+   * ficha comparaba la caja y sólo dejaba vender piezas (C.10 de la 2.4).
+   */
+  presentacionId: z.uuid().optional(),
 });
 
 export interface ResultadoPartida {
@@ -89,6 +95,7 @@ export const agregarPartida = definirComando<
       productoId: entrada.piezaId,
       cantidad: entrada.cantidad,
       ...(entrada.unidad === undefined ? {} : { unidad: entrada.unidad }),
+      ...(entrada.presentacionId === undefined ? {} : { presentacionId: entrada.presentacionId }),
     });
 
     ctx.auditar({

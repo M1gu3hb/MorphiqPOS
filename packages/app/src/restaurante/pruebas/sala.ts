@@ -158,6 +158,8 @@ export function linea(cambios: Fila = {}): Fila {
     tipo_venta: 'precio_fijo',
     orden_visual: 1,
     estado_preparacion: 'pendiente',
+    // Nula como en la base: sólo una presentación (F-147) la lleva.
+    cantidad_base_consumo: null,
     ...cambios,
   };
 }

@@ -211,6 +211,101 @@ describe('F-614 y F-615 · registrar el pago', () => {
     expect(base.filas('aplicaciones_pago')).toHaveLength(1);
   });
 
+  it('EL PAGO A UN DOCUMENTO DE REMISIÓN baja también la remisión (C.10 de la 2.4)', async () => {
+    // La ficha de cobro de la ferretería lista las remisiones por su saldo: si el pago
+    // sólo bajara el documento, la remisión seguiría debiendo lo ya pagado.
+    const base = baseDe({
+      documentos_credito: [
+        documento({
+          id: 'doc-rem',
+          origen_tipo: 'remision',
+          origen_id: 'rem-1',
+          saldo_centavos: 60_000n,
+        }),
+      ],
+      remisiones: [{ id: 'rem-1', organizacion_id: ORG, saldo_documento_centavos: 60_000n }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 25_000,
+      metodo: 'efectivo',
+    });
+
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(35_000n);
+    expect(base.campo('remisiones', 'saldo_documento_centavos')).toBe(35_000n);
+  });
+
+  it('EL PAGO BAJA EL SALDO DE LA FICHA, sólo por lo aplicado y nunca abajo de cero (bloque D)', async () => {
+    // La remisión sube `clientes.saldo_pendiente_centavos` y la caja lo lee para fiar
+    // otra vez: si el pago no lo bajara, el contratista que liquidó seguiría «debiendo».
+    const base = baseDe({
+      clientes: [cliente({ saldo_pendiente_centavos: 60_000n })],
+      documentos_credito: [
+        documento({ id: 'doc-rem', origen_tipo: 'remision', saldo_centavos: 60_000n }),
+      ],
+    });
+    await registrarPagoCredito.ejecutar(contextoFalso(base.tx, ambitoDe('cajero'), AHORA).ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 25_000,
+      metodo: 'efectivo',
+    });
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(35_000n);
+
+    // Paga de más: lo que sobra queda a cuenta y la ficha se queda en cero, no en negativo.
+    const salida = await registrarPagoCredito.ejecutar(
+      contextoFalso(base.tx, ambitoDe('cajero'), AHORA).ctx,
+      { clienteId: CLIENTE, montoCentavos: 50_000, metodo: 'efectivo' },
+    );
+    expect(salida.aCuentaCentavos).toBe('15000');
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(0n);
+  });
+
+  it('el fiado de la tiendita lleva su saldo en los documentos: la ficha se queda en cero', async () => {
+    // La venta fiada no sube la ficha (`emitirDocumento`); el abono no la puede dejar
+    // en negativo.
+    const base = baseDe({
+      clientes: [cliente({ saldo_pendiente_centavos: 0n })],
+      documentos_credito: [documento({ saldo_centavos: 60_000n })],
+    });
+    await registrarPagoCredito.ejecutar(contextoFalso(base.tx, ambitoDe('cajero'), AHORA).ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 25_000,
+      metodo: 'efectivo',
+    });
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(0n);
+  });
+
+  it('una transferencia sin confirmar NO baja el saldo de la ficha', async () => {
+    const base = baseDe({
+      clientes: [cliente({ saldo_pendiente_centavos: 60_000n })],
+      documentos_credito: [documento({ saldo_centavos: 60_000n })],
+    });
+    await registrarPagoCredito.ejecutar(contextoFalso(base.tx, ambitoDe('cajero'), AHORA).ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 25_000,
+      metodo: 'transferencia',
+    });
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(60_000n);
+  });
+
+  it('el pago a un documento de VENTA no toca ninguna remisión', async () => {
+    const base = baseDe({
+      documentos_credito: [documento({ saldo_centavos: 60_000n })],
+      remisiones: [{ id: 'rem-1', organizacion_id: ORG, saldo_documento_centavos: 60_000n }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 25_000,
+      metodo: 'efectivo',
+    });
+
+    expect(base.campo('remisiones', 'saldo_documento_centavos')).toBe(60_000n);
+  });
+
   it('el pago NO es una venta: entra como depósito con su propia referencia', async () => {
     const base = baseDe({ documentos_credito: [documento()] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
@@ -266,6 +361,22 @@ describe('F-614 y F-615 · registrar el pago', () => {
     expect(salida.saldoDespuesCentavos).toBe('100000');
     expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(100_000n);
     expect(base.campo('pagos_credito', 'confirmado')).toBe(false);
+  });
+
+  it('EL CHEQUE TAMPOCO baja el saldo hasta que el banco lo paga (auditoría de la 2.4)', async () => {
+    // Se aplicaba al instante: un cheque sin fondos dejaba la deuda saldada.
+    const base = baseDe({ documentos_credito: [documento()], sesiones_caja: [] });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarPagoCredito.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 10_000,
+      metodo: 'cheque',
+      referencia: 'Banorte 001122',
+    });
+
+    expect(salida.pendienteDeConfirmar).toBe(true);
+    expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(100_000n);
   });
 
   it('el efectivo SE APLICA en el momento: ya está en el cajón', async () => {
@@ -431,6 +542,19 @@ describe('F-212 · confirmar la transferencia', () => {
     expect(salida.aplicadoCentavos).toBe('30000');
     expect(base.campo('documentos_credito', 'saldo_centavos')).toBe(70_000n);
     expect(base.campo('pagos_credito', 'confirmado')).toBe(true);
+  });
+
+  it('confirmar baja también el saldo de la ficha (bloque D)', async () => {
+    const base = baseDe({
+      clientes: [cliente({ saldo_pendiente_centavos: 100_000n })],
+      documentos_credito: [documento()],
+      pagos_credito: [pago()],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('dueno'), AHORA);
+
+    await confirmarTransferencia.ejecutar(ctx, { pagoId: 'pg1', referenciaBancaria: null });
+
+    expect(base.campo('clientes', 'saldo_pendiente_centavos')).toBe(70_000n);
   });
 
   it('NO SE CONFIRMA DOS VECES', async () => {

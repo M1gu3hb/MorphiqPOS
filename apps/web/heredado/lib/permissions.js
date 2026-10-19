@@ -4,6 +4,10 @@ import { ROLES } from './constants';
 // Feature -> roles that can access
 export const PERMISSIONS = {
   ver_dashboard: [ROLES.ADMIN],
+  // La AGENDA de un negocio con cita (D.1 de la 2.4). Pedia `ver_dashboard` y solo la
+  // veia quien dirige: la recepcion —que la mira todo el dia— y la estilista —que atiende
+  // SU columna— no la tenian en su menu, aunque el servidor les deja leerla.
+  ver_agenda: [ROLES.ADMIN, ROLES.CASHIER, ROLES.WAITER],
   ver_pos: [ROLES.ADMIN, ROLES.CASHIER],
   ver_mesero: [ROLES.ADMIN, ROLES.WAITER],
   ver_mesas: [ROLES.ADMIN, ROLES.WAITER, ROLES.CASHIER],
@@ -41,7 +45,7 @@ export const PERMISSIONS = {
 
 export function hasPermission(role, permission) {
   if (!role || !PERMISSIONS[permission]) return false;
-  return PERMISSIONS[permission].includes(role);
+  return PERMISSIONS[permission].includes(role === 'dueno' ? ROLES.ADMIN : role);
 }
 
 /**

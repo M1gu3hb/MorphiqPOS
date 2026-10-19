@@ -1,30 +1,121 @@
 'use client';
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 
+import { api, ErrorPuente } from '@/api/cliente';
+
+/** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, paquete?: string, organizacionId?: string}} UsuarioDePOS */
+/** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
 const POSAuthContext = createContext(null);
 
-export function POSAuthProvider({ children }) {
-  const [posUser, setPosUser] = useState(null);
+const CLAVE = 'posUser';
+
+function leerGuardado() {
+  try {
+    const guardado = sessionStorage.getItem(CLAVE);
+    return guardado ? JSON.parse(guardado) : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * QUIÉN ESTÁ DENTRO, y lo dice el SERVIDOR (bloque D de la 2.4).
+ *
+ * Esto creía sólo a `sessionStorage`, que es de la PESTAÑA: una pestaña nueva —o el
+ * navegador que la restaura— llegaba con la cookie de sesión válida ocho horas y la
+ * interfaz mandaba al PIN; y una sesión ya vencida o revocada seguía pintando la barra con
+ * el nombre de quien ya no estaba. Ahora, al montar, se pregunta a `/api/catalogo/sesion`:
+ *
+ *   · si contesta quién es, ése es el usuario (y se guarda para el siguiente montaje);
+ *   · si contesta que no hay nadie (401, o 403 si la sesión se revocó), se borra lo
+ *     guardado y `AppLayout` lleva al PIN;
+ *   · si no se pudo preguntar (red, 5xx), se conserva lo guardado: sacar a la cajera a
+ *     media venta por un corte de un segundo es peor que esperar.
+ *
+ * Lo guardado se pinta mientras llega la respuesta, para que la barra no parpadee. Y la
+ * respuesta se descarta si mientras tanto alguien ENTRÓ o SALIÓ: una pregunta que salió
+ * antes del PIN no puede sacar a quien acaba de entrar.
+ *
+ * SIN COOKIE NO SE PREGUNTA (`conSesion`, que el servidor lee de la petición, igual que
+ * para `ConfigProvider`). La respuesta ya se sabe —no hay nadie— y preguntarla escribía un
+ * 401 en la consola de cada pantalla de acceso, antes de que nadie tecleara su PIN: el
+ * rastreador lo cuenta como respuesta rota, y con razón, porque un 401 permanente enseña a
+ * no mirar los que sí importan. Lo guardado de una sesión anterior se borra, como con ese 401.
+ */
+export function POSAuthProvider({ children, conSesion = true }) {
+  const [posUser, setPosUser] = useState(/** @type {UsuarioDePOS | null} */ (null));
   const [isLoading, setIsLoading] = useState(true);
+  const version = useRef(0);
 
   useEffect(() => {
-    const saved = sessionStorage.getItem('posUser');
-    if (saved) {
+    if (!conSesion) {
       try {
-        setPosUser(JSON.parse(saved));
-      } catch {}
+        sessionStorage.removeItem(CLAVE);
+      } catch {
+        // Nada que borrar.
+      }
+      setPosUser(null);
+      setIsLoading(false);
+      return undefined;
     }
-    setIsLoading(false);
-  }, []);
+    const guardado = leerGuardado();
+    const alPreguntar = version.current;
+    if (guardado) {
+      setPosUser(guardado);
+      setIsLoading(false);
+    }
+    let vigente = true;
+    api.auth
+      .me()
+      .then((delServidor) => {
+        if (!vigente || version.current !== alPreguntar) return;
+        setPosUser(delServidor);
+        try {
+          sessionStorage.setItem(CLAVE, JSON.stringify(delServidor));
+        } catch {
+          // Sin almacenamiento (modo privado) la sesión sigue en la cookie.
+        }
+      })
+      .catch((fallo) => {
+        if (!vigente || version.current !== alPreguntar) return;
+        if (fallo instanceof ErrorPuente && (fallo.estado === 401 || fallo.estado === 403)) {
+          setPosUser(null);
+          try {
+            sessionStorage.removeItem(CLAVE);
+          } catch {
+            // Nada que borrar.
+          }
+        }
+      })
+      .finally(() => {
+        if (vigente) setIsLoading(false);
+      });
+    return () => {
+      vigente = false;
+    };
+  }, [conSesion]);
 
   const login = (user) => {
+    version.current += 1;
     setPosUser(user);
-    sessionStorage.setItem('posUser', JSON.stringify(user));
+    setIsLoading(false);
+    try {
+      sessionStorage.setItem(CLAVE, JSON.stringify(user));
+    } catch {
+      // La cookie de sesión manda; esto sólo evita el parpadeo del siguiente montaje.
+    }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await api.auth.salir();
+    version.current += 1;
     setPosUser(null);
-    sessionStorage.removeItem('posUser');
+    try {
+      sessionStorage.removeItem(CLAVE);
+    } catch {
+      // Nada que borrar.
+    }
+    window.location.replace('/login-pos');
   };
 
   return (

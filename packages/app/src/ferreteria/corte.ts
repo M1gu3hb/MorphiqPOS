@@ -336,6 +336,11 @@ export const cortarMaterial = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: {
+    ordenLineaId: 'orden_lineas',
+    almacenId: 'almacenes',
+    piezaAbiertaId: 'piezas_abiertas',
+  },
   entrada: entradaCortarMaterial,
   async ejecutar(ctx, entrada) {
     const salida = await ejecutarCorte(ctx, entrada);

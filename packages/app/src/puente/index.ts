@@ -1,4 +1,10 @@
-export { colorDePersona, etiquetaDeRol, rolMH, type RolMH } from './roles.ts';
+export {
+  colorDePersona,
+  etiquetaDeRol,
+  etiquetaDeRolEnElGiro,
+  rolMH,
+  type RolMH,
+} from './roles.ts';
 export { consultar, type Ambito, type PeticionConsulta } from './consultar.ts';
 export { escribir, type AmbitoEscritura, type PeticionEscritura } from './escribir.ts';
 export { entidadMapeada, MAPA } from './mapa.ts';

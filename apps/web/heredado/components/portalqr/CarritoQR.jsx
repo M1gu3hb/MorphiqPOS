@@ -64,7 +64,7 @@ export default function CarritoQR({
       >
         <div className="relative">
           <ShoppingCart className="w-5 h-5" />
-          <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
+          <span className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-peligro text-peligro-texto text-[10px] font-bold flex items-center justify-center">
             {totalItems}
           </span>
         </div>
@@ -79,7 +79,7 @@ export default function CarritoQR({
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center"
+            className="fixed inset-0 z-50 bg-velo/50 flex items-end sm:items-center justify-center"
             onClick={(e) => {
               if (enviando) return;
               if (e.target === e.currentTarget) setOpen(false);
@@ -190,7 +190,7 @@ export default function CarritoQR({
                           type="button"
                           onClick={() => onEliminar?.(item._uid)}
                           disabled={enviando}
-                          className="text-[10px] text-rose-600 inline-flex items-center gap-1 disabled:opacity-40"
+                          className="text-[10px] text-peligro inline-flex items-center gap-1 disabled:opacity-40"
                         >
                           <Trash2 className="w-3 h-3" /> Quitar
                         </button>
@@ -241,7 +241,7 @@ export default function CarritoQR({
                     setOpen(false);
                   }}
                   disabled={enviando || totalItems === 0}
-                  className="flex-[1.4] h-12 rounded-xl bg-emerald-600 text-white font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
+                  className="flex-[1.4] h-12 rounded-xl bg-exito text-exito-texto font-semibold inline-flex items-center justify-center gap-2 disabled:opacity-50 active:scale-95 transition-transform"
                 >
                   {enviando ? (
                     <Loader2 className="w-4 h-4 animate-spin" />

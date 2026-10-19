@@ -134,6 +134,37 @@ describe('F-146 · recibir la garantía', () => {
     expect(base.campo('movimientos_stock', 'tipo')).toBe('garantia_proveedor');
   });
 
+  it('REPONER sale del insumo de REVENTA, la liga de todo lo dado de alta', async () => {
+    // `insumos.producto_id` es como se liga lo que se da de alta. Leer sólo
+    // `insumo_base_id` dejaba la reposición sin salida: una pieza de más para siempre.
+    const base = baseDe({
+      productos: [
+        {
+          id: TALADRO,
+          organizacion_id: ORG,
+          nombre: 'Taladro 1/2',
+          costo_unitario_centavos: 120_000n,
+          insumo_base_id: null,
+        },
+      ],
+      insumos: [{ id: INSUMO, organizacion_id: ORG, producto_id: TALADRO }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await recibirGarantia.ejecutar(ctx, {
+      proveedorId: PROVEEDOR,
+      productoId: TALADRO,
+      piezas: 1,
+      falla: 'no enciende',
+      ordenId: null,
+      clienteId: null,
+      repuestaAlCliente: true,
+      almacenId: ALMACEN,
+    });
+
+    expect(base.campo('movimientos_stock', 'insumo_id')).toBe(INSUMO);
+  });
+
   it('NO REPONERLA no mueve nada del anaquel', async () => {
     // «Se la debo» no sacó ninguna pieza buena. Contar una salida aquí dejaría
     // el inventario corto para siempre.

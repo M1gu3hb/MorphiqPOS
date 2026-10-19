@@ -32,8 +32,15 @@ export async function sesionAbiertaDeTerminal(
   db: Kysely<Esquema> | Transaccion,
   organizacionId: string,
   terminalId: string,
+  /**
+   * `true` al CERRAR (auditoría de la 2.4): el cierre suma los movimientos y guarda el
+   * esperado; sin bloquear la sesión, un cobro que entraba entre la suma y el cierre
+   * quedaba fuera del esperado firmado. Con `FOR UPDATE` el cobro en curso termina antes
+   * —o, si llega después, ve la caja cerrada—.
+   */
+  bloquear = false,
 ): Promise<SesionAbierta | null> {
-  const fila = await db
+  const consulta = db
     .selectFrom('sesiones_caja')
     .select([
       'id',
@@ -45,8 +52,8 @@ export async function sesionAbiertaDeTerminal(
     ])
     .where('organizacion_id', '=', organizacionId)
     .where('terminal_id', '=', terminalId)
-    .where('estado', '=', 'abierta')
-    .executeTakeFirst();
+    .where('estado', '=', 'abierta');
+  const fila = await (bloquear ? consulta.forUpdate() : consulta).executeTakeFirst();
 
   return fila ?? null;
 }
@@ -106,6 +113,11 @@ export async function abrirSesion(
     readonly fondoMonedasCentavos?: bigint;
     readonly fondoChicosCentavos?: bigint;
     readonly fondoGrandesCentavos?: bigint;
+    /**
+     * Lo que DEBERÍA haber al abrir: lo que dejó el último cierre de la terminal. Se
+     * quedaba en el `default 0` y la «diferencia de apertura» salía igual al fondo.
+     */
+    readonly fondoEsperadoCentavos?: bigint;
   },
 ): Promise<string> {
   const fila = await tx
@@ -116,6 +128,7 @@ export async function abrirSesion(
       terminal_id: datos.terminalId,
       empleado_abre_id: datos.empleadoAbreId,
       fondo_inicial_centavos: datos.fondoInicialCentavos,
+      fondo_esperado_centavos: datos.fondoEsperadoCentavos ?? datos.fondoInicialCentavos,
       // Sin desglose, todo el fondo cuenta como monedas: las columnas son `not
       // null` y repartirlo a ciegas entre tres montones sería inventarse el
       // arqueo de mañana.
@@ -134,12 +147,36 @@ export interface NuevoMovimiento {
   readonly organizacionId: string;
   readonly sesionCajaId: string;
   readonly tipo: string;
-  /** Con signo: entrada positiva, salida negativa. */
+  /**
+   * El importe. Para los tipos del tronco el signo lo pone `montoConSigno` por el tipo;
+   * para los demás (`ajuste`…) se guarda con el signo que traiga.
+   */
   readonly montoCentavos: bigint;
   readonly referenciaTipo: string | null;
   readonly referenciaId: string | null;
   readonly empleadoId: string | null;
   readonly motivo: string | null;
+}
+
+/** Los tipos que el `check movimiento_signo_coherente` (003) obliga a cada signo. */
+const SALEN_DEL_CAJON: readonly string[] = ['devolucion', 'gasto', 'retiro'];
+const ENTRAN_AL_CAJON: readonly string[] = ['apertura', 'venta', 'deposito', 'propina'];
+
+/**
+ * EL SIGNO LO PONE EL TIPO, en un solo sitio (auditoría de la 2.4).
+ *
+ * Dos comandos escribían un `retiro` POSITIVO —la devolución del casco y la entrega de
+ * propina— y la base lo rechaza (`movimiento_signo_coherente`): las dos funciones fallaban
+ * en cuanto tocaban Postgres de verdad, y la base falsa no mira `check`. Cada llamador
+ * decidía el signo a su manera; ahora el repositorio lo normaliza: lo que SALE del cajón,
+ * negativo; lo que ENTRA, positivo; los demás (`ajuste`, `liquidacion`…) tal cual vienen,
+ * porque su signo sí lo decide quien llama.
+ */
+export function montoConSigno(tipo: string, monto: bigint): bigint {
+  const magnitud = monto < 0n ? -monto : monto;
+  if (SALEN_DEL_CAJON.includes(tipo)) return -magnitud;
+  if (ENTRAN_AL_CAJON.includes(tipo)) return magnitud;
+  return monto;
 }
 
 export async function registrarMovimiento(
@@ -156,7 +193,7 @@ export async function registrarMovimiento(
       organizacion_id: movimiento.organizacionId,
       sesion_caja_id: movimiento.sesionCajaId,
       tipo: movimiento.tipo,
-      monto_centavos: movimiento.montoCentavos,
+      monto_centavos: montoConSigno(movimiento.tipo, movimiento.montoCentavos),
       referencia_tipo: movimiento.referenciaTipo,
       referencia_id: movimiento.referenciaId,
       empleado_id: movimiento.empleadoId,
@@ -280,11 +317,18 @@ export async function cerrarSesion(
     readonly empleadoCierraId: string;
     readonly efectivoContadoCentavos: bigint;
     /**
+     * El esperado que se comparó al cerrar. Se guarda con su diferencia, que es lo que
+     * la migración 100 creó para eso y nadie escribía (C.4 de la 2.4).
+     */
+    readonly efectivoEsperadoCentavos: bigint;
+    /**
      * El bote de propina contado. `undefined` es «este negocio no tiene bote»;
      * la columna se queda en NULL, que es «no se contó» — y `repartirBote` lo
      * distingue de un cero a propósito.
      */
     readonly boteContadoCentavos?: bigint;
+    /** Lo que se retiró al cerrar (contado − lo que se deja). Sin él, NULL: «no se dijo». */
+    readonly efectivoRetiradoCentavos?: bigint;
     readonly notasCierre: string | null;
     readonly ahora: Date;
   },
@@ -302,6 +346,11 @@ export async function cerrarSesion(
       ...(datos.boteContadoCentavos === undefined
         ? {}
         : { bote_contado_centavos: datos.boteContadoCentavos }),
+      ...(datos.efectivoRetiradoCentavos === undefined
+        ? {}
+        : { efectivo_retirado_centavos: datos.efectivoRetiradoCentavos }),
+      efectivo_esperado_centavos: datos.efectivoEsperadoCentavos,
+      diferencia_centavos: datos.efectivoContadoCentavos - datos.efectivoEsperadoCentavos,
       notas_cierre: datos.notasCierre,
     })
     .where('organizacion_id', '=', datos.organizacionId)
@@ -311,6 +360,55 @@ export async function cerrarSesion(
     .executeTakeFirst();
 
   return { filas: Number(resultado.numUpdatedRows), serie: datos.serie, folio };
+}
+
+/**
+ * Lo que dejó en el cajón el último cierre de la terminal: contado − retirado. `null` si
+ * no hay cierre anterior o si ese cierre no dijo cuánto dejaba (C.6 de la 2.4).
+ */
+export async function fondoDejadoPorElUltimoCierre(
+  tx: Transaccion,
+  organizacionId: string,
+  terminalId: string,
+): Promise<bigint | null> {
+  const ultimo = await tx
+    .selectFrom('sesiones_caja')
+    .select(['efectivo_contado_centavos as contado', 'efectivo_retirado_centavos as retirado'])
+    .where('organizacion_id', '=', organizacionId)
+    .where('terminal_id', '=', terminalId)
+    .where('estado', '=', 'cerrada')
+    .orderBy('cerrada_en', 'desc')
+    .limit(1)
+    .executeTakeFirst();
+  if (ultimo?.contado == null || ultimo.retirado === null) return null;
+  return ultimo.contado - ultimo.retirado;
+}
+
+/** El conteo del cajón al cerrar, denominación por denominación (F-231, momento `cierre`). */
+export async function anotarConteoDeCierre(
+  tx: Transaccion,
+  datos: {
+    readonly organizacionId: string;
+    readonly sesionCajaId: string;
+    readonly empleadoId: string;
+    readonly conteo: readonly { readonly denominacionCentavos: bigint; readonly piezas: number }[];
+    readonly ahora: Date;
+  },
+): Promise<void> {
+  await tx
+    .insertInto('conteos_denominacion')
+    .values(
+      datos.conteo.map((d) => ({
+        organizacion_id: datos.organizacionId,
+        sesion_caja_id: datos.sesionCajaId,
+        momento: 'cierre',
+        denominacion_centavos: d.denominacionCentavos,
+        piezas: d.piezas,
+        contado_en: datos.ahora,
+        contado_por: datos.empleadoId,
+      })),
+    )
+    .execute();
 }
 
 /**
@@ -636,3 +734,64 @@ export async function registrarCorteDeTurno(
 
 /** La serie de los cortes de turno, distinta de la de la caja (`CC`). */
 const SERIE_CORTE_TURNO = 'CT';
+
+/** El fondo de la sesión por montones: monedas, billetes chicos y grandes (F-984). */
+export async function fondoPorMontones(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  sesionCajaId: string,
+): Promise<{ readonly monedas: bigint; readonly chicos: bigint; readonly grandes: bigint }> {
+  const fila = await db
+    .selectFrom('sesiones_caja')
+    .select([
+      'fondo_monedas_centavos as monedas',
+      'fondo_chicos_centavos as chicos',
+      'fondo_grandes_centavos as grandes',
+    ])
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', sesionCajaId)
+    .executeTakeFirstOrThrow();
+  return fila;
+}
+
+/**
+ * EL CUPO DE CAJAS DE LA SUCURSAL y las que ya están abiertas (F-235, 179).
+ *
+ * `sesiones_caja_una_abierta_por_sucursal` era un índice único: una caja por sucursal,
+ * siempre. Desde la 179 el cupo es de la sucursal —uno por omisión, dos en la cafetería
+ * de fin de semana— y la base lo hace cumplir con un disparador que rechaza igual que el
+ * índice. Esto lo lee ANTES de abrir, para que el rechazo llegue con la terminal que
+ * tiene la caja y no como un 23505 sin explicación.
+ */
+export async function cupoDeCajas(
+  db: Kysely<Esquema> | Transaccion,
+  organizacionId: string,
+  sucursalId: string,
+): Promise<{
+  readonly cupo: number;
+  readonly abiertas: readonly (SesionAbierta & { readonly terminalNombre: string | null })[];
+}> {
+  const sucursal = await db
+    .selectFrom('sucursales')
+    .select('cajas_simultaneas')
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', sucursalId)
+    .executeTakeFirst();
+  const abiertas = await db
+    .selectFrom('sesiones_caja')
+    .leftJoin('terminales', 'terminales.id', 'sesiones_caja.terminal_id')
+    .select([
+      'sesiones_caja.id as id',
+      'sesiones_caja.sucursal_id as sucursalId',
+      'sesiones_caja.terminal_id as terminalId',
+      'sesiones_caja.serie as serie',
+      'sesiones_caja.fondo_inicial_centavos as fondoInicialCentavos',
+      'sesiones_caja.abierta_en as abiertaEn',
+      'terminales.nombre as terminalNombre',
+    ])
+    .where('sesiones_caja.organizacion_id', '=', organizacionId)
+    .where('sesiones_caja.sucursal_id', '=', sucursalId)
+    .where('sesiones_caja.estado', '=', 'abierta')
+    .execute();
+  return { cupo: sucursal?.cajas_simultaneas ?? 1, abiertas };
+}

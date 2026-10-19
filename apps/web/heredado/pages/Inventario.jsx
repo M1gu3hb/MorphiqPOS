@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Link } from '@/enrutado';
+import { puedeAjustarStock } from '~/inventario/ajuste-de-stock';
 import { Search, Package, Trash2, PackagePlus, ShoppingBag, Sliders, Beaker } from 'lucide-react';
 import {
   AlertDialog,
@@ -90,6 +91,9 @@ export default function Inventario() {
   const queryClient = useQueryClient();
   const { posUser } = usePOSAuth();
   const isAdmin = posUser?.rol === 'administrador';
+  // Ajustar lo puede tambien el almacen, como el servidor (D.1 de la 2.4): quien cuenta
+  // el anaquel tiene que poder corregirlo.
+  const puedeAjustar = puedeAjustarStock(posUser?.rol);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [confirmDelete, setConfirmDelete] = useState(null);
@@ -315,10 +319,10 @@ export default function Inventario() {
                     {formatStockEnUnidad(ing.stock_actual, ing.unidad_base)}
                   </p>
                   {ing.consumidoHoy > 0 && (
-                    <p className="text-base font-heading font-bold text-red-600">
+                    <p className="text-base font-heading font-bold text-peligro">
                       −{Number(ing.consumidoHoy).toLocaleString()}{' '}
                       <span className="text-xs">{ing.unidad_base}</span>
-                      <span className="ml-1 text-[10px] font-normal text-red-500">hoy</span>
+                      <span className="ml-1 text-[10px] font-normal text-peligro">hoy</span>
                     </p>
                   )}
                   <p className="text-[10px] text-muted-foreground">
@@ -327,42 +331,48 @@ export default function Inventario() {
                     Crit: {formatUmbral(ing.stock_critico, ing.unidad_base)}
                   </p>
                 </div>
-                {isAdmin && (
+                {(isAdmin || puedeAjustar) && (
                   <div className="flex items-center gap-0.5">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 gap-1 text-xs"
-                      onClick={() => setAjustarIng(ing)}
-                      title="Ajustar stock (merma, conteo físico, corrección)"
-                    >
-                      <Sliders className="w-3.5 h-3.5" />
-                      <span className="hidden sm:inline">Ajustar</span>
-                    </Button>
-                    {/* 6B / 1.C — Marcar como contenedor (botellas/cilindros para venta por porción) */}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-8 gap-1 text-xs"
-                      onClick={() => setContenedorIng(ing)}
-                      title="Configurar como contenedor (botella, etc.) para venta por porción"
-                    >
-                      <Beaker
-                        className={`w-3.5 h-3.5 ${ing.tipo_ingrediente === 'contenedor' ? 'text-emerald-600' : ''}`}
-                      />
-                      <span className="hidden sm:inline">
-                        {ing.tipo_ingrediente === 'contenedor' ? 'Contenedor' : 'Contenedor'}
-                      </span>
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                      onClick={() => setConfirmDelete(ing)}
-                      title="Eliminar / desactivar"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
+                    {puedeAjustar && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-8 gap-1 text-xs"
+                        onClick={() => setAjustarIng(ing)}
+                        title="Ajustar stock (merma, conteo físico, corrección)"
+                      >
+                        <Sliders className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Ajustar</span>
+                      </Button>
+                    )}
+                    {isAdmin && (
+                      <>
+                        {/* 6B / 1.C — Marcar como contenedor (botellas/cilindros para venta por porción) */}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-8 gap-1 text-xs"
+                          onClick={() => setContenedorIng(ing)}
+                          title="Configurar como contenedor (botella, etc.) para venta por porción"
+                        >
+                          <Beaker
+                            className={`w-3.5 h-3.5 ${ing.tipo_ingrediente === 'contenedor' ? 'text-exito' : ''}`}
+                          />
+                          <span className="hidden sm:inline">
+                            {ing.tipo_ingrediente === 'contenedor' ? 'Contenedor' : 'Contenedor'}
+                          </span>
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                          onClick={() => setConfirmDelete(ing)}
+                          title="Eliminar / desactivar"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </>
+                    )}
                   </div>
                 )}
               </div>
@@ -399,7 +409,7 @@ export default function Inventario() {
             <AlertDialogTitle>Eliminar / desactivar ingrediente</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               {confirmDelete && ingredienteEnUso(confirmDelete) && (
-                <span className="block text-amber-700 font-medium">
+                <span className="block text-advertencia font-medium">
                   ⚠ "{confirmDelete?.nombre}" se usa en recetas activas. Si lo eliminas, esas
                   recetas pueden quedar incompletas.
                 </span>

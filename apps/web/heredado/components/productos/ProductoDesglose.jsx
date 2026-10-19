@@ -44,7 +44,7 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
 
   return (
     <div
-      className="ticket-printable letter-doc printable-doc bg-white text-black p-6 mx-auto"
+      className="ticket-printable letter-doc printable-doc bg-superficie text-texto p-6 mx-auto"
       style={{
         width: '500px',
         fontFamily: 'system-ui, sans-serif',
@@ -52,39 +52,39 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
         color: '#000000',
       }}
     >
-      <div className="text-center border-b-2 border-black pb-3 mb-4">
+      <div className="text-center border-b-2 border-borde-fuerte pb-3 mb-4">
         <h1 className="text-xl font-bold">{config?.nombre_negocio || 'AZECAFE'}</h1>
-        <p className="text-xs text-gray-600">FICHA DE PRODUCTO · {fecha}</p>
+        <p className="text-xs text-texto-sutil">FICHA DE PRODUCTO · {fecha}</p>
       </div>
 
       <div className="mb-4">
         <h2 className="text-2xl font-bold">{producto.nombre}</h2>
         {producto.categoria_nombre && (
-          <p className="text-sm text-gray-600">{producto.categoria_nombre}</p>
+          <p className="text-sm text-texto-sutil">{producto.categoria_nombre}</p>
         )}
         {producto.descripcion && <p className="text-sm mt-1">{producto.descripcion}</p>}
       </div>
 
       <div className="grid grid-cols-4 gap-2 mb-4 text-sm">
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Precio venta</p>
+          <p className="text-xs text-texto-sutil">Precio venta</p>
           <p className="font-bold">{formatCurrency(producto.precio_venta)}</p>
         </div>
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Costo</p>
+          <p className="text-xs text-texto-sutil">Costo</p>
           <p className="font-bold">{formatCurrency(costoTotal)}</p>
         </div>
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Utilidad</p>
+          <p className="text-xs text-texto-sutil">Utilidad</p>
           <p className="font-bold">{formatCurrency(utilidad)}</p>
         </div>
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Margen</p>
+          <p className="text-xs text-texto-sutil">Margen</p>
           <p className="font-bold">{formatPercent(margen)}</p>
         </div>
       </div>
 
-      <h3 className="font-bold border-b border-black mb-2">INGREDIENTES</h3>
+      <h3 className="font-bold border-b border-borde-fuerte mb-2">INGREDIENTES</h3>
       <table className="w-full text-xs mb-4">
         <thead>
           <tr className="border-b text-left">
@@ -111,7 +111,7 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
           ))}
         </tbody>
         <tfoot>
-          <tr className="border-t-2 border-black font-bold">
+          <tr className="border-t-2 border-borde-fuerte font-bold">
             <td colSpan={4} className="py-1">
               TOTAL COSTO PRODUCCIÓN
             </td>
@@ -120,7 +120,7 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
         </tfoot>
       </table>
 
-      <p className="text-xs text-center text-gray-500 border-t pt-2">
+      <p className="text-xs text-center text-texto-sutil border-t pt-2">
         Documento interno · Costos estimados según receta actual
       </p>
     </div>
@@ -216,7 +216,7 @@ function FichaVariable({ producto, ingrediente, config, fecha }) {
 
   return (
     <div
-      className="ticket-printable letter-doc printable-doc bg-white text-black p-6 mx-auto"
+      className="ticket-printable letter-doc printable-doc bg-superficie text-texto p-6 mx-auto"
       style={{
         width: '500px',
         fontFamily: 'system-ui, sans-serif',
@@ -224,50 +224,50 @@ function FichaVariable({ producto, ingrediente, config, fecha }) {
         color: '#000000',
       }}
     >
-      <div className="text-center border-b-2 border-black pb-3 mb-4">
+      <div className="text-center border-b-2 border-borde-fuerte pb-3 mb-4">
         <h1 className="text-xl font-bold">{config?.nombre_negocio || 'AZECAFE'}</h1>
-        <p className="text-xs text-gray-600">FICHA DE PRODUCTO · {fecha}</p>
+        <p className="text-xs text-texto-sutil">FICHA DE PRODUCTO · {fecha}</p>
       </div>
 
       <div className="mb-4">
         <h2 className="text-2xl font-bold">{producto.nombre}</h2>
-        <p className="text-xs text-gray-600 uppercase tracking-wide mt-0.5">
+        <p className="text-xs text-texto-sutil uppercase tracking-wide mt-0.5">
           {esMedida ? 'Venta variable por medida' : 'Venta por porción de contenedor'}
         </p>
         {producto.categoria_nombre && (
-          <p className="text-sm text-gray-600 mt-1">{producto.categoria_nombre}</p>
+          <p className="text-sm text-texto-sutil mt-1">{producto.categoria_nombre}</p>
         )}
         {producto.descripcion && <p className="text-sm mt-1">{producto.descripcion}</p>}
       </div>
 
-      <h3 className="font-bold border-b border-black mb-2">
+      <h3 className="font-bold border-b border-borde-fuerte mb-2">
         MÉTRICAS POR {unidadLabel.toUpperCase()}
       </h3>
       <div className="grid grid-cols-4 gap-2 mb-4 text-sm">
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Precio / {unidadLabel}</p>
+          <p className="text-xs text-texto-sutil">Precio / {unidadLabel}</p>
           <p className="font-bold">{formatCurrency(precio)}</p>
         </div>
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Costo / {unidadLabel}</p>
+          <p className="text-xs text-texto-sutil">Costo / {unidadLabel}</p>
           <p className="font-bold">{hayCosto ? formatCurrency(costoUnit) : '—'}</p>
         </div>
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Utilidad / {unidadLabel}</p>
+          <p className="text-xs text-texto-sutil">Utilidad / {unidadLabel}</p>
           <p className="font-bold">{hayCosto ? formatCurrency(utilidad) : '—'}</p>
         </div>
         <div className="border p-2 rounded text-center">
-          <p className="text-xs text-gray-600">Margen</p>
+          <p className="text-xs text-texto-sutil">Margen</p>
           <p className="font-bold">{hayCosto ? formatPercent(margen) : '—'}</p>
         </div>
       </div>
 
-      <h3 className="font-bold border-b border-black mb-2">CONFIGURACIÓN</h3>
+      <h3 className="font-bold border-b border-borde-fuerte mb-2">CONFIGURACIÓN</h3>
       <table className="w-full text-xs mb-4">
         <tbody>
           {configRows.map(([k, v]) => (
             <tr key={k} className="border-b border-dashed">
-              <td className="py-1 text-gray-600">{k}</td>
+              <td className="py-1 text-texto-sutil">{k}</td>
               <td className="py-1 text-right font-medium">{v}</td>
             </tr>
           ))}
@@ -275,13 +275,13 @@ function FichaVariable({ producto, ingrediente, config, fecha }) {
       </table>
 
       {!hayCosto && (
-        <p className="text-xs text-gray-600 border border-dashed p-2 rounded mb-3">
+        <p className="text-xs text-texto-sutil border border-dashed p-2 rounded mb-3">
           Aviso: costo por {unidadLabel} no disponible hasta registrar inventario del ingrediente
           base.
         </p>
       )}
 
-      <p className="text-xs text-center text-gray-500 border-t pt-2">
+      <p className="text-xs text-center text-texto-sutil border-t pt-2">
         Documento interno · El escandallo clásico no aplica para venta variable
       </p>
     </div>

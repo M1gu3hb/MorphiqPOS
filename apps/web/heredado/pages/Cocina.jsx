@@ -325,19 +325,19 @@ export default function Cocina() {
               boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
             }}
           >
-            <ChefHat className="w-5 h-5 text-white" />
+            <ChefHat className="w-5 h-5 text-primario-texto" />
           </div>
           <div className="flex-1">
             <h1 className="text-xl font-heading font-bold">Cocina</h1>
             <p className="text-xs text-muted-foreground">Sin estación asignada</p>
           </div>
         </div>
-        <div className="rounded-2xl border-2 border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 p-6 text-center">
-          <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-amber-600" />
-          <p className="font-bold text-base text-amber-900 dark:text-amber-200 mb-1">
+        <div className="rounded-2xl border-2 border-advertencia/30 bg-advertencia/10 p-6 text-center">
+          <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-advertencia" />
+          <p className="font-bold text-base text-advertencia mb-1">
             Este usuario de cocina no tiene estación asignada
           </p>
-          <p className="text-sm text-amber-800 dark:text-amber-300">
+          <p className="text-sm text-advertencia">
             Pide al administrador que te asigne una estación o te marque como "Todas las estaciones"
             en
             <strong> Configuración → Usuarios POS</strong>.
@@ -357,7 +357,7 @@ export default function Cocina() {
             boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
           }}
         >
-          <ChefHat className="w-5 h-5 text-white" />
+          <ChefHat className="w-5 h-5 text-primario-texto" />
         </div>
         <div className="flex-1 min-w-0">
           <h1 className="text-xl font-heading font-bold leading-tight">

@@ -6,13 +6,13 @@ import { describe, expect, it } from 'vitest';
 import { contrasteLegible, distanciaPerceptual, leerHsl } from './color';
 import {
   DISTANCIA_MINIMA_ENTRE_GRAFICOS,
-  ESTILOS_F1_0,
+  ESTILOS_CONSTRUIDOS,
   MODOS,
   PARES_DE_CONTRASTE,
   PERILLAS,
   TOKENS_BASE,
   TOKENS_COLOR,
-  type EstiloF1_0,
+  type EstiloConstruido,
   type Modo,
 } from './contrato';
 import { CLAVES_ESTILO, ESTILOS, atributosDeEstilo } from './estilos';
@@ -30,29 +30,36 @@ const AQUI = dirname(fileURLToPath(import.meta.url));
 const CARPETA = join(AQUI, '..', 'estilos');
 
 const base: BloqueCss[] = leerArchivo(join(CARPETA, 'base.css'));
-const hojas: Record<EstiloF1_0, BloqueCss[]> = {
-  premium: leerArchivo(join(CARPETA, 'premium.css')),
-  editorial: leerArchivo(join(CARPETA, 'editorial.css')),
-};
+const hojas = Object.fromEntries(
+  ESTILOS_CONSTRUIDOS.map((estilo) => [estilo, leerArchivo(join(CARPETA, `${estilo}.css`))]),
+) as Record<EstiloConstruido, BloqueCss[]>;
 
-/** Los selectores activos para un estilo y un modo concretos. */
-function selectoresActivos(estilo: EstiloF1_0, modo: Modo): string[] {
+/**
+ * Los selectores activos para un estilo y un modo concretos.
+ *
+ * La clase del modo oscuro es `dark` y no `oscuro`. Es la que pone su `ThemeContext`
+ * y la unica que existe en el `<html>` de la aplicacion; `oscuro:` es el nombre de la
+ * variante de Tailwind que apunta a esa MISMA clase. Las hojas del sistema decian
+ * `.oscuro`, asi que su modo oscuro no se activaba nunca en la aplicacion de verdad:
+ * la prueba pasaba y el navegador no veia ni un token.
+ */
+function selectoresActivos(estilo: EstiloConstruido, modo: Modo): string[] {
   const raiz = `[data-estilo='${estilo}']`;
-  return modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}.oscuro`];
+  return modo === 'claro' ? [':root', raiz] : [':root', raiz, `${raiz}[data-modo='oscuro']`];
 }
 
-function tokensDe(estilo: EstiloF1_0, modo: Modo): Map<string, string> {
+function tokensDe(estilo: EstiloConstruido, modo: Modo): Map<string, string> {
   return resolverTokens([...base, ...hojas[estilo]], selectoresActivos(estilo, modo));
 }
 
 describe('el contrato de tokens', () => {
-  it.each(ESTILOS_F1_0)('%s declara los tokens que no son de color', (estilo) => {
+  it.each(ESTILOS_CONSTRUIDOS)('%s declara los tokens que no son de color', (estilo) => {
     const tokens = tokensDe(estilo, 'claro');
     const faltantes = TOKENS_BASE.filter((token) => !tokens.has(token));
     expect(faltantes, `faltan en ${estilo}`).toEqual([]);
   });
 
-  for (const estilo of ESTILOS_F1_0) {
+  for (const estilo of ESTILOS_CONSTRUIDOS) {
     for (const modo of MODOS) {
       it(`${estilo} en ${modo} declara los ${String(TOKENS_COLOR.length)} tokens de color`, () => {
         const tokens = tokensDe(estilo, modo);
@@ -71,7 +78,7 @@ describe('el contrato de tokens', () => {
   }
 
   it('claro y oscuro son paletas distintas, no la misma repetida', () => {
-    for (const estilo of ESTILOS_F1_0) {
+    for (const estilo of ESTILOS_CONSTRUIDOS) {
       const claro = tokensDe(estilo, 'claro');
       const oscuro = tokensDe(estilo, 'oscuro');
       expect(oscuro.get('fondo'), estilo).not.toBe(claro.get('fondo'));
@@ -79,23 +86,33 @@ describe('el contrato de tokens', () => {
     }
   });
 
-  it('premium y editorial no son el mismo estilo con otro nombre', () => {
-    const premium = tokensDe('premium', 'claro');
-    const editorial = tokensDe('editorial', 'claro');
-
-    // Distinto color primario...
-    expect(editorial.get('primario')).not.toBe(premium.get('primario'));
-
-    // ...y distinta forma. Un estilo que solo cambia de color no es un estilo,
-    // es un tema (§4: las perillas son lo que los hace ESTRUCTURALMENTE distintos).
-    const a = ESTILOS['premium']?.perillas;
-    const b = ESTILOS['editorial']?.perillas;
-    expect(a).toBeDefined();
-    expect(b).toBeDefined();
-    const diferencias = (['densidad', 'redondeo', 'elevacion', 'movimiento'] as const).filter(
-      (perilla) => a?.[perilla] !== b?.[perilla],
-    );
-    expect(diferencias.length, 'deben diferir en al menos 2 perillas').toBeGreaterThanOrEqual(2);
+  it('ningun estilo es otro con otro nombre', () => {
+    /**
+     * Ocho estilos que se diferencian solo en el color son un tema con ocho
+     * paletas, no ocho estilos. Lo que los hace ESTRUCTURALMENTE distintos son las
+     * cuatro perillas (§4), asi que se exige lo uno Y lo otro: distinto primario, y
+     * al menos una perilla distinta con cada uno de los demas.
+     *
+     * Con «al menos una» y no «dos»: ocho estilos sobre cuatro perillas de tres a
+     * cinco valores no caben con dos de distancia entre todos los pares, y exigir un
+     * numero que no cabe obliga a inventarse diferencias que no significan nada.
+     */
+    for (const uno of ESTILOS_CONSTRUIDOS) {
+      for (const otro of ESTILOS_CONSTRUIDOS) {
+        if (uno === otro) continue;
+        const paletaUno = tokensDe(uno, 'claro');
+        const paletaOtro = tokensDe(otro, 'claro');
+        const mismasPerillas = (['densidad', 'redondeo', 'elevacion', 'movimiento'] as const).every(
+          (perilla) => ESTILOS[uno]?.perillas[perilla] === ESTILOS[otro]?.perillas[perilla],
+        );
+        const mismoPrimario = paletaUno.get('primario') === paletaOtro.get('primario');
+        expect(
+          mismasPerillas && mismoPrimario,
+          `${uno} y ${otro} tienen el mismo primario Y las mismas cuatro perillas: son el ` +
+            'mismo estilo con dos nombres',
+        ).toBe(false);
+      }
+    }
   });
 
   it('cada estilo declara valores de perilla que existen en el catalogo', () => {
@@ -111,8 +128,8 @@ describe('el contrato de tokens', () => {
   });
 
   it('atributosDeEstilo devuelve los 5 atributos, y rechaza un estilo inventado', () => {
-    const atributos = atributosDeEstilo('premium');
-    expect(atributos['data-estilo']).toBe('premium');
+    const atributos = atributosDeEstilo('morphiq');
+    expect(atributos['data-estilo']).toBe('morphiq');
     expect(Object.keys(atributos)).toHaveLength(5);
     expect(() => atributosDeEstilo('no-existe')).toThrow();
   });
@@ -127,7 +144,12 @@ describe('las 4 perillas estructurales', () => {
       return tokens.get('altura-control');
     });
     expect(alturas.every((altura) => typeof altura === 'string')).toBe(true);
-    expect(new Set(alturas).size, 'las 3 densidades deben dar 3 alturas distintas').toBe(3);
+    // Una densidad que no cambia la altura no es una densidad: es un nombre. El
+    // numero sale del catalogo para que anadir una obligue a darle la suya.
+    expect(
+      new Set(alturas).size,
+      `las ${String(PERILLAS.densidad.length)} densidades deben dar otras tantas alturas distintas`,
+    ).toBe(PERILLAS.densidad.length);
   });
 
   it('el redondeo cambia el radio', () => {
@@ -173,7 +195,7 @@ describe('las 4 perillas estructurales', () => {
 });
 
 describe('contraste AA en los 2 estilos x 2 modos (F1.0-P5)', () => {
-  for (const estilo of ESTILOS_F1_0) {
+  for (const estilo of ESTILOS_CONSTRUIDOS) {
     for (const modo of MODOS) {
       const tokens = tokensDe(estilo, modo);
 

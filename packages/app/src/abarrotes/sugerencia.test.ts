@@ -94,6 +94,52 @@ describe('compras.sugerir_pedido', () => {
     expect(refresco?.unidadCompra).toBe('reja');
   });
 
+  it('SIRVE EL PRECIO DE VENTA, por el insumo base o por el propio (C.10 de la 2.4)', async () => {
+    const base = baseDe({
+      insumos: [
+        insumo(REFRESCO, 'Refresco 600ml', { producto_id: null }),
+        insumo(PAN, 'Pan de caja', { producto_id: 'p-pan' }),
+      ],
+      movimientos_stock: [salida(REFRESCO, '-420.0000', 3), salida(PAN, '-20000.0000', 3)],
+      productos: [
+        {
+          id: 'p-refresco',
+          organizacion_id: ORG,
+          insumo_base_id: REFRESCO,
+          precio_venta_centavos: 1_800n,
+        },
+        { id: 'p-pan', organizacion_id: ORG, insumo_base_id: null, precio_venta_centavos: 4_600n },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    const pedido = await sugerenciaDePedido.ejecutar(ctx, {
+      proveedorId: PROVEEDOR,
+      almacenId: ALMACEN,
+      diasDeVenta: 14,
+    });
+
+    const precio = (id: string) =>
+      pedido.renglones.find((r) => r.insumoId === id)?.precioVentaCentavos;
+    expect(precio(REFRESCO)).toBe('1800');
+    expect(precio(PAN)).toBe('4600');
+  });
+
+  it('LOS ARTÍCULOS DEL PROVEEDOR van todos, aunque no haya que pedirlos: el canje se lleva el pan', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);
+
+    const pedido = await sugerenciaDePedido.ejecutar(ctx, {
+      proveedorId: PROVEEDOR,
+      almacenId: ALMACEN,
+      diasDeVenta: 14,
+    });
+
+    // El pan sobra (500 contra una venta de 10) y no se pide, pero se puede canjear.
+    expect(pedido.renglones.map((r) => r.insumoId)).not.toContain(PAN);
+    expect(pedido.articulos.map((a) => a.insumoId).toSorted()).toEqual([REFRESCO, PAN].toSorted());
+  });
+
   it('LA RUTA DEL PROVEEDOR ES LO QUE FIJA LA COBERTURA', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('almacen'), AHORA);

@@ -54,6 +54,7 @@ export const tomarValuacion = definirComando<Transaccion, typeof entradaValuar, 
     escribe: true,
     roles: [...ROLES],
     paquetes: PAQUETES_TODOS,
+    sucursal: { almacenId: 'almacenes' },
     modulo: 'costos_basicos',
     entrada: entradaValuar,
     async ejecutar(ctx, entrada) {

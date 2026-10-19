@@ -76,6 +76,7 @@ export const llamarPedido = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaLlamarPedido,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -114,11 +115,15 @@ export const llamarPedido = definirComando<
     // grita el nombre es que la bebida está hecha, y sin este sello el tiempo
     // de preparación de ese pedido sería un hueco en la medición.
     const sello = pedido.listaEn === null ? { lista_en: ctx.ahora } : {};
+    // Y el ESTADO: el botón dice «listo y llamar». La barra separa sus columnas por
+    // estado, y sin esto la tarjeta se quedaba en «En la fila» —donde no está
+    // «Entregar»—: ningún pedido se podía entregar desde la barra (C.14 de la 2.4).
+    const listo = pedido.estado === 'listo' ? {} : { estado: 'listo' };
 
     await ctx.paso('contar_llamado', () =>
       ctx.tx
         .updateTable('comandas')
-        .set({ llamados: numeroLlamado, ...sello })
+        .set({ llamados: numeroLlamado, ...sello, ...listo })
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', pedido.id)
         // La guarda de la carrera: dos baristas tocando a la vez. El segundo
@@ -152,6 +157,7 @@ export const entregarPedidoDeBarra = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaPedidoDeBarra,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -205,6 +211,7 @@ export const marcarNoRecogido = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaPedidoDeBarra,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -261,6 +268,7 @@ export const deshacerEntrega = definirComando<
   escribe: true,
   roles: [...ROLES_DE_BARRA],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { pedidoId: 'ordenes' },
   entrada: entradaPedidoDeBarra,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

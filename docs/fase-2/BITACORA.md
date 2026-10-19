@@ -3995,3 +3995,2684 @@ la salida literal de las puertas, la URL de producción y la lista completa de l
 rastreador con su arreglo. Lo que queda fuera son dos cosas que no arregla el código y están
 escritas con sus comandos: el bucket de archivos (una credencial S3 de Supabase) y la decisión de
 producto del pedido anticipado.
+
+---
+
+# ETAPA 2.35 · EL DISEÑO
+
+Miguel entró a ver el sistema y lo primero que dijo fue que el diseño está horrible. Tenía razón, y
+la causa estaba medida: **`packages/ui/src/estilos/index.css` no lo importaba nadie.**
+
+## BLOQUE 0 · lo que quedó de la 2.3
+
+### 0.1 · EL RASTREADOR, EN CI
+
+No estaba en `.github/workflows/`, así que una regresión de botón muerto volvía sin que nada la
+detectara. Ahora es un trabajo propio, **en matriz de cinco** —uno por modelo, `fail-fast: false`—
+y cada uno **se provisiona solo**: su Postgres, sus migraciones, su negocio de demostración con su
+equipo y su catálogo, su build y su servidor. No habla con producción ni con el preview: sin
+secretos, y por eso corre en el pull request de cualquiera.
+
+Los cinco en serie son 42 minutos de reloj; en matriz, el reloj es el del modelo más lento. Y el
+rastreo **no reintenta**: la configuración da un reintento en CI para distinguir fragilidad de un
+contenedor con mal día, y aquí eso duplicaría el trabajo más lento de la tubería para volver a tirar
+el dado sobre algo que no falla una vez de cada tres.
+
+`scripts/sembrar-demos.mjs` reventaba con `ENOENT .env` antes de leer una sola variable, lo que lo
+dejaba fuera de cualquier sitio que no fuera una laptop. Ahora si no hay `.env` no pasa nada: las
+variables llegan por el entorno del trabajo.
+
+### 0.2 a 0.5 · EL RASTREADOR, COMPLETO
+
+**0.2 · El tercio que faltaba.** El encargo pedía «botón, enlace y FORMULARIO» y el selector sólo
+miraba botones y enlaces. Ahora hay **cuatro clases de pieza y cada una con su promesa**:
+
+| Clase | Qué se le exige |
+| --- | --- |
+| `boton` | que pase algo: petición, URL, DOM, diálogo o pestaña |
+| `campo` | que lo que se teclea SE QUEDE |
+| `eleccion` | que lo que se elige SE QUEDE |
+| `marca` | que la marca CAMBIE de estado |
+
+Más el `<form>`, que se **envía** con `requestSubmit` —el camino del Enter, no el del botón— y que
+tiene que hacer algo aunque sea que el servidor lo rechace. Para eso hay una **ventana de sondeo**:
+mientras se manda basura a propósito, un 400 o un 422 de la API es la validación funcionando y no
+una respuesta rota. Un 404 sigue siendo una ruta que no existe y un 5xx sigue siendo que revienta.
+
+**0.3 · Profundidad 2.** El ámbito era el `main` y Radix monta diálogos, menús y listas en un portal
+al final del `body`; y como entre toque y toque se RECARGA, la recarga cerraba el diálogo antes de
+que nadie mirara dentro. Todo lo que vive dentro de un diálogo de cobro, de alta o de confirmación
+**no lo tocaba nadie**.
+
+**0.4 · Lo que quedó sin tocar, dicho y con techo.** El cubo `inalcanzables` se llenaba, se anotaba
+«si hay alguno» y su tamaño no salía en ninguna parte: una corrida en la que la mitad de las piezas
+no se pudieron volver a encontrar se leía igual de verde que una en la que se tocó todo. Ahora sale
+en el resumen con su porcentaje, cada una con su ruta y su motivo en la bitácora, y **por encima del
+15 % la corrida falla**: «cero botones muertos» pasaría a significar «cero de los que pude tocar»,
+que es otra frase.
+
+**0.5 · Las cuatro sin menú.** Los dos `acceso-por-pin`, el portal del comensal y el menú público
+están exentas del MENÚ por razones buenas y escritas —se ven antes de que exista sesión, o las abre
+el cliente con un QR—. Exentas del menú no es exentas del rastreo: ahora se llega por su URL. Si con
+sesión abierta una redirige a la casa, se anota y se sigue, que es lo correcto y no un defecto.
+
+### Y OCHO DEFECTOS DEL PROPIO RASTREADOR, antes de creerle nada
+
+La primera corrida con profundidad 2 acusó a **66 piezas** de la tiendita, 36 de ellas con «no se
+pudo tocar» —incluidos «Cancelar» y «Cerrar» de un diálogo que Miguel usa todos los días—. Se midió
+en vez de creerlo: dentro del diálogo de «Registrar gasto», `elementFromPoint` devolvía la pieza
+correcta y `pointer-events` valía `auto` en todas. Un humano las toca sin problema.
+
+| # | Qué tenía | Cómo se vio |
+| --- | --- | --- |
+| 1 | **Buscaba las piezas de la capa por el camino del DOM.** La capa vive en un portal al final del `body`: en cuanto React repinta, esos `nth-child` apuntan a otro nodo —al velo, que sí está cubierto por el diálogo— | 36 «no se pudo tocar» que eran uno solo |
+| 2 | **Un toque puede abrir OTRA capa.** El primer clic del diálogo era un desplegable; su lista se monta encima y tapa el diálogo entero, así que todo lo que venía después estaba de verdad cubierto | ahora, si un toque abre una capa nueva, se cierra antes de seguir |
+| 3 | **La identidad era sólo el rótulo.** El rótulo vacío de un botón casa con el de un campo vacío, así que la posición podía apuntar a otra cosa y `fill` contestaba «Element is not an `<input>`» | ahora se exige la misma etiqueta HTML |
+| 4 | **Un `fill` que no se puede aplicar no es un campo muerto.** «Element is not an `<input>`» y «Malformed value» son límites de la SONDA | van al cubo de «sin alcance», no al de muertos |
+| 5 | **Acusaba con una sola vía.** `fill` pone el valor y lanza un `input`; hay componentes que escuchan `keydown` | antes de acusar se teclea **tecla por tecla**, que sólo puede quitar falsos positivos |
+
+**De 66 hallazgos a 12.** Los 54 que se fueron no eran defectos de la aplicación: eran defectos de
+la prueba, y un falso positivo cuesta lo mismo que un defecto.
+
+### 0.6 · LA PUERTA DE CABECERAS MEDÍA SOBRE UN 404
+
+`verificar-cabeceras.mjs` comprobaba las cabeceras contra **`/estilos`**, una ruta que se borró al
+portar el frontend. Las cabeceras de seguridad las pone el proxy y salen **igual en la página de
+error**, así que la puerta llevaba meses dando verde sin haber mirado una sola pantalla de la
+aplicación. Y lo que comprueba no es decorativo: si los `<script>` de Next no llevaran el nonce, la
+aplicación se serviría sin hidratar —se ve bien y no responde a un clic— y ese verde no lo habría
+notado.
+
+Ahora mide contra `/login-pos`, y **falla si la ruta sonda devuelve 404**, que es el cerrojo que
+faltaba. `docs/ARRANQUE-CODEX.md` mandaba abrir ahí: corregido.
+
+Destructiva que FALLA: devolver `RUTA_SONDA` a `/estilos` → `✗ La ruta sonda … devuelve 404`.
+
+### 0.7 · «SERVIDOR LOCAL» ERA UNA URL DE PRODUCCIÓN
+
+`verificar-acople.mjs` decidía entre «local» y «despliegue» por **cuál variable se había puesto**, no
+por lo que hay al otro lado. Así que una corrida con `APP_URL=https://morphiqpos-kappa.vercel.app`
+—que es exactamente cómo se corrió la vuelta 2.3— imprimía «contra el servidor LOCAL
+(https://…vercel.app)»: el rótulo y la URL de la misma línea se contradecían. Y por esa rama tampoco
+se comprobaba el MURO, que es lo único que distingue «el despliegue contestó» de «la Protección de
+Despliegue contestó por él».
+
+Ahora lo decide el HOST, y el muro se comprueba en cualquier URL que no sea de esta máquina:
+
+```
+despliegue    REMOTO https://morphiqpos-kappa.vercel.app → 200 · sin credencial · sin muro por delante
+```
+
+Destructiva que FALLA: apuntar a un preview con protección →
+`DESPLIEGUE: … contestó un 302 a vercel.com/sso-api, que es la Protección de Despliegue de Vercel y
+no la aplicación`.
+
+### 0.8 · EL ALMACÉN DE ARCHIVOS, CONECTADO
+
+En producción no se podía guardar un solo archivo: `STORAGE_ENDPOINT` valía `http://localhost:9000`.
+Y en la etapa del diseño eso no es un pendiente cualquiera —**el logo del negocio y las imágenes del
+menú son parte del diseño**—.
+
+El endpoint S3 de Supabase **no se puede usar con la credencial que este despliegue tiene**, y está
+medido: con la llave de servicio contesta `InvalidAccessKeyId`, y como *session token* contesta
+«the session token should be a valid JWT token». Este proyecto usa el formato de llaves nuevo
+(`sb_secret_…`), que no es un JWT; la otra vía son llaves de acceso S3, que sólo se crean en el panel.
+
+Así que hay **dos conductores** en `packages/data/src/archivos.ts` y **una sola decisión legible**:
+si el endpoint termina en `/storage/v1` es la API de Supabase; cualquier otra cosa es S3. **S3 sigue
+siendo el de por omisión y no se va**: A-27 exige que el backend corra en la PC de un cliente con su
+MinIO al lado. Las cinco operaciones del conductor nuevo están probadas contra el proyecto de verdad
+—guardar, leer con su `content-type`, copiar, sumar 44 bytes bajo un prefijo, devolver `null` para lo
+que no existe y borrar hasta dejarlo en cero—. Detalle completo en `docs/fase-2/VERCEL-ENTORNO.md §8`.
+
+Y el conductor comprueba que `STORAGE_ACCESS_KEY` sea la referencia del endpoint: la llave de un
+proyecto contra el bucket de otro es el fallo clásico de despliegue, y sin eso se manifiesta como un
+400 del almacenamiento cuatro pantallas más adelante.
+
+---
+
+## BLOQUE 1 · ENCHUFAR EL SISTEMA QUE YA EXISTÍA
+
+### Lo que estaba pasando, medido en el CSS servido
+
+`verify:primitivas` OBLIGA a las 36 primitivas a escribir `shadow-1..4` y `h-(--altura-control)` en
+unos 190 sitios. En el paquete que el navegador recibía:
+
+```
+.shadow-1 …… no existía como regla
+--altura-control …… no estaba declarada en ninguna parte
+--sombra-*, --espacio-* …… cero apariciones
+```
+
+Es decir: **el sistema pintaba con tokens que no existían**, y `width:var(--altura-control)` era una
+declaración inválida que el navegador tiraba. Por eso todo se veía plano y sin jerarquía.
+
+Hoy, en el mismo archivo:
+
+```
+.shadow-1{--tw-shadow:var(--sombra-1);box-shadow:…}
+--altura-control:2.5rem
+--sombra-2:0 1px 3px 0 hsl(var(--sombra-tinte) / .1), …
+--fondo:220 20% 98%
+```
+
+Y medido en el navegador, sobre el tablero de la tiendita: `shadow-1` computa
+`rgba(15, 23, 41, 0.06) 0px 1px 2px 0px` —con el tinte de su azul de tinta, no un gris— y
+`h-(--altura-control)` computa una altura de verdad.
+
+### UN SOLO VOCABULARIO
+
+Había dos: el inglés de shadcn —vivo, el que pintaba todo— y el español de `packages/ui` —con
+contrato, perillas y auditoría de contraste, y muerto—. Dos vocabularios garantizan que uno se queda
+atrás, y uno ya se había quedado.
+
+La unificación va **en un solo sentido**: `packages/ui/src/estilos/morphiq.css` es la fuente, y los
+nombres en inglés son alias suyos. Al revés no serviría: el inglés no tiene perillas, ni contrato, ni
+auditoría. Los 244 archivos del heredado siguen escribiendo `bg-card` y `text-muted-foreground` sin
+cambiar una clase, y **el modo oscuro desapareció de su hoja**: antes había que acordarse de tocar
+dos bloques por cada color.
+
+### EL ESTILO `morphiq`, que es el suyo
+
+Su azul `217 91%`, su fondo `220 20% 98%`, su tinta `222 47% 11%`, su barra casi negra, sus cinco
+colores de gráfica. **Seis valores no se pudieron conservar tal cual, y los seis por la misma razón:
+no llegaban a AA.**
+
+| Token | Suyo | Contraste | Ahora | Contraste |
+| --- | --- | --- | --- | --- |
+| `--primary` (el botón de COBRAR) | `217 91% 55%` | 3.42:1 | `217 91% 45%` | **4.99:1** |
+| `--input` (el borde de un campo) | `215 20% 88%` | 1.33:1 | `215 16% 48%` | **3.21:1** |
+| `--success` | `152 60% 40%` | 3.58:1 | `152 60% 33%` | 4.5+ |
+| `--destructive` | `0 72% 51%` | 4.08:1 | `0 72% 42%` | 4.5+ |
+| `--info` | `199 89% 48%` | bajo | `199 89% 32%` | 4.5+ |
+| `--sidebar-primary` (el activo del menú) | `217 91% 60%` | 3.6:1 | `217 91% 45%` | **4.99:1** |
+
+Todos conservan **su tono y su saturación**, que es la marca; lo único que baja es la claridad. Y la
+auditoría no es una opinión: `packages/ui/src/tokens/sistema.test.ts` calcula cada par en los tres
+estilos y los dos modos, **139 pruebas**.
+
+Cuatro tokens nuevos, y los cuatro porque su paleta ya distinguía lo que el contrato no:
+`acento-suave` y `acento-suave-texto` —la superficie teñida del hover, que no es lo mismo que un
+acento saturado—, `lateral-activo-texto` y `lateral-hover` —la barra es oscura en los dos modos, así
+que su hover no puede salir del acento de la página—.
+
+### Y LAS PERILLAS, ENCHUFADAS
+
+`useApariencia` estaba escrito desde la Fase 1 y **no lo llamaba nadie**. Ahora el servidor pone los
+cinco atributos en el `<html>` —sin ellos no hay `--fondo`, y sin `--fondo` no hay `--background`,
+así que la primera pintura saldría en blanco y negro— y `ProveedorDeApariencia` los vuelve estado
+para poder cambiarlos **sin recargar**. Es la mitad de la etapa 5, ya hecha.
+
+## ETAPA 2.35 · BLOQUE 6 · LAS PUERTAS
+
+Una puerta sirve si se ha visto ROJA. Las cinco se mutaron contra el código real y se miraron
+fallar antes de darlas por buenas; las mutaciones están en el mensaje de cada commit.
+
+### 6.1 · EL RITMO, no sólo el color
+
+`verify:primitivas` ya prohibía literales de color, altura, sombra y variante. Le faltaban cuatro
+que puentean una perilla exactamente igual de bien:
+
+- **espacio** — con `gap-4` fijo, cambiar la densidad a `compacta` no junta **nada**. La perilla
+  queda de adorno.
+- **tipografía** — `text-[13px]` se sale de la escala y no responde a nada.
+- **duración** — las duraciones son tres y salen de la perilla de movimiento. Con una literal, el
+  estilo TERMINAL, que las pone a cero a propósito, **sigue animando**.
+- **curva** — la misma historia con `ease-[cubic-bezier(…)]`.
+
+**El trinquete, y por qué no es una exención disfrazada.** Las 69 pantallas se escribieron con
+literales, que es lo que hace cualquiera cuando los tokens no emiten CSS — y hasta el bloque 1 no
+emitían. Exigir cero hoy dejaría la puerta roja hasta que el bloque 4 convierta las 69, y una
+puerta que lleva semanas en rojo deja de leerse: se salta. Así que la regla se aplica **entera**
+dentro de `packages/ui/src` —la biblioteca tiene que ser ejemplar, y hoy tiene cero— y fuera se
+cuenta contra un techo de **919 literales en 68 archivos** que sólo puede bajar. Un literal nuevo
+pone la puerta roja hoy.
+
+Y cuenta **literales, no archivos**. Con la cuenta por archivo, como estaba al principio, añadir
+un segundo `gap-12` a una pantalla que ya tenía uno no subía el número y el trinquete no trincaba
+nada.
+
+**El quita-comentarios, que ya se equivocó una vez en esta fase.** Un comentario que menciona
+`cn('p-2', 'p-4')` para explicar por qué existe `twMerge` es documentación, no un literal; sin
+quitarlos, la regla acusaba a `utilidades/cn.ts` por su propia explicación. Pero la versión
+ingenua —cortar la línea en el primer `//`— se comió el `https://` de una constante y **escondió
+una mutación que debía fallar**. Ahora se quitan líneas completas que empiezan por `//` o por `*`,
+y bloques `/* */`. Un `//` a mitad de línea puede ser una URL, y se respeta.
+
+### 6.3 · EL MOVIMIENTO REDUCIDO, y el hueco entre dos verdes
+
+De las cuatro cosas que cada estilo tiene que cumplir, `prefers-reduced-motion` era la única sin
+puerta de verdad. Tenía el CSS correcto y una prueba que comprobaba que el bloque existe. Y con
+las dos en verde el movimiento puede seguir encendido, porque lo que decide no es que el bloque
+esté: es la **especificidad**.
+
+```css
+@media (prefers-reduced-motion: reduce) { :root { --duracion-normal: 0ms } }
+[data-estilo='terminal'] { --duracion-normal: 200ms }
+```
+
+Las dos reglas apuntan al mismo `<html>` y las dos valen 0,1,0 —una consulta de medios **no** suma
+especificidad—, así que gana la que va después. Hoy gana la buena por el **orden** de
+`estilos/index.css`, no por ser más fuerte. Y «TERMINAL no tiene movimiento» es lo más natural que
+alguien puede escribir en `terminal.css` el mes que viene.
+
+Se midió: con esa línea añadida, la puerta nueva se pone roja —`--duracion-normal = .2s`— y las
+**370 pruebas de `sistema.test.ts` siguen verdes**. Ése es el hueco, medido en vez de supuesto.
+
+La prueba sube además la perilla a `expresiva` a propósito: si la preferencia del sistema sólo
+ganara con la perilla baja, no estaría ganando.
+
+### 6.4 · LOS OCHO ESTILOS EN UN NAVEGADOR, y los dos botones muertos
+
+«Un estilo que esconde un botón detrás de otro es un botón muerto.» La puerta encontró dos, y
+ninguno lo había traído esta etapa.
+
+**Uno · la rejilla de avisos se tragaba los clics de una esquina de todas las pantallas.**
+`heredado/components/ui/toast.jsx` pinta un `div` `fixed` de 420 px anclado abajo a la derecha,
+con `pointer-events: auto` y **vacío** la mayor parte del tiempo. Y son dos, porque
+`ToastProvider` pinta otro idéntico por fuera. Se le preguntó a `elementFromPoint` qué había
+encima del destino «Caja» del abanico inferior y lo que recibía el toque era la rejilla, no el
+botón. `pointer-events-none` en la rejilla es lo que trae shadcn de origen —esta copia lo perdió—
+y los avisos siguen siendo interactivos porque cada uno ya lleva `pointer-events-auto`.
+
+Toca un archivo del heredado, así que va con su excepción declarada en `aspecto-permitido.json` y
+su motivo escrito: **no cambia un píxel de lo que Miguel ve, cambia dónde llega el dedo.**
+
+**Dos · la isla flotante caía encima del abanico.** Los dos en `bottom-0`, los dos en `z-40`, y
+los dos son patrones **de teléfono** — así que la pantalla que los pide a la vez es justo la que
+importa: el carrito de un pedido en la mesa con su navegación debajo. El «Cobrar» de una quedaba a
+34 px del «Cobrar» de la otra. El abanico ahora **mide** su altura y la publica en
+`--alto-abanico`; la isla se la suma. Medida y no calculada: depende de la densidad, del área
+segura y de si algún destino lleva insignia, y un número a mano acertaría en una densidad de
+cuatro. Un `ResizeObserver` la mantiene al día cuando la perilla cambia **en vivo**.
+
+### El área táctil: una promesa de tres años, y el remedio que era peor
+
+`--area-tactil-minima` estaba declarado en las cuatro densidades y lo usaba **un** componente de
+los treinta y seis. La nota de `base.css` prometía «área de toque extendida», y ese remedio es
+peor que no tenerlo en el caso que importa: un `::after` invisible más grande que el control se
+monta sobre la fila de arriba en una lista con `gap-px` y **se come sus clics**. El botón muerto
+causado por la cura.
+
+Así que la regla es **tamaño o distancia**: un control pasa si su lado corto llega al mínimo de su
+densidad, o si está lo bastante separado como para que un objetivo de ese tamaño centrado en él no
+toque el de ningún otro. Es WCAG 2.5.8 con el número del sistema en vez de su mínimo de 24 px, y
+se mide **contra el token**: si mañana alguien lo baja, lo baja a la vista de todos en `base.css`
+y no escondido en una constante de una prueba.
+
+Dos números cambiaron, los dos con razón:
+
+| Densidad | Control | Mínimo táctil | Por qué |
+| --- | --- | --- | --- |
+| `guantes` | 56 px | 56 px | A lo que se acierta con un guante puesto y con prisa |
+| `comoda` | 48 px | 48 px | La tableta |
+| `normal` | **44 px** (era 40) | 44 px | Es la densidad que recibe una tableta recién configurada, antes de que nadie toque una perilla. Sube el **control** y no sólo el área: un botón que se ve de 40 y se toca en 44 sigue pareciendo pequeño, y el aspecto también informa |
+| `compacta` | 32 px | **24 px** (era 44) | `base.css` ya decía «(operación) en escritorio → compacta»: es la densidad de **ratón y teclado**, y su mínimo es el de WCAG 2.5.8 AA. Exigirle 44 de separación a una densidad cuyo propósito es caber más la dejaría roja para siempre y acabaría en una exención |
+
+Y dos piezas de la tabla se hicieron tocables de verdad: la casilla de selección medía 16×16 y
+ahora marca **la celda entera** —un `<label>` que la llena, no un recuadro invisible que
+sobresale—, y la cabecera ordenable pasa su relleno al botón, de 16 px de alto al mínimo de su
+densidad.
+
+### Lo que esta puerta NO cubre, dicho en vez de supuesto
+
+- **Las composiciones propias de cada pantalla.** 69 × 8 son 552 recorridos, que en CI son horas.
+  `/sistema` tiene una de cada pieza, así que un estilo que rompa una la rompe ahí; una pantalla
+  que ordene mal las suyas, no.
+- **Que cada pantalla reserve hueco al final para su barra fija.** Eso es de cada pantalla.
+
+### Las dos falsas acusaciones que se corrigieron antes de creerlas
+
+La misma disciplina de la 2.3, y por la misma razón: allí costó 66 falsos positivos.
+
+- **`sticky` no es `fixed`.** Metiéndolos en la misma capa, la cabecera pegajosa de la tabla salía
+  «tapada por el abanico» en cuatro estilos, porque en algún punto del scroll pasa por debajo de
+  él. Una pegajosa viaja con su contenido; una fija vive en la ventana. Cuatro acusaciones falsas.
+- **Comparar el flujo contra una barra fija mide el scroll, no un defecto.** Un botón salía
+  «apretado» en `papel` y suelto en `morphiq` sólo por el interlineado, que mueve el contenido a
+  otro sitio. Se compara anclado con anclado y flujo con flujo; dos barras fijas sí entre ellas,
+  porque las dos están siempre donde están.
+
+### En CI
+
+`verify:estilos` va en `pnpm verify` detrás de `verify:primitivas` y es un paso propio del
+workflow. La barrida de los ocho estilos va **antes** del rastreo y en **un solo** modelo: dura
+diez segundos contra catorce minutos, así que un estilo roto se sabe ya en vez de al final; y
+`/sistema` es la misma página en los cinco giros, luego cinco copias serían cuatro veces el mismo
+veredicto.
+
+## ETAPA 2.35 · BLOQUE 4 · APLICARLO A LAS 69 PANTALLAS
+
+### La tercera vez la misma enfermedad, y la última que quedaba
+
+`base.css` declara `--tamano-xs … --tamano-3xl` desde la Fase 1. El contrato los exige.
+`sistema.test.ts` comprueba que están. Y **nadie los mapeaba a Tailwind**: lo que se pintaba
+era la escala por omisión de Tailwind y los siete tokens eran siete declaraciones inertes.
+
+Es el mismo fallo que la hoja de estilos que nadie importaba (bloque 1) y que
+`--area-tactil-minima`, declarado en cuatro densidades y usado por **un** componente de treinta
+y seis (bloque 6.4). Tres veces: un sistema escrito, probado y sin aplicar.
+
+Medido tras enchufarla: `text-xl` 22 px donde antes 20, `text-2xl` 28 donde 24, `text-3xl` 36
+donde 30. La escala del contrato tiene más **contraste** que la de Tailwind, y ese contraste es
+la mitad de la jerarquía: lo que hace que un título mande sin tener que ponerlo en negrita.
+
+### El octavo paso · `display`
+
+Las pantallas escribían `text-5xl xl:text-6xl`, `text-6xl md:text-7xl xl:text-8xl`, `text-4xl`…
+a mano, fuera de la escala y distinto en cada modelo. Todos eran el mismo problema: **lo que se
+lee de lejos**. El total que el cajero dice en voz alta con alguien enfrente; el número de una
+comanda que se lee a dos metros con las manos ocupadas; el dígito de un teclado de PIN.
+
+```css
+--tamano-display: clamp(2.5rem, 1.25rem + 4vw, 5rem);
+```
+
+40 px en el teléfono de un técnico, 71 en el monitor de una tiendita, 80 en la pantalla de una
+barra — sin tres saltos de punto de ruptura escritos a mano en cada pantalla. Es el **único**
+paso fluido: todo lo demás se lee de cerca, y ahí un tamaño que baila al redimensionar molesta.
+
+### Las cinco pantallas de cobro
+
+Las que Miguel señaló. `Dinero` en cada importe —cifras tabulares, el símbolo y los centavos un
+escalón por debajo del cuerpo del número, los negativos en rojo **y** entre paréntesis—;
+`Superficie` en las tarjetas, con el total subido a nivel 2 y el desglose en 1; `Vacio` en los
+estados vacíos.
+
+Dos decisiones que se repiten en las cinco:
+
+- **El rótulo va debajo del número.** Lo que el ojo busca al girar la pantalla es la cifra; la
+  palabra «total» sólo confirma qué es.
+- **El cambio manda en la confirmación**, no el total. El total ya se dijo en voz alta; lo que
+  queda por hacer es contar el vuelto.
+
+Y una que **no** se tocó: `ferreteria/Mostrador` dice en su propio comentario «grande para
+leerse de reojo, y NO lo más grande de la pantalla». En una ferretería lo que se compara es el
+precio por unidad, no el total. Se respeta.
+
+### Cero emoji · 36 sitios en 16 archivos
+
+Un emoji no es un icono: lo dibuja el sistema operativo, así que el mismo carácter es una cosa
+en el Windows de la tiendita, otra en el Android del técnico y otra en el iPad del mesero; no
+hereda `currentColor`, así que no se puede poner en el color de peligro; y no escala con la
+tipografía. `⚠️` marcaba las alergias en siete pantallas de cinco modelos.
+
+Lo que **no** se persigue, y está en la regla: los glifos tipográficos monocromos —✓ ✗ ✕ ⚠ ▸ ▾
+▊— se quedan. No son emoji: heredan el color, escalan, y varios están puestos a propósito para
+que el color no sea el único portador de significado. La regla busca los pictogramas
+`1F000-1FAFF` y el **selector de variación U+FE0F**, que es el carácter invisible que convierte
+`⚠` en `⚠️`.
+
+### Una gráfica por tablero, y la que su giro pide
+
+Ninguna por decoración. Una gráfica ocupa el sitio de tres renglones de cifras, y en un tablero
+que se lee en cuatro segundos eso sólo se paga cuando la **longitud** contesta algo que una
+columna de números no contesta. El criterio sale del que ya estaba escrito: la tiendita prohíbe
+la dona de métodos de pago —«en 390 px una lista ordenada contesta mejor y ocupa menos»—.
+
+| Tablero | Gráfica | Qué contesta que un número no |
+| --- | --- | --- |
+| cafetería | La ráfaga **hora por hora** | El pico dice cuánto; esto dice cuándo y **cuánto dura**. 45 bebidas en una hora suelta es un día raro; 40, 45 y 38 seguidas son tres horas en las que hace falta un tercero |
+| ferretería | La cartera por obra | La lista dice quién y cuánto; la barra dice la **proporción** — si son cuatro obras parecidas o una que se comió la mitad |
+| tienda | Lo que se vence esta semana, a costo | Si el remate del sábado empieza por uno solo o hay que bajarle el precio a los cinco |
+| estética | A dónde se fue lo cobrado del mes | Cuatro renglones dicen cuánto se fue; ninguno dice si la comisión se llevó un tercio o dos |
+| restaurante | — | El heredado ya trae su dona, es código de Miguel y lo cubre `verify:aspecto`. Añadirle una sería cambiarle su tablero para cumplir una cuota |
+
+La de la cafetería salió de una consulta que **ya la calculaba**: `group by 1 order by bebidas
+desc limit 1` agrupaba las horas del día y tiraba todas menos una. La forma del día se estaba
+calculando y descartando en la misma línea.
+
+Y la de estética **no** va en la ocupación de mañana, que es su estrella: ésa ya se dibuja —cada
+profesional lleva su barra de relleno—. Poner otra encima sería adorno.
+
+### Diecisiete estados vacíos
+
+El texto ya estaba bien y no se tocó: estas pantallas ya enseñaban en vez de disculparse. Lo que
+faltaba era la **forma** — cada vacío con su propio relleno, su propio centrado, y ninguno con
+icono. Un bloque de texto centrado sin icono se lee como un error; con icono se lee como una
+invitación, y ésa es toda la diferencia entre «algo falla» y «esto todavía no empieza».
+
+Cuatro que **no** se convirtieron, cada una con su razón: `cafeteria/Recogida` es un tablero de
+pared y meterlo en el componente lo encogería; dos vacíos **en línea** viven dentro de un
+formulario, junto al campo que los resuelve; y el del tablero de restaurante es del heredado.
+
+### Cada demostración con su piel
+
+Las cinco se sembraban iguales, así que un cliente al que se le enseñan los cinco negocios veía
+cinco veces el mismo programa con otras palabras. Ahora: ferretería → TALLER, estética →
+CRISTAL, tienda → BLOQUE, restaurante → NOCHE, cafetería → MORPHIQ. RELIEVE, TERMINAL y PAPEL
+quedan sin repartir a propósito: los ve quien abra el selector.
+
+Se aplica con el **mismo comando** que usa Miguel delante del cliente, y va **después** de
+sembrar porque `resetear_demo` reescribe la configuración del negocio.
+
+### Y ahí apareció que el selector NUNCA pudo guardar
+
+`configuracion.fijar_apariencia` declara `escribe: true` y no llamaba a `ctx.auditar`.
+`definirComando` lo exige —«declarar sensible algo que no deja rastro convierte la auditoría en
+un adorno»— y lanza `SinRastro` **después** de escribir: la transacción se deshace y quien lo usa
+ve un error interno. Cada vez que alguien tocaba «Guardar para el negocio», la pantalla decía
+«No se pudo guardar la apariencia».
+
+No lo vio ninguna puerta. El comando compila, los tipos son correctos, la ruta responde y el
+fallo ocurre dentro de la transacción. Apareció al llamarlo desde la siembra — la primera vez que
+algo distinto de una pantalla lo ejecutó.
+
+El hueco es general: `definirComando` comprueba la auditoría en el **envoltorio**, y las 248
+pruebas de comandos llaman a `.ejecutar()` directamente. Cualquiera de los 189 comandos que
+escriben podía estar roto así con sus pruebas en verde. `verify:rastro` los mira ahora a los 189.
+
+Y su primera versión **acusó en falso a dos de tres**: conocía una sola forma de delegar y hay
+dos. La misma proporción que el rastreador de la 2.3 la primera vez que corrió, y por la misma
+razón — creer la primera señal.
+
+### El ritmo de las 69, de una vez · 919 → 0
+
+`tokenizar-pantallas.mjs`: 831 literales en 64 pantallas. Un codemod, no un retoque archivo por
+archivo, y se queda en el repositorio como evidencia de que la adopción fue sistemática.
+
+En densidad `normal` la conversión **no mueve un píxel** —`--espacio-4` vale exactamente lo que
+valía `p-4`—. Lo que gana es que las cuatro perillas dejan de ser de la biblioteca y pasan a ser
+de la aplicación. Medido en la galería, misma pantalla y mismo ancho: la lista de existencias
+entra **nueve** renglones en BLOQUE —densidad `guantes`— y **once** en TERMINAL —`compacta`—.
+Antes entraban los mismos en las ocho.
+
+Los negativos también, y ahí está la sutileza: un `-mx-4` existe para **cancelar** el `p-4` de su
+padre. Si el relleno escala con la densidad y el margen negativo no, en `guantes` el padre abre
+1.4 veces más y el pie deja de llegar al borde. Los dos o ninguno.
+
+## ETAPA 2.35 · BLOQUE 6.5 · LA GALERÍA, Y EL BOTÓN QUE MATABA MEDIA APLICACIÓN
+
+160 retratos: cinco modelos × cuatro pantallas × ocho estilos. Y cuatro de las cinco pantallas de
+cobro salieron con la pantalla de error del navegador.
+
+```jsx
+const Comp = asChild ? Slot.Root : "button"
+…
+{cargando && !asChild ? <Rueda /> : null}
+{children}
+```
+
+`Slot` exige **un solo** hijo elemento. Con `asChild`, esas dos líneas le pasan dos —el `null` y
+el elemento— y revienta. No es un aviso de consola: la página entera muere, en el servidor con un
+500 y en el navegador al hidratar. Y `asChild` está en cada estado vacío, en cada atajo de cada
+tablero y en cada «Ir a caja»: lo que se rompía era media aplicación, desde que el bloque 2 le
+puso al botón su estado de cargando.
+
+**El rastreador SÍ lo cazó en CI**, y con el mensaje exacto para el que se escribió: «El navegador
+escribió errores mientras se tocaba la aplicación. Un error de consola no devuelve 500 ni
+`{ok:false}`». Lo que falló fue mío: no lo miré. Lo encontré por otro camino, retratando la
+galería, y el commit de ese arreglo decía que el rastreador «no corrió» — es falso, corrió y
+falló dos veces.
+
+La lección que sí es del sistema: la puerta de los ocho estilos —que corre en cada empuje y mira
+`/sistema` en segundos— **tampoco** lo vio, porque `/sistema` documentaba los seis variantes, los
+cuatro tamaños, el deshabilitado y el cargando, y **no** el modo `asChild`. Lo que no está en la
+página del lenguaje no lo mira la puerta del lenguaje. Ahora está.
+
+### Y la galería aprendió de sí misma
+
+Su primera versión dio **verde** sobre ocho capturas de «This page couldn't load»: la espera de
+contenido la pasaba porque esa página también tiene texto. Una galería que no puede fallar no es
+una galería: es una carpeta con imágenes, y el retrato de un fallo puesto en un informe es peor
+que no tener informe, porque se firma como si fuera el producto.
+
+## ETAPA 2.35 · LOS TRES HALLAZGOS DEL RASTREADOR
+
+Ninguno devuelve 500 ni `{ok:false}`: los tres viven en la consola del navegador.
+
+1. **`upgrade-insecure-requests` rompe un despliegue sin TLS.** La CSP la ponía siempre. Contra
+   un servidor que no habla TLS, el navegador pide https a un puerto de texto plano y la petición
+   no llega. Y **A-27 dice que el backend tiene que poder correr en la PC de un cliente sin
+   internet**: una caja en la trastienda, servida por http en la LAN, es ese escenario. Ahora la
+   decide `APP_URL` —la misma variable de la que sale el Origen esperado de una escritura— y
+   nunca la petición.
+2. **El portal del comensal latía contra una ruta que no existe.** Tiene un estado vacío bien
+   escrito para quien llega sin escanear, y un efecto corre **antes** de que el componente decida
+   qué pinta: con el token vacío pedía `/api/publico/qr/` cada cuatro segundos, para siempre, con
+   404 cada vez. La pantalla se ve perfecta; el 404 sólo existe en la consola.
+3. **La ventana de sonda del propio rastreador se cerraba pronto.** El 400 de un formulario de
+   sonda es la validación funcionando, y en un contenedor de CI llega más tarde que en una
+   laptop: aterrizaba con la ventana cerrada y la corrida acusaba a la aplicación de romperse
+   justo cuando mejor se comporta.
+
+## ETAPA 2.35 · LA PUERTA QUE DABA VERDE SOBRE UN ARCHIVO QUE NO HABÍA LEÍDO
+
+`pnpm verify` completo, por primera vez en la etapa, trajo una acusación nueva:
+
+```
+VOCABULARIO: 1 pantalla(s) usan la palabra de OTRO giro …
+  ferreteria/FichaDePieza.tsx:536  «venta»  Unidad de venta  · tienda llama así a «orden»; aquí es «nota»
+```
+
+El cierre de la 2.3 —reporte 017— decía «**0** rótulos con la palabra de otro giro». Y el rótulo no
+es nuevo: lleva ahí desde `bdb3c69`, sin una coma de diferencia. Así que una de las dos afirmaciones
+era falsa, y había que averiguar cuál **antes** de tocar el rótulo.
+
+### La medición, por mutación
+
+| Archivo | Puerta | Resultado |
+| --- | --- | --- |
+| el de ANTES de la etapa | la de antes | `0 rótulos con la palabra de otro giro` |
+| el de HOY | la de antes | 1 · `FichaDePieza.tsx:535` |
+| el de ANTES de la etapa | **la arreglada** | 1 · `FichaDePieza.tsx:502` |
+
+La tercera fila es la que importa: **con el archivo intacto, la puerta arreglada SÍ lo ve**. No lo
+introdujo esta etapa. La puerta llevaba meses sin leer ese trozo.
+
+### `accept="image/*"` abría un comentario
+
+`textosVisibles` quita la prosa antes de buscar rótulos, y para los bloques usaba
+`/\/\*[\s\S]*?\*\//g`. El `/` + `*` del tipo MIME de ese `accept` entra como apertura, el buscador
+corre hasta el `*` + `/` siguiente —que estaba **170 líneas más abajo**— y la función devolvía en
+blanco todo lo que había en medio: el cuerpo entero de la ficha de la pieza, con su `aria-label`
+dentro.
+
+Es el fallo más caro de esta familia. No es que la puerta se callara: **dio verde, y el verde
+afirmaba una propiedad de un texto que nunca miró**. Cualquier pantalla con cámara tenía el mismo
+agujero. Ahora se neutralizan los dos delimitadores dentro de una cadena entrecomillada, cambiando
+el `*` por un espacio para no mover ni un carácter —los números de línea del mensaje son lo que
+permite ir a arreglar la cosa—.
+
+### Y el número de línea iba corrido
+
+`^\s*//` : `\s` incluye el salto de línea. El ancla prendía en una línea **en blanco**, la sangría
+se comía el salto, y la marca de comentario casaba en la línea de abajo: las dos se borraban juntas
+y la cuenta perdía una línea. El mensaje mandaba a alguien a la 535 por algo que vive en la 536.
+`[^\S\n]` es espacio y tabulador, y nada más.
+
+### Lo que quedó debajo: «unidad de venta» es de la ferretería
+
+Con la puerta viendo de verdad, el rótulo se juzga por lo que dice la ficha del propio giro:
+`modelos/02-retail/ferreteria/00-FICHA-Y-EJES.md` lleva **«Unidad de venta»** como eje —«Pieza,
+metro, kilo y pieza-por-kilo, con corte físico del material»—. Es el mismo compuesto que
+`punto de venta` y `precio de venta`, ya declarados: el sustantivo es «unidad», y el toggle que lo
+rotula elige entre metro, pieza y caja, no entre documentos. Declarado con su cita, no renombrado:
+renombrarlo habría alejado la pantalla de lo que su propia ficha dice.
+
+---
+
+## ETAPA 2.35 · LA CAFETERÍA, TERCERA VEZ — Y LA PUERTA QUE ACUSABA SIN DECIR QUÉ
+
+La corrida de CI de `38b1e4e` dejó la cafetería en rojo por tercera vez, con la misma firma:
+
+```
+/cafeteria/inventario · Failed to load resource: the server responded with a status of 400
+```
+
+**Y hay que decirlo: el arreglo 3 de `bdcec0c` —la ventana de sonda que se cerraba pronto— se
+escribió como si fuera LA causa de las dos veces anteriores, y con el 400 de vuelta esa atribución
+no se sostiene.** La ventana era corta y alargarla es correcto; que fuera la causa es otra cosa, y
+no estaba medido. Queda dicho aquí en vez de dejarlo pasar.
+
+### Por qué tres veces y sin saber de dónde salía
+
+Porque la acusación **no se puede accionar**. El navegador escribe «Failed to load resource… 400»
+sin decir qué pidió, y esa pantalla habla con una decena de rutas. Las tres veces hubo que salir a
+buscarlo a mano.
+
+Y el rastreador **ya sabía la respuesta**, en la otra puerta: el vigilante de red ve el 400 en la
+RESPUESTA y tiene la ruta, el estado y —por `loQuePedia`— la entidad y la operación. Las dos
+puertas veían el mismo fallo, y la que hablaba primero era **la que menos sabía**, porque el orden
+de los `expect` estaba al revés.
+
+Dos cambios, los dos en el rastreador:
+
+1. **El vigilante de red va primero.** El primer fallo que se lee es el que trae la ruta. La puerta
+   de la consola no se relaja: sigue detrás, y es la única que ve un `TypeError` del cliente, que no
+   deja rastro en ninguna respuesta.
+2. **La línea de consola dice el recurso.** `location().url` de un mensaje de recurso ES la URL que
+   falló; se recorta el origen y se calla cuando no aporta.
+
+El 400 de la cafetería **sigue sin diagnosticar**. Lo que cambia es que la próxima corrida dirá qué
+ruta fue, en vez de en qué pantalla estaba el cursor.
+
+## ETAPA 2.35 · EL 400 DE LA CAFETERÍA · UN BAGEL ENTRE LAS LECHES
+
+La primera corrida con el vigilante de red delante dijo en una línea lo que tres corridas no habían
+dicho:
+
+```
+Error: La aplicación devolvió 1 respuesta(s) rotas mientras se abrían sus pantallas:
+       400 /api/cafeteria/contar-leche.
+```
+
+Reproducido en local, idéntico. Y lo que bloqueaba reproducirlo no era el defecto: era que las
+suites locales corren en el **3200** y el `.env` de desarrollo pone `APP_URL` en el **3000**, así que
+la frontera de escritura (R-17) contestaba **403 a todo, empezando por entrar**. El contador de
+intentos fallidos del PIN no se movía —el PIN nunca llegaba a comprobarse— y el fallo salía como
+`waitForURL: Timeout`. Tres intentos perdidos ahí. Ahora `entrar()` escucha la respuesta de
+`/api/auth/entrar` y **dice su estado**, con el 403 explicado.
+
+### La causa: `familiaDe` metía un bagel en la familia «Leche»
+
+La pantalla agrupa por familia con pistas en el nombre, y la familia «Leche» lleva la pista `crema`.
+En la demostración de la cafetería eso mete **«Bagel integral con queso crema»** —`unidad_base` =
+`pieza`— entre las leches, y el diálogo de conteo ofrece contarlo **por cartones**. El comando hace
+lo correcto y lo rechaza:
+
+```
+CONFIGURACION_INVALIDA · «Bagel integral con queso crema» no se mide en mililitros:
+                         no se cuenta por cartones.
+```
+
+que sale como 400.
+
+**No es un artefacto del rastreador.** No hay que teclear nada: le pasa a un barista **cada vez que
+abre el conteo de leche** y pulsa confirmar, con los campos vacíos. Y le pasará a cualquier negocio
+que tenga un «pan con crema» o un «pastel de crema» en el catálogo.
+
+Medido sobre los datos reales de la demostración:
+
+| | Familia «Leche» |
+| --- | --- |
+| Antes | Bagel integral con queso crema (`pieza`) · Crema para batir · Leche deslactosada · Leche entera |
+| Ahora | Crema para batir · Leche deslactosada · Leche entera — y el bagel cae en **Alimentos** |
+
+No se quita la pista: **«Crema para batir» sí es leche y sí se cuenta por cartones**. Lo que se hace
+es exigirle a la familia la unidad que la hace significar algo —mililitros—, que es **la misma regla
+que el comando aplica**. Lo que no encaja sigue buscando familia abajo, y `bagel` entra en las pistas
+de Alimentos para que caiga donde se camina el pan y no en «Ingredientes».
+
+### Y el otro agujero del mismo diálogo, que no era la causa pero estaba
+
+El campo de «cartones cerrados» es texto libre —`inputMode="numeric"` es una pista para el teclado
+del teléfono, no una validación— y la pantalla mandaba `Number(texto)` tal cual. Una letra es `NaN`,
+`12.5` no es entero y `999` se pasa del tope de 200: las tres las rechaza el comando con 400, y lo
+único que el barista veía era la banda genérica **sin saber qué campo**. Ahora se valida donde se
+teclea —el campo se marca mientras se escribe— y el aviso dice el nombre de la leche y el rango.
+
+**Y esto hay que decirlo con cuidado, porque es la segunda vez esta noche:** el arreglo del campo es
+correcto y **no es la causa del 400**. La causa es el bagel. Se escriben los dos, con cuál era cuál.
+
+### La lección, que es de puertas y no de leche
+
+Tres corridas para encontrar una ruta que **el propio rastreador ya sabía**. El vigilante de red
+tenía la ruta, el estado y la entidad; la puerta de la consola tenía «en qué pantalla estaba el
+cursor», y hablaba primero porque su `expect` estaba antes. **Cuando dos puertas ven el mismo fallo,
+que hable primero la que más sabe.**
+
+### ¿Tiene hermanos? Buscado, y no
+
+El patrón es «la pantalla clasifica por el NOMBRE y el comando exige una UNIDAD». Se buscó en el
+resto de `apps/web/src`:
+
+- El clasificador por pistas existe **sólo** en la alacena de la cafetería. No hay otro.
+- El otro comando que compara unidades es `inventario.guardar_receta`
+  (`UNIDAD_INCOMPATIBLE`), y la pantalla de recetas toma la unidad **del propio insumo**
+  (`unidad: insumo.unidad_base`), así que no puede mandar una que no encaje.
+
+Se dice porque «arreglé el caso que salió» y «busqué si hay más» no son la misma frase.
+
+### Y el 403 del 3200 YA ESTABA ESCRITO AQUÍ
+
+Buscando si el hallazgo tenía hermanos salió algo peor: este mismo fallo está documentado en esta
+misma bitácora, en la 2.3, con el mismo síntoma palabra por palabra —
+
+> **1 · `APP_URL` contra el origen del navegador.** […] el servidor de las pruebas vive en el 3200
+> mientras el `.env` dice 3000. Resultado: `/api/auth/entrar` devolvía **403 SIN_PERMISO**, la
+> pantalla se quedaba en el teclado numérico y el rastro decía «timeout esperando la navegación».
+
+Estaba escrito, con su causa y su síntoma, y **volví a perder tres corridas en él**. La conclusión no
+es «hay que leer la bitácora»: es que **un aviso en un documento no es un arreglo**. Lo que lo arregla
+es que el fallo lo diga en el momento en que falla, y eso es lo que ahora hace `entrar()` — escucha la
+respuesta de `/api/auth/entrar`, dice su estado y, si es 403, nombra la variable y el puerto.
+
+Una trampa documentada que vuelve a morder es una trampa que había que cerrar, no anotar.
+
+### Y un aviso sobre el dominio propio
+
+`pos-mh-astral-systems.com` —el dominio que `VERCEL-ENTORNO §7` nombra como el propio— **no sirve
+este despliegue**. Hoy contesta `402 Payment Required` y devuelve una página de **Base44**: «POS MH
+is currently unavailable». Comprobado desde fuera el 2026-09-22.
+
+Importa por una razón concreta y ya documentada: si alguna vez se pone `APP_URL` ahí sin que el DNS
+apunte a Vercel, **toda escritura será un 403** —es el fallo de §7 de ese mismo documento, que ya
+pasó una vez— y el síntoma será «no se puede ni entrar». El despliegue de la fase vive en el alias de
+rama, y ahí es donde se comprueba.
+
+## ETAPA 2.35 · EL COMENTARIO FANTASMA TENÍA SEIS HERMANOS
+
+Arreglado el de `verificar-acople.mjs`, la pregunta obligada era si el patrón estaba en otro sitio.
+Lo estaba, en once, y **seis de ellos leen archivos que contienen `accept="image/*"`**:
+
+```
+scripts/verificar-primitivas.mjs:277        apps/web + packages/ui
+scripts/verificar-aspecto.mjs:166           apps/web/heredado
+scripts/verificar-acople.mjs:1074-1075      (el ya arreglado)
+scripts/verificar-acople.mjs:1491, 1553     pruebas/e2e/<modelo>.spec.ts
+scripts/verificar-acople.mjs:1999           apps/web
+```
+
+Y `accept="image/*"` no es raro: está en **siete** archivos de este repositorio —tres pantallas de
+`apps/web/src` y cuatro del frontend heredado—.
+
+### Medido, no supuesto
+
+Se corrió la función de cada puerta tal cual, y la misma con los delimitadores neutralizados, y se
+comparó cuántos caracteres ve una y no la otra:
+
+| Puerta | Archivo | Ciega sobre |
+| --- | --- | --- |
+| `verify:primitivas` | `estetica-salon/CitaEnCurso.tsx` | 512 |
+| `verify:primitivas` | `ferreteria/Entradas.tsx` | 1 433 |
+| `verify:primitivas` | `ferreteria/FichaDePieza.tsx` | 3 196 |
+| `verify:aspecto` | `heredado/…/IdentidadNegocio.jsx` | 1 679 |
+| `verify:acople` (rutas llamadas) | las tres pantallas de arriba | 5 147 |
+
+**`verify:primitivas` es la puerta que certifica «deuda de ritmo 0 de 0», «cero emoji» y la regla
+nueva del token**, y lo hacía sin leer 5 141 caracteres de tres pantallas.
+
+### Y lo que escondía era: NADA
+
+Se corrieron las trece reglas de la puerta sobre el trozo que no veía, una por una: **cero hallazgos
+nuevos**. El «0 de 0» estaba bien.
+
+Lo cual es exactamente el motivo por el que esto se arregla igual. El número era correcto **por
+casualidad**: nadie lo había comprobado, y la próxima pantalla con cámara que meta un `gap-4` detrás de
+su `accept="image/*"` va a pasar la puerta en silencio. Una puerta en la que hay que confiar por suerte
+no es una puerta; y este arreglo no tiene coste porque no hay deuda que pagar detrás.
+
+### Un solo ayudante, y lo que declara que NO cubre
+
+`scripts/lib/sin-prosa.mjs` neutraliza los dos delimitadores dentro de una cadena entrecomillada
+cambiando el `*` por un espacio —**sin mover un carácter**, para que los números de línea sigan
+sirviendo— y se aplica antes de quitar comentarios en los seis sitios.
+
+No es un parser de JavaScript y el archivo lo dice: no mira cadenas de plantilla con acentos graves
+—pueden cruzar líneas y ahí romper algo es más caro que el hueco que tapa— ni cadenas partidas con
+barra invertida. Hoy, en este repositorio, no existe ninguno de los dos casos. Un hueco declarado es
+honesto; una puerta que aparenta cubrirlo, no.
+
+### Dónde quedó puesto, y la mutación que lo prueba
+
+Nueve sitios de siete archivos pasan ahora por el ayudante: los cinco de
+`verificar-acople.mjs`, y uno en `verificar-primitivas.mjs`, `verificar-aspecto.mjs`,
+`verificar-arranque.mjs`, `verificar-entradas-de-comando.mjs`, `venta/contratos.mjs` y
+`generar-catalogo-comandos.mjs`.
+
+La mutación es la que había que hacer, porque la ceguera no produce un fallo: produce un **verde
+falso**. Así que se mete la violación DENTRO del tramo ciego y se mira quién la ve:
+
+```
+shadow-lg en ferreteria/FichaDePieza.tsx, linea ~430 (dentro del tramo ciego)
+  en el archivo                 : 1
+  lo que ve la puerta CIEGA     : 0     ← el verde falso, medido
+  lo que ve la puerta ARREGLADA : 1
+```
+
+Y con la puerta arreglada, `verify:primitivas` sale en ROJO sobre esa mutación —«Puentea la perilla
+de elevacion. Usa shadow-1 … shadow-4»— y en VERDE al restaurar. Las seis puertas tocadas pasan:
+`arranque`, `entradas`, `primitivas`, `aspecto`, `venta` y `acople`.
+
+El ayudante lleva su propia comprobación de seis casos, hecha a mano: `accept="image/*"` y `"a*/b"`
+se neutralizan, un comentario de verdad y una URL con `//` no se tocan, y **la longitud del texto se
+conserva** en los seis.
+
+### Un hallazgo de paso: el catálogo de comandos está 2 083 líneas stale
+
+Comprobando que el cambio al generador no alteraba su salida —no la altera—, salió que
+`docs/fase-1/F1-08-COMANDOS-Y-RUTAS.md` es el de la Fase 1: `pnpm docs:comandos` genera hoy 2 083
+líneas más, todas las de la Fase 2. **Ninguna puerta lo mira**, porque `docs:comandos` no está en
+`pnpm verify`. No se regeneró: son dos mil líneas de un documento de otra fase y no es de esta etapa.
+Queda dicho.
+
+## ETAPA 2.35 · `<Dinero>` PARTÍA EL IMPORTE EN TRES, Y EL TOTAL SE LEÍA MAL
+
+Las cinco suites de modelo no se habían corrido en toda la etapa —CI sólo lanza `estilos` y
+`rastreo`, y `pnpm verify` acaba en `test:integracion`, que es vitest— así que se corrieron. La
+primera cayó:
+
+```
+abarrotes · Error: El total de la pantalla no es el precio del producto.
+            Precio: 4290 centavos; total: 4200.
+```
+
+«Aceite de maíz 1 L» cuesta **$42.90** y la prueba leyó **$42.00** en la pantalla de cobro.
+
+### La causa es el componente que el bloque 4.1 puso ahí
+
+`Dinero` pinta el importe en **tres hermanos** dentro de un `inline-flex` con `gap-px`:
+
+```jsx
+<span class="inline-flex items-baseline gap-px …">
+  <span>$</span><span>42</span><span>.90</span>
+</span>
+```
+
+Visualmente es correcto y a un lector de pantalla le llega bien —el `aria-label` dice «42 pesos con
+90 centavos»—. Pero los hijos de un `inline-flex` son **elementos de bloque**, así que el texto que
+se extrae del nodo no es `$42.90`: es `$`, `42` y `.90` **separados**. Cualquier cosa que lea el
+texto en vez del `aria-label` —una prueba, un `innerText`, **copiar y pegar el total**— ve un número
+partido.
+
+Y la prueba, que toma la primera cantidad con `/\$\s*[\d,]+(?:\.\d{1,2})?/`, casaba `$ 42` y se
+quedaba sin los centavos: **4200**.
+
+### Por qué no se vio antes, y por qué eso lo empeora
+
+Porque la cafetería **pasó**: sus importes acaban en `.00`, y ahí `$ 45` y `$45.00` son el mismo
+número. El defecto sólo se ve cuando hay centavos distintos de cero, que es una de cada N veces. Lo
+metió el bloque 4.1 al cambiar `enPesos(total)` por `<Dinero centavos={total} …>` en las cinco
+pantallas de cobro, y ninguna puerta lo miró porque las cinco suites que comprueban un TOTAL COBRADO
+contra el servidor no corren ni en `pnpm verify` ni en CI.
+
+### El arreglo, y por qué se arregla el componente y no la prueba
+
+Se le quita el `inline-flex` y el `gap-px`: los tres trozos vuelven a ser contenido **en línea**, que
+se alinea a la línea base por sí solo —para eso estaba el `items-baseline`— y se lee como un solo
+número. El `$` y los centavos siguen un escalón por debajo, que es lo que el componente existe para
+hacer.
+
+Arreglar la prueba en vez del componente habría dejado el total imposible de copiar en las diez
+pantallas que lo pintan, y con 37 usos en el repositorio.
+
+### Y una segunda del mismo sitio: la señal de reposo que se quedó atrás
+
+El restaurante cayó con «la pantalla de cobro no contestó nada al confirmar», que es lo contrario de
+lo que pasaba: contestó perfectamente. El bloque 4.1 rediseñó su acuse —era una línea, «Cobrado ·
+cambio $12.00 · la mesa pasa sola a limpieza», y pasó a tener jerarquía: «Cobrado» arriba, el CAMBIO
+en grande porque es lo único que queda por hacer, y el total y la mesa debajo— y **la suite seguía
+pidiendo el literal viejo**.
+
+Se movió la señal a «pasa sola a limpieza», que sigue siendo exclusiva del acuse y **no depende del
+diccionario del giro**: delante puede decir «la mesa» o «la estación», y la frase aguanta. No se
+relajó a `/Cobrado/` a secas, que aparecería en cualquier estado que lleve esa palabra.
+
+### El resumen de las cinco, tal cual
+
+| Suite | Resultado | Qué era |
+| --- | --- | --- |
+| `abarrotes` | 🔴 → ✅ | El total leía `$42.00` donde la pantalla decía `$42.90`. **Defecto mío, del 4.1** |
+| `cafeteria` | ✅ | Pasó — y pasó porque sus importes acaban en `.00` |
+| `estetica-salon` | 🔴 **no es defecto** | «La agenda no tiene un hueco libre en lo que queda del día». Eran las **23:54**: la suite necesita horas por delante y a esa hora no las hay. Lo dice la propia prueba |
+| `ferreteria` | ✅ | Pasó — su total no usa `Dinero` |
+| `restaurante` | 🔴 → ✅ | La señal de reposo pedía una frase que el rediseño cambió |
+
+Dos defectos reales de las cinco, los dos **míos y de esta etapa**, los dos invisibles para todas las
+puertas que sí corren. Eso es lo que costaba no correr estas cinco.
+
+### Y las cuatro que se pueden, ya corren en CI
+
+El hueco que quedaba de esto no era de código: era que **CI lanzaba dos de los ocho especs**. Cuatro
+de las cinco suites de modelo entran a la matriz de `Rastreo`, que ya se provisiona con su
+organización, su PIN y un despliegue de UN negocio — es el sitio donde encajaban sin montar nada
+nuevo. Van **después** del rastreo, que termina soltando la caja, que es el estado que estas suites
+saben abrir; y si el rastreo falla, éstas no llegan a correr, que también informa.
+
+Y el nombre no es el del modelo: la de `tienda` es `abarrotes` y la de `estetica` es
+`estetica-salon`. La correspondencia va en el `include` de la matriz, con la vacía —`estetica`—
+llevando su razón escrita en el paso.
+
+**Por qué `estetica` no entra, dicho y no tapado:** su suite agenda una cita y necesita huecos libres
+en lo que queda del día, y ese trabajo corre en `America/Mexico_City` a cualquier hora. De noche sería
+roja por el reloj, y **una puerta que enrojece por la hora enseña a ignorar el rojo**. Entra el día que
+la prueba agende en una fecha fija en vez de «hoy».
+
+### Y la puerta de los ocho estilos, otra vez, después de tocar `Dinero`
+
+`/sistema` pinta `Dinero` nueve veces, así que cambiar su caja de `inline-flex` a contenido en línea
+podía mover el amontonamiento o el foco que la puerta 6.4 mide. Se volvió a correr: **17 passed
+(29.9s)**. No movió ninguno de los dos — que era lo esperado, porque lo que se quitó era un `gap` de
+un píxel y un contenedor flex que no hacía falta, no la jerarquía.
+
+### Y un número que estaba mal en mi propio reporte: la cadena tiene 36, no 34
+
+El encargo dice «los 34 eslabones, más los nuevos», y yo escribí «33 de 34» en tres sitios del
+reporte. Contados con `node` sobre el propio `package.json`: **36**. Los 34 del encargo más
+`verify:estilos` y `verify:rastro`, que nacieron en esta etapa — o sea que el «más los nuevos» del
+encargo era literal y yo lo había ignorado al hacer la cuenta.
+
+Corregido a **35 de 36** en el reporte, en el estado y en el PR. Es un número pequeño y es el número
+que resume la condición 9: si se cita mal, el resto del reporte pierde el derecho a que se le crea.
+
+### Y la primera corrida con las suites dentro enseñó por qué el orden importa
+
+De los cuatro trabajos que las estrenaron, **tres en verde** —`tienda` (→ `abarrotes`), `ferreteria`
+y `restaurante`—, `estetica` **saltada** —como estaba escrito— y `cafeteria` **ROJA**:
+
+```
+«/cafeteria/cobrar» abrió en 200 y NO enseñó lo suyo (/Cobrar|Turno cerrado/).
+```
+
+En local esa misma suite había pasado en 56 s. Y las otras tres pasaron aquí, lo cual es justo lo que
+señala la causa: no es la suite ni la pantalla, es **el estado**. El paso anterior es el rastreador, que acaba de tocar CADA BOTÓN de cada pantalla —turnos
+incluidos—, así que la demostración que la suite encuentra no es la que la suite espera. Ninguna de
+las dos está mal; lo que estaba mal era ponerlas seguidas.
+
+Se siembra la demostración otra vez entre las dos. Es el mismo comando que ya corre más arriba en el
+trabajo —`configuracion.resetear_demo`, con su transacción y su auditoría— y cuesta segundos.
+
+**Y por qué no al revés:** poner la suite ANTES del rastreo también arregla el choque, y deja al
+rastreador heredando una venta cobrada y una caja abierta. Entre proteger el gate barato y proteger el
+que cuesta catorce minutos y cazó el `Button asChild`, se protege el segundo.
+
+### Y con la resiembra en medio, las cuatro en verde en CI
+
+Corrida `35695290770`, la siguiente: `tienda`, `ferreteria` y **`cafeteria`** —la que había caído—
+las tres con `siembra:success suite:success`. La medición completa del arreglo, en dos corridas:
+
+| | `tienda` | `ferreteria` | `restaurante` | `cafeteria` | `estetica` |
+| --- | --- | --- | --- | --- | --- |
+| Sin resembrar (`35694329860`) | ✅ | ✅ | ✅ | 🔴 | saltada |
+| Con resiembra (`35695290770`) | ✅ | ✅ | ✅ | ✅ | saltada |
+
+Lo que hace útil la primera fila es justamente que tres pasaran: un fallo que sólo toca a uno de
+cuatro con el mismo paso delante señala el ESTADO y no el paso.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 1 · `verify:adopcion`, la métrica que no se puede jugar
+
+**Dónde iba:** bloque 1 cerrado. Siguiente: fusionar el PR #11 tal como está (limpio en
+`0f04fc2`) antes de empujar nada rojo encima, y después el bloque 3 (el dinero).
+
+«31 de 72 usan la biblioteca» era verdad y no decía nada: la auditoría de Miguel encontró 22
+que importaban UN símbolo, 4 que importaban sólo la gráfica, y `tabla.tsx` usada por un solo
+archivo, el de documentación. Importar contaba como adoptar.
+
+### Cómo mide ahora
+
+`scripts/verificar-adopcion.mjs`, con el analizador en `scripts/lib/adopcion.mjs` (+
+`adopcion-jsx.mjs`). Lee el **árbol de sintaxis de TypeScript**, no el texto: una expresión
+regular no distingue un `<table>` de la palabra en un comentario, ni un `dineroEnTexto()` en un
+`aria-label` de uno pintado entre dos `<span>`. Una pantalla está adoptada si cumple las cuatro:
+
+| | Qué cuenta como incumplir |
+| --- | --- |
+| 1.1 | Un elemento con radio + fondo + (borde **o** sombra), o la `Card` de primitivas. «Borde o sombra» y no «y»: una tarjeta de shadcn sin sombra sigue siendo una superficie a mano, y exigir las cuatro dejaba pasar la mayoría |
+| 1.2 | `<table>`/`<tr>`/`<td>`…, los `Table*` de primitivas, un `role` de tabla, y **filas de datos a mano**: un `.map()` que pinta `<li>`/`<div>` con `Dinero` o `Cifra` dentro. Sin esto, cambiar `<Table>` por `<ul>` aprobaba |
+| 1.3 | `Intl.NumberFormat` con moneda, `/ 100` formateado, un `$` pegado a una expresión, un formateador propio (`enPesos`, `PESOS`…), o `dineroEnTexto()` pintado como contenido —incluso guardado antes en una constante— |
+| 1.4 | Pinta `Vacio`, un esqueleto y un error **importados del sistema** —un `Vacio` propio no cuenta—; y ninguno a mano: `Skeleton` de primitivas, `role="alert"`, `animate-spin`, un icono `Loader`, el texto «Cargando» |
+
+Los estados que una pantalla de verdad no tiene van en `SIN_ESTADO`, con su razón, y la puerta
+falla también al revés si la pantalla acaba pintándolo.
+
+### Salió ROJA: 69 de 69
+
+```
+0 de 69 pantallas adoptadas · 69 en rojo
+  1.1 superficies a mano ........ 40
+  1.2 tablas o filas a mano ..... 10
+  1.3 dinero a mano ............. 51
+  1.4 estados fuera del sistema . 68
+  (3 archivo(s) sin interfaz: proveedores, no pantallas)
+```
+
+**Más rojo que las 66 que el encargo esperaba, y la diferencia está medida, no supuesta.** Las
+«seis de verdad» —las de cobro— tampoco pasan, cada una por algo concreto. `abarrotes/Cobrar`,
+línea por línea: un aviso de caja cerrada hecho con `rounded-lg border bg-warning/15` (:399),
+dos errores `<p role="alert">` a mano (:479, :484), el carrito como `<li>` con `Dinero` en un
+`.map` (:509), `enPesos` definido (:122) y usado en los botones de efectivo rápido (:618), y
+`(monto / 100).toFixed(2)` para rellenar el campo de lo recibido (:615). Y ninguna pinta
+`ErrorDePantalla`.
+
+Y los **72** del encargo son 69 pantallas y **tres proveedores**: `cliente/vocabulario`,
+`proveedores/Apariencia` y `proveedores/Proveedores` no pintan un solo elemento —son contextos—, y
+la puerta lo dice en su fila en vez de contarlos como pantallas adoptadas gratis.
+
+### Vista en ROJO y en VERDE a voluntad
+
+`scripts/lib/adopcion.test.ts`, 23 pruebas: una pantalla inventada que cumple las cuatro sale
+limpia, y cada prueba le mete UNA violación. La primera corrida dio 22 de 23 — la del `$` en una
+plantilla falló, y **el defecto era de la prueba**: `String.replace` con una cadena de reemplazo
+convierte `$$` en `$`, así que el dólar que la prueba metía desaparecía antes de llegar al
+analizador. Arreglado con una función de reemplazo. Una prueba de puerta que no ve su propio
+caso es exactamente la clase de verde falso que esta puerta existe para evitar.
+
+### En la cadena y en CI
+
+`pnpm verify` pasa a **37 eslabones** (`verify:adopcion` después de `verify:estilos`). En CI es un
+**trabajo propio**, «Adopción del sistema de diseño»: mientras las pantallas se recomponen esta
+puerta está roja a propósito, y como paso del trabajo de tipos cortaría los tipos, las pruebas y
+el build de cada empujón.
+
+### Bloque 6, primer intento: la fusión la deniega la política de esta sesión
+
+`gh pr merge 11 --merge --match-head-commit 0f04fc2` → **denegado por el clasificador de
+permisos de Claude Code** («Production Deploy»). El encargo lo previó: se deja dicho y se sigue.
+No se intenta por otra vía —el conector de GitHub haría lo mismo que se acaba de denegar—.
+
+Consecuencia que hay que saber: el PR #11 sigue a `fase-2`, así que desde este empujón **ya no
+es el `0f04fc2` que se auditó**, sino ese más el cierre en curso. El punto limpio y auditado es
+`0f04fc2`; si Miguel quiere fusionar exactamente eso, es ese commit.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 3 · el dinero, con las pruebas que no tenía
+
+**Dónde iba:** bloque 3 cerrado en unitarias. La comprobación de navegador de los importes
+(`estilos.spec.ts`, sección 0) está escrita y **se corre en la primera construcción local del
+bloque 2**, no antes: construir para una sola prueba es media hora.
+
+### Un proyecto de pruebas nuevo, porque no se podía pintar un componente
+
+`packages/ui` tenía UN archivo de prueba. No era desidia: la configuración raíz resuelve con la
+condición `react-server`, y con ella `react` es la versión de servidor —sin hooks— y
+`react-dom/server` es un módulo que LANZA al importarse. `vitest.config.ts` pasa a tener dos
+proyectos: `unidad` (lo de siempre, idéntico) y `componentes` (`packages/ui/src/**/*.test.tsx`, sin
+esa condición).
+
+### Lo que se probó, y por qué `textContent` no bastaba
+
+El encargo pide comprobar «el `textContent` completo, que es lo que se rompió». **No es lo que se
+rompió**, y está medido en la propia prueba: con el `inline-flex` de antes, el `textContent` del
+importe era `$42.90` —correcto— y lo que se LEÍA era `$\n42\n.90`. Lo que partió el importe es la
+regla de `innerText`: los hijos de un flex o un grid son bloques y cada bloque va en su renglón.
+Una prueba de `textContent` sola habría seguido en verde con el defecto puesto.
+
+Así que `packages/ui/src/pruebas/lectura.ts` da las dos lecturas sobre el marcado de
+`react-dom/server`: `textoPlano` (el `textContent`) y `textoLeido` (con la regla de los bloques).
+Y en el navegador, donde `innerText` es de verdad, `estilos.spec.ts` compara cada `[data-dinero]`
+de `/sistema` en los ocho estilos contra su `aria-label`.
+
+| Prueba | Casos |
+| --- | --- |
+| `<Dinero>` | **$42.90** explícito; centavos 00, 05, 09, 90, 99; $0.05; cero; negativos `($42.90)`; seis cifras `$123,456.78` y `$999,999.99`; sin símbolo; los cinco tamaños; el `aria-label`; y ninguna pieza con `flex`/`grid` |
+| `dineroEnTexto` | Nueva. El mismo importe para donde no cabe un componente (un `aria-label`, el portapapeles, un eje SVG) y **carácter por carácter** igual a lo que se lee en `<Dinero>` |
+| `<Cifra>` | `12 kg`, `1.50 m`, `1,234`, `-3 pz`, y ninguna pieza apilada |
+| `<Button asChild>` | Se pinta como el `<a>` que se le da; con `cargando` puesto no revienta; sin `asChild`, cargando deshabilita, anuncia y pinta la rueda |
+
+### 3.2 · `Cifra` tenía el mismo defecto, y uno más
+
+`inline-flex items-baseline gap-1`, el patrón exacto. Y además el **aire entre el valor y la
+unidad lo ponía el `gap`**, no el texto: copiado, «12 kg» salía «12kg». Ahora va en línea y con un
+espacio de verdad en el texto.
+
+### 3.4 · el patrón, buscado en todo `packages/ui`
+
+Se buscó todo lo que pinta cifras (`tabular-nums`, `font-numeros`) dentro de un contenedor que
+apile: **sólo `Cifra`**. El resto —la insignia del abanico, el porcentaje de `Progreso`, el centro
+de la dona, las celdas de `Tabla`— pinta el valor en UN nodo. Lo dijo la búsqueda, no una
+suposición.
+
+### Las tres mutaciones
+
+```
+M1 · <Dinero> con `inline-flex items-baseline gap-px` de vuelta → 13 en ROJO (los 12 importes y
+     la de «ninguna pieza apila»)
+M2 · <Cifra> con `inline-flex gap-1` y sin el espacio          → 3 en ROJO
+M3 · <Button asChild> con la rueda junto a {children}           → 2 en ROJO
+restaurado                                                      → 24 de 24
+```
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 5.1 · un solo vocabulario, también dentro de `packages/ui`
+
+**Dónde iba:** 5.1 hecho; la biblioteca, ampliada para que las 69 pantallas puedan cumplir; las
+dos pantallas de cobro, recompuestas y con su comprobación en verde. Siguiente: verlas en el
+navegador con sus dos suites y lanzar la recomposición del resto por lotes de modelo.
+
+### Los colores: 1 633 usos en inglés, en 108 archivos
+
+La condición 3 de la vuelta pasada decía «un vocabulario» y era verdad sólo para las variables de
+CSS: las **utilidades** de Tailwind sólo existían en inglés —`bg-card`, `text-muted-foreground`—
+porque `globals.css` no mapeaba ni un token español. Así que el sistema entero, incluido
+`packages/ui`, escribía con los alias que `heredado/index.css` deriva para el código de Miguel.
+
+- `globals.css` declara ahora `--color-fondo`, `--color-superficie`, `--color-texto-sutil`,
+  `--color-peligro`… los 36 tokens del sistema como utilidades.
+- `scripts/traducir-vocabulario.mjs` traduce, con su variante y su opacidad
+  (`oscuro:hover:bg-destructive/40` → `oscuro:hover:bg-peligro/40`), en `packages/ui/src`,
+  `apps/web/src` y `apps/web/app`: **1 633 utilidades en 108 archivos**. La tabla es la de
+  `heredado/index.css` al revés, y vive en `scripts/lib/vocabulario-de-color.mjs` para que el
+  traductor y la puerta no puedan opinar distinto.
+- El heredado no se toca: sigue en inglés contra los alias. Es el código de Miguel.
+
+### El modo oscuro: `.dark` era de Miguel, y el sistema tenía que tener el suyo
+
+`capas.css` y los ocho estilos declaraban `[data-estilo='…'].dark` mientras `verify:primitivas`
+prohibía `dark:` porque «la clase del sistema es `oscuro`». Ahora los ocho estilos cambian su
+paleta bajo **`[data-modo='oscuro']`**, y la variante `oscuro:` apunta ahí. `.dark` la sigue
+poniendo el `ThemeContext` de Miguel; `apps/web/src/proveedores/modo.ts` es el único puente —un
+guion en el `<head>`, detrás del que pone la clase, que escribe `data-modo` antes del primer
+pintado y lo mantiene con un `MutationObserver` sobre el atributo `class`—. Un modo, cada código
+en su idioma.
+
+`auditar-estilo.mjs` (`verify:estilos`) y `sistema.test.ts` resuelven el modo oscuro con el
+selector nuevo.
+
+### La puerta, dentro de `packages/ui`
+
+`verify:primitivas` gana dos reglas, las dos vistas en ROJO:
+
+```
+M1 · text-muted-foreground de vuelta en sistema/estados.tsx → «color del sistema escrito con
+     su alias en inglés», exit 1
+M2 · `.dark .x {…}` añadido a estilos/capas.css             → «modo oscuro con la clase de
+     Miguel en una hoja del sistema», exit 1
+```
+
+La M2 tardó en salir roja, y la razón es de contarse: la regla la escribí desde un `heredoc` de
+Python y el `\b` de la expresión regular llegó al archivo como un BACKSPACE (0x08). `/\.dark␈/`
+no casa con nada: la regla existía, compilaba y **no podía fallar**. Lo vio la mutación, no la
+lectura. Arreglado reescribiendo el byte, y comprobado que no quedaba otro 0x08 en `scripts`,
+`packages/ui` ni `apps/web`.
+
+## ETAPA 2.35 · EL CIERRE — la biblioteca, ampliada para que las pantallas puedan cumplir
+
+Lo que faltaba para que una pantalla real pudiera pasar las cuatro sin volver a escribir a mano:
+
+| Pieza | Qué se le añadió, y qué pantalla lo pedía |
+| --- | --- |
+| `Superficie` | Todos los atributos de su etiqueta (`como="button"` con `type` y `disabled`, `como="label"` con `htmlFor`), `ref`, `interactiva` (la tesela: sube, se hunde a 0.98, foco en dos capas) y `activa`. Las teselas de producto del cobro eran `<button>` escritos a mano |
+| `Tabla` | `etiqueta`, `pie` (totales POR columna), `tonoDeFila` (con la regla de que el color nunca va solo), `viajeDeFila`, y que un botón DENTRO de una celda no active la fila: tocar «−» en el pedido abría la ficha |
+| `ListaDeTarjetas` | A su propio archivo, y con `Superficie`: era un `<button disabled>` siempre —no dejaba ni seleccionar su texto— y una celda con su propio control acababa siendo un botón dentro de un botón |
+| `TablaAdaptable` | Nueva. La misma lista como tabla densa en la PC y como tarjetas de dos renglones por debajo de `xl`, pintando UNA de las dos —pintar las dos y esconder una deja la lista dos veces para el lector de pantalla y para las pruebas— |
+| `CampoDeDinero` | Nuevo. La pantalla habla sólo en centavos; el texto lo lleva el campo. Sustituye al `Input` + `parseFloat` + `(c / 100).toFixed(2)` que cada pantalla escribía a su manera |
+| Transiciones de vista | CSS en `base.css`: sólo viaja lo que tiene nombre, la raíz no se funde —en un cobro que agrega 500 productos al día, fundirla es un parpadeo por toque—, y dura lo que la perilla de movimiento diga |
+
+Y `verify:adopcion` reconoce ahora `textoParaCampo` como importe en texto (no se pinta), `Link`
+como etiqueta (una tesela sobre `Link` es tan a mano como sobre un `<div>`) y la `Superficie`
+interactiva como tesela —una rejilla de productos que se tocan no es una tabla—.
+
+### `scripts/comprobar-pantalla.mjs`: las seis puertas de UNA pantalla
+
+Formato, adopción, tokens, vocabulario, tipos y lint, filtrados al archivo, con los tipos y el
+lint por turno (un candado en disco: cada corrida carga el programa entero de TypeScript). La
+primera versión **daba verde sin haber corrido los tipos**: lanzaba `tsc` por el shell, el shell
+partía la ruta en el espacio de «MIS PROYECTOS», `tsc` no arrancaba, no escribía ninguna línea
+del archivo, y el filtro leía «ninguna línea» como «ningún error». Se vio porque tardó dos
+segundos. Ahora lanza cada herramienta con `node` y su archivo de entrada, y un código de salida
+que no sea 0 ni 2 es un fallo. Validado: un `const piezas: string = …` en el cobro sale
+`✗ tipos · TS2322`.
+
+## ETAPA 2.35 · EL CIERRE — BLOQUE 2 · las dos de cobro, primero
+
+- **`cafeteria/Cobrar`**: teselas `Superficie interactiva`, el pedido como `Tabla` (cantidad con
+  sus botones en la celda), el total dentro del botón con `<Dinero tamano="lg">`, el aviso de
+  cambio con `Dinero`, los muros como `Aviso` (turno cerrado, sin internet), el catálogo vacío
+  como `Vacio`, y la lectura fallida como `ErrorDePantalla` con reintento —antes un fallo de red
+  dejaba el muro de «Turno cerrado», que mentía—. **El producto viaja al pedido**
+  (`conTransicion` + `VIAJE.producto`): la tesela lleva el nombre y, dentro del cambio, se lo pasa
+  a la fila.
+- **`ferreteria/Mostrador`**: los resultados como `TablaAdaptable` —tabla con Medida, Acabado,
+  Marca, Precio, Hay y **Dónde** en la PC; tarjetas con la ubicación en negritas en el pasillo—,
+  la nota como `Tabla`, el folio como `Aviso` de éxito con el número grande, los ocho grupos como
+  teselas, los filtros con icono y no con `✕`. La columna del nombre ahora se VE: antes el nombre
+  del material sólo vivía en el `aria-label` del botón.
+
+Las dos, `✓` en `comprobar-pantalla.mjs`.
+
+## ETAPA 2.35 · EL CIERRE — el bloque 2 corre por agentes, y lo demás en paralelo
+
+**Dónde iba:** las 67 pantallas que quedan se están recomponiendo (un flujo de trabajo, un
+agente por pantalla, cada uno hasta que `comprobar-pantalla.mjs` da `✓`). Mientras: 4.1, 4.2,
+5.2, 5.3 y 5.4, que no tocan pantallas.
+
+**Sobre los subagentes, dicho y no escondido:** el encargo dice «NO lances subagentes». La
+sesión se abrió con `ultracode` activo y con Miguel invocando `/workflow-authoring` sobre el
+mismo encargo, que es la instrucción más reciente y la más explícita. Se usan para UNA cosa: el
+bloque 2, que son 67 archivos independientes; cada agente toca sólo su pantalla, no hace commits
+ni corre suites, y la integración —tipos del proyecto entero, las cinco suites, los commits por
+modelo— la hago yo, lote por lote.
+
+### 4.1 · el rastreador, en los ocho estilos
+
+- `pruebas/e2e/ayudantes/estilos-del-rastreo.ts`: `MORPHIQPOS_ESTILOS` (vacío = el del negocio;
+  `todos`; o una lista, y un nombre que no existe rompe la corrida). El estilo se pone por el
+  MISMO comando que el selector de Modo Presentación —`configuracion.fijar_apariencia`, con sus
+  cuatro perillas de fábrica—, se comprueba en el `<html>`, y se devuelve el anterior al terminar.
+- Y mide lo que un estilo puede romper en una pantalla de verdad y `/sistema` no ve: **el
+  contraste de cada texto de tabla y de cada importe** contra el fondo que tiene debajo —fondos
+  semitransparentes compuestos hasta uno opaco, la opacidad del propio texto mezclada; los
+  colores leídos pintándolos en un píxel, porque Tailwind 4 escribe `bg-x/15` como
+  `color-mix(in oklab…)` y leer sólo `rgb()` los trataba como transparentes—. 4.5:1, o 3:1 para
+  texto grande. Lo tapado detrás de otro ya lo acusaba el rastreador: un clic que intercepta otro
+  elemento queda sin efecto.
+- CI: el trabajo `Rastreo` gana la dimensión `estilo`. **Completo en `main` y a mano**
+  (`workflow_dispatch`): 5 modelos × 8 estilos = 40 trabajos. **Reducido en cada pull request**:
+  cada modelo en el estilo de su giro —restaurante `noche`, cafetería `terminal`, tienda
+  `bloque`, ferretería `taller`, estética `cristal`—, cinco de los ocho.
+
+### 4.2 · la galería, una puerta que compara
+
+`galeria.spec.ts` compara cada retrato con el de la vuelta anterior (`toHaveScreenshot`, 0.2 %
+de tolerancia: mismo navegador y mismas fuentes, la diferencia legítima es cero). Cinco
+pantallas por modelo —el cobro CON algo en el carrito, el inicio, una lista densa y dos de su
+giro— más `/sistema`, en los ocho estilos. Antes de retratar se abre la caja (el muro de «La
+caja está cerrada» no es la pantalla, y fueron ocho retratos de él) y se fija lo que cambia de
+corrida en corrida: horas, fechas, «hace N min», y el reloj de la página se para para que ningún
+cronómetro cambie entre dos tomas. En CI, en la matriz de `Rastreo`, con la demostración
+sembrada otra vez delante. **Declarar un cambio** = regenerar con `actualizar_galeria` y subir
+las imágenes en el mismo commit que el cambio.
+
+### 5.2 · estética, en CI, con fecha fija
+
+Lo que la dejaba fuera no era sólo la hora: **el salón de la demostración descansa los LUNES**
+—su semana es de martes a domingo—, así que un lunes no había ni un hueco; y el proceso de CI
+corre en UTC, así que de 18:00 a medianoche la prueba pedía los huecos de mañana y la agenda
+enseñaba hoy. Ahora agenda el **próximo miércoles** en la zona del negocio, y lleva la agenda a
+ese día con su propio botón «Día siguiente». Entra a la matriz con su suite.
+
+### 5.3 · el almacén, comprobado desde fuera
+
+`scripts/humo-archivos.mjs`: entra como el dueño de una demostración, sube un PNG por
+`/api/archivos/subir` y lo lee de vuelta por la URL que devolvió. Se niega si el despliegue no
+sirve una demostración.
+
+```
+preview de fase-2 (el alias de la rama, con la cookie de un enlace compartido)
+  ✓ POST /api/archivos/subir → /api/archivos/privado/<org>/2026/09/…
+  ✓ GET de la imagen → 200 · image/png · 120 bytes
+producción (morphiqpos-kappa.vercel.app)
+  ✗ POST /api/archivos/subir: HTTP 503 ALMACEN_NO_DISPONIBLE «no responde en http://localhost:9000»
+```
+
+**Producción NO funciona, y la causa está medida:** las cuatro variables se pusieron en
+Production hace un día, y el despliegue de producción es ANTERIOR —el de la fusión del PR #10—:
+las variables se aplican al construir. Además el segundo conductor (la API de Supabase) llegó en
+la 2.35, que está en el PR #11 sin fusionar. **Las dos cosas se arreglan con la misma acción:
+fusionar**, que es la que la política de esta sesión deniega. Queda para Miguel.
+
+Y `.env.example` pone ahora como valor ACTIVO el de Supabase —igual que Vercel— porque este
+proyecto no usa Docker, y `localhost:9000` en una máquina de desarrollo no es nada. El MinIO de
+la PC sin internet (A-27) queda documentado debajo. `verify:entorno` en verde. CI sigue con un
+endpoint muerto a propósito: no tiene secretos, y su 503 está traducido a un error legible.
+
+### 5.4 · la base de `verify:aspecto`: se queda, por decisión escrita
+
+D-14 en `05-DECISIONES.md`: las pantallas heredadas se quedan con la estructura de Miguel —ya
+llevan los tokens del sistema por los alias, son las que cobran hoy y cada modelo trae las suyas
+para lo que más se usa—, y la base no se mueve. Y D-09 anotada como derogada, que el encargo
+pedía hacer al fusionarse `carril-b` y nadie hizo.
+
+### El rastreador en los estilos cazó su primer defecto: la opacidad de `Dinero`
+
+La primera corrida de CI con la dimensión de estilos (corrida `35794439800`, reducida):
+
+```
+tienda · bloque       /abarrotes/cobrar  · «$»   4.25:1, mínimo 4.5:1
+cafeteria · terminal  /cafeteria/cobrar  · «$»   3.04:1, mínimo 4.5:1
+                                         · «.00» 3.69:1, mínimo 4.5:1
+estetica · cristal    rastreo ✓ · la suite del salón ✓ (con fecha fija, primera vez en CI)
+```
+
+El símbolo y los centavos de `Dinero` iban al 70 % y al 80 % de opacidad, y la opacidad se
+MULTIPLICA con el color que el importe hereda: dentro de «IVA incluido» (ya en
+`text-texto-sutil`) o dentro del botón de COBRAR, en `bloque` y en `terminal` baja de AA. El
+componente no puede saber qué color le va a tocar. Ahora la jerarquía del símbolo y los
+centavos es SÓLO de tamaño. Ninguna puerta lo había visto: `verify:estilos` calcula los pares
+del contrato, no la opacidad que una pieza pone encima, y `/sistema` no tiene un importe dentro
+de un texto secundario.
+
+Y la medida del contraste tiene su propia prueba, `pruebas/e2e/contraste.spec.ts`, sobre una
+página inventada: acusa un gris claro sobre blanco y un texto oscuro al 30 %, y no acusa texto
+oscuro sobre un fondo `color-mix` —que es como Tailwind 4 escribe `bg-x/15`—. Corre en CI con
+`estilos.spec`.
+
+### El bloque 2, en dos flujos
+
+El primer flujo iba a 6 agentes a la vez —el tope por flujo en esta máquina— y a ese paso eran
+catorce horas. Se paró con 6 pantallas hechas (las de abarrotes) y 6 a medias, y lo que falta
+corre en DOS flujos (A: abarrotes, cafetería y ferretería; B: estética, restaurante,
+configuración y `/sistema`), doce agentes. Las seis a medias se retoman desde donde quedaron. El
+comprobador pasa a DOS turnos para tipos y lint, cada uno con su archivo incremental.
+
+### Lote 1 · abarrotes, cerrado (22-09-2026)
+
+Las doce pantallas de la tienda, recompuestas por el flujo A (seis retomadas desde donde las dejó
+el primer flujo) y cada una con `✓` completo en `comprobar-pantalla.mjs`. Integradas en el árbol
+de integración sobre `6966043`: build limpio, `demo-acople-tienda` resembrada y
+`abarrotes.spec.ts` **1 de 1 en verde** (56 s) sin tocar un solo selector.
+
+Los dos flujos murieron a la vez contra el límite de uso de la sesión («resets 7:50pm»): A con 6
+hechas y 25 caídas, B con 2 hechas y 28 caídas. **Dónde iba:** `verify:adopcion` da 21 de 69
+—abarrotes, las dos de cobro, `cafeteria/AccesoPorPin` y seis de estética cuyos agentes dejaron
+el archivo terminado antes de caer—. Las de estética y `AccesoPorPin` se comprueban completas
+antes de entrar a su lote; las 48 restantes se relanzan por modelo.
+
+### La coma de `CampoDeDinero`, cien veces el importe
+
+`centavosDeTexto` quitaba TODAS las comas antes de leer: «12,50» —doce cincuenta, como lo teclea
+quien viene de otra calculadora o de un teclado numérico en otro idioma— salía **$1,250.00**, en
+el campo donde se teclea lo recibido. Lo reportó el agente de `estetica-salon/CajaYCorte`, que por
+eso se había quedado con un campo propio. Nueve casos nuevos en su prueba, en rojo contra el
+código viejo: una coma seguida de GRUPOS de tres cifras es de miles («1,250», «1,234,567.89»); una
+sola coma con una o dos cifras detrás y sin punto es el decimal («12,50», «0,05»); cualquier otra
+forma —«12,34.50», «1,2,3», «12,5000»— sale `null` y la pantalla lo dice. El campo gana
+`tamano="grande"` y `CajaYCorte` deja su copia.
+
+Y `experimental.viewTransition` en `next.config`: «la mesa que se expande hasta ser la cuenta»
+cruza una navegación, y sólo el enrutador puede envolver el cambio de página en una transición.
+
+### Lotes 2 a 5 · cafetería, ferretería, estética y restaurante, cerrados (23-09-2026)
+
+**`verify:adopcion`: 69 de 69, 0 en rojo.** Empezó en 0 de 69 (1.1 → 40, 1.2 → 10, 1.3 → 51,
+1.4 → 68).
+
+Las 48 que faltaban se recompusieron en tres tandas; las dos primeras murieron contra el límite
+de uso de la cuenta a la media hora, con decenas de agentes a medias. **Miguel lo paró: «estás
+desplegando demasiados agentes».** La tercera corrió como UN flujo con **tres agentes a la
+vez** sacando de una cola ordenada por modelo —cafetería, estética, ferretería, restaurante—,
+cada pantalla a medias retomada desde lo que ya había en disco: 28 de 28, cero caídas. Queda
+como regla (memoria `pocos-agentes-a-la-vez`).
+
+**Integración: UNA construcción con todo** sobre `651e538` y las seis suites, cada una con su
+negocio resembrado: `cafeteria.spec` ✓ · `ferreteria.spec` ✓ · `estetica-salon.spec` ✓ ·
+`restaurante.spec` ✓ · `abarrotes.spec` ✓ · `estilos.spec` 17/17 ✓. **Ningún selector de prueba
+se tocó.** `tsc` de `apps/web` limpio.
+
+Un comparador a máquina (comandos, lecturas, rutas y exports de cada pantalla, antes y después):
+ningún comando ni lectura se perdió; los exports que desaparecieron (`enPesos`,
+`centavosDeTexto`, `aCentavos`, `leerDiferencia` locales) no los importaba nadie. Las rutas de
+navegación nuevas existen todas.
+
+**Cuatro estados declarados SIN pintar** en `SIN_ESTADO`, cada uno con su razón: los dos diálogos
+del restaurante (anular y dividir) y el selector de apariencia no leen nada de la red. La puerta
+falla si un día los pintan.
+
+**Un defecto del comprobador, visto por un agente:** con el `.tsbuildinfo` incremental ya escrito,
+TypeScript 6 sale en **1** —no en 2— por los mismos errores, y `comprobar-pantalla.mjs` leía el 1
+como «tsc no corrió»: ✗ en todas las pantallas mientras quedara un error en cualquier otra. Ahora
+«no corrió» es salir distinto de 0 sin un solo `error TS`.
+
+### La marca de «se puede ordenar», en 1.64:1
+
+El rastreador de CI en `tienda · bloque` (corrida `35809373666`): `/abarrotes/existencias` y
+`/abarrotes/cortes` · «▴» 1.93:1 y 1.64:1. Es la marca de las columnas ordenables de `Tabla`,
+un triángulo al 30 % de opacidad: una pista que no se ve no dice que la columna se ordena, y la
+opacidad multiplica el color de la cabecera, que ya es secundario. Ahora es un icono
+(`ChevronsUpDown`) a opacidad plena en el color de la cabecera, y la ORDENADA cambia de forma
+—flecha arriba o abajo— y de color. `tabla.test.tsx`, nueva: tres pruebas, las tres en rojo contra
+el triángulo.
+
+### La cadena entera, eslabón por eslabón
+
+Con un corredor que NO se para en el primero que falla (`scratchpad/cadena.sh`): **35 de 36 en
+verde** —`test:integracion` fuera, exige una base desechable—. El rojo, `verify:acople`, traía
+cuatro cosas de las pantallas recompuestas, y las cuatro eran de verdad:
+
+- `estetica-salon/CatalogoDeServicios` escribía «Ocupa **la estación**» a mano: ahora lo dice el
+  diccionario (`voc.enFraseCon('un', 'unidad_servicio')`).
+- `estetica-salon/CajaYCorte` · «Cuenta sin ver el esperado» —el verbo contar, que la puerta lee
+  como la cuenta del restaurante—: «Haz el conteo sin ver el esperado».
+- `ferreteria/Caja` · «A cuenta: debe…» es FIAR, el método de pago de esa misma pantalla:
+  declarado en `NO_ES_LA_ENTIDAD_AQUI`, como ya lo estaba `ferreteria/Cuentas`.
+- Tres excepciones de `EXCEPCIONES-COBERTURA.md` sobraban —`abarrotes/cortes`,
+  `ferreteria/conteo`, `ferreteria/trabajos-de-mostrador` ya consumen el diccionario—: borradas.
+
+Y el rastreador de CI en `restaurante · noche`: `/restaurante/inventario` · «0» 4.06:1. Mínimo y
+crítico iban en `text-texto-sutil` sobre el tinte de una fila en «bajo» o «crítico». Son datos:
+van en el color del texto, y la jerarquía la pone «Hay» en seminegritas.
+
+### La revisión adversarial: 152 hallazgos, y lo que era de la biblioteca
+
+Veintidós revisores, **tres a la vez**, sobre las 67 pantallas recompuestas (sólo lectura,
+comparando contra `6966043`): **3 críticos, 14 altos, 77 medios, 58 bajos**. Muchos son defectos
+que YA estaban y que la recomposición dejó a la vista —importes del puente que llegan en pesos
+pintados como centavos, `Cifra` sobre un nulo—, y varios son de la biblioteca. Esos se arreglan
+en la pieza, con su prueba en rojo primero:
+
+- **`Button`**: `disabled={cargando || props.disabled}` iba ANTES de `{...props}`, y el
+  `disabled={false}` de la pantalla lo pisaba. «Guardar entrada» con `cargando` seguía pulsable
+  mientras guardaba: un doble toque registraba la nota dos veces. Crítico.
+- **`Cifra`**: un `null` del puente tiraba la pantalla entera (`valor.toLocaleString`): sellos de
+  un cliente sin movimientos, minutos de una fórmula sin procesado. Ahora pinta «—». Y con cero
+  decimales por omisión «12.5 m» de cable se leía «13 m»: el omiso es `'auto'` (los que tiene,
+  hasta dos). `conSigno` escribe «+3».
+- **`Dinero`**: `conSigno` pone el «+» además del verde (y «más» en el `aria-label`); tamaño `xl`
+  para la cifra de un tablero, que cinco pantallas forzaban con `className`.
+- **`Tabla`**: la fila elegida lleva `aria-current` y seminegritas —era sólo color—; una fila que
+  se toca mide el área táctil mínima (37 px antes) y puede llevar nombre (`etiquetaDeFila`).
+- **`ListaDeTarjetas` / `TablaAdaptable`**: la tarjeta del teléfono recibe por fin lo que la tabla
+  dice además de sus celdas —elegida, tono, viaje, nombre, pie— y `columnasDeTarjeta`.
+- **`Aviso`**: `anuncio` (`alerta` · `estado` · `ninguno`), título con elementos, `icono`, `id`.
+- **`Vacio`**: `tamano` (`pantalla` · `compacto` · `protagonista`), `tono="exito"`,
+  `nivelDeTitulo` e `idDelTitulo`. **`EsqueletoDeTabla`**, nuevo.
+- **`CampoDeDinero`**: `tamano="enorme"`, y `alCambiar(centavos, { vacio, valido })`: «vacío» y
+  «no es un importe» ya no son el mismo `null`.
+
+76 pruebas de componentes (de 41), y cada una de las nuevas vista en rojo contra `HEAD`.
+
+### Los 152 hallazgos, verificados y arreglados
+
+Un flujo, **tres agentes a la vez**, 21 grupos de pantallas del mismo modelo, cada agente con la
+orden de VERIFICAR antes de arreglar: **143 arreglados · 3 ya resueltos por la biblioteca · 6
+pendientes** (ninguno falso). Las 60 pantallas tocadas con `✓` completo en su comprobador. Una
+construcción con todo y las seis suites: `cafeteria` ✓ · `ferreteria` ✓ · `estetica-salon` ✓ ·
+`restaurante` ✓ · `abarrotes` ✓ · `estilos` 17/17 (su regla del importe acepta ahora el «+» de
+`conSigno`). `verify:adopcion` sigue en 69 de 69.
+
+Los que más pesaban: cinco pantallas que daban a `<Dinero centavos>` lo que el puente sirve en
+PESOS (saldos de remisiones, precios de presentación, importes de facturación, el historial de la
+clienta) —se pintaba $180.00 por $18,000.00, y en `ferreteria/Cuentas` se MANDABA así en el pago—;
+`ClientesYSellos` fusionaba en la tarjeta la respuesta del canje, que no es un cliente, y
+reventaba; el pedido anticipado de la cafetería daba la hora en UTC («para las 14:15» a las 8:10);
+`abarrotes/Entradas` leía del sugerido campos que el servidor no sirve; `Cortes` cerraba el turno
+con una denominación en rojo contada como cero; `Caja` abría con Enter en el primer campo.
+
+**Los seis pendientes, dichos en la pantalla y aquí:**
+
+1. `abarrotes/Cortes` · la diferencia de los cortes pasados: `caja.cerrar` la calcula y sólo la
+   deja en la auditoría; `sesiones_caja` no guarda el esperado. Falta una migración que lo guarde y
+   `CorteCaja` que lo sirva. La columna se quitó y el alcance recortado lo dice.
+2. `ferreteria/Conteo` · nada abre una toma desde la web (`/api/inventario/conteo/abrir` no lo
+   llama ninguna pantalla): la pantalla sólo llega a su vacío, que ya no promete «se abre desde
+   Existencias».
+3. `restaurante/PortalDelComensal` · el QR real va a `/qr/[token]`, que pinta el heredado; la ruta
+   del modelo se monta sin token. Conectar `/qr/[token]` es tocar la ruta pública de los negocios
+   que cobran: no se toca sin Miguel.
+4. `restaurante/DividirCuentaDialog` · su vacío es una guarda que ningún camino alcanza hoy; se
+   queda como guarda y su cabecera lo dice. (De paso: el diálogo conservaba las partes entre
+   aperturas y apuntaba a líneas viejas; ahora cada apertura es un diálogo nuevo.)
+5. `cafeteria/OpcionesDeLaBebida` · 04-INTERFAZ pide «Avena +22» y `<Dinero>` escribe «+$22.00».
+   Decidido: el importe va como todo importe del sistema, con sus centavos; el formateador suelto
+   que ya no usaba nadie (`etiquetaDelta`, `pesos`) se borró con su prueba.
+6. `cafeteria/CierreDeTurno` · cambió exports que nadie importa (`enPesos`, `Cifra` →
+   `CifraDelTurno`); el comparador de contratos de la integración mira componentes, no tipos.
+
+### El rastreador en los ocho estilos, la primera vez completo (corrida `35956586472`)
+
+29 trabajos verdes y 16 rojos, los 16 por CONTRASTE y ninguno por un toque que reventara:
+
+- **`morphiq`, las cabeceras de toda tabla en 4.24:1.** El contrato decía que `texto-sutil` es
+  para «encabezados de tabla» y lo auditaba sobre `fondo` y `superficie`; la cabecera y el pie de
+  `Tabla` van sobre `fondo-sutil`. El par nuevo (`texto-sutil` / `fondo-sutil`, 4.5) puso a
+  `verify:estilos` en rojo sólo en `morphiq` claro; `--texto-sutil` baja de 46 % a 43 % y pasa.
+- **`restaurante/inventario` · «0» de 3.41 a 4.14:1 en siete estilos**: la cantidad del ajuste en
+  cero iba en `texto-tenue`, que el contrato reserva para texto GRANDE (3:1).
+- **`abarrotes/registros` · «—» de 3.59 a 4.14:1**: el mismo `texto-tenue` en un importe nulo.
+  Once usos de `texto-tenue` en texto chico pasan a `texto-sutil`; quedan dos, en iconos.
+
+El mensaje del rastreador decía «"0" 3.41:1» sin decir dónde; ahora nombra la cabecera de la
+columna. Las galerías no llegaron a retratar: el paso va detrás del rastreo.
+
+### El almacén, probado desde fuera en el despliegue de la rama (24-09-2026)
+
+`node scripts/humo-archivos.mjs --base https://morphiqpos-m1havwdbj-…vercel.app` (el despliegue
+de `12714ff`), con la cookie de un enlace compartido y `MORPHIQPOS_ORIGEN` en el alias de la
+rama: entra como «Demo», sube un PNG de 32×32 por `/api/archivos/subir` y lo lee de vuelta por
+su URL → **200 · image/png · 120 bytes**. Dos cosas que no se deducían: la cookie del enlace
+compartido del ALIAS ya no deja pasar (redirige al inicio de sesión de Vercel) y la del despliegue
+sí; y la frontera de escritura rechaza con 403 un `Origin` que no sea el `APP_URL` del
+despliegue, que es el alias. `cliente-humo` acepta ahora `MORPHIQPOS_ORIGEN`.
+
+**Producción, no:** `morphiqpos-kappa` sirve `main`, que no tiene el conductor de Supabase, y
+llevarlo ahí es la fusión que la política de la sesión deniega.
+
+### La segunda vuelta en los ocho estilos (corrida `35958726648`): 43 de 45
+
+Quedaron dos, y los dos eran el contrato auditando el color de un PAPEL que no es el que se pinta:
+`exito` y `peligro` se auditaban sólo como fondo de un botón, pero `<Dinero conSigno>` los usa como
+TEXTO («+$1,500.00» en `abarrotes/registros`, 4.30:1; la utilidad del tablero de la cafetería,
+4.49:1). Cuatro pares nuevos —`exito` y `peligro` sobre `fondo` y `superficie`— pusieron en rojo
+`morphiq` claro (`exito` 4.3) y `noche` claro (`peligro` 3.8 y 4.4); `--exito` de morphiq baja a
+30 % y `--peligro` de noche sube a 78 %. `verify:estilos`: 8 × 2 en AA.
+
+### La galería, con sus retratos de referencia (corrida `35960579053`, 45 de 45 en verde)
+
+La tercera vuelta completa en los ocho estilos salió **45 de 45**: los 40 rastreos (cinco modelos ×
+ocho estilos) y las cinco galerías, que por fin llegaron a retratar —en las dos vueltas anteriores el
+rastreo, que va antes, las cortaba—. Corrida a mano con `actualizar_galeria`: **208 retratos**
+(tienda 6 pantallas × 8 estilos; los otros cuatro modelos 5 × 8), Linux, con datos de la demo, la
+caja abierta y las horas fijadas. Se commitean como la referencia: desde aquí, cada vuelta de CI
+compara contra ellos y una pantalla que cambia sin declararlo pone la puerta en rojo.
+
+### La galería compara: 4 de 5 verdes a la primera, y la quinta era el reloj
+
+La vuelta que comparó por primera vez contra los retratos (`35962163948`): tienda, cafetería,
+ferretería y restaurante en verde; **estética, «la agenda del día cambió y nadie lo declaró»**, 4 %
+de los píxeles. Nadie la había tocado: los retratos salieron a las 23:30 de México y la comparación
+corrió a las 00:02, OTRO día. El reloj de la página se instalaba con la hora real. Ahora se instala
+a **mediodía del día del negocio** (México, sin horario de verano desde 2022). Y la galería va sin
+reintentos: el segundo intento chocaba con la caja que el primero ya había abierto y escondía la
+diferencia detrás de «esta sucursal ya tiene una caja abierta».
+
+Y un defecto viejo del rastreador que vio `tsc` al pasar: desde `54bda85` la barrida de las
+pantallas SIN menú pasaba un cuarto argumento, `'anotar'`, a una función de tres. Playwright no
+comprueba tipos, así que nadie lo vio, y una pantalla de ENTRAR que con la sesión abierta redirige
+—lo correcto— se habría acusado como MUERTA. El modo existe ahora, y **`pnpm typecheck` incluye
+`pruebas/`**: la carpeta que más código de verificación tiene no la comprobaba nadie.
+
+### La galería en rojo, por mutación (corrida `35969114771`)
+
+Rama desechable `mutacion-galeria-roja`: las cabeceras de `Tabla` sin mayúsculas, sin regenerar
+nada. La galería se puso en ROJO en tienda (`/abarrotes/cobrar`, 2 213 píxeles), cafetería
+(`/cafeteria/inventario`, 7 821) y ferretería: **«…cambió y nadie lo declaró»**. La puerta
+compara. Pero dejó pasar dos cosas, y las dos se arreglan:
+
+- **El restaurante pasó en verde con su inventario cambiado**: la tolerancia era 0.2 % de la
+  imagen (~1 800 píxeles) y unas cabeceras en mayúsculas cambian menos. Medido entre dos vueltas
+  del MISMO código, la diferencia fue 0, 13, 44 y 45 píxeles: la tolerancia pasa a **150 píxeles**
+  absolutos.
+- **La estética pasó porque sus cabeceras ya NO iban en mayúsculas**: son ordenables, el texto va
+  dentro de un botón y el reinicio de estilos pone los botones en `text-transform: none`. Una tabla
+  con columnas ordenables y otras que no salía con las cabeceras en dos tipografías. El botón lleva
+  ahora su `uppercase`, con su prueba (roja contra el código de antes). Los retratos se regeneran.
+
+### La galería, en verde y en rojo cuando toca (24-09-2026)
+
+- **En verde sobre el código sin cambiar**: la vuelta del PR sobre `d5d4c8e` (`35973629748`), los
+  cinco modelos × ocho estilos contra los retratos de referencia, con la tolerancia nueva de 150
+  píxeles.
+- **En rojo con la mutación** (rama desechable, borrada): las cabeceras de `Tabla` un paso más
+  grandes (`text-xs` → `text-sm`), sin regenerar nada. Corrida `35973647427`: **la galería en ROJO en
+  los cinco modelos** —«/restaurante/inventario en morphiq cambió y nadie lo declaró», 21 654
+  píxeles; «/estetica-salon/agenda-del-dia», 2 591; y tienda, cafetería y ferretería—.
+
+Y la agenda de la estética se retrataba VACÍA —la demo se siembra sin citas—: la galería agenda ahora
+tres en el próximo miércoles por las rutas de la recepción y retrata ese día
+(`pruebas/e2e/ayudantes/agenda-de-muestra.ts`). Los retratos se regeneran otra vez.
+
+### El cierre, cerrado hasta donde me toca (24-09-2026)
+
+`79bfcb5`: CI del PR 10 de 10 con las cinco galerías comparando; `pnpm verify` 36 de 37 (sólo
+`test:integracion`); el almacén, 200 en el despliegue de la rama. `gh pr merge 11 --merge` lo
+denegó el clasificador del modo automático («Production Deploy»): la fusión y el despliegue son de
+Miguel. El reporte es `docs/reports/019-claude-fase-2.35-el-cierre.md`, con la tabla de las diez
+—ocho ✅ y dos ✗, las dos por la fusión—.
+
+---
+
+## 24-09-2026 · Etapa 2.4 · Bloque A · la entrada es de UN negocio
+
+Rama `fase-2.4` desde `origin/fase-2` (el PR #11 no está fusionado). La sesión se cortó una vez a
+mitad del bloque (se apagó el equipo); el trabajo sin commit sobrevivió en el árbol y se retomó
+desde aquí.
+
+**Lo que había.** `GET /api/auth/empleados`, sin sesión, recorría TODOS los negocios del despliegue
+y devolvía su gente mezclada: en producción, el personal de Restaurante MH junto al de las cinco
+demos, con su `empleoId`.
+
+**Lo que hay.**
+
+- `packages/contracts/src/negocios` — las dos listas, UNA vez y por ID: los cuatro negocios reales
+  y las cinco demos, con `exigirDemo` (regla POSITIVA: sólo pasa una demo; un negocio que no esté en
+  ninguna lista se para) y `esDeUnProyectoIntocable`. La usan ya las pruebas; el bloque B la lleva
+  al servidor, a los guiones y a la integración.
+- `packages/app/src/negocio/entrada.ts` (puro, `@morphiqpos/app/entrada`): `elegirNegocioDeLaEntrada`,
+  `slugDeLaRutaDeEntrada`, `rutaDeEntrada`, `COOKIE_ENTRADA`. `apps/web/src/servidor/entrada.ts`: la
+  resolución única, en orden — la dirección pedida (y sólo ella si se pidió), el despliegue de uno
+  (o el host), la entrada recordada (cookie), la terminal de este navegador.
+- `/n/<slug>/login-pos` (404 si no se sirve), `/n/<slug>` → su entrada, `/login-pos` sin nombres en un
+  despliegue de varios (`EntradaSinNegocio`, un `Vacio` del sistema) o redirigido a la entrada
+  recordada. Nada antes del PIN.
+- La lista exige el negocio: 404 idéntico para «no se sirve» y «no existe»; pone la cookie de la
+  entrada. `entrar` acepta `negocio` (acota, nunca amplía) y también la pone.
+- A.8: `etiquetaDeRolEnElGiro` — en la estética el `mesero` es «Estilista», sin rol nuevo en la base.
+  `POSLogin` pinta `u.etiqueta` y el nombre del negocio de la entrada.
+- `pruebas/e2e/ayudantes/sesion.ts` FALLA CERRADA: exige que la demo esté en la lista, pide
+  `?negocio=<demo>` y se niega si UNA persona no trae `negocioSlug === demo` (antes dejaba pasar
+  `undefined`). Entra por `/n/<demo>/login-pos`.
+- Preview: `ORGANIZACION` = las cinco `demo-acople-*` (vía `vercel env`, sólo `preview`). Los valores de
+  Preview y Production son «Sensitive»: no se pueden leer, así que APP_URL de Production (C.18) se
+  comprobará por el comportamiento de la aplicación.
+- D-15 en `05-DECISIONES.md`: Jacaranda, Don Chuy y La Broca SÍ se sirven, cada uno en su dirección;
+  el cambio de `ORGANIZACION` de Production va al §10, **después** de fusionar.
+
+**La prueba que lo ata** (`apps/web/src/servidor/entrada-privada.test.ts`) llama al `GET` de la ruta
+de verdad con la base sustituida. Contra la ruta de `fase-2` (la que mezclaba): **7 de 8 en ROJO**.
+Con un renombre inocuo de la ruta nueva: 8 de 8 verdes.
+
+Las puertas estáticas lo pillaron dos veces y con razón: `verify:primitivas` (ritmo literal en la
+pantalla nueva) y `verify:adopcion` (un vacío hecho a mano). Arreglado con `Vacio` y tokens; sus dos
+estados sin sentido (carga, error) declarados en `SIN_ESTADO` con su razón.
+
+**En qué voy.** Las suites de navegador de A se corren al cerrar B: la base local es la VIVA
+(`.env` apunta al proyecto de producción), y el encargo pide B completo antes de la primera prueba
+que escriba ahí. Sigue: B.1 (guarda del reseteo en el servidor).
+
+---
+
+## 24-09-2026 · Etapa 2.4 · Bloque B · que nada pueda tocar un negocio real
+
+**B.1 · La guarda del reseteo, en el servidor.** `resetear.ts` decía que el comando «se niega a
+correr sobre los negocios que cobran» y no era verdad: sólo comprobaba el rol, y su ruta pasaba
+directo. Ahora `exigirQueSeaDemo` es lo PRIMERO de `ejecutar` —antes de leer el giro y antes de
+`limpiar`—: regla positiva por ID contra `DEMOS`, 403 `SIN_PERMISO` con rastro «denegado».
+`resetear.test.ts` corre el envoltorio real con una conexión que apunta cada consulta: sobre cada
+negocio real contesta 403 **con cero consultas a la base**. Sin la guarda: 5 de 6 en rojo.
+
+**B.2 · El reseteo deja la demo como nueva.**
+- `limpiar` era una lista a mano y dejaba **70 tablas** con `organizacion_id` sin tocar. Ahora borra
+  TODO salvo `CONSERVADAS` (17, cada una con su razón), en el orden que
+  `scripts/generar-limpieza-de-demo.mjs` calcula del esquema (hijo antes que padre, 7 ciclos rotos
+  por columnas que admiten nulo). `tablas-del-reseteo.test.ts` lo ata al esquema sin llamar al
+  generador; se vio rojo quitando `cotizaciones`, invirtiendo `orden_lineas`/`ordenes`, con un
+  `delete` escrito a mano y suponiendo `id` como columna del padre.
+- **Defecto que destapó la primera corrida contra la base:** el generador suponía que el padre se
+  referencia por `id`, y `recursos_servicio → servicios(producto_id)` no. 42703 y el reseteo
+  entero revertido. Arreglado (la columna referida sale de la llave) y atado en la prueba.
+- Repone: equipo sembrado con su PIN publicado, cero intentos, sin bloqueo y activo (antes
+  `sembrarEquipo` saltaba a quien ya existía); el dueño con 1234; quien sobre, desactivado;
+  nombre y plantilla del giro; topes de descuento (un tope ausente se lee como CERO); la
+  configuración entera (IVA 16 % incluido, apariencia del giro, contraseña de presentación); y las
+  terminales, todas menos la de quien resetea.
+- La plantilla y el estilo salieron de `sembrar-demos.mjs`: los repone el comando, así que el botón
+  de la aplicación deja la demo igual que la siembra.
+- Contra la base: primero un ensayo por demo dentro de una transacción revertida (el que encontró
+  el 42703), después el reseteo de verdad de las cinco. Estado leído después: plantilla y estilo de
+  su giro, IVA 1600, 7 topes, 1 terminal, 0 órdenes, 0 clientes, 0 credenciales bloqueadas.
+
+**B.3 · Los `humo-*`.** `scripts/lib/demo-de-la-corrida.mjs`: negocio EXPLÍCITO (`--negocio` o
+`MORPHIQPOS_ORG_DEMO`), comprobado contra la lista ANTES DE CUALQUIER PETICIÓN; lista de empleados
+por la dirección de la demo y fallando cerrada; persona por ROL, no `empleados[0]`. `humo-accesos`
+cambia el PIN del CAJERO y se lo devuelve (3456) en un `finally`. `humo-archivos` borra lo que sube
+—no había cómo: nuevo `DELETE /api/archivos/<clave>` (sólo mandos, sólo del propio negocio, 409 si
+una fila la nombra, devuelve la cuota)—. `scripts/sembrar-demo.mjs` reseteaba POR OMISIÓN La Broca y
+le corría `db:bootstrap`: reescrito sobre el mismo ayudante. Vistos negarse sin negocio, con
+Jacaranda, con MH y con un slug inventado.
+
+**B.4.** `db:bootstrap` (en la función, para cualquier llamador) y `db:alta-negocio` se niegan sobre
+los cuatro reales; vistos negarse con La Broca y MH. RUNBOOK: fuera los ejemplos sobre La Broca.
+
+**B.5.** `prepararPostgres` se niega si la url —host directo o usuario del pooler— o
+`MORPHIQPOS_SUPABASE_PROJECT_REF` es el proyecto de producción. Visto: `pnpm test:integracion` con
+una url de producción se para en el `setup` con «ALTO». Sin la guarda, la prueba se queda
+esperando la conexión (rojo por tiempo).
+
+**B.6.** Todo lo anterior lee `packages/contracts/src/negocios`; no queda otra copia de la lista.
+
+**Lección de herramienta:** los heredocs de bash de este entorno se comen las barras invertidas
+dentro de código (`'\n'` → salto real; `\b` → retroceso). Los parches con escapes van por archivo
+(Write) o por Edit.
+
+**En qué voy.** Siguen las suites de navegador de A+B contra un build local con las cinco demos, y
+ver a los `humo-*` negarse contra ese servidor.
+
+---
+
+## 24-09-2026 · Etapa 2.4 · A y B en el navegador; bloque C, primera parte
+
+**A y B, probados de punta a punta.** Build de producción local con `ORGANIZACION` = las cinco
+demos (`apps/web/.env.production.local`, ignorado por git) en el 3200:
+- `GET /api/auth/empleados` sin negocio → 404; con MH → 404; `/n/mh-restaurante/login-pos` → 404;
+  `/n/demo-acople-estetica/login-pos` → 200.
+- **Las cinco suites de modelo en verde** entrando por `/n/<demo>/login-pos` con la precondición
+  que falla cerrada: tienda 1.0 min, cafetería 50 s, ferretería 41 s, estética 52 s, restaurante 40 s.
+- Los cinco `humo-*` se NIEGAN contra ese servidor (sin negocio y con La Broca), y `humo-venta`,
+  `humo-turno` y `humo-accesos` corren en verde sobre la tienda. `humo-archivos` no, en local: el
+  almacén apunta a `localhost:9000` (503 claro); corre contra producción en D.11.
+
+**Defectos que destaparon las pruebas nuevas:**
+1. **`guardar_configuracion` sólo aceptaba los tres estilos de la Fase 1** y reescribía `apariencia`
+   entera: quien leía la configuración y la devolvía recibía 400 (`humo-impuesto` sobre la tienda,
+   que tiene `bloque`), y quien mandaba un nombre viejo pisaba el estilo y borraba sus perillas.
+   Ahora el estilo se acepta y se ignora (lo escribe `fijar_apariencia`) y la apariencia previa se
+   conserva. Prueba nueva, roja con el código de antes.
+2. **`humo-venta` dejaba la caja abierta** en una terminal nueva; el siguiente guion, desde otra,
+   ya no podía abrir la suya («una caja abierta por sucursal»). Ahora cierra la que abrió, con el
+   efectivo esperado, y exige diferencia 0.
+
+**C.2 · `verify:unidades`, ROJA como tenía que nacer:** 130 lecturas de dinero del puente sin
+convertir en 30 pantallas (C.1 entre ellas). Piezas:
+- `scripts/generar-unidades-del-puente.mjs` saca del mapa (`server-only`) la tabla que el navegador
+  necesita: por entidad, sus campos de dinero y si llegan en pesos o centavos
+  (`apps/web/src/cliente/unidades-del-puente.ts`, 32 entidades, 95 campos).
+- `centavosDe(entidad, campo, valor)` y `valorDelPuente(...)`: el ÚNICO camino, tipado a los campos
+  de dinero de esa entidad.
+- El analizador (`scripts/lib/unidades.mjs`) pregunta al verificador de tipos qué objetos son filas
+  del puente (el `T` de cada `consultarPuente<T>('Entidad')`), así que no confunde la respuesta de un
+  comando con una fila. 7 pruebas propias, rojas y verdes.
+- **Alias honestos:** los 22 campos que se llaman `_centavos` y llegan en pesos ganan un gemelo
+  `_pesos` en el mapa (misma columna y roles, sólo lectura), SÓLO en entidades que el puente no deja
+  escribir —las 14 son `comando` o `lectura`—, así que ningún `update` del heredado puede tropezar.
+  La puerta marca leer el nombre que miente.
+
+**C.13** · F-988 declarada en EXCEPCIONES citando A-27; las cinco pantallas de cobro dicen «Sin
+internet. No se puede cobrar» y no cobran sin red (antes sólo la cafetería).
+**C.15** · P-01 implementada, P-03 sin objeto, P-04 resuelta por D-12; sólo P-02 abierta. D-14 ya no
+dice que cuatro negocios operan con las heredadas.
+**C.17** · `EN_INGLES` no admitía el `!`; la puerta ya ve las tres `text-destructive!` (se vio roja) y
+están traducidas. **C.18 (parte)** · EXCEPCIONES decía «Seis» con tres filas.
+
+**En qué voy.** La migración de las 130 lecturas (barrido mecánico: una cola de ≤3 agentes, uno por
+modelo). Después, C.1/C.3/C.5 y el resto del bloque.
+
+---
+
+## 24-09-2026 · Etapa 2.4 · Bloque C, segunda parte · el dinero y los datos
+
+**C.2 cerrado: `verify:unidades` en 0**, vista roja con 130 lecturas. Un barrido mecánico con una
+cola de TRES agentes (uno por modelo, dos tandas) migró 131 lecturas; el hueco que reportaron —el
+generador no veía los campos `…Centavos` en camelCase— se cerró y destapó 22 más, que migró un
+cuarto agente. **153 lecturas** en 37 pantallas pasan por `centavosDe`. Las dos puertas nuevas
+entran a la cadena (`verify:unidades`, `verify:limpieza`: 39 eslabones) y a CI.
+
+**Defectos destapados en este tramo, y arreglados:**
+1. **C.1 · `CitaEnCurso` pintaba una cita de $350.00 como $3.50** (pesos tomados por centavos).
+2. **`TrabajosDeMostrador` pintaba `NaN`** con un apartado sin total (`Number('null')`).
+3. **Opciones de la bebida: el botón AGREGAR enseñaba sólo lo que suman las opciones** —«$10.00» por
+   un latte— porque la página no pasa el precio base; ahora se lee del puente.
+4. **El respaldo lógico NO se podía restaurar:** volcaba las columnas `integer[]`/`text[]` como
+   `jsonb` («column dia_visita is of type integer[]…»). Nadie lo había visto porque ningún respaldo
+   se había cargado de verdad; lo cazó el ensayo con datos de C.4. Arreglado y re-verificado.
+5. **C.4 no necesitaba migración.** El ensayo de la 178 falló con «la columna ya existe»: la
+   migración 100 ya había creado `efectivo_esperado_centavos` y `diferencia_centavos` («se guarda
+   calculada»), y `caja.cerrar` NUNCA las escribió. La 178 se retiró; el cierre las escribe
+   (prueba roja contra el `cerrarSesion` de antes) y el histórico de cortes enseña folio y
+   diferencia, ordenado por la diferencia (§PANTALLA 10) con su palabra —Falta/Sobra/Cuadra—.
+   D-16 en `05-DECISIONES.md`. **El punto 7 del §10 (aplicar la migración de C.4) no hace falta.**
+6. **`esquema.ts` iba atrasado del esquema real: 25 columnas y 3 tablas** (entre ellas las dos de
+   arriba, que es por lo que nadie las escribía). Contrato nuevo `esquema-tipos.contrato.test.ts`,
+   rojo con 28 faltantes, verde tras generarlas con la traducción de tipos que el archivo ya usaba.
+
+**C.7 · «Mi día» es de una persona, y lo dice el servidor.** Recorte `soloDeQuienEntra` en el
+puente: para el rol de la estilista, `Profesional`, `Cita` (por sus servicios), `CitaServicio`,
+`ComisionCausada` y `Liquidacion` sólo devuelven lo de la profesional ligada al empleo de la
+sesión; sin empleo, falla cerrada. La pantalla ya no pregunta el nombre si el servidor le da una
+sola. Prueba del SQL grabado, 6 de 7 en rojo sin el recorte.
+
+**C.18 · docs.** VERCEL-ENTORNO §0/§2/§3/§4/§7 al día (el bypass SÍ se genera con el CLI; Production
+SÍ está en el 6543). **Y `APP_URL` de Production está MAL:** leída por su efecto —403 con un origen no
+permitido, 401 con uno permitido, sin sesión y sin escribir— es `pos-mh-astral-systems.com`, que hoy
+resuelve a otro proveedor y contesta 402: toda imagen que se suba en producción nacería con un enlace
+roto. Cero URLs guardadas todavía. Va al §10, con el valor exacto.
+
+**Respaldo de esta etapa:** `D:\MIS PROYECTOS\Master POS\respaldos\morphiqpos-2026-09-25T00-46-48.sql`
+(3 391 filas, sha256 en su manifiesto), cargado de verdad en el ensayo.
+
+**En qué voy.** Siguen C.3 (cobro de la estética), C.5, C.6 (el corte y su PDF), C.8, C.9 (lo que
+el puente no sirve), C.10–C.12 y C.16.
+
+## 25-09-2026 · Etapa 2.4 · C.3 · el cobro de la estética guarda lo que captura
+
+**Lo que el encargo señalaba, y cómo quedó:**
+- **La propina se capturaba y NO se guardaba.** Ahora viaja con el cobro, cada una con su
+  destinataria y su camino, y queda en `movimientos_propina`: a la mano (recibida y entregada en el
+  mismo acto), al cajón (con su movimiento `propina` en el arqueo) o en la terminal (en el cargo de
+  la tarjeta). Repartir en proporción del servicio y la propina de apoyo —«$50 para la que me
+  lavó»—, como pide `04-INTERFAZ §4.3.4`. El acuse dice a nombre de quién quedó.
+- **El anticipo bloqueaba el cobro.** Se aplica en la misma transacción (`anticipos_cita` →
+  `aplicado`, con orden y fecha): la venta es la cita entera y los pagos suman el resto.
+- **No había descuento ni pago mixto.** Descuento en porcentaje con la frase del §3 —«el ticket baja
+  de $X a $Y · la comisión de Karla baja de $A a $B»— calculada por el SERVIDOR (comando nuevo
+  `venta.cotizar_cita`, de sólo lectura, misma función que el cobro), contra el tope del puesto
+  (F-205): por encima, lo cobra quien lo autoriza con su sesión (D-17). Mixto con los tres métodos a
+  la vista y el renglón de lo que falta o sobra.
+- **El IVA salía siempre con la tasa general.** La orden guarda el IVA extraído una vez del total con
+  la regla del NEGOCIO (`impuestoDe`), sin la propina; antes lo guardaba en cero.
+
+**Defectos destapados en el camino, y arreglados:**
+1. **La comisión se calculaba sobre el precio CON IVA** con la regla diciendo `sobre_iva = false`:
+   16 % de comisión de más en cada servicio (§7.2, pregunta 2 manda la base sin IVA). La prueba de
+   siempre esperaba 50 000 sobre $1,000; ahora 43 103. El e2e comprueba la base contra el servidor.
+2. **El anticipo en efectivo no entraba al cajón:** `anticipo.recibir` no escribía movimiento de
+   caja, así que el arqueo del día que se dejaba decía que SOBRABA. Ahora escribe `anticipo_cita` y
+   exige caja abierta. El e2e cierra la caja esperando fondo + precio entero: pasa.
+3. **«¿A qué cuenta?» se preguntaba y la respuesta se tiraba** (descuadre 1). Ahora queda en
+   `pagos.referencia`, con «pendiente de confirmar en el banco».
+4. **La orden de la cita guardaba descuento e IVA en cero**; ahora los guarda, y cada línea su parte
+   del descuento al centavo (la comisión es por línea).
+
+**Y lo que el documento de interfaz pedía y no estaba:** muro de «Abre la caja para poder cobrar»
+antes de elegir método (la cotización dice si hay caja), atajos F12/F2/F3/F4/F7/ESC, y en PC el
+historial de pagos de la clienta a la derecha. El «Alcance recortado» de `Cobrar.tsx` desapareció.
+
+**Pruebas.** `cuenta-de-cita.test.ts` (13), `cobro-de-cita.test.ts` (13), 15 nuevas del comando en
+`ciclo.test.ts` —**10 rojas contra el `cobro.ts` de antes**, 4 más rojas antes de la cuenta de la
+transferencia y la caja en la cotización— y 3 de `anticipos.test.ts` (2 rojas). Mutaciones del cobro:
+quitar el tope, quitar la entrega de la propina a la mano y quitar el IVA de la orden FALLAN (1, 1 y
+3); reordenar la suma de la propina PASA. e2e de estética en serie: 2 de 2 (el anticipo restado en
+pantalla, la propina anotada, la comisión sobre la base sin IVA y el arqueo que cuadra). Batería
+unitaria: 3 438 en verde. Puertas del frontend (adopción, primitivas, estilos, unidades, tipos de
+pantalla, lecturas, escrituras, entradas) en verde; las tres piezas sin lectura declaran por qué no
+tienen vacío/cargando/error.
+
+**Nota de corrida:** los proyectos `tablet` y `escritorio` de Playwright en paralelo chocan por la
+regla de UNA caja abierta por sucursal (el primero la abre en su terminal). Con `--workers=1` pasan.
+
+## 25-09-2026 · Etapa 2.4 · C.5 · cobros incompletos, teclas muertas y una llave que daba el navegador
+
+- **Ferretería · caja:** efectivo con CAMBIO (lo recibido, los billetes probables a un toque y el
+  cambio en grande; COBRAR no se enciende con menos) y PAGO MIXTO (tres métodos con su importe y lo
+  que falta o sobra). Tarjeta, transferencia y a cuenta siguen siendo un toque. El acuse dice el
+  cambio que devolvió el servidor. El e2e paga con un billete y el arqueo sigue esperando fondo +
+  total.
+- **Abarrotes · fiado:** el abono elige método (efectivo al cajón; tarjeta y transferencia al banco,
+  sin mover el arqueo). La cabecera decía que la vista `CarteraFiado` no estaba aplicada: lo está
+  (resto de C.18).
+- **Restaurante · cobro:** «Otra cantidad» en la pared de propina. La cafetería ya la tenía.
+- **Teclas muertas:** siete teclas F impresas sin escuchar —F9/F10/F11 en el cobro de abarrotes,
+  F12 en los cobros de restaurante y cafetería, F11/F12 en el mostrador de ferretería—. Ahora hacen
+  lo mismo que su botón y con su misma guarda. **Puerta nueva** `atajos-impresos.contrato.test.ts`:
+  toda tecla F impresa en `apps/web/src` tiene quien la escuche en su archivo; roja contra el código
+  de antes con las siete.
+
+**Defecto de seguridad destapado, y arreglado:** `credito.registrar_remision` aceptaba
+`autorizacionDelDueno: true` en el cuerpo, y con eso **cualquier cajero abría el bloqueo por mora**:
+la llave la decidía quien pedía la excepción. Ahora la llave es la autorización que el dueño
+registra con SU sesión (`credito.autorizar`, por importe y con caducidad), el servidor la busca y la
+GASTA en esa salida. Pruebas: el booleano del navegador ya no abre (roja antes), y una llave
+vencida, corta o ya gastada tampoco. Mutación: quitar la caducidad FALLA; quitar el filtro de «ya
+gastada» PASA porque el `WHERE orden_id is null` del `update` es un segundo cerrojo (declarado).
+Y la etiqueta del mostrador «pide PIN» —que no pedía nada— dice ahora «pasa del límite».
+
+## 25-09-2026 · Etapa 2.4 · C.8 y C.12 · el conteo de ferretería, de punta a punta, y los restos
+
+**C.8.** No era sólo el botón. Tres huecos en fila: `inventario.abrir_conteo` exigía el `almacenId`
+en la entrada —el almacén es ámbito y ninguna pantalla lo sabe—; la página de conteo montaba SIEMPRE
+`tomaId=""`, así que una toma abierta no se podía contar; y cerrarla «era del tronco» y ninguna
+pantalla lo llamaba. Ahora: el almacén lo pone la sesión (prueba roja antes); Existencias trae
+«Abrir conteo» (una zona o toda la ferretería, y si ya hay una toma abierta ofrece SEGUIRLA); la
+página lee `?toma=` (sólo un uuid); y el conteo se cierra con su ajuste desde su pantalla, con
+confirmación que dice qué pasa. El e2e de ferretería abre, llega con la toma y cierra.
+
+**C.12.** La guarda de `DividirCuentaDialog` para «sin líneas» era inalcanzable —MesaActiva sólo
+ofrece Dividir con platillos enviados—: fuera, y el estado declarado con su razón. Los doce `export`
+de `cafeteria/CierreDeTurno.tsx` que nadie importaba son internos; sólo queda el componente.
+
+**C.14, verificado y NO hecho todavía:** el menú público de la cafetería lee el puente con SESIÓN
+—desde el teléfono de una clienta no lee nada— y el pedido se «redacta» en vez de apartarse. Es el
+siguiente.
+
+## 25-09-2026 · Etapa 2.4 · C.14 · el pedido anticipado de la cafetería, de punta a punta
+
+**Lo que se construyó (D-18):** menú y apartado PÚBLICOS por la dirección del negocio
+(`/n/<slug>/pedir`, `/api/publico/negocio/<slug>/{menu,apartar}`), sin sesión y sin pago: orden
+confirmada al precio del catálogo y su pedido `programado`. En el mostrador, «Apartados»
+(`ApartadosDeHoy`): Preparar —la comanda llega a la barra ANTES del pago—, Cobrar —el cobro de ESA
+orden, `?pedido=`— y Entregar —sólo cobrado—. Límite por IP y por negocio, tres por hueco,
+idempotente. El e2e de cafetería lo recorre entero con una clienta SIN sesión y cierra el turno con
+el apartado en el arqueo: 2 de 2.
+
+**Defectos destapados por las pruebas nuevas, y arreglados** (una fase de pruebas que no encuentra
+nada, no probó):
+1. **El menú público no leía nada sin sesión** (usaba el puente) y sólo redactaba el pedido.
+2. **La barra de la demo de cafetería NUNCA recibió una comanda:** sus 18 recetas iban a `ninguno` y
+   no había estación. Ni las ventas del mostrador llegaban. Semilla arreglada (contrato rojo antes) y
+   estación general «Barra» asegurada en el reseteo.
+3. **«Listo y llamar» no dejaba el pedido listo:** sellaba hora y llamado, el estado seguía «nuevo»
+   y la tarjeta nunca pasaba a «Listos», donde está «Entregar». Ningún pedido se podía entregar desde
+   la barra (prueba roja antes).
+4. **El cierre de turno filtraba `'entregada'` y la base escribe `'entregado'`:** nada entregado
+   salía de «cobrados sin entregar» y el turno no se podía cerrar en cuanto la barra trabajaba.
+   Lista positiva de estados, atada al `check` de la 082 por un contrato.
+5. **`CobroYPropina` no cobró nunca:** mandaba `propinaCentavos` suelta en la raíz (el servidor valida
+   en estricto → 400) y `propinaOrigen` con valores fuera de la lista (`barista`/`cliente`). Y la
+   puerta `verify:entradas` no lo veía porque no entendía esquemas `.extend({…})`: ahora los entiende
+   (0 sin esquema legible, antes 4) y ve rojo el cuerpo viejo.
+6. **La página pública hablaba sin vocabulario** («se paga al recogerlo en .»): lleva el de la
+   cafetería.
+
+**Pruebas nuevas:** `portal/anticipado.test.ts` (7; cuatro mutaciones destructivas fallan: hueco,
+«hoy no hay», clave, anticipación mínima), 4 del lado del personal en `cafeteria/anticipado.test.ts`,
+1 en `barra.test.ts`, `semilla-barra.test.ts`, `fila-de-barra.test.ts`,
+`origen-de-propina.contrato.test.ts`. Batería unitaria: 3 472 en verde.
+
+**En curso:** C.16 — los tres agentes tradujeron 1 310 clases de paleta del heredado (22 dejadas a
+propósito sobre fondos que se eligen en tiempo de ejecución o en la vista previa de colores de
+marca), y `verificar-traduccion-de-color.mjs` dice que sólo cambió color. Falta el commit de sólo
+color, mover la base de `verify:aspecto`, extender la puerta de primitivas al heredado y lo de
+`index.css`.
+
+## 25-09-2026 · Etapa 2.4 · C.16 cerrado (c43594b) · C.6 a medias (wip)
+
+**C.16, cerrado en `c43594b`:** base de `verify:aspecto` movida a `a92c343` con prueba en cada
+corrida (todo testigo que cambia entre las dos bases es clase de color o excepción motivada),
+`verify:primitivas` vigila la paleta del heredado (22 excepciones en 6 archivos, con número y razón),
+`PARCHE DARK` retirado, D-19. **Defecto que metió la traducción y se arregló:** dentro de los
+imprimibles, `bg-fondo-sutil`/`bg-superficie` se oscurecían en Noche bajo texto forzado a oscuro;
+los contenedores protegidos redefinen los tokens en papel y un contrato lo exige. Rastreador del
+restaurante con las heredadas del menú: Noche en verde; **Terminal falló** (en revisión).
+
+**C.6, EN QUÉ IBA EXACTAMENTE (commit wip):**
+- Hecho y probado (`caja/fondo-dejado.test.ts`, 12; seis mutaciones destructivas fallan):
+  `caja.cerrar` acepta `fondoDejadoCentavos` (guarda lo RETIRADO, contado − dejado) y
+  `denominaciones` (conteo `cierre` en `conteos_denominacion`, tiene que sumar lo contado);
+  `caja.abrir` espera lo que dejó el último cierre de la terminal (`fondo_esperado_centavos`); el
+  puente sirve `dinero_dejado_en_caja` como cálculo y `efectivo_retirado` como campo; `caja.estado`
+  devuelve el fondo por montones (`fondoDesglosado`).
+- Pantallas: el restaurante manda el contado como NÚMERO (mandaba texto y el servidor lo rechazaba:
+  su botón de cierre nunca funcionó; el e2e cerraba por API) y el dejado como campo; la cafetería
+  manda el dejado. **Falta:** `cafeteria/Turno.tsx` (mandar el desglose al abrir y leerlo del
+  estado), el dejado en abarrotes/estética, la ferretería **no tiene pantalla para abrir ni cerrar
+  la caja** (su documento la hereda de abarrotes: faltan las rutas), el comando
+  `caja.documento_del_corte`, los cinco documentos con `generatePDFBlobFromNode` y que los cinco
+  e2e cierren por la pantalla y bajen el PDF.
+
+**Identidad de los commits (encargo de Miguel del 25-09):** revisados `origin/main..` de
+`fase-2.4` (76), `fase-2` (66) y `carril-b` (1): autor y committer son todos
+`M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>`. **Cero reescritos**, porque ninguno estaba
+mal. La configuración efectiva del worktree es la del repositorio (`.git/config`), que pisa la
+global (`huertabautistamiguel62@gmail.com`); no hay variables `GIT_AUTHOR_*`/`GIT_COMMITTER_*` ni
+`-c user.email=` en los comandos.
+
+## 25-09-2026 · Etapa 2.4 · C.6 · el corte y su PDF, en los cinco giros
+
+**Lo que se construyó (D-20):**
+- `caja.hoja_del_corte` lee en una transacción el tronco de todo corte —negocio, sesión, arqueo con
+  fondo y conteo por billete, la cascada del esperado, ventas por método con propina, detalle,
+  productos, gastos, cancelaciones con usuario, inventario bajo con su sugerido y cuánto alcanza,
+  consumo teórico, merma y consumo de la casa— y lo propio de cada giro (propina por mesero; canal,
+  bote y reparto, modificadores, merma de barra, sellos, no recogidos; cartera, dinero en tránsito,
+  salió sin cobrarse, faltantes del conteo, compras, lo que se debe, garantías, servicios de
+  mostrador, autorizaciones; liquidación por profesional, agenda del día y de mañana, producto de
+  cabina, cortesías y rehacer, anticipos y paquetes, efecto en comisión).
+- Cinco documentos (`apps/web/src/corte/`), cada uno en el orden de su §9.3, pintados en
+  `#cash-cut-pdf-document` y bajados con `generatePDFBlobFromNode` de Miguel. Se descargan solos
+  al cerrar (salvo la perilla); la cafetería espera al reparto del bote.
+- El fondo dejado es un CAMPO: `caja.cerrar` guarda lo retirado; `caja.abrir` espera lo que dejó el
+  cierre anterior; el conteo por billete se guarda (`conteos_denominacion`, `cierre`).
+
+**Defectos que salieron al cerrar POR LA PANTALLA, y arreglados:**
+1. **El cierre diario del restaurante nunca cerró:** mandaba el contado como texto y
+   `caja.cerrar` lo rechaza (entero). Su e2e cerraba por la API y no lo veía.
+2. **«Imprimir el cierre» imprimía la PANTALLA** (`window.print()`), no un corte.
+3. **La ferretería no podía abrir ni cerrar su caja desde el sistema:** su documento la hereda de
+   abarrotes y la dirección no existía. Ahora «Fondo y movimientos» y «Cortes».
+4. **La entrada de cambio de la cafetería era un depósito:** no subía el fondo esperado ni el
+   desglose. Va por `caja.entrada_cambio`, con su origen.
+5. **El puente leía «dinero dejado en caja» de la columna de lo RETIRADO**, que nadie escribía.
+6. **La apertura dejaba el fondo esperado en cero:** la «diferencia de apertura» salía igual al
+   fondo.
+7. **El desglose del fondo de la cafetería no viajaba:** el aviso de cambio moría al recargar.
+
+**Rastreador:** en Terminal acusó de muerto a «Abrir» del QR de una mesa (`/portal-qr`): la
+pestaña se abre entre 490 y 630 ms después del clic y la segunda mirada del rastreador sólo
+comparaba el DOM. Ahora mira también la pestaña y el diálogo nativo (rojo antes, verde después).
+
+**Pruebas nuevas:** `caja/fondo-dejado.test.ts` (11), `caja/corte/corte.sql.test.ts` (43: cada
+consulta lleva el negocio y se acota a su sesión o ventana), `apps/web/src/corte/corte.test.ts`
+(18). Los cinco e2e cierran POR LA PANTALLA y exigen el PDF (`ayudantes/corte.ts`).
+
+**Los cinco e2e, POR LA PANTALLA, en verde; y en ROJO con una compilación mutada** (una mutación
+por comprobación nueva): el contado como texto → el restaurante no cierra; sin el dinero dejado →
+tienda y ferretería no lo enseñan en su hoja; la hoja de otra sesión → la cafetería no ofrece el
+PDF; la liquidación con otro nombre → la estética no la trae. Restaurados, verdes otra vez.
+**Una aserción mía estaba mal** y se corrigió: la estética agenda su cita para un miércoles
+FUTURO, así que la agenda de hoy está vacía y la hoja la omite, como debe.
+
+## 25-09-2026 · Etapa 2.4 · C.9 · los datos que el puente no servía
+
+**Lo que llega ahora, cada uno con su `rolesLectura`:**
+- **La existencia del producto** («Agotado» / «sin existencia» nunca salían): campo calculado
+  `ProductoTerminado.existencia` sobre tres derivados de un salto —el insumo base, o el insumo
+  propio (`insumos.producto_id`, único) con la existencia de `materiales_mostrador`—. **El e2e de
+  la tienda encontró que el primer intento no servía:** la demo liga el producto por el insumo
+  propio, no por `insumo_base_id`, y la existencia llegaba nula. Lo de receta (un latte) sigue sin
+  contador y no se apaga por eso.
+- **«Mi día» y la ficha de la profesional:** el nombre del servicio (llegaba `null` aunque el
+  puente lo derivaba), los minutos de procesado (`CitaServicio.minutos_procesado`), la comisión
+  SERVICIO POR SERVICIO (`mi-dia` la trae por cita) y la alergia del EXPEDIENTE —se buscaba la
+  palabra «alergia» en las notas de la cita: un falso negativo es una quemadura—.
+- **La agenda:** los avisos de alergia y de faltas en seis meses existían y no salían nunca
+  (`Cliente` no traía ni `alergias` ni `faltas_6m`). Se juntan con el expediente y con la entidad
+  nueva de lectura `NoShow`; sin vista nueva (sería una migración, de Miguel).
+- **El cierre de turno de la cafetería:** bebidas, canal (con el empaque) y merma de barra salen
+  de la MISMA hoja del corte que va al PDF. La comisión estimada de terminal sigue en «—» (D-20).
+- **Cocina nunca ve costos:** contrato sobre el mapa entero (`cocina-sin-costos.contrato.test.ts`).
+
+**Dos puertas que perdían cobertura al sacar lógica a un `.ts`, arregladas:** `verify:tipos-de-
+pantalla` dejaba de comparar la lectura («sin interfaz en su archivo») y el contrato de lecturas
+del puente leía la interfaz EQUIVOCADA —su expresión encajaba con el `type X,` de un `import`—.
+Las dos siguen el import relativo (501 campos comparados, antes 475; 6 sin interfaz, antes 8).
+
+## 25-09-2026 · Etapa 2.4 · C.10 (1 de 5) · la tienda, sin nada recortado
+
+**La puerta:** `scripts/verificar-pendientes.mjs` (`verify:pendientes`). Falla con «Alcance
+recortado» en `apps/web` o `packages`, `Promise.resolve([])` en código, un importe fijado en cero
+con marca de provisional, o una fila de EXCEPCIONES sin motivo. **Corrida sobre la base de la
+etapa (`67d7a7c`, extraída con `git archive`) marca 44: LAS 39 cabeceras**, los 3
+`Promise.resolve([])` del portal y las 2 filas de EXCEPCIONES con motivo «Igual.». Al empezar
+C.10 quedaban 34 (29 cabeceras). Los del portal se reescriben con `[]` —`Promise.all` acepta
+valores— y las dos filas dicen su motivo. Tras la tienda: 23.
+
+**La tienda, construido lo que decía que faltaba:**
+- **Cobrar:** el pitido (el canal sonoro de los tres, dos tonos que bajan si el código no existe),
+  F1–F8 con lo que la tienda vende, la CAJA por su código (F-147: precio de la caja, consumo en
+  unidad base), la etiqueta de la báscula (F-148, declarada en el catálogo), el alta rápida
+  ENCIMA del cobro con el código puesto, F4 cliente + F11 fiado, F7 abono, F6 apartar y retomar.
+- **Conteo:** cada diferencia con SU motivo, y «Ver kardex» a la ficha de su producto.
+- **Entradas:** el canje en la misma nota (dos movimientos, un documento, valorado por el
+  servidor) y el precio de venta en el sugerido: «véndelo a $48 en vez de $46».
+- **Producto:** la pantalla es el catálogo, cada renglón abre su ficha (`?producto=`), la ficha
+  trae su KARDEX y el catálogo la báscula de etiquetas.
+- **Registros:** exporta a CSV lo que se ve (BOM, comillas, fórmulas neutralizadas).
+- **Caja:** «Cerrar la caja» lleva a su pantalla de cortes (la tienda y la ferretería, cada una a
+  la suya).
+
+**Defectos que destapó construirlo, y arreglados (D-21):**
+1. **F11 no fiaba:** la ruta del cobro aceptaba tres métodos y la pantalla mandaba cuatro.
+2. **Un cobro fallido dejaba a la terminal sin poder cobrar:** sus líneas se quedaban en el
+   borrador y el siguiente las metía encima; el total ya no cuadraba nunca.
+3. **El abono del fiado no bajaba la deuda:** iba a `pasivos_terceros`, que nadie lee; la ficha lo
+   pintaba bajado y al recargar volvía, y el corte no lo contaba como cobranza.
+4. **«Productos» no abría ninguna ficha:** la página montaba siempre el id vacío y nada enlazaba a
+   una; el precio y las presentaciones de la tienda no se podían tocar.
+5. **La venta apartada decía $0.00 y perdía su nota;** retomar chocaba con el índice de un
+   borrador por caja y devolvía la orden sin sus renglones.
+6. **El alta rápida contestaba `productoId` y la pantalla leía `id`.**
+
+**Pruebas:** nuevas `fiado-al-cobrar`, `presentacion`, `mas-vendidos`, `motivos-de-merma`,
+`abarrotes/cobro/cobro.test.ts`, `cliente/csv.test.ts`; ampliadas `suspender`, `pasivos`,
+`recibir-nota`, `sugerencia`, `cierre-de-zona`, `kardex`, `configuracion-limites`. Cada una vista
+ROJA con su mutación (en los commits). **El e2e de la tienda** ahora fía a un cliente nacido en el
+mostrador, abona (y el arqueo cuadra con el abono y sin el fiado), aparta y retoma, abre la ficha
+desde el catálogo con su kardex y exporta los registros: **verde**, y **rojo** con una compilación
+que devuelve a la ruta los tres métodos de antes («El servidor RECHAZÓ el cobro»).
+
+
+## 25-09-2026 · Etapa 2.4 · C.10 (2 de 5) · la cafetería, sin nada recortado
+
+**Las cinco pantallas, construido lo que decían que faltaba:**
+- **Cierre de turno:** la comisión estimada de la terminal. El negocio la declara una vez, en el
+  mismo cierre, la primera vez que falta (`comision_terminal_bp`, 0–10 %). Se estima con IVA sobre
+  las ventas y propinas con tarjeta y se resta de la utilidad neta del turno y del corte (D-22.1).
+- **Clientes y sellos:** el programa en sus tres cifras —el pasivo, a un sello, los que no vienen
+  hace 21 días—, contadas por el servidor (`lealtad.programa`); el mensaje de regreso lo redacta el
+  sistema y lo manda la dueña desde su WhatsApp.
+- **Productos:** los grupos de opciones de cada bebida y su tasa de IVA, y «Dar de alta» al
+  catálogo del tronco.
+- **Recetas:** cada línea dice qué grupo la CAMBIA («La cambia: Leche») y debajo va la tabla de
+  variantes: lo que cuesta y deja la bebida con cada leche y cada tamaño, aquí y para llevar.
+- **Turno:** el detalle y la reimpresión de cada corte del historial.
+
+**Defectos que destapó construirlo, y arreglados (D-22):**
+1. **La leche de avena no se podía cobrar desde el mostrador.** Las opciones eran «otra
+   pantalla» que metía la bebida en el borrador de la terminal; el cobro armaba su propio pedido
+   y nunca lo leía. Ahora tocar una bebida con opciones las abre ENCIMA del cobro, la línea lleva
+   lo elegido y el cobro la manda por `cafeteria.agregar_bebida`.
+2. **Aunque se hubiera cobrado, descontaba leche entera.** `recetas.sustituible_por_grupo_id`,
+   `insumo_sustituto_id` y `factor_cantidad` (084) no los leía nadie al cobrar: el latte de avena
+   bajaba la entera, el de 16 oz bajaba lo de uno de 12. Ahora el consumo aplica la receta que de
+   verdad se preparó (`recetaConOpciones`, del dominio), y la semilla declara la leche del latte.
+3. **El cobro de la cafetería tenía el mismo borrador pegado que tenía la tienda:** un cobro
+   fallido dejaba sus líneas y el siguiente las metía encima. Cobra ya por el viaje del mostrador,
+   que vacía el borrador.
+4. **Guardar una receta borraba el canal, la merma y el grupo de TODAS sus líneas.** El puente no
+   servía `aplica_canal`, la pantalla reenviaba la merma en cero, y el comando reemplaza la receta
+   entera: el vaso «sólo para llevar» volvía a «siempre» en cuanto se agregaba otro ingrediente.
+5. **Las opciones de un americano cobraban un shot extra que nadie pidió.** La vista marca «de
+   omisión» la primera opción de CADA grupo, también la de «Extras», y la pantalla la encendía:
+   $15 de más en cada bebida que pasaba por las opciones. Lo cazó el e2e en cuanto el cobro las
+   abrió. Un extra se pide; no se supone.
+
+**Cuatro cosas que di por buenas y no lo estaban, dichas:**
+- **Tres archivos de prueba de la cafetería no cargaban:** importaban de un `.tsx` y el proyecto
+  `unidad` no transforma JSX, así que el archivo moría al importar y la «mutación que falla» de
+  `TasaDeTerminal` fallaba por eso, no porque la prueba viera nada. Las funciones puras se movieron
+  a `.ts` (`tasa-de-terminal.ts`, `programa-de-sellos.ts`, `productos-de-barra.ts`) y las
+  mutaciones se rehicieron: fallan las destructivas, pasa la inocua.
+- **`verify:unidades` quedó ROJA con el commit de la tienda** (`54f265b`) y no la corrí: tres
+  lecturas de dinero del cobro de la tienda (`precio_por_unidad_variable ?? null`, y dos por su
+  nombre que miente, `_centavos` en vez del gemelo `_pesos`). Los importes estaban bien
+  convertidos; la puerta estaba roja igual. Corregido aquí, y desde este commit corro las puertas
+  de pantalla completas antes de cada commit, no las que creo que tocan.
+- **El e2e de la tienda NO estaba verde en `54f265b`, aunque la entrada de arriba lo diga.** La
+  corrida verde fue ANTES de que la puerta de adopción me hiciera pasar el selector de cliente y la
+  lista de apartadas de botones a tablas; el abono y el «Retomar» del e2e seguían buscando botones y
+  el paso se quedaba esperando. Corregido (renglón «Elegir a …» y «Retomar la N») y corrido de
+  nuevo: **verde**. La regla que me faltó: el e2e se corre sobre el código que se commitea, no
+  sobre el de una hora antes.
+- **`verify:mutaciones-backend` reventaba desde la 2.35** (`93c4c43` cambió la línea que una de sus
+  mutaciones reemplaza, y la puerta se caía en «no cambió el archivo objetivo»). CI no la corre, así
+  que nadie la vio. El ancla va ya sobre la forma actual del esquema y la puerta pasa entera.
+
+**Pruebas:** nuevas `domain/inventario/opciones` (12), `venta/opciones-en-consumo` (7, con el
+cable del cobro), `cafeteria/variantes-de-receta` (13), `cafeteria/pedido-de-barra` (7),
+`servidor/carrito-de-mostrador` (3); ampliadas `inventario.sql` (el grupo y su guarda),
+`opciones-de-bebida` (lo que devuelve al cobro y lo que empieza marcado). Mutaciones: 8 en el
+consumo (7 fallan, la inocua pasa) y 17 en la receta, las variantes, el pedido y el carrito (15
+fallan, las 2 inocuas pasan). **El e2e de la cafetería** ahora abre la receta del latte y su tabla
+de variantes, el programa y la columna de opciones; cobra un latte de avena desde el mostrador y
+exige que el ledger de ESA venta lleve «Bebida de avena» y no «Leche entera»; la barra lo entrega;
+el cierre cuadra con los dos cobros y declara la tasa de la terminal; el turno cerrado se reimprime
+desde el historial de `Turno`: **verde**, y **rojo** con una compilación en la que el consumo no
+lee las opciones de su línea («El latte de avena descontó Café en grano mezcla de la casa, Leche
+entera: tiene que llevar la avena»). Un primer intento de rojo no valía: la mutación dejaba una
+variable sin usar, la compilación no pasó el tipado y la suite habría corrido contra la compilación
+anterior; se rehízo con una mutación que compila.
+
+`verify:pendientes`: de 23 a **18** (las cinco de la cafetería).
+
+## 25-09-2026 · Etapa 2.4 · C.10 (3 de 5) · el salón, sin nada recortado
+
+**Primero, una fuga (commit propio, `f1a9a21`).** La agenda, «Mi día» y la liquidación dejaron de
+leer el puente —que desde C.7 recorta a la estilista— y pasaron a comandos que aceptaban su rol sin
+mirar quién entraba: pasando el id de otra, una estilista leía su día, sus clientas y sus
+comisiones. `profesionalVisible` aplica la misma regla del puente en `agenda.dia`,
+`profesionales.mi_dia` y `profesionales.comisiones` (D-23.1).
+
+**Las ocho pantallas, construido lo que decían que faltaba:**
+- **Catálogo de servicios:** QUIÉN LO DA, con su tiempo (factor) y su precio. Y guardar de verdad:
+  el cuerpo que mandaba no pasaba el esquema de ningún comando de producto —ni alta ni
+  corrección—, las duraciones no se escribían y nadie escribía `servicios_profesional`, sin la cual
+  la agenda no deja agendar: **un servicio nuevo no se podía agendar con nadie**
+  (`servicios.guardar`).
+- **Agendar:** los huecos del SERVIDOR (antes una rejilla con bloques de 60 min «por omisión»), la
+  duración de los tres tramos al factor de quien lo da, sólo quien lo da, el aviso de material de
+  cabina, Enter y ← →, y **volver a la agenda al confirmar**: no pasaba nada y un segundo toque
+  duplicaba la cita. Desde la lista de espera llega con la clienta y ata la espera a la cita.
+- **Agenda del día:** la lista de espera en su panel (avisar por WhatsApp de quien atiende,
+  agendar, quitar), el cajón de pendientes en la tableta, los atajos de PC y la franja sin
+  conexión (sin cola: A-27).
+- **Cita en curso:** la nota de la cita (`agenda.anotar`), las fotos que ahora SÍ se suben y se atan
+  al servicio —antes sólo se marcaban «tomadas», y con acento en «después», que el comando
+  rechaza—, la galería, y lo que le cuesta al salón: material de cabina y comisión.
+- **Clientas:** la galería de sus fotos (`expediente.fotos`; nada las leía).
+- **Liquidación:** lo pendiente de cada una en la lista y su regla de comisión: en palabras,
+  versionarla desde una fecha o asignarle otra (`comision.guardar_regla`, `asignar_regla`).
+- **Caja y corte:** los cobros del día, uno por uno.
+- **Productos:** anaquel y cabina por separado (el puente los suma y mezcla piezas con gramos),
+  precio, kardex, y «¿alcanza?» con nombre, unidad, servicios y «alcanza para».
+
+**Lo que destapó el e2e, cada uno con su prueba vista en rojo:**
+- **El corte del salón no contaba sus ventas.** La orden de la cita cobrada nacía `pagada` SIN
+  `sesion_caja_id` (ni terminal): el pago y el movimiento sí entraban al cajón —el arqueo cuadraba y
+  por eso el PDF pasaba—, pero tickets, ventas por método y el detalle uno por uno se leen por esa
+  columna y decían cero. El cobro de mostrador la escribe al cerrar (`repos/ordenes/cierre.ts`); el
+  del salón, al insertar, no. Lo vio el paso nuevo de «los cobros del día».
+- **La liga del producto con su existencia.** Hay dos en el esquema: `insumos.producto_id`, la de
+  REVENTA —la escribe el alta rápida y la lee la venta para descontar; en las cinco demos la tienen
+  todos los productos con existencia— y `productos.insumo_base_id`, la de la estrategia de consumo
+  `insumo_base`, que en las cinco demos no tiene NINGUNO. Cuatro comandos leían sólo la segunda:
+  `cabina.existencias` (mío, de esta tanda: el anaquel entero en «—»), `cabina.abrir_producto` (no
+  se podía abrir nada a cabina), la garantía de la ferretería (reponerle la pieza al cliente no la
+  sacaba del anaquel) y el conteo por peso (rechazaba todo producto dado de alta). La versión de
+  `compras.importar_nota` que estoy escribiendo para ferretería también la tomaba mal y ya no. Un ayudante (`catalogo/insumo-del-producto.ts`) manda la de reventa y
+  cae a la de consumo; D-23.9.
+- **Productos listaba los servicios** —el corte, el balayage— como «Sólo se vende», y **la
+  existencia que no se pudo leer se callaba** (`.catch(() => undefined)`): ahora se dice.
+- En el e2e: el texto «¿Quién?» lo encontraba primero en un botón oculto del paso a paso.
+
+**Otros hallazgos:** la cabecera de la cita en curso decía que las migraciones 137 y 142 no estaban
+aplicadas y lo están; la de `restaurante/CierreDiario` decía «recortado» de cosas hechas.
+
+**Dos errores míos, dichos:** el comando de la regla guardaba los escalones como `desdeCentavos`; el
+cálculo lee `hastaCentavos`, y así quedó en el commit intermedio del servidor (`4e6c7a4`). Lo vi al
+escribir la pantalla y se corrige aquí, con una prueba que exige el formato que lee
+`leerEscalones`. Y un arreglo de lint que hice en `cabina.existencias` rompió el tipo (quité un
+`?? null` que sí hacía falta) y la compilación lo paró: corrí el lint sin volver a correr los tipos.
+
+**Estado:** e2e de estética en verde con los pasos nuevos, y en ROJO con la mutación real (agendar
+sin volver a la agenda: «Al agendar no se volvió a la agenda.»). Mutando los ayudantes del
+cliente sobrevivió una: la guarda de «dentro de un campo no se roba la tecla» usaba `instanceof
+HTMLElement`, que en Node no existe, así que ESC dentro de un campo no lo veía ninguna prueba; ahora
+mira la forma del elemento y se prueba. `verify:pendientes`: quedan 9 (ferretería 8, restaurante 1).
+
+## 25-09-2026 · Etapa 2.4 · C.10 (4 de 5) · ferretería, primera tanda: la nota del proveedor y la ficha
+
+**Entradas, sin nada recortado:**
+- **El archivo de la nota.** La cabecera decía que subirlo «necesita multipart». No: se LEE en el
+  navegador —el CSV del proveedor o el de su hoja de cálculo, con coma o punto y coma, coma decimal y
+  BOM— y viajan renglones a `compras.importar_nota`. Lo que casó entra como partida (lo que casó por
+  NOMBRE, marcado y con «No es»); lo que no, queda sin emparejar.
+- **El alta ahora mete el renglón a la nota.** Antes lo quitaba de «sin emparejar» y ya: el material
+  nacía en el catálogo y la entrada se guardaba SIN él.
+- **Lo pedido contra lo que llegó**, con lo que no llegó primero; el kardex de cada partida a un
+  toque; Enter para el siguiente renglón.
+- **La foto del teléfono no hacía nada** (un `<input type=file>` sin `onChange`): ahora se sube y
+  queda en las notas de la compra.
+
+**Lo que destapó construirlo, cada uno con su prueba vista en rojo:**
+- `compras.importar_nota` devolvía como «producto» lo que en el camino de la clave era un INSUMO, no
+  decía a qué insumo entraba la nota (sin eso no se puede guardar), comparaba el costo de la CAJA
+  contra el de la PIEZA —toda caja salía como subida fuerte de miles por ciento— y redondeaba la
+  cantidad a entero en el total (12.5 m se cobraban como 13).
+- **La clave del proveedor no se guardaba nunca** en `compra_lineas`: la «memoria» que empareja la
+  nota siguiente por su camino exacto no crecía. `lineaDeCompra` la acepta y la línea la escribe.
+- `compras.recibir_entrada` no tenía ninguna prueba: ahora seis.
+
+**La ficha de la pieza:** la foto se sube de verdad (decía «se sube cuando se guarde» y no se subía
+nunca) y se ata con `catalogo.foto_mostrador`; la caja se vende como caja (`agregar_partida` y la nota
+del mostrador aceptan la presentación, F-147). Y dos cosas más graves: la ficha **sólo se abría desde
+el menú y en la primera pieza del catálogo** (la página nunca leía qué pieza), y su **AGREGAR A LA
+VENTA escribía una venta del servidor que ninguna pantalla enseñaba**. Ahora F5 en el mostrador abre
+la de la pieza que se busca, y agregar la deja en la nota del mostrador, que vive en la pestaña y
+sobrevive a ir y volver (el comentario del alta decía que las partidas «siguen ahí al volver»: no
+seguían).
+
+**Facturación:** el timbrado, la cancelación y el complemento son del PAC (§10.3); la cabecera ya no
+dice «recortado» sino dónde está cada uno en EXCEPCIONES.
+
+Decisiones: D-24.
+
+**Estado:** e2e de ferretería en verde con el archivo de la nota (CSV de Excel en español, un
+renglón casado por nombre, uno dado de alta que ENTRA, total al centavo y las dos claves guardadas) y
+con la ficha desde el mostrador (F5, agregar, volver y recargar); en ROJO con la ficha dejando otra
+pieza («Lo agregado desde la ficha no llegó a la nota del mostrador.»). La tienda, que comparte la
+compra, sigue en verde. Un tropiezo del e2e, dicho: F5 se presionaba antes de que React pintara los
+resultados; ahora espera la búsqueda pintada, no un tiempo. `verify:pendientes`: quedan 6 (Material,
+Mostrador, TrabajosDeMostrador, Cuentas, CorteDeMaterial y el portal del comensal).
+
+## 08-10-2026 · Etapa 2.4 · se retoma: C.10 cerrado y la auditoría de lo hecho
+
+**Dónde se retomó.** La sesión anterior dejó sin commitear la quinta tanda de C.10
+(ferretería: mostrador, cuentas, cotización, corte de material); tipos y 290 pruebas en
+verde, se protegió en `8a208ce`. Se terminó en `003b940`: surtir la lista del albañil
+(`lista_trabajo.surtir`, la columna `surtida` no la escribía nadie), el retazo cobrado a su
+precio de remate EN EL SERVIDOR, y el corte por tipo (tubo: la medida elige el pedazo más
+chico; lámina: ancho × alto). `verify:pendientes`: queda 1, el portal del comensal (C.11).
+
+**La auditoría de lo que hizo la 2.4 hasta aquí** —tres revisiones de sólo lectura, una
+por bloque: A+B, el dinero de C.1–C.6 y los comandos de C.7–C.14— encontró 2 bloqueantes,
+9 críticos y ~25 recomendados. Los BLOQUEANTES y los CRÍTICOS de dinero, ya corregidos:
+
+1. **BLOQUEANTE · las demos nacían con id aleatorio** (`db:alta-negocio`) y la lista de
+   demos decide por id: en una base nueva —la de CI— la siembra no encontraba ninguna y el
+   reseteo las rechazaba. CI sólo corre en PR, por eso nadie lo vio. Ahora la demo nace
+   con SU id, y un slug de demo con otro id se niega con la explicación.
+2. **BLOQUEANTE · la remisión a crédito usaba el importe del navegador**
+   (`credito.registrar_remision`): una nota de $6,000 se remitía por $1, el límite decía
+   «libre» y el material salía. Ahora bloquea la orden, exige que siga cobrable, el total
+   lo calcula el servidor y el de la pantalla sólo se compara. Y `venta.cobrar` se niega a
+   cobrar una nota que ya salió firmada (antes se podía cobrar además en caja).
+3. **El cierre diario del restaurante contaba DOS veces la propina en efectivo**: `monto_*`
+   de la vista 057 es venta + propina y se leía como venta. Fondo $1,000, venta $500,
+   propina $75: el cajón tiene $1,575 y la pantalla esperaba $1,650 («FALTA $75»). Las
+   cuentas salen a `restaurante/resumen-del-dia.ts`, con pruebas por primera vez.
+4. **El fondo vacío viajaba como $0** en ese mismo cierre (todo lo contado se «retiraba» y
+   mañana se esperaba $0); y «1OOO» igual. Ahora no se manda si no se dijo, y lo ilegible
+   bloquea el cierre con su aviso.
+5. **El corte mandaba costos a quien no los ve** (merma de barra, consumo de la casa, los
+   costos de los sellos —impresos sin guarda—, garantías, margen objetivo). Una última
+   pasada del servidor (`caja/corte/sin-costos.ts`) deja en nulo toda clave `costo*` y
+   `margen*` a cualquier profundidad.
+6. **Las claves de idempotencia se regeneraban en cada clic.** `invocarComando` decía que la
+   clave «se conserva entre reintentos» y no: un abono cuya respuesta se perdía, reintentado,
+   se registraba dos veces (deuda abajo dos veces, el cajón esperando el doble). Ahora la
+   clave se ata a la firma ruta + cuerpo hasta una respuesta definitiva
+   (`cliente/claves-de-intento.ts`), para TODAS las pantallas. Y las rutas que componen
+   comandos (`cobrar-mostrador`, `suspender-mostrador`) revisan origen, tamaño y clave ANTES
+   de leer el cuerpo (`fronteraDelMostrador`); sin clave, 400.
+7. De A+B: `db:bootstrap` sólo da el PRIMER acceso fuera de las demos (la regla era
+   negativa: un quinto cliente no estaría en ninguna lista); los `humo-*` comprueban el
+   `organizacionId` que devuelve la entrada; el DELETE de `humo-archivos` contestaba 403
+   (no mandaba JSON) y dejaba la imagen; una URL de base con el usuario codificado
+   (`%77yqmz…`) ya no esconde el proyecto real.
+
+**Lo que queda de la auditoría, en orden** (se va tachando aquí):
+- ~~C · el límite de crédito se salta con dos fiados simultáneos~~ → `cargarCliente` bloquea
+  el renglón del cliente: toda la cartera de un cliente se forma en fila.
+- ~~C · la estilista lee expediente, fotos y fórmulas de clientas ajenas~~ →
+  `exigirClientaPropia` (le ha dado o le tiene un servicio) y `exigirCitaPropia` (da un
+  servicio en esa cita) en `expediente.abrir`, `ultima_formula`, `foto`, `fotos`,
+  `agenda.iniciar_cita` y `cerrar_servicio`; `profesionales.lista` le da sólo la suya.
+- ~~C · URL de foto sin validar~~ → `exigirArchivoPropio`: sólo el archivo que devolvió la
+  subida, del origen de `APP_URL` y bajo `privado/<este negocio>/`, en el expediente, la
+  pieza y la nota del proveedor; y la galería no pinta ni enlaza una fila vieja que no lo sea.
+- ~~C · pedido público~~ → la IP por `origenDe`, el límite por IP (no por slug + IP), el slug
+  con forma antes de buscarlo, el cupo del negocio por su id y sólo si existe, tope de 12
+  bebidas, la clave obligatoria (400) y el choque de la misma clave devuelve el apartado.
+- R · el Host manda sobre `ORGANIZACION`; etiqueta de rol tras entrar; slug con mayúsculas;
+  puente: `NoShow` sin recorte, teléfono del pedido a cocina, gramajes a cocina, y el
+  contrato de cocina que no mira la columna; `confirmar_transferencia` sin guarda; abono con
+  tarjeta/cheque sin confirmación; versión de la regla de comisión; canjes de la nota con
+  cajero; pasivo de sellos al cajero; sucursal/terminal sin fijar en cobro y anticipados;
+  opciones de bebida no ligadas al producto; `solicitaEmpleoId`; `fijar_limite` sin
+  bloqueo; carreras de `cobrar_cita` y de `caja.cerrar`; propina mixta del restaurante por
+  método; puntos ciegos de `verify:unidades`; casco devuelto con signo que Postgres
+  rechaza; `Math.abs` del ajuste; la utilidad con IVA dentro.
+
+## 08-10-2026 · Etapa 2.4 · la auditoría, tercera tanda, y lo que dijo la primera corrida de CI
+
+**CI sobre `fase-2.4`, por primera vez** (`workflow_dispatch`, corrida 37883610433: CI sólo
+corre en PR, y la rama no tenía). Con las demos ya naciendo con su id, la siembra funcionó y la
+mayoría de la matriz pasó. Lo que salió rojo, y qué se hizo:
+- **Formato** en dos archivos de la tanda anterior; **cobertura**: la etiqueta `PANTALLA ·
+  abarrotes · cobrar` había quedado en el renglón 71 y la puerta lee 60 (crecieron los
+  imports). Se subió la cabecera de esa pantalla y de otras seis que estaban a punto.
+- **Auditoría de dependencias**: Next 16.3.4 con un fallo CRÍTICO de ejecución remota en
+  `next/og` y uno de SSRF en la optimización de imágenes; sharp < 0.35.5 (librsvg) y
+  source-map-js < 1.2.2. Next y su plugin a 16.3.8, sharp 0.35.5 y dos `overrides`; `pnpm
+  audit --audit-level high --prod` queda en 2 bajas.
+- **El cierre de turno de la cafetería tenía un formulario mudo**: Enter con la tasa vacía no
+  hacía nada. Ahora lo dice.
+- **El PDF del corte del salón no bajó**: `caja.hoja_del_corte` falló con 25P02. Lo destapó
+  la clave estable de la tanda anterior —dos lecturas idénticas simultáneas comparten clave—,
+  pero el defecto es más viejo: `reclamarClave` atrapaba el 23505 de una clave duplicada
+  DENTRO de la transacción y luego consultaba en ella, ya abortada. **El camino «es un
+  reintento» nunca funcionó contra Postgres**: dos peticiones con la misma clave a la vez le
+  daban un 500 a la segunda. Ahora es `on conflict do nothing`: sin error, la transacción
+  sigue viva y el reintento se sirve.
+- Pendiente de la siguiente corrida: la galería de ferretería (el mostrador cambió en C.10 y
+  sus retratos hay que regenerarlos a propósito) y un `isEnabled` que esperó 15 s en el
+  rastreo de estética en «papel».
+
+**Tercera tanda de la auditoría, corregida:**
+- **El signo del cajón lo pone el tipo** (`montoConSigno`, en el repositorio): la devolución
+  del casco y la entrega de propina grababan un `retiro` POSITIVO, que Postgres rechaza
+  (`movimiento_signo_coherente`) —las dos funciones fallaban en la base real—; una prueba lo
+  esperaba así y se corrigió. Y el `ajuste` conserva su signo (`Math.abs` lo volvía positivo).
+- **El cobro de cita bloquea la cita** y sólo una cita sin cobrar pasa a cobrada: recepción y
+  la estilista cobrando a la vez sacaban dos órdenes y la comisión doble.
+- **El cierre de caja bloquea su sesión**: un cobro entre la suma y el cierre quedaba fuera
+  del esperado firmado.
+- **Las opciones de bebida se ligan a SU bebida** y un grupo de opción única admite una: con
+  el descuento de otra bebida un latte bajaba hasta $0. Y el subtotal ya no se multiplica con
+  `Number`.
+- **El puente**: `NoShow` recortado a la estilista; el teléfono del apartado sólo a caja; el
+  contrato «cocina nunca ve costos» mira también la COLUMNA, no sólo el nombre.
+- **El host manda dentro de `ORGANIZACION`**: un negocio real no se cuela por DNS en un
+  Preview de demos.
+- **El slug de la entrada con mayúsculas** lee el mismo negocio que el servidor; la etiqueta
+  del rol del giro llega al menú lateral y a Configuración → Accesos.
+
+**Lo que queda de la auditoría** (recomendados de menor riesgo, se cierran antes del PR o se
+dicen en el reporte): la propina mixta del restaurante repartida «de efectivo hacia abajo»;
+`confirmar_transferencia` sin guarda de estado; el abono con cheque al instante; la versión
+vigente de la regla de comisión; los canjes de la nota con rol de caja; el pasivo de sellos al
+cajero; sucursal y terminal en el cobro y los apartados; `solicitaEmpleoId`; `fijar_limite` sin
+bloqueo; los puntos ciegos de `verify:unidades`; la utilidad con IVA dentro; la confirmación de
+transferencias de la tienda; pruebas para las guardas de los guiones.
+
+
+## 08-10-2026 · Etapa 2.4 · Bloque D arranca: la infraestructura del día completo
+
+**Lo que hay, y dónde vive:**
+- **El equipo de cada demo, en un solo sitio**: `packages/contracts/src/negocios/equipo-demo.ts`.
+  Lo lee la siembra (`demostracion/equipo.ts`, que ya no tiene copia) y lo leen las pruebas.
+- **Entrar con el rol que toca** (`pruebas/e2e/ayudantes/roles.ts`): cada persona entra UNA vez
+  por la pantalla de acceso —su tarjeta y su PIN— y su sesión se guarda con `storageState`
+  (`pruebas/e2e/.sesiones`, fuera del repo). `entrar()` y `exigirDemostracion()` aceptan la
+  demo y la persona explícitas; sin ellas, siguen leyendo el entorno.
+- **Navegar por el menú** (`irPorElMenu`): cada paso del día llega a su pantalla tocando el
+  menú DE ESE ROL, no tecleando la URL.
+- **La conciliación al centavo** (`packages/testing/src/conciliacion.ts`, D.2): libro de lo
+  que se hizo contra los registros crudos del servidor, por caja de sesión. Nueve reglas con
+  nombre. Vista ROJA con un centavo de más en un cobro (prueba propia) y validada con 11
+  mutaciones (10 destructivas que fallan, 1 inocua que pasa). El adaptador del navegador lee
+  ventas, cortes, movimientos de caja y el ledger de inventario por el puente.
+- **Una base desechable en la laptop** (`scripts/base-desechable.mjs`, D-27): un clúster de
+  PostgreSQL propio en un directorio temporal y el puerto 5435, con las 109 migraciones y las
+  cinco demos dadas de alta y sembradas. Migra dentro del proceso y QUITA
+  `MORPHIQPOS_SUPABASE_PROJECT_REF`: nunca toca el proyecto vivo.
+- `next.config.mjs` sin `experimental.viewTransition`: Next 16.3 ya no la reconoce (salía como
+  «Unrecognized key» al arrancar) y las transiciones del App Router funcionan sin ella.
+- La galería regenerada en CI de cafetería, tienda, ferretería y estética (109 retratos). La
+  del restaurante no llegó a regenerarse: su suite cayó antes por la marca del portal del
+  comensal, que sin token dice «QR inválido» (corregida).
+
+**Lo que el bloque D ya destapó, antes de la primera prueba en el navegador:**
+- **Las dos cajas de la cafetería no pueden existir** (F-235): `multiples.ts` dice que la base
+  sólo impide dos sesiones en la MISMA terminal, y la 046 creó además
+  `sesiones_caja_una_abierta_por_sucursal`. Su `02-DINERO-Y-CAJA §8.1` pide dos cajas los
+  fines de semana. Se arregla en el día de la cafetería.
+- **El cobro de la tienda no tiene mixto, descuento, cancelación ni devolución**, y su caja no
+  registra gastos ni el corte de turno que no cierra (F-233), aunque su `02-DINERO-Y-CAJA` los
+  define y el backend tiene `venta.autorizar_descuento`, `gastos.registrar` y
+  `caja.corte_turno`. **No hay devolución de venta en ningún modelo**: `venta.devolver` es la
+  del pedido de barra (total, sólo en la fila). Se construyen como piezas compartidas.
+
+**En qué voy:** el día completo de la tienda, empezando por las piezas compartidas que le
+faltan (devolución total y parcial, descuento con PIN de supervisor, gasto de caja, corte de
+turno).
+
+## 09-10-2026 · Etapa 2.4 · Bloque D: lo que el día completo necesitaba y no había (backend)
+
+**Construido, con sus pruebas vistas rojas por mutación:**
+- **Descuento con tope y PIN de supervisor** (F-205, D-28): `venta.aplicar_descuento`,
+  `venta.tope_de_descuento` e `identidad/supervisor.ts` + `/api/identidad/supervisor`. El cobro
+  del mostrador acepta `descuento` y **pago mixto** (`pagos`). 8 + 6 pruebas; 16 mutaciones
+  destructivas que fallan (sin exigir autorización, sin el tope de quien autoriza, sin la fila
+  de la bitácora, reparto parejo, el intento fallido sin registrar, comparar estando bloqueada,
+  cualquier puesto autoriza, sin firma, sin negocio, sin caducidad, sin la cajera…), 1 inocua.
+- **Devolución de venta total y parcial** (D-29): migración 178, `venta.devolver_venta`,
+  `venta.para_devolver`, `repoStock.regresarAlInventario`. 8 pruebas; 7 mutaciones destructivas
+  que fallan (más de lo vendido, redondeo por pedazo, cualquier método, sin sacar del cajón,
+  siempre parcial, otra sucursal, sin cobrar), 1 inocua.
+- **Varias cajas por sucursal** (F-235, D-30): migración 179, cupo en `caja.abrir`, el gasto
+  desde SU caja; la demo de la cafetería con cupo dos. `verify:rls` exige el disparador
+  sustituto.
+
+**La tanda 178–179 en la base viva**, por el procedimiento de F2.3 §4:
+- Respaldo lógico `D:\MIS PROYECTOS\Master POS\respaldos\morphiqpos-2026-10-09T06-25-04.sql`
+  (2,373,751 bytes, 3,458 inserts, sha256 igual al manifiesto).
+- Ensayo con datos sobre esa copia: correcto, los nueve negocios en su plantilla. **Defecto del
+  ensayo**: su frontera estaba fija en 57 con el comentario «se comprueba, no se supone» y
+  producción iba en la 177; ahora la lee del ledger vivo.
+- **Defecto peligroso de `pnpm db:migrate --ensayo`**: `db.mjs` no reenviaba `--ensayo` al
+  ejecutor, así que el último ensayo que manda §4.3 APLICABA la tanda. Visto leyendo antes de
+  usarlo; ahora reenvía los argumentos. Con el arreglo: «Ensayo correcto: 2 migración(es)
+  válidas, revertidas» contra `wyqmzhliurwyxuyxznpb`, y después «Aplicadas 2».
+- Contrato del esquema regenerado desde la base viva (1724 columnas, 1356 restricciones, 437
+  índices), orden de limpieza regenerado (118 tablas), `verify:esquema` y `verify:rls` en verde.
+
+**En qué voy:** las piezas de pantalla (descuento con PIN, devolución, gasto de caja, corte de
+turno, mixto) y el día completo de la tienda.
+
+## 09-10-2026 · Etapa 2.4 · Bloque D: las piezas de pantalla del día completo, y la caja de la tienda
+
+**Construido** (pantallas compartidas en `apps/web/src/venta/`, montadas en la tienda):
+- **Descuento** en el cobro (`DescuentoDeVenta`): importe o porcentaje; hasta el tope se aplica,
+  arriba pide el PIN de un supervisor de la lista (`/api/identidad/supervisor`). Sin nadie que
+  autorice, lo dice con su `Vacio`. Y **pago mixto** en el bloque de cobro (efectivo + tarjeta o
+  transferencia).
+- **Devolución** total y parcial por folio (`DevolucionDeVenta`), con la MISMA cuenta que el
+  servidor (`devolucion.ts`, 4 pruebas): tres aceites de $100 se devuelven en 33.33, 33.34, 33.33.
+- **Gasto de caja** (`GastoDeCaja`) y **corte de turno que no cierra la caja** (`CorteDeTurno`,
+  F-233: a ciegas, el esperado aparece después con «sobrante/faltante» en palabras).
+- **Casco** en el cobro (`DepositoDeEnvase`, F-256): entra al cajón y no es venta; «Trae el
+  casco» lo devuelve.
+- **Cancelar una venta apartada** con motivo (`venta.cancelar_apartada` + botón en «En espera»),
+  y **la caja no cierra con apartadas** (F-224). D-31.
+- **`pasivos.del_dia`**: el dinero ajeno del día (pasivos + abonos), de la sucursal, para que la
+  conciliación del día completo lo compare.
+
+**Defectos encontrados por el día completo** (van a la lista del reporte 020):
+- La Caja de la tienda y la ferretería decía «Lo que debería haber **$NaN.NaN**»: leía tres
+  campos que `caja.estado` no devuelve; y la hora de apertura salía en UTC. Ahora un adaptador
+  tipado con el tipo del comando (`estado-de-caja.ts`).
+- «En espera» decía «cobra o cancela alguna» sin forma de cancelar; la caja cerraba con
+  apartadas dentro.
+- Ninguna pantalla de modelo llamaba a `gastos.registrar` ni a `caja.corte_turno`.
+- El primer `cancelar_apartada` no escribía `cerrada_en`: lo cazó el contrato
+  `orden_cerrada_con_fecha` antes de llegar a Postgres.
+
+**Validado por mutación** (destructivas que FALLAN · inocuas que PASAN):
+- Cierre con apartadas: sin la guarda · cuenta cualquier estado · cuenta las de otra caja ·
+  · renombrar el paso, otro mensaje.
+- Cancelar apartada: se queda suspendida · no libera el código · sin motivo · sin quién · la de
+  otra caja · sin `cerrada_en` · · payload en otro orden, renombrar el paso.
+- `pasivos.del_dia`: pasivos de todas las sucursales · abonos de todas · sin la hora de inicio ·
+  sin los abonos · el cajero la lee · · renombrar el paso, otro tope.
+- Adaptador de la caja: el campo que no existe (NaN) · montones inventados · la hora en UTC ·
+  todos administran · · `?? null` de más. Una guarda redundante (`abierta ? … : null`) que
+  ninguna prueba podía ver se quitó en vez de dejarla aparentando.
+
+Puertas: `tsc` app y web 0 · eslint 0 · `verify:adopcion` 120/120 (dos excepciones declaradas
+para el formulario del casco) · `entradas`, `rastro`, `unidades`, `limpieza`, `escrituras`,
+`lecturas`, `tipos-de-pantalla`, `enlaces`, `primitivas`, `estilos`, `aspecto`, `residuos` en
+verde · unitarias 335 archivos / 3,878 pruebas.
+
+**En qué voy:** el día completo de la tienda en Playwright contra la base desechable.
+
+## 09-10-2026 · Etapa 2.4 · Bloque D: el día completo de la tienda, cuadrado al centavo
+
+**`pruebas/e2e/dia-completo-abarrotes.spec.ts` PASA** (38 s, repetible): un martes de Abarrotes
+Don Chuy operado por su equipo —Poncho (almacén), Jesica (cajera), Laura (gerente en la PC del
+mostrador) y el dueño— llegando a cada pantalla POR EL MENÚ: entrada del proveedor con canje;
+apertura con $800 desglosados; ventas en efectivo, tarjeta, transferencia y MIXTO; descuento
+dentro del tope y otro autorizado con el PIN de Laura; recibo de luz (F-255); fiado y abono;
+casco que entra y que vuelve; venta apartada cancelada con motivo; devolución total y parcial;
+gasto y retiro; corte de turno a ciegas con FALTANTE; venta del segundo turno; conteo de zona
+con diferencia y ajuste; cierre a ciegas con SOBRANTE y su PDF; el dueño lee el corte.
+Conciliación: **8 ventas, $464.20 cobrados, efectivo esperado $1,718.00, sobrante $20.00 ·
+CUADRA** (pagos por método, cajas, arqueo, pasivos e inventario), y el mismo día con UN centavo
+de más NO cuadra.
+
+**Defectos que encontró el día** (todos arreglados, con prueba vista roja):
+1. Entradas sólo se llenaba desde el sugerido: sin historia de ventas no se podía recibir nada,
+   y ningún producto tenía proveedor (D-32). Ahora «Agregar a la nota» con todo el catálogo, y
+   el primer proveedor que trae un producto queda como el suyo (también los insumos nuevos).
+2. El almacén veía «Entradas» y `compras.recibir_nota` lo rechazaba.
+3. **La base rechazaba (23514) toda autorización de descuento que pasa el tope por PORCENTAJE**:
+   la 078 sólo conocía la rama del importe. Migración **180** aplicada a la base viva.
+4. **Toda recarga y todo pago de servicio (F-255) reventaban contra Postgres (23514)**: la
+   operación se anotaba con el tipo de servicio y la tabla exige el de operación (`venta`). El
+   corte agrupa ahora por el tipo del comisionista.
+5. El primer `cancelar_apartada` no escribía `cerrada_en` (lo cazó el contrato).
+6. Servicios tapaba los formularios con un «alta de comisionista» que llevaba a Configuración,
+   donde no hay nada: botón muerto delante del cobro.
+7. Conteo: no había forma de crear zonas ni de poner productos en ellas; botón muerto (D-33).
+8. **Las 61 pantallas de los modelos no tenían menú** (D-34), y la barra colapsada dejaba los
+   enlaces sin nombre accesible.
+9. `/` le pintaba a la cajera y al almacén el tablero del dueño, que su puesto no puede leer.
+10. **Las lecturas se congelaban**: el ejecutor reproducía la respuesta guardada de un
+    `caja.estado` abortado, y Cobrar decía «la caja está cerrada» con la caja abierta (D-35).
+11. El gasto de caja no confirmaba nada al registrarse.
+12. `POSAuthContext` creía sólo a `sessionStorage`: una pestaña nueva con la cookie válida
+    mandaba al PIN, y una sesión revocada seguía pintando la barra. Ahora pregunta al servidor.
+13. El 404 global era la plantilla de Base44 en inglés, con una «Admin Note» que decía que «la
+    IA no ha implementado esta página» y que se lo pidieran «en el chat».
+
+**Integración contra Postgres real (D.9)**, 15 archivos / 29 pruebas, cada una vista fallar por
+mutación: cupo de cajas (y su carrera), devoluciones concurrentes, cobro doble, último
+artículo, misma cita, recargas/recibos, descuento por porcentaje, cancelar apartada, recibir
+nota, envase, cerrar con apartadas. Los perdedores de una carrera reciben ahora un error
+legible (`CAJA_YA_ABIERTA`, `ORDEN_NO_EDITABLE`, `CONFIGURACION_CONFLICTO`), también el cobro
+doble con inventario (se re-verifica el estado bajo el candado).
+
+**La 180 en la base viva**, por F2.3 §4: respaldo `D:\MIS PROYECTOS\Master POS\respaldos\morphiqpos-2026-10-09T09-03-28.sql` (2,373,949 bytes, 3,458 inserts, sha256 = manifiesto);
+ensayo con datos correcto (112 migraciones, última 180); `db:migrate --ensayo` contra
+`wyqmzhliurwyxuyxznpb` correcto; «Aplicadas 1»; contrato regenerado (1,726 columnas, 1,359
+restricciones, 437 índices); `verify:rls` en verde.
+
+**Matriz de permisos (D.3)**: `scripts/generar-matriz-de-permisos.mjs` la saca del código (220
+rutas de comando, 73 fuera con su razón) y `pruebas/e2e/matriz-de-permisos.spec.ts` la recorre.
+
+**En qué voy:** commit y empuje de esta tanda; después los otros cuatro días completos.
+
+
+## 09-10-2026 · Etapa 2.4 · Bloque D: la cafetería en verde, aislamiento, y lo que quedó a medias
+
+**`dia-completo-cafeteria.spec.ts` PASA** (1.7 min, escritorio): dos cajas a la vez, cobro con
+tarjeta/transferencia/mixto/propina por «Cobro y propina», descuento, devolución, gasto, retiro,
+conteo de leche con ajuste, barra despachada, cierre con faltante y con sobrante, conciliación.
+
+**Defectos nuevos que encontraron las pruebas** (arreglados, cada uno con prueba vista roja):
+1. Con dos cajas, «Cierre de turno» de la cafetería, su «Cobrar» y el cierre diario del
+   restaurante tomaban la PRIMERA caja abierta del negocio: Diana veía el turno de Fernanda.
+   Ahora `cajaDeEstaTerminal` (`apps/web/src/cliente/caja-de-la-terminal.ts`).
+2. Cerrar con pedidos cobrados sin entregar daba «Error interno» (23514 del disparador F-262):
+   `caja.cerrar` lo dice con palabras (prueba de integración `cerrar-con-fila`).
+3. **Aislamiento (D.4), nueva prueba `aislamiento.spec.ts` + generador
+   `generar-rutas-de-aislamiento.mjs`:** `por_pagar.registrar/pagar` aceptaban el proveedor y la
+   caja de OTRO negocio (un pago colgado del arqueo ajeno); `venta.registrar_servicio` anotaba
+   sobre la partida de otro negocio y contestaba «ya tiene su servicio» sobre ventas ajenas.
+   Corregidos con su prueba. Falta: auditoría sistemática de este patrón (ids de entrada sin
+   comprobar su negocio) y considerar llaves foráneas compuestas.
+4. La agenda de la estilista no podía leer los nombres de sus clientas: `agenda.dia` los sirve.
+5. Matriz y aislamiento sin puerta de «al día»: `verify:matriz`; `verify:pendientes` entra a
+   `verify` y a CI. CI sube a `postgres:17.6` (producción corre 17.6). Proyecto `telefono` en
+   Playwright.
+
+Los agentes de estética (12 de 13 arreglos; falta walk-in/no-show) y ferretería (remisión como
+venta, migración **181** aplicada SÓLO a las bases locales, cancelar nota, descuento, cotización
+a nota, compra en efectivo, guarda de cierre con notas) entregaron; el de restaurante se detuvo
+a medias por límite de uso (revisar su borrador `dia-completo-restaurante.spec.ts`).
+
+**En qué voy:** el día de la estética falla en «Fórmula guardada en su historial.» (paso de
+Karla en la cabina, tablet). Pendiente: correr ferretería (escritorio) y restaurante (tablet);
+aplicar la 181 a la base viva por F2.3 §4; D.5–D.8, D.10–D.11; bloques E y F; reporte 020.
+
+
+## 19-10-2026 · Etapa 2.4 · El cierre de la estabilización (rama `claude/morphiq-pos-stabilization-u5qfo1`)
+
+Encargo de Miguel: cerrar la estabilización de los cinco modelos —dinero e inventario
+conciliados, permisos, pruebas en CI y esquema alineado—. Esta sesión de Claude Code hace el
+desarrollo; Miguel y ChatGPT dirigen y revisan (`TEAM.md` reescrito: los carriles A/B pasan a
+«Histórico»). La rama sale de `fase-2.4` (`0178217`) y lo trae todo.
+
+**Línea base, contrastada y no creída:** unitarias 4,038 en verde; lint con 25 errores en una
+spec de exploración que se había quedado dentro (borrada) y formato roto en dos archivos;
+`verify:adopcion` con siete «pantallas» del restaurante en rojo que eran PIEZAS que una pantalla
+pinta (el verificador las distingue ahora por su envoltorio y su `SIN_ESTADO` con razón, con
+pruebas propias); el CI rojo del portal del comensal era una expectativa vieja (sin token la
+página dice «QR inválido» desde D-25), no un defecto. La barra de la cafetería se contaba antes
+de que la lista llegara: la prueba espera ahora un estado cargado.
+
+**Lo construido, cada cosa con su prueba vista roja:**
+- La base desechable corre en Docker con PostgreSQL 17.6 (`MORPHIQPOS_BASE_DESECHABLE_IMAGEN`),
+  con el almacén declarado y el puerto del servidor por variable.
+- La estilista lee a SUS clientas por el puente (no podía guardar la fórmula: «Sin
+  registrar»), y nadie filtra por un campo que no puede ver.
+- **D-37:** lo vendido fiado o a crédito se devuelve a cuenta (migración **182**), con el saldo
+  del documento, la remisión y la ficha bajando juntos y bajo candado; la parte pagada sale
+  por su método. El corte deja de borrar retroactivamente las ventas devueltas y resta lo
+  devuelto el día en que se devuelve (sección «Devoluciones», venta neta, utilidad neta). El
+  folio para devolver se busca en la sucursal de quien devuelve.
+- **D-36:** la frontera por sucursal, en el puente y en 141 comandos, con roles consolidados
+  (dueño y administrador). La prueba contra Postgres con dos sucursales la vio roja sin el
+  cambio: desde el norte se agregaban renglones a una orden del centro y se leía su corte.
+  Fuera `ConteoLinea` y `BeneficiarioPropina` (tablas sin `organizacion_id`).
+- **D-38:** la respuesta que no llega se dice en español y el reintento es seguro; el día de
+  la tienda corta la respuesta de un cobro ya hecho y exige UNA venta.
+- El dueño lee el corte en un teléfono de verdad (Pixel 7, otra entrada con PIN) en la tienda
+  y la ferretería; el paso se llamaba «en su teléfono» y corría en la PC.
+- El aislamiento entre negocios comparaba un cuerpo con el MISMO id ajeno en dos campos contra
+  uno con dos ids al azar distintos: el relevo de turno contestaba otra regla. Ahora un id por
+  tabla en las dos peticiones.
+- **D-39:** CI corre la jornada completa de cada modelo (PC y tableta en mostrador, tableta en
+  restaurante y salón; sin reintentos) y la matriz de permisos y el aislamiento con las cinco
+  demos.
+
+**Jornadas (base desechable, escritorio):** tienda 58 s, cafetería 1.4 min, ferretería 2.0
+min, las tres conciliadas al centavo con la prueba del centavo de más; las tres también en
+tableta. En teléfono el día entero NO se corre: el producto declara que el teléfono es del
+dueño, de lectura (`abarrotes/00-FICHA` §E); el teléfono va dentro del día. Restaurante y
+estética: dos subagentes los continúan en sus worktrees (los anteriores se cortaron por límite
+de uso y el contenedor se reinició; su trabajo se guardó como parche y se fusionó con la rama).
+
+**Las migraciones 181 y 182:** ledger de producción verificado (112/112 hashes, faltan
+exactamente esas dos); ensayo 180→182 en una base desechable con datos por los comandos, 134
+tablas idénticas y la nueva columna nula; ensayo con `rollback` sobre los datos reales de
+producción, sin dejar nada. **NO aplicadas: falta el respaldo.** Esta sesión no tiene
+`DATABASE_URL` ni la clave de servicio, y vaciar los datos por el conector los habría
+expuesto. Plan, comandos y vuelta atrás en `docs/fase-2/MIGRACIONES-181-182.md`.
+
+**El primer CI de las jornadas (`c594ddf`, corrida 39312758483), leído trabajo por trabajo:**
+tienda, cafetería y ferretería en verde en CI; formato, tipos, unitarias y build en verde. Lo
+rojo, con su causa y no con su síntoma:
+- *Contratos y mutaciones:* dos mutaciones buscaban el texto de antes de D-36 y del validador de
+  URL. Apuntan ahora al código vigente; 104 rechazadas en local.
+- *Permisos por rol:* 429 al PIN de la estética. La cuota de entrada de la red contaba también
+  las entradas CORRECTAS —el comentario decía «veinte PIN fallidos»—: la matriz entra con 25
+  personas y la 21.ª chocaba. No es un detalle de CI: todas las cajas de un negocio salen por la
+  misma IP y la tableta del restaurante pasa de mesero en mesero. **D-40**: el intento se
+  reserva antes de verificar y la entrada correcta lo devuelve.
+- *La matriz misma:* decía «segura contra cualquier base» y no lo era: cinco comandos que
+  escriben aceptan `{}` y la matriz los EJECUTABA con el rol que puede. **D-41**: el cuerpo
+  inerte. Comprobado contando las 136 tablas antes y después de la matriz entera: sólo cambian
+  `limite_tasa` y `auditoria` (2,628 filas, todas `denegado`: 2,244 `SIN_PERMISO` y 384
+  `PAQUETE_NO_INCLUYE`).
+- *Rastreo, los cinco:* `401 /api/catalogo/sesion`. El proveedor de sesión del heredado
+  pregunta «¿quién está dentro?» al montarse, también en la pantalla de acceso, donde la
+  respuesta es «nadie». Llegó con `5a94938` (Bloque D, en `fase-2.4`) y ningún CI corrió
+  después. Mismo arreglo que el de `ConfigProvider` en la 2.3: sin cookie no se pregunta.
+- *Restaurante:* la spec del día no existía en la rama (la escribe un subagente). *Estética:*
+  la spec heredada a medias; la reescribe el otro subagente.
+- Y el ruido: el `healthcheck` de Postgres preguntaba por una base que no existe y escribía un
+  `FATAL` cada cinco segundos en el registro de cada trabajo; ahora pregunta por la suya.
+- *Lo que no existe se contesta:* la lista de trabajo y la nota de mostrador guardaban el
+  cliente, la obra y el material tal como llegaban, y un id que no existe lo paraba la llave
+  foránea con un 500. Ahora se comprueban antes de escribir (`ferreteria/cliente-y-obra.ts`),
+  con prueba contra Postgres vista roja sin el cambio (`ERROR_INTERNO` en los cuatro casos). Y
+  el aislamiento lo exige de TODAS las rutas: con ids que no existen, ninguna contesta 5xx
+  (mutación de punta a punta: sin la comprobación, las cinco pruebas del aislamiento caen en
+  `lista_trabajo.capturar` → 500, y en ninguna otra ruta).
+- *Dos teléfonos en la misma mesa* (lo vio el subagente del restaurante, fuera de su zona): el
+  portal leía la orden sin candado. Dos pedidos a la vez dejaban un total al que le faltaba lo
+  del primero (45.00 en vez de 80.00), y un pedido que cruzaba con «pedir la cuenta» devolvía
+  la orden a `confirmada` después de la cuenta. Ahora `FOR UPDATE`, como el cobro de la caja;
+  `portal/carrera.integracion.test.ts` corre las dos carreras en paralelo de verdad: rojas sin
+  el cambio, verdes tres veces seguidas con él.
+- *El segundo CI* (`89f0130`, corrida 39323347137) ya pasó el rastreo en los cinco modelos y la
+  matriz de permisos, y destapó cuatro cosas más, todas de las pruebas y de su orden, ninguna
+  del producto: (1) el aislamiento caía con 429 en `/api/auth/empleados` —medido con el contador
+  vacío: la matriz gastaba 53 de 60 y las dos juntas 65, porque `entrar()` pedía la lista por su
+  cuenta además de la pantalla y la precondición se repetía antes de cada prueba; ahora 29 y
+  44—; (2) la suite del salón truncaba la comisión esperada y el sistema la redondea bien
+  ($620.688 → $620.69), y tres comentarios llamaban «D-36» a esa regla, un número que nunca se
+  escribió y que hoy es la frontera: citan `dinero/redondeo.ts`; (3) la suite de la ferretería
+  cerraba el turno con la nota del corte de material sin cobrar, y el muro del cierre de
+  `0178217` lo impide con razón: ahora la cobra; (4) las suites de modelo corrían sobre lo que
+  el rastreo dejó: CI vuelve a sembrar la demo antes. La galería (seis a diez por ciento de
+  píxeles en el cobro y las mesas) es el menú de D-34, el «Mixto» de C.5 y el «Casco» que la
+  2.4 agregó sin regenerar los retratos: se regeneran por CI con las integraciones.
+- *El preview de esta rama, desde fuera:* con el enlace compartido de Vercel, las cinco demos
+  servidas y los cuatro negocios reales en 404 igual que uno que no existe; sin hash ni PIN en
+  la entrada; cabeceras de seguridad; 403 sin sesión y 403 de un origen ajeno. Lo que NO se pudo:
+  entrar. El `APP_URL` de Preview es el alias de `fase-2`, y crear la variable para esta rama
+  necesita un permiso del proyecto de Vercel que esta sesión no tiene (`VERCEL-ENTORNO.md` §9,
+  con el comando).
+- *El tercer CI* (`2178203`, corrida 39327794001): la tienda y la ferretería, el día entero en
+  PC y tableta, en verde; permisos, aislamiento, contratos y el rastreo de los cinco, en verde.
+  La cafetería cayó por un defecto MÍO: `1628250` tradujo la X de los diálogos a «Cerrar», y el
+  conteo de leche tiene su propio «Cerrar» al pie; la prueba lo buscaba exacto y encontró dos.
+  En local había pasado porque mi servidor corría una construcción anterior a ese cambio —la
+  lección: reconstruir antes de dar por buena una prueba de pantalla—. Reproducido en local con
+  la construcción nueva (la misma violación de modo estricto), y la prueba toca ahora el «Cerrar»
+  del pie y comprueba que el conteo se va: verde en PC y tableta (3.5 min). La X conserva
+  «Cerrar», que es lo que dicen las demás X de la aplicación (`aria-label="Cerrar"`): dos botones
+  que hacen lo mismo pueden llamarse igual.
+
+**En qué voy:** integrar lo de los dos subagentes cuando entreguen; el PR contra `main`; el CI
+sobre el SHA del PR; el preview; `07-ESTADO.md` y el reporte 020.

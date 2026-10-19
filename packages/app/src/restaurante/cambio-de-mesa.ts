@@ -67,6 +67,7 @@ export const cambiarMesaComando = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes', mesaDestinoId: 'mesas' },
   modulo: 'mesas',
   entrada: entradaCambiarMesa,
   async ejecutar(ctx, entrada) {

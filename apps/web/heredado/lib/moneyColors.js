@@ -8,7 +8,7 @@ const NEUTRAL_CLASS = 'text-foreground';
 
 /**
  * @param {object} config - configuración del negocio
- * @param {string} colorClass - clase Tailwind original (ej. "text-emerald-600")
+ * @param {string} colorClass - clase Tailwind original (ej. "text-exito")
  * @returns clase Tailwind apropiada
  */
 export function getMoneyTextClass(config, colorClass) {

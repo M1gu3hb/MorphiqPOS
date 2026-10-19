@@ -52,9 +52,9 @@ export default class ErrorBoundary extends React.Component {
 
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-6">
-        <div className="max-w-sm w-full bg-card border-2 border-amber-200 rounded-2xl p-5 shadow-lg text-center">
-          <div className="w-12 h-12 mx-auto rounded-full bg-amber-100 flex items-center justify-center mb-3">
-            <AlertTriangle className="w-6 h-6 text-amber-600" />
+        <div className="max-w-sm w-full bg-card border-2 border-advertencia/30 rounded-2xl p-5 shadow-lg text-center">
+          <div className="w-12 h-12 mx-auto rounded-full bg-advertencia/15 flex items-center justify-center mb-3">
+            <AlertTriangle className="w-6 h-6 text-advertencia" />
           </div>
           <h2 className="font-heading font-bold text-base mb-1">{title}</h2>
           <p className="text-xs text-muted-foreground mb-4">{message}</p>

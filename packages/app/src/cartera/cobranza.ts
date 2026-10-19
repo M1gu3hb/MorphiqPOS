@@ -9,6 +9,9 @@ import { definirComando, type ContextoComando } from '../definicion.ts';
 
 import { cargarCliente, documentosVivos } from './documento.ts';
 
+/** Lo que entra pero no baja la deuda hasta que alguien mira el banco. */
+const POR_CONFIRMAR: readonly string[] = ['transferencia', 'cheque'];
+
 /**
  * F-613, F-614, F-615, F-616 y F-617 · Cobrar, medir, avisar y cortar.
  *
@@ -101,141 +104,157 @@ export const registrarPagoCredito = definirComando<
   paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaRegistrarPago,
   async ejecutar(ctx, entrada) {
-    const { organizacionId, sucursalId, empleoId, terminalId } = ctx.ambito;
-
-    await cargarCliente(ctx, entrada.clienteId);
-    const vivos = await documentosVivos(ctx, entrada.clienteId);
-    if (vivos.length === 0) {
-      throw new ErrorDominio(
-        'CONFIGURACION_CONFLICTO',
-        'Ese cliente no debe nada: un pago sin deuda es un anticipo, y va por otro camino.',
-      );
-    }
-
-    // F-212 · La transferencia entra, pero NO baja el saldo. El comprobante se
-    // ve en la pantalla del cliente y el sistema no puede saber si es real: lo
-    // único que puede hacer es no creérselo hasta que alguien mire el banco.
-    // Aplicarla de inmediato es cómo un comprobante falso de $12,000 sale por
-    // la puerta convertido en material.
-    const pendiente = entrada.metodo === 'transferencia';
-
-    // `repartirPago` es la función que E6 escribió para F-614 en ferretería, y
-    // sirve TAL CUAL para el fiado de una tiendita: es la comprobación campo por
-    // campo que el encargo pide antes de reutilizar. `fecha` es el VENCIMIENTO y
-    // no la emisión, porque lo que se paga primero es lo que venció primero.
-    const reparto = repartirPago(
-      BigInt(entrada.montoCentavos),
-      vivos.map((d) => ({ id: d.id, saldoCentavos: d.saldoCentavos, fecha: d.venceEn })),
-    );
-
-    // El efectivo entra al cajón; lo demás llega al banco. Sólo lo primero
-    // necesita sesión de caja, y exigirla para una transferencia dejaría al
-    // cobrador sin poder registrar un depósito que ya está en la cuenta.
-    let sesionId: string | null = null;
-    if (entrada.metodo === 'efectivo') {
-      if (terminalId === null) {
-        throw new ErrorDominio(
-          'VENTA_SIN_TERMINAL',
-          'El efectivo entra al cajón: hace falta una terminal con su caja abierta.',
-        );
-      }
-      const sesion = await ctx.paso('cargar_caja', () =>
-        repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
-      );
-      if (sesion === null) {
-        throw new ErrorDominio('CAJA_CERRADA', 'Abre la caja antes de cobrar en efectivo.');
-      }
-      sesionId = sesion.id;
-    }
-
-    const pago = await ctx.paso('anotar_pago', () =>
-      ctx.tx
-        .insertInto('pagos_credito')
-        .values({
-          organizacion_id: organizacionId,
-          sucursal_id: sucursalId,
-          cliente_id: entrada.clienteId,
-          monto_centavos: BigInt(entrada.montoCentavos),
-          metodo: entrada.metodo,
-          referencia: entrada.referencia ?? null,
-          sesion_caja_id: sesionId,
-          // A cuenta sólo cuando de verdad se aplicó: reservar el sobrante de
-          // un pago que todavía nadie confirmó daría un saldo a favor sobre
-          // dinero que puede no existir.
-          a_cuenta_centavos: pendiente ? 0n : reparto.sobranteCentavos,
-          empleado_id: empleoId,
-          confirmado: !pendiente,
-          confirmado_en: pendiente ? null : ctx.ahora,
-          confirmado_por: pendiente ? null : empleoId,
-          recibido_en: ctx.ahora,
-          created_at: ctx.ahora,
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow(),
-    );
-
-    if (pendiente) {
-      ctx.auditar({
-        entidadId: pago.id,
-        payload: { clienteId: entrada.clienteId, montoCentavos: entrada.montoCentavos, pendiente },
-      });
-      const saldoVivo = vivos.reduce((a, d) => a + d.saldoCentavos, 0n);
-      return {
-        pagoId: pago.id,
-        aplicadoCentavos: '0',
-        aCuentaCentavos: '0',
-        documentosSaldados: 0,
-        // El saldo NO baja. Devolver aquí el saldo ya restado sería mentirle a
-        // la pantalla, que es donde el mostradorista lo lee en voz alta.
-        saldoDespuesCentavos: saldoVivo.toString(),
-        pendienteDeConfirmar: true,
-      };
-    }
-
-    // La MISMA aplicación que usa la confirmación de una transferencia. Dos
-    // copias es cómo una de las dos se queda sin la guarda optimista.
-    const saldados = await aplicarReparto(ctx, pago.id, vivos, reparto.aplicaciones);
-
-    if (sesionId !== null) {
-      await ctx.paso('anotar_caja', () =>
-        repoCaja.registrarMovimiento(ctx.tx, {
-          organizacionId,
-          sesionCajaId: sesionId,
-          tipo: 'deposito',
-          montoCentavos: BigInt(entrada.montoCentavos),
-          motivo: 'pago de crédito',
-          empleadoId: empleoId,
-          // NO es `orden`: la venta se registró el día que se fió. Contarla otra
-          // vez aquí duplicaría el ingreso del mes.
-          referenciaTipo: 'pago_credito',
-          referenciaId: pago.id,
-        }),
-      );
-    }
-
-    const aplicado = BigInt(entrada.montoCentavos) - reparto.sobranteCentavos;
-    const saldoAntes = vivos.reduce((a, d) => a + d.saldoCentavos, 0n);
-
+    const pago = await aplicarPagoDeCredito(ctx, entrada);
+    // La auditoría es de QUIEN LLAMA: el ejecutor guarda sólo el primer rastro.
     ctx.auditar({
-      entidadId: pago.id,
+      entidadId: pago.pagoId,
       payload: {
         clienteId: entrada.clienteId,
         montoCentavos: entrada.montoCentavos,
-        documentos: reparto.aplicaciones.length,
-        aCuentaCentavos: reparto.sobranteCentavos.toString(),
+        metodo: entrada.metodo,
+        aplicadoCentavos: pago.aplicadoCentavos,
+        aCuentaCentavos: pago.aCuentaCentavos,
+        pendiente: pago.pendienteDeConfirmar,
       },
     });
-
-    return {
-      pagoId: pago.id,
-      aplicadoCentavos: aplicado.toString(),
-      aCuentaCentavos: reparto.sobranteCentavos.toString(),
-      documentosSaldados: saldados,
-      saldoDespuesCentavos: (saldoAntes - aplicado).toString(),
-      pendienteDeConfirmar: false,
-    };
+    return pago;
   },
 });
+
+/**
+ * Registrar un pago de crédito: anotarlo, aplicarlo a lo más viejo y meter el efectivo al
+ * cajón. Lo usan `credito.registrar_pago` (ferretería) y `fiado.registrar_abono` (la tienda,
+ * C.10 de la 2.4): UNA cartera, una aplicación de pagos. No audita: audita quien llama.
+ */
+export async function aplicarPagoDeCredito(
+  ctx: ContextoComando<Transaccion>,
+  entrada: z.infer<typeof entradaRegistrarPago>,
+): Promise<ResultadoPagoCredito> {
+  const { organizacionId, sucursalId, empleoId, terminalId } = ctx.ambito;
+
+  await cargarCliente(ctx, entrada.clienteId);
+  const vivos = await documentosVivos(ctx, entrada.clienteId);
+  if (vivos.length === 0) {
+    throw new ErrorDominio(
+      'CONFIGURACION_CONFLICTO',
+      'Ese cliente no debe nada: un pago sin deuda es un anticipo, y va por otro camino.',
+    );
+  }
+
+  // F-212 · La transferencia entra, pero NO baja el saldo. El comprobante se
+  // ve en la pantalla del cliente y el sistema no puede saber si es real: lo
+  // único que puede hacer es no creérselo hasta que alguien mire el banco.
+  // Aplicarla de inmediato es cómo un comprobante falso de $12,000 sale por
+  // la puerta convertido en material.
+  //
+  // Y el CHEQUE igual (auditoría de la 2.4): se aplicaba al instante, y un cheque sin
+  // fondos dejaba la deuda saldada sin que entrara un peso. Se confirma cuando el banco
+  // lo paga, por el mismo camino que la transferencia.
+  const pendiente = POR_CONFIRMAR.includes(entrada.metodo);
+
+  // `repartirPago` es la función que E6 escribió para F-614 en ferretería, y
+  // sirve TAL CUAL para el fiado de una tiendita: es la comprobación campo por
+  // campo que el encargo pide antes de reutilizar. `fecha` es el VENCIMIENTO y
+  // no la emisión, porque lo que se paga primero es lo que venció primero.
+  const reparto = repartirPago(
+    BigInt(entrada.montoCentavos),
+    vivos.map((d) => ({ id: d.id, saldoCentavos: d.saldoCentavos, fecha: d.venceEn })),
+  );
+
+  // El efectivo entra al cajón; lo demás llega al banco. Sólo lo primero
+  // necesita sesión de caja, y exigirla para una transferencia dejaría al
+  // cobrador sin poder registrar un depósito que ya está en la cuenta.
+  let sesionId: string | null = null;
+  if (entrada.metodo === 'efectivo') {
+    if (terminalId === null) {
+      throw new ErrorDominio(
+        'VENTA_SIN_TERMINAL',
+        'El efectivo entra al cajón: hace falta una terminal con su caja abierta.',
+      );
+    }
+    const sesion = await ctx.paso('cargar_caja', () =>
+      repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
+    );
+    if (sesion === null) {
+      throw new ErrorDominio('CAJA_CERRADA', 'Abre la caja antes de cobrar en efectivo.');
+    }
+    sesionId = sesion.id;
+  }
+
+  const pago = await ctx.paso('anotar_pago', () =>
+    ctx.tx
+      .insertInto('pagos_credito')
+      .values({
+        organizacion_id: organizacionId,
+        sucursal_id: sucursalId,
+        cliente_id: entrada.clienteId,
+        monto_centavos: BigInt(entrada.montoCentavos),
+        metodo: entrada.metodo,
+        referencia: entrada.referencia ?? null,
+        sesion_caja_id: sesionId,
+        // A cuenta sólo cuando de verdad se aplicó: reservar el sobrante de
+        // un pago que todavía nadie confirmó daría un saldo a favor sobre
+        // dinero que puede no existir.
+        a_cuenta_centavos: pendiente ? 0n : reparto.sobranteCentavos,
+        empleado_id: empleoId,
+        confirmado: !pendiente,
+        confirmado_en: pendiente ? null : ctx.ahora,
+        confirmado_por: pendiente ? null : empleoId,
+        recibido_en: ctx.ahora,
+        created_at: ctx.ahora,
+      })
+      .returning('id')
+      .executeTakeFirstOrThrow(),
+  );
+
+  if (pendiente) {
+    const saldoVivo = vivos.reduce((a, d) => a + d.saldoCentavos, 0n);
+    return {
+      pagoId: pago.id,
+      aplicadoCentavos: '0',
+      aCuentaCentavos: '0',
+      documentosSaldados: 0,
+      // El saldo NO baja. Devolver aquí el saldo ya restado sería mentirle a
+      // la pantalla, que es donde el mostradorista lo lee en voz alta.
+      saldoDespuesCentavos: saldoVivo.toString(),
+      pendienteDeConfirmar: true,
+    };
+  }
+
+  // La MISMA aplicación que usa la confirmación de una transferencia. Dos
+  // copias es cómo una de las dos se queda sin la guarda optimista.
+  const saldados = await aplicarReparto(ctx, pago.id, vivos, reparto.aplicaciones);
+
+  if (sesionId !== null) {
+    await ctx.paso('anotar_caja', () =>
+      repoCaja.registrarMovimiento(ctx.tx, {
+        organizacionId,
+        sesionCajaId: sesionId,
+        tipo: 'deposito',
+        montoCentavos: BigInt(entrada.montoCentavos),
+        motivo: 'pago de crédito',
+        empleadoId: empleoId,
+        // NO es `orden`: la venta se registró el día que se fió. Contarla otra
+        // vez aquí duplicaría el ingreso del mes.
+        referenciaTipo: 'pago_credito',
+        referenciaId: pago.id,
+      }),
+    );
+  }
+
+  const aplicado = BigInt(entrada.montoCentavos) - reparto.sobranteCentavos;
+  const saldoAntes = vivos.reduce((a, d) => a + d.saldoCentavos, 0n);
+  await bajarSaldoDeLaFicha(ctx, entrada.clienteId, aplicado);
+
+  return {
+    pagoId: pago.id,
+    aplicadoCentavos: aplicado.toString(),
+    aCuentaCentavos: reparto.sobranteCentavos.toString(),
+    documentosSaldados: saldados,
+    saldoDespuesCentavos: (saldoAntes - aplicado).toString(),
+    pendienteDeConfirmar: false,
+  };
+}
 
 /**
  * F-212 · Confirmar la transferencia, que es cuando de verdad baja el saldo.
@@ -262,6 +281,7 @@ export const confirmarTransferencia = definirComando<
   escribe: true,
   roles: [...ROLES_DE_MURO],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { pagoId: 'pagos_credito' },
   entrada: entradaConfirmarTransferencia,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -272,15 +292,19 @@ export const confirmarTransferencia = definirComando<
         .select(['id', 'cliente_id', 'monto_centavos', 'metodo', 'confirmado'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.pagoId)
+        // BLOQUEADO (auditoría de la 2.4): dos confirmaciones a la vez —dos pestañas—
+        // leían «sin confirmar» las dos y el pago se aplicaba dos veces. Con el renglón
+        // bloqueado, la segunda espera y lee «ya estaba confirmada».
+        .forUpdate()
         .executeTakeFirst(),
     );
     if (pago === undefined) {
       throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese pago no existe en este negocio.');
     }
-    if (pago.metodo !== 'transferencia') {
+    if (!POR_CONFIRMAR.includes(pago.metodo)) {
       throw new ErrorDominio(
         'CONFIGURACION_CONFLICTO',
-        'Sólo las transferencias se confirman: lo demás ya entró al cajón.',
+        'Sólo las transferencias y los cheques se confirman: lo demás ya entró.',
       );
     }
     // Confirmar dos veces aplicaría el pago dos veces y le regalaría el doble al
@@ -297,6 +321,7 @@ export const confirmarTransferencia = definirComando<
     );
 
     const saldados = await aplicarReparto(ctx, pago.id, vivos, reparto.aplicaciones);
+    await bajarSaldoDeLaFicha(ctx, pago.cliente_id, pago.monto_centavos - reparto.sobranteCentavos);
 
     await ctx.paso('confirmar', () =>
       ctx.tx
@@ -353,7 +378,7 @@ export const transferenciasPendientes = definirComando<
         .selectFrom('pagos_credito')
         .select(['id', 'cliente_id', 'monto_centavos', 'referencia', 'created_at'])
         .where('organizacion_id', '=', organizacionId)
-        .where('metodo', '=', 'transferencia')
+        .where('metodo', 'in', [...POR_CONFIRMAR])
         .where('confirmado', '=', false)
         .where('created_at', '>=', desde)
         .orderBy('created_at', 'asc')
@@ -432,10 +457,103 @@ async function aplicarReparto(
         .execute(),
     );
 
+    await espejarEnLaRemision(ctx, aplicacion.documentoId, aplicacion.montoCentavos);
+
     if (despues === 0n) saldados += 1;
   }
 
   return saldados;
+}
+
+/**
+ * EL SALDO DE LA FICHA BAJA CON EL PAGO (bloque D de la 2.4).
+ *
+ * La remisión de la ferretería sube `clientes.saldo_pendiente_centavos` (`ferreteria/
+ * credito.ts`), y ése es el número que leen la caja —«A cuenta: debe X de Y», y con él
+ * apaga «A cuenta» cuando pasa del límite— y la remisión al mirar el límite. El pago bajaba
+ * el documento y la remisión, nunca la ficha: el contratista que liquidaba todo seguía
+ * «debiendo», y a la siguiente obra la caja le negaba el crédito. Lo encontró la prueba de
+ * integración del día completo de la ferretería.
+ *
+ * Baja lo APLICADO —lo que quedó a cuenta no es deuda pagada— y nunca abajo de cero: el
+ * fiado de la tiendita lleva su saldo en los documentos y deja la ficha en cero. El renglón
+ * se bloquea antes de leerlo: la confirmación de una transferencia no pasa por
+ * `cargarCliente`, y dos pagos a la vez no pueden restar sobre el mismo saldo leído.
+ */
+export async function bajarSaldoDeLaFicha(
+  ctx: ContextoComando<Transaccion>,
+  clienteId: string,
+  aplicadoCentavos: bigint,
+): Promise<void> {
+  if (aplicadoCentavos <= 0n) return;
+  const { organizacionId } = ctx.ambito;
+  const ficha = await ctx.paso('leer_saldo_de_la_ficha', () =>
+    ctx.tx
+      .selectFrom('clientes')
+      .select(['saldo_pendiente_centavos'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', clienteId)
+      .forUpdate()
+      .executeTakeFirst(),
+  );
+  if (ficha === undefined) return;
+  const antes = ficha.saldo_pendiente_centavos;
+  const despues = antes > aplicadoCentavos ? antes - aplicadoCentavos : 0n;
+  if (despues === antes) return;
+  await ctx.paso('bajar_saldo_de_la_ficha', () =>
+    ctx.tx
+      .updateTable('clientes')
+      .set({ saldo_pendiente_centavos: despues, updated_at: ctx.ahora })
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', clienteId)
+      .execute(),
+  );
+}
+
+/**
+ * EL MISMO PAGO EN LA REMISIÓN, cuando el documento nació de una (C.10 de la 2.4).
+ *
+ * La ferretería lleva el saldo de cada entrega en `remisiones.saldo_documento_centavos`
+ * —su ficha de cobro lista ESAS— y la cartera en `documentos_credito`. La remisión ahora
+ * deja su documento; el pago se aplica al documento y aquí baja lo mismo en la remisión,
+ * para que las dos cuentas no se separen al primer abono. Nunca abajo de cero.
+ */
+export async function espejarEnLaRemision(
+  ctx: ContextoComando<Transaccion>,
+  documentoId: string,
+  montoCentavos: bigint,
+): Promise<void> {
+  const { organizacionId } = ctx.ambito;
+  const documento = await ctx.paso('leer_origen', () =>
+    ctx.tx
+      .selectFrom('documentos_credito')
+      .select(['origen_tipo', 'origen_id'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', documentoId)
+      .executeTakeFirst(),
+  );
+  if (documento?.origen_tipo !== 'remision' || documento.origen_id === null) return;
+  const remisionId = documento.origen_id;
+  const remision = await ctx.paso('leer_remision', () =>
+    ctx.tx
+      .selectFrom('remisiones')
+      .select(['saldo_documento_centavos'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', remisionId)
+      .executeTakeFirst(),
+  );
+  if (remision === undefined) return;
+  const antes = remision.saldo_documento_centavos;
+  const despues = antes > montoCentavos ? antes - montoCentavos : 0n;
+  await ctx.paso('espejar_en_remision', () =>
+    ctx.tx
+      .updateTable('remisiones')
+      .set({ saldo_documento_centavos: despues })
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', remisionId)
+      .where('saldo_documento_centavos', '=', antes)
+      .execute(),
+  );
 }
 
 export const entradaCartera = z.object({

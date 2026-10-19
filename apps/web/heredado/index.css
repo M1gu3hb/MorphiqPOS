@@ -13,89 +13,94 @@
        sustituyen por el `@import 'tailwindcss'` de la 4, que vive en
        `app/globals.css` junto con la traducción de su `tailwind.config.js`.
 
-   Todo lo demás —su paleta, su modo oscuro, su parche dark, su reflejo
-   premium, su blindaje de impresión y sus reglas de @page— entra sin tocar
-   una línea. ============================================================== */
+   Todo lo demás —su paleta, su modo oscuro, su reflejo premium, su blindaje de
+   impresión y sus reglas de @page— entra sin tocar una línea. Su PARCHE DARK sí
+   se retiró en C.16 de la 2.4: ver su sitio, abajo. ============================================================== */
 
 @layer base {
+  /* ==========================================================================
+     SUS TOKENS, DERIVADOS DEL SISTEMA. Etapa 2.35.
+     --------------------------------------------------------------------------
+     Aquí estaban sus valores escritos a mano, y era el único sitio donde
+     vivían. El problema no era el archivo: era que había DOS vocabularios de
+     tokens, el inglés de shadcn —éste, vivo— y el español de `packages/ui`
+     —con contrato, perillas y auditoría de contraste, y muerto porque nadie
+     importaba su hoja—. Dos vocabularios garantizan que uno se queda atrás, y
+     uno ya se había quedado: 36 primitivas escribían `shadow-1..4` y
+     `h-(--altura-control)` en unos 190 sitios, y esas clases no emitían una
+     sola línea de CSS. El sistema pintaba con tokens que no existían.
+
+     Ahora hay UNO. La fuente es `packages/ui/src/estilos/morphiq.css` —que es
+     SU paleta, valor por valor— y estos nombres son alias suyos. Los 244
+     archivos del heredado siguen escribiendo `bg-card`, `text-muted-foreground`
+     y `bg-sidebar` sin cambiar una clase.
+
+     Y el modo oscuro desapareció DE AQUÍ, que es lo que más se gana: antes
+     había que acordarse de tocar dos bloques por cada color. Ahora el estilo
+     cambia sus tokens bajo `.dark` y estos alias lo siguen solos.
+     ========================================================================== */
   :root {
     --font-heading: var(--mh-dm-sans), 'DM Sans', sans-serif;
     --font-body: var(--mh-inter), 'Inter', sans-serif;
 
-    /* MH Astral Systems — Negro / Azul eléctrico */
-    --background: 220 20% 98%;
-    --foreground: 222 47% 11%;
-    --card: 0 0% 100%;
-    --card-foreground: 222 47% 11%;
-    --popover: 0 0% 100%;
-    --popover-foreground: 222 47% 11%;
-    --primary: 217 91% 55%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 215 25% 95%;
-    --secondary-foreground: 222 47% 15%;
-    --muted: 215 25% 94%;
-    --muted-foreground: 215 16% 46%;
-    --accent: 199 89% 92%;
-    --accent-foreground: 217 91% 30%;
-    --destructive: 0 72% 51%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 215 20% 88%;
-    --input: 215 20% 88%;
-    --ring: 217 91% 55%;
-    --radius: 0.75rem;
+    /* MH Astral Systems — Negro / Azul eléctrico, vía el sistema de diseño */
+    --background: var(--fondo);
+    --foreground: var(--texto);
+    --card: var(--superficie);
+    --card-foreground: var(--texto);
+    --popover: var(--superficie-elevada);
+    --popover-foreground: var(--texto);
+    --primary: var(--primario);
+    --primary-foreground: var(--primario-texto);
+    --secondary: var(--fondo-sutil);
+    --secondary-foreground: var(--texto);
+    --muted: var(--fondo-sutil);
+    --muted-foreground: var(--texto-sutil);
+    /* Su `--accent` es una SUPERFICIE teñida —el hover del menú, la fila
+       resaltada—, no un color saturado. En el sistema es `acento-suave`, que
+       existe precisamente porque su paleta ya distinguía las dos cosas y el
+       contrato no. */
+    --accent: var(--acento-suave);
+    --accent-foreground: var(--acento-suave-texto);
+    --destructive: var(--peligro);
+    --destructive-foreground: var(--peligro-texto);
+    --border: var(--borde);
+    /* Su `--input` valía lo mismo que `--border`: 1.33:1 sobre el fondo, un
+       campo cuyo borde nadie ve. `borde-fuerte` es ese mismo tono a 3.21:1,
+       que es lo que WCAG 1.4.11 pide de un elemento no textual. */
+    --input: var(--borde-fuerte);
+    --ring: var(--anillo);
+    /* Su radio de 0.75rem es exactamente el `--radio-lg` de la perilla
+       `redondeo: media`, que es la que declara el estilo `morphiq`. Derivarlo
+       es lo que hace que la perilla funcione de verdad en los 244 archivos. */
+    --radius: var(--radio-lg);
 
-    --success: 152 60% 40%;
-    --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
-    --warning-foreground: 222 47% 11%;
-    --info: 199 89% 48%;
-    --info-foreground: 0 0% 100%;
+    --success: var(--exito);
+    --success-foreground: var(--exito-texto);
+    --warning: var(--advertencia);
+    --warning-foreground: var(--advertencia-texto);
+    --info: var(--info);
+    --info-foreground: var(--info-texto);
 
-    --chart-1: 217 91% 55%;
-    --chart-2: 199 89% 48%;
-    --chart-3: 152 60% 40%;
-    --chart-4: 38 92% 50%;
-    --chart-5: 280 60% 55%;
+    --chart-1: var(--grafico-1);
+    --chart-2: var(--grafico-2);
+    --chart-3: var(--grafico-3);
+    --chart-4: var(--grafico-4);
+    --chart-5: var(--grafico-5);
 
-    /* Sidebar — negro profundo con acento azul */
-    --sidebar-background: 222 47% 7%;
-    --sidebar-foreground: 215 20% 88%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 35% 14%;
-    --sidebar-accent-foreground: 215 20% 92%;
-    --sidebar-border: 222 30% 16%;
-    --sidebar-ring: 217 91% 60%;
-  }
-
-  .dark {
-    --background: 222 47% 6%;
-    --foreground: 215 20% 92%;
-    --card: 222 40% 10%;
-    --card-foreground: 215 20% 92%;
-    --popover: 222 40% 10%;
-    --popover-foreground: 215 20% 92%;
-    --primary: 217 91% 60%;
-    --primary-foreground: 0 0% 100%;
-    --secondary: 222 30% 14%;
-    --secondary-foreground: 215 20% 90%;
-    --muted: 222 30% 14%;
-    --muted-foreground: 215 15% 60%;
-    --accent: 222 30% 18%;
-    --accent-foreground: 215 20% 92%;
-    --destructive: 0 72% 45%;
-    --destructive-foreground: 0 0% 100%;
-    --border: 222 25% 18%;
-    --input: 222 25% 18%;
-    --ring: 217 91% 60%;
-    --sidebar-background: 222 50% 4%;
-    --sidebar-foreground: 215 20% 88%;
-    --sidebar-primary: 217 91% 60%;
-    --sidebar-primary-foreground: 0 0% 100%;
-    --sidebar-accent: 222 35% 10%;
-    --sidebar-accent-foreground: 215 20% 90%;
-    --sidebar-border: 222 30% 12%;
-    --sidebar-ring: 217 91% 60%;
+    /* Barra lateral oscura permanente — su decisión, y se conserva: en el
+       sistema `lateral-*` es oscuro en los dos modos. */
+    --sidebar-background: var(--lateral-fondo);
+    --sidebar-foreground: var(--lateral-texto);
+    --sidebar-primary: var(--lateral-activo);
+    --sidebar-primary-foreground: var(--lateral-activo-texto);
+    /* La barra es oscura en los DOS modos, asi que su hover tiene su propio token:
+       el acento suave de la pagina es clarisimo en modo claro y sobre una barra
+       casi negra seria un parche blanco. */
+    --sidebar-accent: var(--lateral-hover);
+    --sidebar-accent-foreground: var(--lateral-texto);
+    --sidebar-border: var(--lateral-borde);
+    --sidebar-ring: var(--anillo);
   }
 }
 
@@ -195,223 +200,16 @@ html.dark .premium-sheen::before {
 }
 
 /* =====================================================
-   PARCHE DARK — Conversión automática de patrones light
-   hardcoded en el código antiguo.
+   PARCHE DARK — RETIRADO en C.16 de la etapa 2.4
    =====================================================
-   Razones: muchos componentes históricos usan colores claros
-   como `bg-white/70`, `bg-emerald-50`, `bg-amber-50` en
-   superficies que en dark deberían convertirse a oscuro real.
-   Aquí los reescribimos solo en `.dark` sin tocar light.
-   IMPORTANTE: no afecta lógica, no rompe modo claro. */
-html.dark .bg-white,
-html.dark .bg-white\/70,
-html.dark .bg-white\/80,
-html.dark .bg-white\/85,
-html.dark .bg-white\/90 {
-  background-color: hsl(var(--card)) !important;
-}
-html.dark .bg-white\/30,
-html.dark .bg-white\/40,
-html.dark .bg-white\/50,
-html.dark .bg-white\/60 {
-  background-color: hsl(var(--card) / 0.7) !important;
-}
-
-/* Tarjetas pálidas tipo bg-[color]-50 → versión dark sólida sutil */
-html.dark .bg-amber-50 {
-  background-color: rgb(28 19 8 / 0.85) !important;
-}
-html.dark .bg-emerald-50 {
-  background-color: rgb(10 26 18 / 0.85) !important;
-}
-html.dark .bg-rose-50 {
-  background-color: rgb(31 13 18 / 0.85) !important;
-}
-html.dark .bg-red-50 {
-  background-color: rgb(31 13 13 / 0.85) !important;
-}
-html.dark .bg-orange-50 {
-  background-color: rgb(28 19 8 / 0.85) !important;
-}
-html.dark .bg-yellow-50 {
-  background-color: rgb(28 22 8 / 0.85) !important;
-}
-html.dark .bg-blue-50 {
-  background-color: rgb(11 20 36 / 0.85) !important;
-}
-html.dark .bg-indigo-50 {
-  background-color: rgb(17 14 36 / 0.85) !important;
-}
-html.dark .bg-purple-50 {
-  background-color: rgb(23 15 36 / 0.85) !important;
-}
-html.dark .bg-violet-50 {
-  background-color: rgb(23 15 36 / 0.85) !important;
-}
-html.dark .bg-cyan-50 {
-  background-color: rgb(8 32 38 / 0.85) !important;
-}
-html.dark .bg-pink-50 {
-  background-color: rgb(31 13 22 / 0.85) !important;
-}
-html.dark .bg-slate-50 {
-  background-color: rgb(15 23 42 / 0.85) !important;
-}
-html.dark .bg-gray-50 {
-  background-color: rgb(15 23 42 / 0.85) !important;
-}
-html.dark .bg-stone-50 {
-  background-color: rgb(18 16 14 / 0.85) !important;
-}
-
-html.dark .bg-amber-100 {
-  background-color: rgb(58 39 16 / 0.85) !important;
-}
-html.dark .bg-emerald-100 {
-  background-color: rgb(20 54 31 / 0.85) !important;
-}
-html.dark .bg-rose-100 {
-  background-color: rgb(59 20 34 / 0.85) !important;
-}
-html.dark .bg-red-100 {
-  background-color: rgb(59 20 20 / 0.85) !important;
-}
-html.dark .bg-orange-100 {
-  background-color: rgb(58 39 16 / 0.85) !important;
-}
-html.dark .bg-yellow-100 {
-  background-color: rgb(58 49 16 / 0.85) !important;
-}
-html.dark .bg-blue-100 {
-  background-color: rgb(22 38 72 / 0.85) !important;
-}
-html.dark .bg-purple-100 {
-  background-color: rgb(45 29 74 / 0.85) !important;
-}
-html.dark .bg-cyan-100 {
-  background-color: rgb(15 63 74 / 0.85) !important;
-}
-html.dark .bg-pink-100 {
-  background-color: rgb(59 20 34 / 0.85) !important;
-}
-
-html.dark .bg-amber-200 {
-  background-color: rgb(74 50 18 / 0.9) !important;
-}
-html.dark .bg-red-200 {
-  background-color: rgb(74 22 22 / 0.9) !important;
-}
-
-/* Textos de color-700/900 sobre bg dark se vuelven ilegibles → subimos a 200/300 */
-html.dark .text-amber-700,
-html.dark .text-amber-800,
-html.dark .text-amber-900 {
-  color: rgb(252 211 77) !important;
-}
-html.dark .text-emerald-700,
-html.dark .text-emerald-800,
-html.dark .text-emerald-900 {
-  color: rgb(134 239 172) !important;
-}
-html.dark .text-rose-700,
-html.dark .text-rose-800,
-html.dark .text-rose-900 {
-  color: rgb(253 164 175) !important;
-}
-html.dark .text-red-700,
-html.dark .text-red-800,
-html.dark .text-red-900 {
-  color: rgb(252 165 165) !important;
-}
-html.dark .text-orange-700,
-html.dark .text-orange-800,
-html.dark .text-orange-900 {
-  color: rgb(253 186 116) !important;
-}
-html.dark .text-yellow-700,
-html.dark .text-yellow-800,
-html.dark .text-yellow-900 {
-  color: rgb(253 224 71) !important;
-}
-html.dark .text-blue-700,
-html.dark .text-blue-800,
-html.dark .text-blue-900 {
-  color: rgb(147 197 253) !important;
-}
-html.dark .text-purple-700,
-html.dark .text-purple-800,
-html.dark .text-purple-900 {
-  color: rgb(196 181 253) !important;
-}
-html.dark .text-cyan-700,
-html.dark .text-cyan-800,
-html.dark .text-cyan-900 {
-  color: rgb(103 232 249) !important;
-}
-html.dark .text-pink-700,
-html.dark .text-pink-800,
-html.dark .text-pink-900 {
-  color: rgb(249 168 212) !important;
-}
-html.dark .text-emerald-600 {
-  color: rgb(74 222 128) !important;
-}
-html.dark .text-rose-600 {
-  color: rgb(251 113 133) !important;
-}
-html.dark .text-red-600 {
-  color: rgb(248 113 113) !important;
-}
-html.dark .text-orange-600 {
-  color: rgb(251 146 60) !important;
-}
-html.dark .text-amber-600 {
-  color: rgb(251 191 36) !important;
-}
-html.dark .text-blue-600 {
-  color: rgb(96 165 250) !important;
-}
-
-/* Bordes de color-200 pálidos → tonos más visibles en dark */
-html.dark .border-amber-200,
-html.dark .border-amber-200\/60 {
-  border-color: rgb(146 64 14 / 0.7) !important;
-}
-html.dark .border-emerald-200,
-html.dark .border-emerald-200\/60 {
-  border-color: rgb(22 101 52 / 0.7) !important;
-}
-html.dark .border-rose-200,
-html.dark .border-rose-200\/60 {
-  border-color: rgb(159 18 57 / 0.7) !important;
-}
-html.dark .border-red-200 {
-  border-color: rgb(153 27 27 / 0.7) !important;
-}
-html.dark .border-orange-200 {
-  border-color: rgb(154 52 18 / 0.7) !important;
-}
-html.dark .border-yellow-200 {
-  border-color: rgb(133 77 14 / 0.7) !important;
-}
-html.dark .border-blue-200 {
-  border-color: rgb(30 58 138 / 0.7) !important;
-}
-html.dark .border-white,
-html.dark .border-white\/60 {
-  border-color: hsl(var(--border)) !important;
-}
-
-/* Anillos ring-* claros para destacar → tonos dark visibles */
-html.dark .ring-amber-200 {
-  --tw-ring-color: rgb(146 64 14 / 0.6) !important;
-}
-html.dark .ring-emerald-200 {
-  --tw-ring-color: rgb(22 101 52 / 0.6) !important;
-}
-html.dark .ring-rose-200 {
-  --tw-ring-color: rgb(159 18 57 / 0.6) !important;
-}
+   Aquí vivían ~140 reglas `html.dark .bg-amber-50 { … !important }` que
+   reescribían a mano, sólo en el modo oscuro de ESTE frontend, los colores fijos
+   de paleta del código antiguo. Esos colores ya no existen: el heredado usa los
+   tokens del sistema (commit de sólo color de C.16), que cambian solos con el
+   estilo y el modo —los ocho, no sólo «oscuro»—. Las reglas no tenían ya a quién
+   aplicar, y las pocas clases de paleta que quedan a propósito van sobre fondos
+   que se eligen en tiempo de ejecución, donde reescribirlas sería un error.
+   Se conserva lo de abajo, que no es de paleta. */
 
 /* Hover states: `hover:bg-muted/30` etc se ven bien por tokens.
    Pero `bg-muted/30` plano se ve muy similar al fondo. Lo subimos sutilmente. */
@@ -461,6 +259,43 @@ html.dark .printable-doc {
   color-scheme: light !important;
   -webkit-print-color-adjust: exact !important;
   print-color-adjust: exact !important;
+}
+
+/* 1b) Los TOKENS del sistema, en papel (C.16 de la 2.4, D-19).
+   Desde que sus colores fijos pasaron a tokens, un ticket pinta `bg-fondo-sutil` y
+   `border-borde-fuerte`: en Noche o Terminal serían oscuros bajo un texto forzado a
+   oscuro. Las utilidades resuelven el token en el propio elemento (`@theme inline`),
+   así que redefinirlos aquí los deja en papel para todo lo que hay dentro, en
+   cualquier estilo y modo. Los valores son los del estilo base en claro
+   (`packages/ui/src/estilos/morphiq.css`). Lo exige
+   `apps/web/src/imprimibles-en-papel.contrato.test.ts`. */
+.ticket-printable,
+.cash-cut-pdf,
+.pdf-corte-caja,
+.printable-doc {
+  --fondo: 0 0% 100%;
+  --fondo-sutil: 215 25% 94%;
+  --superficie: 0 0% 100%;
+  --superficie-elevada: 0 0% 100%;
+  --texto: 222 47% 11%;
+  --texto-sutil: 215 16% 43%;
+  --texto-tenue: 215 14% 56%;
+  --borde: 215 20% 88%;
+  --borde-fuerte: 215 16% 48%;
+  --primario: 217 91% 45%;
+  --primario-texto: 0 0% 100%;
+  --acento: 199 89% 32%;
+  --acento-texto: 0 0% 100%;
+  --acento-suave: 199 89% 92%;
+  --acento-suave-texto: 217 91% 26%;
+  --info: 199 89% 32%;
+  --info-texto: 0 0% 100%;
+  --exito: 152 60% 30%;
+  --exito-texto: 0 0% 100%;
+  --advertencia: 38 92% 50%;
+  --advertencia-texto: 222 47% 11%;
+  --peligro: 0 72% 42%;
+  --peligro-texto: 0 0% 100%;
 }
 
 /* 2) Todo el árbol — texto oscuro legible y sin fondos oscuros */

@@ -11,6 +11,7 @@ export {
 export { cookieDeCierre, cookieDeSesion, type OpcionesCookie } from './cookies.ts';
 
 export {
+  devolver,
   LIMITES,
   origenDe,
   permitir,

@@ -4,6 +4,7 @@ import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import { repoCaja, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { aplicarPagoDeCredito, type ResultadoPagoCredito } from '../cartera/cobranza.ts';
 import { anotarOperacionDeComision } from './comisionista.ts';
 import { definirComando, type ContextoComando } from '../definicion.ts';
 
@@ -204,92 +205,49 @@ export const registrarComision = definirComando<
   },
 });
 
+/**
+ * F-254 · EL ABONO DE FIADO, SOBRE LA CARTERA (C.10 de la 2.4).
+ *
+ * ── El defecto ─────────────────────────────────────────────────────────────
+ * Esto anotaba el abono en `pasivos_terceros`, un libro que NADIE lee: la pantalla del fiado
+ * lee `CarteraFiado`, que suma `documentos_credito`, y el corte cuenta la cobranza en
+ * `pagos_credito`. La ficha bajaba el saldo en la pantalla y, al recargar, la deuda volvía
+ * entera; el abono no salía como cobranza en el corte. El cliente pagaba y seguía debiendo.
+ *
+ * Ahora es el MISMO pago de la cartera que usa la ferretería (`aplicarPagoDeCredito`): se
+ * aplica a lo más viejo, el efectivo entra al cajón como depósito —no como venta: la venta
+ * se contó el día que se fió— y la transferencia queda por confirmar hasta que alguien mire
+ * el banco. El nombre del comando se queda: es el que declara el `05-DATOS-Y-BACKEND`.
+ */
 export const registrarAbonoFiado = definirComando<
   Transaccion,
   typeof entradaAbonoFiado,
-  ResultadoPasivo
+  ResultadoPagoCredito
 >({
   nombre: 'fiado.registrar_abono',
-  entidad: 'pasivo_tercero',
+  entidad: 'pago_credito',
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_MOSTRADOR,
   entrada: entradaAbonoFiado,
   async ejecutar(ctx, entrada) {
-    const { organizacionId, empleoId } = ctx.ambito;
-    const caja = await cajaDelTurno(ctx);
-
-    const cliente = await ctx.paso('cargar_cliente', () =>
-      ctx.tx
-        .selectFrom('clientes')
-        .select(['id'])
-        .where('organizacion_id', '=', organizacionId)
-        .where('id', '=', entrada.clienteId)
-        .executeTakeFirst(),
-    );
-    if (cliente === undefined) {
-      throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese cliente no existe en este negocio.');
-    }
-
-    // NEGATIVO: un abono SALDA la deuda. El fiado se contrajo en positivo al
-    // fiar; esto la baja. El saldo es la suma y nunca hay `update`.
-    const monto = -BigInt(entrada.montoCentavos);
-
-    const pasivo = await ctx.paso('anotar_pasivo', () =>
-      ctx.tx
-        .insertInto('pasivos_terceros')
-        .values({
-          organizacion_id: organizacionId,
-          sucursal_id: caja.sucursalId,
-          naturaleza: 'credito_cliente',
-          titular_tipo: 'cliente',
-          titular_id: entrada.clienteId,
-          monto_centavos: monto,
-          referencia_tipo: `abono_${entrada.metodo}`,
-          sesion_caja_id: caja.sesionId,
-          motivo: entrada.nota ?? null,
-          empleado_id: empleoId,
-          created_at: ctx.ahora,
-        })
-        .returning('id')
-        .executeTakeFirstOrThrow(),
-    );
-
-    // Sólo el efectivo entra al cajón. Un abono con tarjeta no lo toca, y
-    // registrarlo como si lo hiciera dejaría el arqueo con dinero que no está.
-    if (entrada.metodo === 'efectivo') {
-      await ctx.paso('anotar_caja', () =>
-        repoCaja.registrarMovimiento(ctx.tx, {
-          organizacionId,
-          sesionCajaId: caja.sesionId,
-          tipo: 'deposito',
-          montoCentavos: BigInt(entrada.montoCentavos),
-          motivo: 'abono de fiado',
-          empleadoId: empleoId,
-          referenciaTipo: 'pasivo',
-          referenciaId: pasivo.id,
-        }),
-      );
-    }
-
-    const saldo = await saldoDe(ctx, 'credito_cliente', 'cliente', entrada.clienteId);
-
+    const pago = await aplicarPagoDeCredito(ctx, {
+      clienteId: entrada.clienteId,
+      montoCentavos: entrada.montoCentavos,
+      metodo: entrada.metodo,
+      ...(entrada.nota === undefined ? {} : { referencia: entrada.nota.slice(0, 60) }),
+    });
     ctx.auditar({
-      entidadId: pasivo.id,
+      entidadId: pago.pagoId,
       payload: {
         clienteId: entrada.clienteId,
         montoCentavos: entrada.montoCentavos,
         metodo: entrada.metodo,
-        saldoCentavos: saldo.toString(),
+        saldoDespuesCentavos: pago.saldoDespuesCentavos,
+        pendiente: pago.pendienteDeConfirmar,
       },
     });
-
-    return {
-      pasivoId: pasivo.id,
-      naturaleza: 'credito_cliente',
-      montoCentavos: monto.toString(),
-      saldoCentavos: saldo.toString(),
-    };
+    return pago;
   },
 });
 
@@ -453,3 +411,96 @@ export function uuidDeProveedor(nombre: string): string {
     hex.slice(20, 32),
   ].join('-');
 }
+
+export const entradaPasivosDelDia = z.object({
+  /** Desde cuándo. Sin él, las últimas 24 horas: un día de tienda, de la apertura al cierre. */
+  desde: z.iso.datetime().optional(),
+});
+
+export interface DineroAjeno {
+  /** `servicio_terceros`, `envase_retornable`, `anticipo_cliente`, `propina_por_entregar` o `abono_credito`. */
+  readonly concepto: string;
+  /** Con signo: positivo entra (el negocio debe), negativo sale (se devuelve o se entrega). */
+  readonly montoCentavos: string;
+  readonly metodo: string | null;
+  readonly registradoEn: string;
+}
+
+const DIRECCION_DEL_DIA = ['gerente', 'administrador', 'dueno'] as const;
+
+/** Un día de tienda no pasa de unos cientos de movimientos ajenos; el tope evita leer sin fin. */
+const LIMITE_DEL_DIA = 1_000;
+
+/**
+ * EL DINERO QUE PASÓ POR EL CAJÓN Y NO ES DEL NEGOCIO, del día (D.2 de la 2.4).
+ *
+ * «Lo que no es del negocio —recargas, abonos, cascos, anticipos— está en el ledger de
+ * pasivos, no en ventas»: la conciliación del día completo lo comprueba contra ESTO. Dos
+ * libros, dichos: `pasivos_terceros` (recargas y servicios, cascos, anticipos, propina por
+ * entregar) y los abonos de crédito y fiado, que desde la 2.4 bajan la cartera del cliente
+ * (`pagos_credito`) en vez de anotarse en un libro que nadie leía.
+ */
+export const pasivosDelDia = definirComando<
+  Transaccion,
+  typeof entradaPasivosDelDia,
+  { readonly movimientos: readonly DineroAjeno[] }
+>({
+  nombre: 'pasivos.del_dia',
+  entidad: 'pasivo_tercero',
+  escribe: false,
+  roles: [...DIRECCION_DEL_DIA],
+  paquetes: PAQUETES_MOSTRADOR,
+  entrada: entradaPasivosDelDia,
+  async ejecutar(ctx, entrada) {
+    const { organizacionId, sucursalId } = ctx.ambito;
+    const desde =
+      entrada.desde === undefined
+        ? new Date(ctx.ahora.getTime() - 24 * 60 * 60 * 1000)
+        : new Date(entrada.desde);
+    // Un actor de alcance organizacional (sin sucursal) ve las de todas; uno de sucursal, las suyas.
+    const consultaPasivos = ctx.tx
+      .selectFrom('pasivos_terceros')
+      .select(['naturaleza', 'monto_centavos', 'created_at'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('created_at', '>=', desde);
+    const consultaAbonos = ctx.tx
+      .selectFrom('pagos_credito')
+      .select(['monto_centavos', 'metodo', 'created_at'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('created_at', '>=', desde);
+    const [pasivos, abonos] = await ctx.paso('leer_libros', () =>
+      Promise.all([
+        (sucursalId === null
+          ? consultaPasivos
+          : consultaPasivos.where('sucursal_id', '=', sucursalId)
+        )
+          .orderBy('created_at')
+          .limit(LIMITE_DEL_DIA)
+          .execute(),
+        (sucursalId === null
+          ? consultaAbonos
+          : consultaAbonos.where('sucursal_id', '=', sucursalId)
+        )
+          .orderBy('created_at')
+          .limit(LIMITE_DEL_DIA)
+          .execute(),
+      ]),
+    );
+    return {
+      movimientos: [
+        ...pasivos.map((p) => ({
+          concepto: p.naturaleza,
+          montoCentavos: p.monto_centavos.toString(),
+          metodo: null,
+          registradoEn: p.created_at.toISOString(),
+        })),
+        ...abonos.map((a) => ({
+          concepto: 'abono_credito',
+          montoCentavos: a.monto_centavos.toString(),
+          metodo: a.metodo,
+          registradoEn: a.created_at.toISOString(),
+        })),
+      ],
+    };
+  },
+});

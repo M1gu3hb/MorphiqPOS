@@ -48,6 +48,7 @@ export const abrirMesa = definirComando<Transaccion, typeof entradaAbrirMesa, Re
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { mesaId: 'mesas' },
   modulo: 'mesas',
   entrada: entradaAbrirMesa,
   async ejecutar(ctx, entrada) {
@@ -127,6 +128,7 @@ export const liberarMesa = definirComando<
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { mesaId: 'mesas' },
   modulo: 'mesas',
   entrada: entradaLiberarMesa,
   async ejecutar(ctx, entrada) {

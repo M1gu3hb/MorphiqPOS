@@ -11,6 +11,8 @@ import {
 } from '@morphiqpos/ui/primitivas/dialog';
 import { Label } from '@morphiqpos/ui/primitivas/label';
 import { Textarea } from '@morphiqpos/ui/primitivas/textarea';
+import { Aviso, Superficie } from '@morphiqpos/ui/sistema';
+import { ChefHat, Gift, NotebookPen, Undo2, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 
 import { invocarComando } from '~/cliente/api';
@@ -32,10 +34,23 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  * palabras, porque quien anula tiene que saber que está decidiendo sobre
  * dinero que ya se fue y no sobre un renglón de una lista.
  *
+ * ── Cómo se ve: la tableta del mesero, con una mano ──────────────────────
+ * Se abre desde la mesa activa, cuyo dispositivo principal es la tableta
+ * (`04-INTERFAZ` · Mesa activa). Los cuatro motivos son TESELAS de dos por
+ * dos, no cuatro renglones de radio: se eligen con el pulgar, sin apuntar, y la
+ * elegida lleva el anillo del primario además del punto del radio. El botón
+ * de quitar se estira hasta el borde inferior derecho, que es lo único que el
+ * pulgar derecho alcanza sin recolocar la mano. En teléfono todo va en una
+ * columna y el diálogo se desplaza por dentro: el botón nunca queda fuera.
+ *
  * ── Lo que este diálogo NO hace ──────────────────────────────────────────
  * No devuelve dinero. Anular una línea de una cuenta abierta no es una
  * devolución: eso es F-222, con su propio flujo de caja. Confundirlos es cómo
  * una cuenta ya cobrada se «corrige» sin que el cajón lo sepa.
+ *
+ * Tampoco lee nada: recibe el platillo por props. Por eso no tiene ni vacío
+ * ni esqueleto —no hay lista que pueda llegar vacía ni lectura que esperar—;
+ * su único estado fuera del caso feliz es que el comando falle.
  */
 
 /**
@@ -48,12 +63,27 @@ import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
  */
 type ClaveMotivo = 'error_cocina' | 'error_mesero' | 'cortesia' | 'cliente_cambio';
 
-function motivosDe(voc: Vocabulario): readonly { clave: ClaveMotivo; etiqueta: string }[] {
+interface Motivo {
+  readonly clave: ClaveMotivo;
+  readonly etiqueta: string;
+  /** Para reconocerlo de un vistazo; la etiqueta es la que manda. */
+  readonly icono: LucideIcon;
+}
+
+function motivosDe(voc: Vocabulario): readonly Motivo[] {
   return [
-    { clave: 'error_cocina', etiqueta: `Se equivocó ${voc.enFrase('preparacion')}` },
-    { clave: 'error_mesero', etiqueta: 'Me equivoqué al tomar la orden' },
-    { clave: 'cortesia', etiqueta: 'Cortesía de la casa' },
-    { clave: 'cliente_cambio', etiqueta: `${voc.conArticulo('cliente')} cambió de opinión` },
+    {
+      clave: 'error_cocina',
+      etiqueta: `Se equivocó ${voc.enFrase('preparacion')}`,
+      icono: ChefHat,
+    },
+    { clave: 'error_mesero', etiqueta: 'Me equivoqué al tomar la orden', icono: NotebookPen },
+    { clave: 'cortesia', etiqueta: 'Cortesía de la casa', icono: Gift },
+    {
+      clave: 'cliente_cambio',
+      etiqueta: `${voc.conArticulo('cliente')} cambió de opinión`,
+      icono: Undo2,
+    },
   ];
 }
 
@@ -97,11 +127,15 @@ export function AnularLineaDialog({
       onAnulada();
       onCerrar();
     } catch (fallo) {
-      setError(fallo instanceof Error ? fallo.message : 'No se pudo anular la línea.');
+      setError(
+        fallo instanceof Error ? fallo.message : `No se pudo quitar ${voc.enFrase('linea_orden')}.`,
+      );
     } finally {
       setEnviando(false);
     }
   }
+
+  const estePlatillo = voc.conDeterminante('este', 'linea_orden');
 
   return (
     <Dialog
@@ -110,7 +144,10 @@ export function AnularLineaDialog({
         if (!v) onCerrar();
       }}
     >
-      <DialogContent>
+      {/* Más ancho que el diálogo por omisión en tableta: dos teselas por renglón
+          con la etiqueta completa, sin partirla. En teléfono se desplaza por
+          dentro para que el botón de quitar nunca quede debajo del borde. */}
+      <DialogContent className="max-h-[90dvh] overflow-y-auto sm:max-w-xl">
         <DialogHeader>
           <DialogTitle>Quitar {nombreDelPlatillo}</DialogTitle>
           <DialogDescription>
@@ -120,40 +157,56 @@ export function AnularLineaDialog({
 
         {yaSePreparo && (
           /* El aviso va ARRIBA de los motivos, no debajo: quien anula tiene que
-             leerlo antes de elegir, no después de haber decidido. */
-          <p
-            role="status"
-            className="rounded-md border border-border bg-muted p-3 text-sm text-muted-foreground"
+             leerlo antes de elegir, no después de haber decidido. Es un muro de
+             negocio, no un fallo: atención, no peligro. */
+          <Aviso
+            tono="atencion"
+            titulo={`${estePlatillo} ya salió de ${voc.enFrase('preparacion')}`}
           >
-            Este platillo ya salió de cocina: el insumo ya se gastó y no vuelve al almacén. La
-            cuenta baja, el inventario no.
-          </p>
+            Los ingredientes ya se gastaron y no vuelven al almacén. {voc.conArticulo('orden')}{' '}
+            baja, el inventario no.
+          </Aviso>
         )}
 
-        <fieldset className="space-y-2">
+        <fieldset>
           <Label asChild>
-            <legend className="font-semibold">Motivo</legend>
+            <legend className="mb-(--espacio-2) font-semibold">Motivo</legend>
           </Label>
-          {motivosDe(voc).map((opcion) => (
-            <label
-              key={opcion.clave}
-              className="flex cursor-pointer items-center gap-2 rounded-md border border-border p-2 text-sm hover:bg-accent hover:text-accent-foreground"
-            >
-              <input
-                type="radio"
-                name="motivo-anulacion"
-                value={opcion.clave}
-                checked={motivo === opcion.clave}
-                onChange={() => {
-                  setMotivo(opcion.clave);
-                }}
-              />
-              {opcion.etiqueta}
-            </label>
-          ))}
+          <div className="grid gap-(--espacio-2) sm:grid-cols-2">
+            {motivosDe(voc).map(({ clave, etiqueta, icono: Icono }) => {
+              const elegido = motivo === clave;
+              return (
+                <Superficie
+                  key={clave}
+                  como="label"
+                  nivel={0}
+                  radio="md"
+                  relleno={3}
+                  interactiva
+                  activa={elegido}
+                  className="flex min-h-[calc(var(--altura-control)*1.6)] items-center gap-(--espacio-3) text-sm font-medium"
+                >
+                  {/* El radio se queda a la vista: el anillo no puede ser lo único
+                      que diga cuál está elegido. */}
+                  <input
+                    type="radio"
+                    name="motivo-anulacion"
+                    value={clave}
+                    checked={elegido}
+                    onChange={() => {
+                      setMotivo(clave);
+                    }}
+                    className="size-5 shrink-0 accent-primario"
+                  />
+                  <Icono aria-hidden="true" className="size-5 shrink-0 text-texto-sutil" />
+                  <span>{etiqueta}</span>
+                </Superficie>
+              );
+            })}
+          </div>
         </fieldset>
 
-        <div className="space-y-1">
+        <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="nota-anulacion">Nota (opcional)</Label>
           <Textarea
             id="nota-anulacion"
@@ -166,14 +219,18 @@ export function AnularLineaDialog({
           />
         </div>
 
+        {/* Qué pasó y, sobre todo, qué NO pasó: el platillo sigue cobrándose. */}
         {error !== null && (
-          <p role="alert" className="text-sm font-medium text-destructive">
-            {error}
-          </p>
+          <Aviso tono="peligro" titulo={error}>
+            {estePlatillo} sigue en {voc.enFrase('orden')}: no se quitó nada.
+          </Aviso>
         )}
 
-        <DialogFooter>
-          <Button type="button" variant="outline" onClick={onCerrar}>
+        {/* En tableta, Cancelar a su ancho y Quitar estirado hasta la esquina
+            inferior derecha, donde cae el pulgar. En teléfono, uno sobre otro con
+            Quitar arriba, como los apila el pie del diálogo. */}
+        <DialogFooter className="sm:grid sm:grid-cols-[auto_minmax(0,1fr)]">
+          <Button type="button" variant="outline" size="lg" onClick={onCerrar}>
             Cancelar
           </Button>
           {/* `destructive` y no `default`: quitar algo de una cuenta abierta se
@@ -181,6 +238,8 @@ export function AnularLineaDialog({
           <Button
             type="button"
             variant="destructive"
+            size="lg"
+            cargando={enviando}
             disabled={motivo === null || enviando}
             onClick={() => {
               void anular();

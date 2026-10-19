@@ -5,6 +5,7 @@ import { repoTomas, type Transaccion } from '@morphiqpos/data';
 import { contarPorPeso, piezasDesdePeso } from '@morphiqpos/domain/inventario';
 import { z } from 'zod';
 
+import { insumoDelProducto } from '../catalogo/insumo-del-producto.ts';
 import { definirComando } from '../definicion.ts';
 
 /**
@@ -31,7 +32,15 @@ import { definirComando } from '../definicion.ts';
  */
 
 const CATALOGO = ['gerente', 'administrador', 'dueno'] as const;
-const CONTEO = ['cajero', ...CATALOGO] as const;
+/**
+ * QUIEN CUENTA, CALIBRA (bloque D de la 2.4). El almacén tiene «Conteo» en su menú
+ * (`04-INTERFAZ §4.2`, «Almacén · Existencias · Entradas · Conteo») y abre y cierra la toma
+ * (`inventario.abrir_conteo`), pero pesar y calibrar le contestaban 403: la toma se abría y
+ * no se podía contar. Calibrar es contar una muestra de verdad, que es su trabajo; el
+ * catálogo —precios, medidas— sigue siendo de quien administra.
+ */
+const CALIBRA = ['almacen', ...CATALOGO] as const;
+const CONTEO = ['almacen', 'cajero', ...CATALOGO] as const;
 
 /** Con menos piezas la muestra no vale: una sola pieza atípica mueve el promedio. */
 const MINIMO_DE_MUESTRA = 10;
@@ -85,7 +94,7 @@ export const calibrarPeso = definirComando<
   nombre: 'catalogo.calibrar_peso',
   entidad: 'producto',
   escribe: true,
-  roles: [...CATALOGO],
+  roles: [...CALIBRA],
   paquetes: PAQUETES_TODOS,
   entrada: entradaCalibrarPeso,
   async ejecutar(ctx, entrada) {
@@ -167,6 +176,7 @@ export const conteoPorPeso = definirComando<
   escribe: true,
   roles: [...CONTEO],
   paquetes: PAQUETES_TODOS,
+  sucursal: { tomaId: 'tomas_inventario' },
   entrada: entradaConteoPorPeso,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;
@@ -174,7 +184,7 @@ export const conteoPorPeso = definirComando<
     const producto = await ctx.paso('leer_producto', () =>
       ctx.tx
         .selectFrom('productos')
-        .select(['id', 'nombre', 'peso_por_pieza_mg', 'tolerancia_peso_pct', 'insumo_base_id'])
+        .select(['id', 'nombre', 'peso_por_pieza_mg', 'tolerancia_peso_pct'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.productoId)
         .executeTakeFirst(),
@@ -192,15 +202,19 @@ export const conteoPorPeso = definirComando<
       );
     }
 
-    if (producto.insumo_base_id === null) {
+    // El insumo por la liga de REVENTA (`insumos.producto_id`), la del alta: leer sólo
+    // `insumo_base_id` rechazaba el conteo por peso de todo producto dado de alta.
+    const insumoId = await ctx.paso('leer_insumo', () =>
+      insumoDelProducto(ctx.tx, organizacionId, producto.id),
+    );
+    if (insumoId === null) {
       // El conteo vive en `existencias`, que está por insumo. Un producto sin
-      // insumo base no tiene dónde caer contado.
+      // insumo no tiene dónde caer contado.
       throw new ErrorDominio(
         'CONFIGURACION_INVALIDA',
-        `«${producto.nombre}» no tiene insumo base: no hay existencia que contar.`,
+        `«${producto.nombre}» no lleva existencia: no hay nada que contar.`,
       );
     }
-    const insumoId = producto.insumo_base_id;
 
     const toma = await ctx.paso('leer_toma', () =>
       ctx.tx

@@ -318,14 +318,17 @@ comprobarMutacion({
 });
 comprobarMutacion({
   nombre: 'paquete reabierto en configuracion.guardar',
+  // El ancla es la línea del estilo en la entrada de `guardar`. Decía el `z.enum` de la
+  // Fase 1, que la 2.35 cambió (`93c4c43`): la mutación dejó de aplicarse y la puerta
+  // reventaba en «no cambió el archivo objetivo». CI no la corre y nadie lo vio hasta C.10.
   origen: CONFIGURACION,
   archivoTemporal: 'configuracion.ts',
   variable: 'MORPHIQPOS_CONFIGURACION_SOURCE_PATH',
   prueba: PRUEBA_CONFIGURACION,
   transformar: (codigo) =>
     codigo.replace(
-      "  estilo: z.enum(['base', 'editorial', 'premium']),",
-      "  estilo: z.enum(['base', 'editorial', 'premium']),\n  paquete: z.enum(PAQUETES),",
+      '  estilo: z.string().max(40).optional(),',
+      '  estilo: z.string().max(40).optional(),\n  paquete: z.enum(PAQUETES),',
     ),
 });
 comprobarMutacion({
@@ -449,8 +452,8 @@ comprobarMutacion({
   prueba: PRUEBA_AUTORIZACION_PUENTE,
   transformar: (codigo) =>
     codigo.replace(
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    rolesLectura: [...CAJA]",
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    rolesLectura: [...TODOS_LOS_ROLES]",
+      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...CAJA]",
+      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...TODOS_LOS_ROLES]",
     ),
 });
 comprobarMutacion({
@@ -1038,10 +1041,7 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_URL_VALIDATOR_SOURCE_PATH',
   prueba: PRUEBA_URL_PUBLICA,
   transformar: (codigo) =>
-    codigo.replace(
-      "protocolo === 'https:' || protocolo === 'http:'",
-      "protocolo !== 'javascript:'",
-    ),
+    codigo.replace('protocol: /^https?$/', 'protocol: /^(?!javascript$)[a-z][a-z0-9+.-]*$/'),
 });
 comprobarMutacion({
   nombre: 'host TLS comparado sin parsear la URL',

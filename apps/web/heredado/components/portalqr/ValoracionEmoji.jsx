@@ -88,7 +88,7 @@ export default function ValoracionEmoji({
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-50 bg-velo/50 flex items-end sm:items-center justify-center"
     >
       <motion.div
         initial={{ y: 40 }}
@@ -97,7 +97,7 @@ export default function ValoracionEmoji({
         className="bg-card text-card-foreground w-full sm:max-w-md sm:rounded-2xl rounded-t-2xl max-h-[92vh] overflow-y-auto shadow-2xl"
       >
         <div className="sticky top-0 z-10 bg-card border-b px-4 py-3 flex items-center gap-2">
-          <Heart className="w-5 h-5 text-rose-500 shrink-0" />
+          <Heart className="w-5 h-5 text-peligro shrink-0" />
           <p className="flex-1 font-heading font-bold">
             ¿Cómo estuvo tu experiencia?
             {mesa?.numero ? ` · Mesa ${mesa.numero}` : ''}
@@ -115,8 +115,8 @@ export default function ValoracionEmoji({
 
         <div className="p-4 space-y-4">
           {yaValorada && (
-            <div className="rounded-xl p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="rounded-xl p-4 bg-exito/10 border border-exito/30 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-exito shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-bold">¡Gracias por valorar tu experiencia!</p>
                 <p className="text-xs opacity-90 mt-1">
@@ -127,8 +127,8 @@ export default function ValoracionEmoji({
           )}
 
           {!yaValorada && enviado && (
-            <div className="rounded-xl p-4 bg-emerald-50 dark:bg-emerald-950/30 border border-emerald-200 dark:border-emerald-800/60 flex items-start gap-3">
-              <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div className="rounded-xl p-4 bg-exito/10 border border-exito/30 flex items-start gap-3">
+              <CheckCircle2 className="w-5 h-5 text-exito shrink-0 mt-0.5" />
               <div className="text-sm">
                 <p className="font-bold">¡Gracias! Tu valoración fue registrada.</p>
                 <p className="text-xs opacity-90 mt-1">Nos ayuda a mejorar tu próxima visita.</p>
@@ -152,7 +152,7 @@ export default function ValoracionEmoji({
                       onClick={() => setSeleccion(e)}
                       className={`flex flex-col items-center gap-1 p-2 rounded-2xl border-2 transition-transform ${
                         activo
-                          ? 'border-rose-400 bg-rose-50 dark:bg-rose-950/40 scale-105'
+                          ? 'border-peligro bg-peligro/10 scale-105'
                           : 'border-border bg-card'
                       }`}
                     >
@@ -207,7 +207,7 @@ export default function ValoracionEmoji({
                 type="button"
                 onClick={submit}
                 disabled={enviando || !seleccion}
-                className="flex-1 h-12 rounded-xl bg-rose-600 text-white font-semibold disabled:opacity-50 active:scale-95 transition-transform inline-flex items-center justify-center gap-2"
+                className="flex-1 h-12 rounded-xl bg-peligro text-peligro-texto font-semibold disabled:opacity-50 active:scale-95 transition-transform inline-flex items-center justify-center gap-2"
               >
                 {enviando && <Loader2 className="w-4 h-4 animate-spin" />}
                 {enviando ? 'Enviando…' : 'Enviar'}

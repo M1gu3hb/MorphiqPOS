@@ -562,12 +562,12 @@ export default function POS() {
   if (!hayCaja) {
     return (
       <div className="min-h-[60vh] flex items-center justify-center p-6">
-        <div className="max-w-md w-full bg-amber-50 border-2 border-amber-200 rounded-2xl p-6 text-center space-y-3">
-          <div className="w-14 h-14 mx-auto rounded-full bg-amber-100 flex items-center justify-center">
-            <AlertTriangle className="w-7 h-7 text-amber-700" />
+        <div className="max-w-md w-full bg-advertencia/10 border-2 border-advertencia/30 rounded-2xl p-6 text-center space-y-3">
+          <div className="w-14 h-14 mx-auto rounded-full bg-advertencia/15 flex items-center justify-center">
+            <AlertTriangle className="w-7 h-7 text-advertencia" />
           </div>
-          <h2 className="font-heading font-bold text-lg text-amber-900">Caja cerrada</h2>
-          <p className="text-sm text-amber-800">
+          <h2 className="font-heading font-bold text-lg text-advertencia">Caja cerrada</h2>
+          <p className="text-sm text-advertencia">
             No se puede iniciar una nueva venta porque la caja está cerrada. Abre caja para comenzar
             operación.
           </p>
@@ -675,7 +675,7 @@ export default function POS() {
       {/* Mobile cart drawer */}
       {showCartMobile && (
         <div className="fixed inset-0 z-50 lg:hidden">
-          <div className="absolute inset-0 bg-black/50" onClick={() => setShowCartMobile(false)} />
+          <div className="absolute inset-0 bg-velo" onClick={() => setShowCartMobile(false)} />
           <div className="absolute right-0 top-0 bottom-0 w-full max-w-sm bg-card shadow-xl flex flex-col">
             <CartPanel
               items={cart}

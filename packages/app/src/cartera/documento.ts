@@ -39,6 +39,8 @@ const ROLES = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
 /** Cuántos días de retraso se toleran antes de cortar. Quince es el del giro. */
 const MORA_TOLERADA_DIAS = 15;
 const MS_POR_DIA = 86_400_000;
+/** El consecutivo de lo que se fía: `CR-12`. */
+const SERIE_DEL_FIADO = 'CR';
 
 export const entradaEmitirDocumento = z.object({
   clienteId: z.uuid(),
@@ -65,105 +67,104 @@ export const emitirDocumentoCredito = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { origenId: ['ordenes', 'remisiones', 'notas_mostrador'] },
   entrada: entradaEmitirDocumento,
   async ejecutar(ctx, entrada) {
-    const { organizacionId, sucursalId, empleoId } = ctx.ambito;
-    if (sucursalId === null) {
-      throw new ErrorDominio(
-        'VENTA_SIN_TERMINAL',
-        'El documento lleva folio por sucursal: hace falta saber en cuál se emite.',
-      );
-    }
-
-    const cliente = await cargarCliente(ctx, entrada.clienteId);
-
-    // ── La comprobación de crédito, en el único momento en que se puede decir
-    // que no. Después ya salió la mercancía.
-    //
-    // Se COMPONEN las dos mitades en vez de escribir una función nueva:
-    // `evaluarSalidaACredito` —de E6, F-638 y F-639— ya sabe mirar el límite y
-    // el bloqueo; `hayMora` contesta de dónde sale ese bloqueo cuando nadie lo
-    // puso a mano. Una tercera función que volviera a mirar el límite sería el
-    // error que el encargo nombra por su nombre.
-    const vivos = await documentosVivos(ctx, entrada.clienteId);
-    const antiguedad = antiguedadDeSaldos(vivos, ctx.ahora);
-    const saldo = vivos.reduce((a, d) => a + d.saldoCentavos, 0n);
-
-    const evaluacion = evaluarSalidaACredito({
-      importeCentavos: BigInt(entrada.importeCentavos),
-      saldoClienteCentavos: saldo,
-      limiteClienteCentavos: cliente.limite_credito_centavos,
-      // `null` en los dos: un fiado de tiendita no cuelga de una obra ni pasa
-      // por la lista de autorizados. Ésas son las dos perillas que E6 añadió
-      // para ferretería, y aquí se dejan apagadas — que es exactamente lo que
-      // significa reutilizar con una perilla en vez de escribir otro código.
-      obra: null,
-      autorizado: null,
-      bloqueadoPorMora: cliente.bloqueado_por_mora || hayMora(antiguedad, MORA_TOLERADA_DIAS),
-    });
-    if (evaluacion.veredicto === 'requiere_llave') {
-      throw new ErrorDominio(
-        'CONFIGURACION_CONFLICTO',
-        cliente.bloqueado_por_mora
-          ? 'Ese cliente está bloqueado a mano. Lo levanta quien lo puso.'
-          : 'Ese cliente tiene saldo vencido: se cobra antes de volver a fiarle.',
-        { motivos: evaluacion.motivos.join(', ') },
-      );
-    }
-    if (evaluacion.motivos.includes('excede_limite_del_cliente')) {
-      throw new ErrorDominio('CONFIGURACION_CONFLICTO', 'Eso pasa de su límite de crédito.', {
-        disponibleCentavos: evaluacion.disponibleDespuesCentavos.toString(),
-      });
-    }
-
-    const { serie, folio } = await ctx.paso('tomar_folio', () =>
-      repoFolios.tomarFolio(ctx.tx, organizacionId, sucursalId),
-    );
-
-    const vence = new Date(ctx.ahora.getTime() + cliente.dias_plazo * MS_POR_DIA);
-
-    const documento = await ctx.paso('emitir', () =>
-      ctx.tx
-        .insertInto('documentos_credito')
-        .values({
-          organizacion_id: organizacionId,
-          sucursal_id: sucursalId,
-          cliente_id: entrada.clienteId,
-          origen_tipo: entrada.origenTipo,
-          origen_id: entrada.origenId ?? null,
-          folio: `CR-${serie}-${folio.toString()}`,
-          emitido_en: ctx.ahora,
-          vence_en: vence,
-          importe_centavos: BigInt(entrada.importeCentavos),
-          // Nace debiendo todo: el saldo se decrementa al aplicar pagos.
-          saldo_centavos: BigInt(entrada.importeCentavos),
-          empleado_id: empleoId,
-          created_at: ctx.ahora,
-        })
-        .returning(['id', 'folio'])
-        .executeTakeFirstOrThrow(),
-    );
-
-    const saldoDespues = saldo + BigInt(entrada.importeCentavos);
-
+    const emitido = await emitirDocumento(ctx, entrada);
+    // La auditoría es de QUIEN LLAMA: el ejecutor guarda sólo el primer rastro de cada
+    // comando, y dentro de un cobro el rastro que manda es el del cobro.
     ctx.auditar({
-      entidadId: documento.id,
+      entidadId: emitido.documentoId,
       payload: {
         clienteId: entrada.clienteId,
         importeCentavos: entrada.importeCentavos,
-        venceEn: vence.toISOString(),
+        venceEn: emitido.venceEn,
       },
     });
-
-    return {
-      documentoId: documento.id,
-      folio: documento.folio,
-      venceEn: vence.toISOString(),
-      saldoDelClienteCentavos: saldoDespues.toString(),
-      disponibleCentavos: evaluacion.disponibleDespuesCentavos.toString(),
-    };
+    return emitido;
   },
 });
+
+/**
+ * Emitir lo que se fía: la comprobación de crédito y el documento, en la transacción de quien
+ * llama. La usan el comando `credito.emitir_documento` y el COBRO a fiado (`venta.cobrar` con
+ * un pago `fiado`, C.10 de la 2.4): una sola aritmética del crédito, no dos que se separan.
+ * No audita: la auditoría la escribe quien llama, con su propio rastro.
+ */
+export async function emitirDocumento(
+  ctx: ContextoComando<Transaccion>,
+  entrada: z.infer<typeof entradaEmitirDocumento>,
+): Promise<ResultadoDocumento> {
+  // La sucursal se exige ANTES de evaluar: sin ella no hay folio, y decir «pasa del
+  // límite» para luego fallar por la sucursal confunde.
+  if (ctx.ambito.sucursalId === null) {
+    throw new ErrorDominio(
+      'VENTA_SIN_TERMINAL',
+      'El documento lleva folio por sucursal: hace falta saber en cuál se emite.',
+    );
+  }
+
+  const cliente = await cargarCliente(ctx, entrada.clienteId);
+
+  // ── La comprobación de crédito, en el único momento en que se puede decir
+  // que no. Después ya salió la mercancía.
+  //
+  // Se COMPONEN las dos mitades en vez de escribir una función nueva:
+  // `evaluarSalidaACredito` —de E6, F-638 y F-639— ya sabe mirar el límite y
+  // el bloqueo; `hayMora` contesta de dónde sale ese bloqueo cuando nadie lo
+  // puso a mano. Una tercera función que volviera a mirar el límite sería el
+  // error que el encargo nombra por su nombre.
+  const vivos = await documentosVivos(ctx, entrada.clienteId);
+  const antiguedad = antiguedadDeSaldos(vivos, ctx.ahora);
+  const saldo = vivos.reduce((a, d) => a + d.saldoCentavos, 0n);
+
+  const evaluacion = evaluarSalidaACredito({
+    importeCentavos: BigInt(entrada.importeCentavos),
+    saldoClienteCentavos: saldo,
+    limiteClienteCentavos: cliente.limite_credito_centavos,
+    // `null` en los dos: un fiado de tiendita no cuelga de una obra ni pasa
+    // por la lista de autorizados. Ésas son las dos perillas que E6 añadió
+    // para ferretería, y aquí se dejan apagadas — que es exactamente lo que
+    // significa reutilizar con una perilla en vez de escribir otro código.
+    obra: null,
+    autorizado: null,
+    bloqueadoPorMora: cliente.bloqueado_por_mora || hayMora(antiguedad, MORA_TOLERADA_DIAS),
+  });
+  if (evaluacion.veredicto === 'requiere_llave') {
+    throw new ErrorDominio(
+      'CONFIGURACION_CONFLICTO',
+      cliente.bloqueado_por_mora
+        ? 'Ese cliente está bloqueado a mano. Lo levanta quien lo puso.'
+        : 'Ese cliente tiene saldo vencido: se cobra antes de volver a fiarle.',
+      { motivos: evaluacion.motivos.join(', ') },
+    );
+  }
+  if (evaluacion.motivos.includes('excede_limite_del_cliente')) {
+    throw new ErrorDominio('CONFIGURACION_CONFLICTO', 'Eso pasa de su límite de crédito.', {
+      disponibleCentavos: evaluacion.disponibleDespuesCentavos.toString(),
+    });
+  }
+
+  const documento = await insertarDocumento(ctx, {
+    clienteId: entrada.clienteId,
+    origenTipo: entrada.origenTipo,
+    origenId: entrada.origenId ?? null,
+    importeCentavos: BigInt(entrada.importeCentavos),
+    diasPlazo: cliente.dias_plazo,
+    folio: null,
+  });
+  const vence = documento.vence;
+
+  const saldoDespues = saldo + BigInt(entrada.importeCentavos);
+
+  return {
+    documentoId: documento.documentoId,
+    folio: documento.folio,
+    venceEn: vence.toISOString(),
+    saldoDelClienteCentavos: saldoDespues.toString(),
+    disponibleCentavos: evaluacion.disponibleDespuesCentavos.toString(),
+  };
+}
 
 export const entradaEstadoDeCuenta = z.object({ clienteId: z.uuid() });
 
@@ -276,6 +277,12 @@ export async function cargarCliente(
       .select(['limite_credito_centavos', 'dias_plazo', 'bloqueado_por_mora'])
       .where('organizacion_id', '=', ctx.ambito.organizacionId)
       .where('id', '=', clienteId)
+      // EL CLIENTE SE BLOQUEA (auditoría de la 2.4). Dos cajas fiando al mismo cliente
+      // leían el mismo saldo vivo, las dos cabían en el límite y las dos pasaban: el
+      // cliente quedaba al doble de lo que se le permitía. Con el renglón bloqueado la
+      // segunda espera a que la primera termine y lee su documento. Todo lo que mueve
+      // la cartera de un cliente —fiar, abonar, pagar— pasa por aquí: se forma en fila.
+      .forUpdate()
       .executeTakeFirst(),
   );
   if (fila === undefined) {
@@ -285,6 +292,75 @@ export async function cargarCliente(
 }
 
 /** Los documentos con saldo, que son los únicos que importan para decidir. */
+/**
+ * EL DOCUMENTO QUE SE DEBE, escrito: folio, vencimiento e importe, sin evaluar el crédito.
+ *
+ * Lo usan el fiado —que evalúa antes, en `emitirDocumento`— y la REMISIÓN de la
+ * ferretería, que ya pasó el muro y gastó la llave del dueño en su propio comando. Sin
+ * esto la remisión subía el saldo del cliente y no dejaba documento: la cartera y los
+ * pagos, que se leen de `documentos_credito`, no la veían (C.10 de la 2.4).
+ *
+ * El folio: el de la serie del fiado (`CR`), o el que se le dé —la remisión usa el SUYO,
+ * `REM-114`, que es el que el contratista tiene firmado—.
+ */
+export async function insertarDocumento(
+  ctx: ContextoComando<Transaccion>,
+  datos: {
+    readonly clienteId: string;
+    readonly origenTipo: 'venta' | 'remision' | 'nota_mostrador' | 'ajuste';
+    readonly origenId: string | null;
+    readonly importeCentavos: bigint;
+    readonly diasPlazo: number;
+    readonly folio: string | null;
+  },
+): Promise<{ readonly documentoId: string; readonly folio: string; readonly vence: Date }> {
+  const { organizacionId, sucursalId, empleoId } = ctx.ambito;
+  if (sucursalId === null) {
+    throw new ErrorDominio(
+      'VENTA_SIN_TERMINAL',
+      'El documento lleva folio por sucursal: hace falta saber en cuál se emite.',
+    );
+  }
+  // Serie PROPIA, como la remisión (`REM`): en la serie del ticket cada fiado se comía un
+  // folio de venta y la numeración de las ventas salía con huecos que nadie sabe explicar.
+  const folio =
+    datos.folio ??
+    (await ctx.paso('tomar_folio', async () => {
+      const tomado = await repoFolios.tomarFolio(
+        ctx.tx,
+        organizacionId,
+        sucursalId,
+        SERIE_DEL_FIADO,
+      );
+      return `${tomado.serie}-${tomado.folio.toString()}`;
+    }));
+
+  const vence = new Date(ctx.ahora.getTime() + datos.diasPlazo * MS_POR_DIA);
+
+  const documento = await ctx.paso('emitir', () =>
+    ctx.tx
+      .insertInto('documentos_credito')
+      .values({
+        organizacion_id: organizacionId,
+        sucursal_id: sucursalId,
+        cliente_id: datos.clienteId,
+        origen_tipo: datos.origenTipo,
+        origen_id: datos.origenId,
+        folio,
+        emitido_en: ctx.ahora,
+        vence_en: vence,
+        importe_centavos: datos.importeCentavos,
+        // Nace debiendo todo: el saldo se decrementa al aplicar pagos.
+        saldo_centavos: datos.importeCentavos,
+        empleado_id: empleoId,
+        created_at: ctx.ahora,
+      })
+      .returning(['id', 'folio'])
+      .executeTakeFirstOrThrow(),
+  );
+  return { documentoId: documento.id, folio: documento.folio, vence };
+}
+
 export async function documentosVivos(
   ctx: ContextoComando<Transaccion>,
   clienteId: string,

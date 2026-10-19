@@ -23,7 +23,7 @@ Hoy tiene **nueve**, puestas con el CLI:
 | `STORAGE_BUCKET`         | El mismo que Production                                                                                                      |
 | `STORAGE_ACCESS_KEY`     | El mismo que Production                                                                                                      |
 | `STORAGE_SECRET_KEY`     | El mismo que Production                                                                                                      |
-| `ORGANIZACION`           | **Una organización de DEMOSTRACIÓN**, nunca un negocio vivo. Ver §2                                                          |
+| `ORGANIZACION`           | **Las cinco demostraciones** `demo-acople-*`, y nada más (desde el 24-09-2026, D-15). Ver §2                                  |
 | `APP_URL`                | `https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app` — el alias de rama, no la URL de un despliegue, que cambia      |
 | `APP_URL_ALTERNAS`       | Los OTROS orígenes del mismo despliegue, separados por comas. Ver §7, que es un 403 que rompía la entrada entera            |
 
@@ -48,24 +48,31 @@ nunca por una línea de comando ni por un archivo versionado.
 
 ---
 
-## 2 · A QUÉ NEGOCIO sirve el preview, que no es un detalle
+## 2 · A QUÉ NEGOCIOS sirve cada entorno, que no es un detalle
 
-Un despliegue sirve a UN negocio: lo resuelve `negocioDelDespliegue` con la variable
-`ORGANIZACION` (R16). El Preview la tenía apuntando **al mismo negocio que Production**, y eso es
-exactamente lo que `F2.3-REGLAS §4.5` prohíbe tocar: la suite de navegador entra con PIN y **cambia la
-plantilla del negocio**, que sobre un cliente que cobra le quita o le da módulos que paga.
+*Reescrito el 24-09-2026 (C.18 de la 2.4). Aquí decía que «un despliegue sirve a UN negocio» y que
+el Preview apuntaba a una demo cada vez; `07-ESTADO.md` decía, con razón, que producción ya servía a
+seis. Lo vigente es esto:*
 
-Ahora apunta a una demo (`demo-acople-tienda`, `demo-acople-estetica`, según cuál se esté
-probando), y la precondición de `pruebas/e2e/ayudantes/sesion.ts` **se niega a seguir** si el
-nombre que devuelve `/api/auth/empleados` es el de uno de los cuatro negocios vivos.
+| Entorno    | `ORGANIZACION`                                                                                   |
+| ---------- | ------------------------------------------------------------------------------------------------ |
+| Preview    | Las cinco `demo-acople-*`. **Nunca un negocio real**: Preview escribe en la MISMA base que producción, y un Preview que sirviera a un cliente sería una puerta trasera |
+| Production | `mh-restaurante` y las cinco demos (lo que sirve `main`). Tras fusionar la 2.4, Miguel añade Jacaranda, Don Chuy y La Broca (D-15): ver el §10 del reporte 020 |
 
-Cambiar de demo es cambiar la variable **y redesplegar**: las variables de entorno se aplican al
-construir, no en caliente.
+Un despliegue sirve a VARIOS negocios desde la migración 166, y desde la 2.4 **la entrada es de
+uno**: cada negocio entra por `/n/<slug>/login-pos` (o por el host con su slug), la lista de
+empleados sólo devuelve la gente de ese negocio, y `/login-pos` a secas no enseña nombres. Por eso
+las cinco demos pueden convivir en el mismo Preview: cada suite entra por la dirección de SU demo, y
+la precondición de `pruebas/e2e/ayudantes/sesion.ts` se niega si una sola persona de la respuesta no
+es de ella.
+
+Las variables se aplican al construir: cambiar `ORGANIZACION` es cambiar la variable **y
+redesplegar**.
 
 ```bash
 vercel env rm ORGANIZACION preview --yes
-printf 'demo-acople-estetica' | vercel env add ORGANIZACION preview
-vercel redeploy <la-url-del-ultimo-despliegue> --no-wait
+printf 'demo-acople-tienda,demo-acople-cafeteria,demo-acople-restaurante,demo-acople-ferreteria,demo-acople-estetica' \
+  | vercel env add ORGANIZACION preview
 ```
 
 ---
@@ -79,14 +86,27 @@ miró.
 
 | Vía                                                          | Qué cuesta                                                                                            | Cuándo usarla                                     |
 | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- | ------------------------------------------------- |
-| **1 · Protection Bypass for Automation**                      | Un secreto que se genera en Settings → Deployment Protection. No caduca y no abre el preview al mundo   | CI, y cualquier automatización que repita          |
+| **1 · Protection Bypass for Automation**                      | Un secreto de proyecto (se genera con el CLI, abajo). No caduca y no abre el preview al mundo          | CI, y cualquier automatización que repita          |
 | **2 · Un enlace compartido** (`?_vercel_share=…`)             | Nada. Deja una cookie `_vercel_jwt` que vale **23 horas** y muere en cada redespliegue                  | Verificar hoy sin tocar la configuración del proyecto |
 | **3 · Apagar la protección de Preview**                       | Deja el preview abierto a cualquiera que adivine la URL, con datos de negocios reales dentro            | **No.** Está aquí para decir que se descartó       |
 
 **Lo que se usó el 17-09-2026 fue la 2**, y a propósito: encender o apagar la protección de un
 despliegue es un cambio persistente de seguridad sobre un proyecto con datos de cuatro negocios que
-cobran, y la verificación no lo necesitaba. La **1 sigue siendo la recomendada para CI**, y es el
-único paso de todo esto que no se puede dar desde la línea de comandos: se genera en el panel.
+cobran, y la verificación no lo necesitaba. La **1 sigue siendo la recomendada para CI**.
+
+**Cómo se genera el secreto de la 1 · la única forma escrita en este repositorio.** Aquí decía que
+«sólo se genera en el panel», y el RUNBOOK decía que con el CLI. Lo cierto (comprobado el 24-09-2026
+con `vercel project protection --help`, CLI 54) es el CLI:
+
+```bash
+vercel project protection enable morphiqpos --protection-bypass --format json --scope mh-astral-systems
+# la salida trae el secreto: va a VERCEL_AUTOMATION_BYPASS_SECRET / MORPHIQPOS_BYPASS_VERCEL, nunca al repo
+vercel project protection disable morphiqpos --protection-bypass --protection-bypass-secret <secreto> --scope mh-astral-systems
+```
+
+Es un cambio de la configuración de seguridad del proyecto: lo decide Miguel, y **se revoca al
+terminar** —un bypass vivo es una puerta abierta a los previews—. Mientras no exista, la vía 2 es la
+que usan los agentes. El RUNBOOK remite aquí.
 
 Las dos las entienden ya las dos herramientas:
 
@@ -139,17 +159,11 @@ de techo, **dos instancias calientes bastan para que el punto de venta empiece a
 hora pico** — con un error que no menciona el pooler por ningún lado y que manda a buscar el
 defecto en la aplicación.
 
-**Preview ya está en el 6543**, y el `.env` local también. **Production NO se tocó**: es lo que usan
-cuatro negocios para cobrar y esa decisión es de Miguel. Son dos líneas:
-
-```bash
-vercel env rm DATABASE_URL production --yes
-printf '<la misma cadena con el puerto 6543>' | vercel env add DATABASE_URL production
-# y redesplegar
-```
-
-Si se prefiere no mover el puerto, el parche menor es `MORPHIQPOS_DB_POOL_MAX` con un valor bajo
-—3 o 4— en Production. Tapa el síntoma y deja el techo de 15 clientes puesto.
+**Preview está en el 6543**, el `.env` local también, **y Production también desde el 17-09-2026**
+(etapa E5 de la 2.3, `07-ESTADO.md`). Aquí decía «Production NO se tocó»; era verdad el 17 por la
+mañana y dejó de serlo esa misma tarde. La huella: `vercel env ls production` da `DATABASE_URL`
+creada el 17-09 y el resto de las variables de Production, el 8. Los valores son «Sensitive» y no se
+pueden leer, ni hace falta.
 
 ---
 
@@ -214,9 +228,144 @@ vercel env add APP_URL_ALTERNAS production
 Una lista separada por comas. `APP_URL` sigue siendo la canónica —la de los enlaces de un ticket y
 del portal QR— y esto es sólo quién más puede escribir.
 
+### Cómo está hoy · leído el 24-09-2026 (C.18 de la 2.4), y está MAL
+
+Los valores de Production son «Sensitive» y no se pueden leer. Se leyó su EFECTO, sin sesión y sin
+escribir nada: una lectura por `POST /api/datos/consultar` contesta **403** si el `Origin` no está
+permitido y **401** si lo está (la frontera va antes que la sesión).
+
+```
+origin: https://morphiqpos-kappa.vercel.app        → 401  (permitido)
+origin: https://pos-mh-astral-systems.com          → 401  (permitido)
+origin: https://www.pos-mh-astral-systems.com      → 403
+origin: https://no-es-de-aqui.example              → 403
+```
+
+Coincide con lo de arriba: `APP_URL` = el dominio propio, `APP_URL_ALTERNAS` = kappa. **Y el dominio
+propio hoy no es de Vercel**: `pos-mh-astral-systems.com` resuelve a `216.24.57.1` y contesta **402**.
+`APP_URL` es lo que va en la URL de cada imagen subida (`/api/archivos/subir` devuelve
+`<APP_URL>/api/archivos/…`) y en cada exporte: hoy **toda imagen que se suba en producción nace con
+un enlace roto**. No hay ninguna guardada todavía (contado en la base: cero URLs de archivo), así que
+cruzar los dos valores no rompe nada existente. Es un cambio de variable de Production, de Miguel:
+`APP_URL=https://morphiqpos-kappa.vercel.app` y `APP_URL_ALTERNAS=https://pos-mh-astral-systems.com`
+mientras el DNS no apunte a Vercel; cuando apunte, se vuelven a cruzar.
+
 ### Lo que NO se hizo, y por qué
 
 Leer el `Host` de la petición y aceptar el origen que coincida con él. Habría arreglado el síntoma
 sin tocar la configuración, y habría roto R-17: el origen esperado tiene que nacer de la
 configuración, porque leer el `Host` es dejar que quien ataca lo declare. La prueba «rechaza un Host
 falsificado aunque coincida con Origin» sigue en pie sin un cambio.
+
+---
+
+## 8 · EL ALMACÉN DE ARCHIVOS · de `localhost:9000` a Supabase
+
+**Antes de esto, en producción no se podía guardar un solo archivo.** `STORAGE_ENDPOINT` valía
+`http://localhost:9000` —el MinIO del compose— así que subir el logo del negocio, la foto de un
+producto o generar el menú QR contestaba `ECONNREFUSED`. La vuelta 2.3 lo convirtió en un **503 con
+el endpoint y las cuatro variables escritos**, que es honesto y sigue sin funcionar.
+
+Y en la etapa del diseño no es un pendiente cualquiera: **el logo del negocio y las imágenes del
+menú son parte del diseño.** Sin almacén, media fase de interfaz no se puede ni ver.
+
+### Por qué NO se usó el endpoint S3 de Supabase
+
+Porque no se puede con la credencial que este despliegue tiene, y está medido:
+
+| Credencial probada | Qué contestó su endpoint S3 |
+|---|---|
+| referencia + llave de servicio | `InvalidAccessKeyId: The Access Key Id you provided does not exist in our records` |
+| referencia + publicable + llave de servicio como *session token* | `SignatureDoesNotMatch: … The session token should be a valid JWT token` |
+
+El segundo mensaje es el que lo explica: la autenticación por *session token* exige un **JWT**, y
+este proyecto usa el **formato de llaves nuevo** (`sb_secret_…`, `sb_publishable_…`), que no lo es.
+La otra vía son **llaves de acceso S3**, y ésas sólo se crean en el panel del proyecto —Project
+Settings → Storage → S3 access keys—, que es lo único de todo esto que no se puede hacer desde
+aquí.
+
+### Lo que sí se hizo
+
+Un **segundo conductor** en `packages/data/src/archivos.ts`, contra la API de Almacenamiento
+(`/storage/v1`), que es la que la llave de servicio abre. Las cinco operaciones son las mismas
+—guardar, obtener, copiar, borrar y sumar bytes bajo un prefijo— y quien llama no sabe con quién
+habla.
+
+**S3 sigue siendo el de por omisión y no se va.** A-27 exige que el backend completo corra en la PC
+de un cliente, sin internet y sin cuenta de terceros: ahí va un MinIO al lado, y ése es el camino
+de S3. La decisión entre los dos la toma **la ruta del endpoint**, no el dominio ni una variable
+nueva:
+
+```
+termina en /storage/v1  →  la API de Supabase
+cualquier otra cosa     →  S3
+```
+
+### Las cuatro variables, y qué significa cada una
+
+|  | S3 (MinIO, local) | Supabase (gestionado) |
+|---|---|---|
+| `STORAGE_ENDPOINT` | `http://localhost:9000` | `https://<ref>.supabase.co/storage/v1` |
+| `STORAGE_BUCKET` | `morphiqpos` | `morphiqpos` |
+| `STORAGE_ACCESS_KEY` | la llave de acceso | **la referencia del proyecto** |
+| `STORAGE_SECRET_KEY` | el secreto | **la llave de servicio** |
+
+Y el conductor de Supabase **comprueba que `STORAGE_ACCESS_KEY` sea la referencia del endpoint**.
+No es papeleo: cambiar una de las dos y no la otra —la llave de un proyecto contra el bucket de
+otro— es el fallo clásico de despliegue, y se manifiesta como un 400 del almacenamiento cuatro
+pantallas más adelante. Dicho al construir el cliente, se lee una vez.
+
+### Lo que se dejó puesto, el 21-09-2026
+
+- El bucket **`morphiqpos`**, **privado**, creado en el proyecto `wyqmzhliurwyxuyxznpb`.
+- Las cuatro variables, en **`production` y `preview`**.
+- Las cinco operaciones, probadas contra el proyecto de verdad: guardar, leer con su
+  `content-type`, copiar, sumar 44 bytes bajo un prefijo, devolver `null` para lo que no existe y
+  borrar hasta dejarlo en cero.
+
+### Lo que esto cierra
+
+`FALLOS_QUE_SON_UNA_DECISION` llevaba `503 /api/reportes/exportar` con su condición de borrado
+escrita: «el día que el bucket exista, la prueba vuelve a exigirlo». Ese día es hoy, y la
+declaración se fue.
+
+---
+
+## 9 · El preview de una rama que no es `fase-2` · nadie puede entrar (19-10-2026)
+
+El `APP_URL` de **Preview** es el alias de la rama `fase-2` (§1), y no hay `APP_URL_ALTERNAS` para
+otras ramas. La frontera de escritura (R-17, §7) compara el `Origin` contra esos dos valores, así
+que en el preview de cualquier otra rama **toda escritura contesta 403, empezando por el PIN**.
+Medido desde fuera contra el preview de `claude/morphiq-pos-stabilization-u5qfo1` @ `748265c`,
+con el enlace compartido y sin sesión (la frontera va antes que la sesión: 401 es «permitido»):
+
+```
+origin: https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app                         → 401
+origin: https://morphiqpos-git-claude-morphiq-pos-stab-033a30-mh-astral-systems.vercel.app → 403
+origin: https://morphiqpos-3i7br6fx8-mh-astral-systems.vercel.app (el despliegue)          → 403
+origin: https://no-es-de-aqui.example                                                      → 403
+```
+
+La frontera hace lo correcto; lo que falta es configuración. La sesión de desarrollo no tiene permiso
+para crear variables del proyecto (la API de Vercel contesta 403), así que lo hace Miguel:
+
+```bash
+vercel env add APP_URL_ALTERNAS preview claude/morphiq-pos-stabilization-u5qfo1
+# valor: https://morphiqpos-git-claude-morphiq-pos-stab-033a30-mh-astral-systems.vercel.app
+```
+
+Sólo vale para los previews de ESA rama, y entra con el siguiente despliegue (un empujón a la rama).
+Después, desde fuera y sin tocar nada más que sesiones y la bitácora de intentos denegados:
+
+```bash
+MORPHIQPOS_URL_DESPLIEGUE=https://morphiqpos-git-claude-morphiq-pos-stab-033a30-mh-astral-systems.vercel.app \
+MORPHIQPOS_ESTADO_VERCEL=<estado con la cookie del enlace compartido, FUERA del repositorio> \
+MORPHIQPOS_DEMOS_MATRIZ=demo-acople-tienda,demo-acople-cafeteria,demo-acople-restaurante,demo-acople-ferreteria,demo-acople-estetica \
+pnpm test:e2e pruebas/e2e/matriz-de-permisos.spec.ts --project=escritorio --workers=1 --retries=0
+```
+
+La matriz manda el cuerpo inerte (D-41): con la base compartida detrás, no ejecuta ningún comando.
+Al fusionar la rama, la variable se borra. Lo que SÍ se pudo comprobar sin entrar está en el reporte
+020 (§ preview): las cinco demos servidas y los cuatro negocios reales en 404 igual que uno que no
+existe, sin hash ni PIN en la entrada, las cabeceras de seguridad, 403 sin sesión y 403 de un origen
+ajeno.

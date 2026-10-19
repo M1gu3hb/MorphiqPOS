@@ -168,6 +168,24 @@ describe('F-151 · contar pesando', () => {
     expect(salida.maximo).toBeGreaterThan(salida.piezasEstimadas);
   });
 
+  it('CUENTA el producto ligado desde su insumo, como se liga lo dado de alta', async () => {
+    // Leer sólo `insumo_base_id` rechazaba el conteo de todo producto dado de alta.
+    const base = baseDe({
+      productos: [producto({ insumo_base_id: null })],
+      insumos: [{ id: INSUMO, organizacion_id: ORG, producto_id: TORNILLO }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await conteoPorPeso.ejecutar(ctx, {
+      tomaId: TOMA,
+      productoId: TORNILLO,
+      pesoTotalMg: 30_000_000,
+      taraMg: 0,
+    });
+
+    expect(salida.piezasEstimadas).toBe(6_000);
+  });
+
   it('LA TARA SE DESCUENTA', async () => {
     // Pesar la cubeta con los tornillos y no restarla suma dos kilos de
     // plástico al conteo de tornillería.
@@ -257,7 +275,7 @@ describe('F-151 · contar pesando', () => {
     expect(codigo).toBe('INVENTARIO_INVALIDO');
   });
 
-  it('un producto sin insumo base no tiene existencia que contar', async () => {
+  it('un producto que no lleva existencia no tiene nada que contar', async () => {
     const base = baseDe({ productos: [producto({ insumo_base_id: null })] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 

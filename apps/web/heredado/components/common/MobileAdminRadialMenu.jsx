@@ -231,7 +231,7 @@ export default function MobileAdminRadialMenu() {
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/35 backdrop-blur-[2px] z-[55] lg:hidden pointer-events-none"
+            className="fixed inset-0 bg-velo/35 backdrop-blur-[2px] z-[55] lg:hidden pointer-events-none"
           />
         )}
       </AnimatePresence>

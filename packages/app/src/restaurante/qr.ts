@@ -34,6 +34,7 @@ export const rotarQr = definirComando<Transaccion, typeof entradaRotarQr, Result
   escribe: true,
   roles: [...ROLES_DIRECCION],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { mesaId: 'mesas' },
   entrada: entradaRotarQr,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

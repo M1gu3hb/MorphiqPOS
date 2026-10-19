@@ -72,6 +72,36 @@ describe('comando() · clave de idempotencia obligatoria', () => {
   });
 });
 
+describe('comando() · una LECTURA no se congela', () => {
+  it('con la misma clave vuelve a leer: no devuelve la respuesta guardada de antes', async () => {
+    // Cobrar abortaba su `caja.estado` al navegar y el cliente conservaba la clave; con la
+    // caja ya abierta, la lectura siguiente recibía la foto vieja: «la caja está cerrada».
+    const fabrica = crearFabrica('tienda');
+    let abierta = false;
+    const definicion = definirComando({
+      nombre: 'caja.estado',
+      entidad: 'sesion_caja',
+      escribe: false,
+      roles: ['cajero'],
+      paquetes: ['tienda'],
+      entrada: z.object({}),
+      async ejecutar() {
+        return { abierta };
+      },
+    });
+    const ejecutar = crearComando<TxFalsa>(fabrica);
+    const peticion = { entrada: {}, ambito: ambitoDeCajero(), idempotencyKey: CLAVE };
+
+    const antes = await ejecutar(definicion, peticion);
+    abierta = true;
+    const despues = await ejecutar(definicion, peticion);
+
+    expect(antes.ok && antes.datos).toEqual({ abierta: false });
+    expect(despues.ok && despues.datos).toEqual({ abierta: true });
+    expect(despues.ok && despues.reintento).toBe(false);
+  });
+});
+
 describe('comando() · reintento con la misma clave', () => {
   it('SALE-03: tres veces la misma clave produce UN solo resultado', async () => {
     const fabrica = crearFabrica('tienda');

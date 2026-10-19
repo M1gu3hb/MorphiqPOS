@@ -28,7 +28,9 @@ const MAXIMO_NOMBRE = 80;
 
 const cantidadPedida = z
   .string()
-  .regex(CANTIDAD, 'La cantidad no es válida.')
+  // Sin `abort`, zod 4 corre el `refine` aunque esto no pase, y su `BigInt` LANZA: el portal
+  // público contestaba 500 a una cantidad mal escrita.
+  .regex(CANTIDAD, { error: 'La cantidad no es válida.', abort: true })
   .refine((valor) => BigInt(valor.replace('.', '')) !== 0n, 'La cantidad debe ser mayor que cero.');
 
 const notaCorta = z.string().trim().max(MAXIMO_NOTA).default('');

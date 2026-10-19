@@ -716,12 +716,16 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Café americano 12 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 4900n,
       ingredientes: [{ clave: 'cafe', cantidad: '18' }],
     },
     {
       nombre: 'Latte 12 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 6500n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -731,24 +735,32 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Panini caprese',
       categoria: 'Alimentos',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 11500n,
       ingredientes: [{ clave: 'panini', cantidad: '1' }],
     },
     {
       nombre: 'Croissant de mantequilla',
       categoria: 'Alimentos',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 4800n,
       ingredientes: [{ clave: 'croissant', cantidad: '1' }],
     },
     {
       nombre: 'Espresso doble',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 4500n,
       ingredientes: [{ clave: 'cafe', cantidad: '18' }],
     },
     {
       nombre: 'Cortado 8 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 5500n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -758,6 +770,8 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Capuchino 12 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 6500n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -767,6 +781,8 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Mocha 12 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 7500n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -777,6 +793,8 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Latte vainilla 16 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 7900n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -787,12 +805,16 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Americano descafeinado 12 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 5200n,
       ingredientes: [{ clave: 'cafe_descaf', cantidad: '18' }],
     },
     {
       nombre: 'Latte de avena 12 oz',
       categoria: 'Café',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 7500n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -802,6 +824,8 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Café helado 16 oz',
       categoria: 'Bebidas frías',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 6900n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -812,6 +836,8 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Frappé de caramelo 16 oz',
       categoria: 'Bebidas frías',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 8900n,
       ingredientes: [
         { clave: 'cafe', cantidad: '18' },
@@ -824,6 +850,8 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Matcha latte 12 oz',
       categoria: 'Bebidas frías',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 8500n,
       ingredientes: [
         { clave: 'matcha', cantidad: '8' },
@@ -833,6 +861,8 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Chocolate caliente 12 oz',
       categoria: 'Bebidas frías',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 6500n,
       ingredientes: [
         { clave: 'chocolate', cantidad: '30' },
@@ -842,18 +872,24 @@ const CAFETERIA: SemillaDemo = {
     {
       nombre: 'Concha de vainilla',
       categoria: 'Alimentos',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 3200n,
       ingredientes: [{ clave: 'pan_dulce', cantidad: '1' }],
     },
     {
       nombre: 'Galleta de avena',
       categoria: 'Alimentos',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 3500n,
       ingredientes: [{ clave: 'galleta_avena', cantidad: '1' }],
     },
     {
       nombre: 'Bagel con queso crema',
       categoria: 'Alimentos',
+      // A la BARRA: sin área, la barra no recibe la comanda de nada (C.14 de la 2.4).
+      area: 'barra',
       precioCentavos: 7900n,
       ingredientes: [{ clave: 'bagel', cantidad: '1' }],
     },

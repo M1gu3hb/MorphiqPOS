@@ -126,7 +126,7 @@ export default function MovimientosPanel({ movimientos = [] }) {
   return (
     <div className="space-y-3">
       {/* Filtros */}
-      <Card className="p-3 bg-white/70 backdrop-blur-sm">
+      <Card className="p-3 bg-superficie/70 backdrop-blur-sm">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-2">
           <Input
             placeholder="Buscar ingrediente, motivo, usuario..."
@@ -236,7 +236,7 @@ export default function MovimientosPanel({ movimientos = [] }) {
                   return (
                     <Card
                       key={m.id}
-                      className="p-2.5 flex items-center gap-3 flex-wrap bg-white/70 backdrop-blur-sm"
+                      className="p-2.5 flex items-center gap-3 flex-wrap bg-superficie/70 backdrop-blur-sm"
                     >
                       <div className="flex-1 min-w-[180px]">
                         <p className="font-medium text-sm">{m.ingrediente_nombre}</p>
@@ -250,7 +250,7 @@ export default function MovimientosPanel({ movimientos = [] }) {
                         {(m.tipo_movimiento || '').replace('_', ' ')}
                       </Badge>
                       <p
-                        className={`font-heading font-black min-w-[100px] text-right text-sm ${negativo ? 'text-red-600' : 'text-emerald-600'}`}
+                        className={`font-heading font-black min-w-[100px] text-right text-sm ${negativo ? 'text-peligro' : 'text-exito'}`}
                       >
                         {negativo ? '' : '+'}
                         {Number(m.cantidad).toLocaleString()} {m.unidad_base}

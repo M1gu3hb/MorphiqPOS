@@ -4,6 +4,7 @@ import { ErrorDominio, PAQUETES_TODOS } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { exigirArchivoPropio } from '../archivos/referencias.ts';
 import { definirComando } from '../definicion.ts';
 
 /**
@@ -56,9 +57,12 @@ export const guardarFotoDeMostrador = definirComando<
   escribe: true,
   roles: [...CATALOGO],
   paquetes: PAQUETES_TODOS,
+  sucursal: { ubicacionId: 'ubicaciones' },
   entrada: entradaFotoDeMostrador,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
+    // La foto es la que devolvió la subida, de ESTE negocio (auditoría de la 2.4).
+    exigirArchivoPropio(entrada.url, organizacionId);
 
     const producto = await ctx.paso('leer_producto', () =>
       ctx.tx

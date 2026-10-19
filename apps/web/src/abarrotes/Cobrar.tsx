@@ -1,59 +1,120 @@
 'use client';
 
-import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Label } from '@morphiqpos/ui/primitivas/label';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-
-import { consultarPuente, invocarComando } from '~/cliente/api';
-import { useVocabulario } from '~/cliente/vocabulario';
-
 /**
  * PANTALLA · abarrotes · cobrar
  *
  * El 90% del uso del sistema: 50 a 400 veces al día, siempre con fila detrás.
  *
  * ── Por qué el TOTAL es lo más grande de toda la aplicación ──────────────
- * Porque **el cliente también lo lee, desde el otro lado del mostrador**, y
- * porque decirlo en voz alta mientras se escanea es lo que hace avanzar la
- * fila. Es más grande que en `restaurante`, y eso es deliberado.
+ * Porque **el cliente también lo lee, desde el otro lado del mostrador**, y porque decirlo
+ * en voz alta mientras se escanea es lo que hace avanzar la fila.
  *
  * ── Por qué no hay botón de «agregar» ────────────────────────────────────
- * Escanear es el estado por omisión, no una acción. La captura vive en la
- * ventana y no en un input, así que el foco **no se puede perder**: si el
- * cajero hizo clic en cualquier otro lado, el siguiente escaneo entra igual.
- * Lector y humano se separan sólo por el RITMO —ocho o más caracteres a menos
- * de 35 ms terminados en Enter—; lo demás se queda en el campo de búsqueda.
- * Sin *cooldown*: seis refrescos iguales son seis lecturas y `× 6` en UNA
- * línea, porque seis renglones de «Coca 600» esconden el error en vez de
- * mostrarlo.
+ * Escanear es el estado por omisión, no una acción. La captura vive en la ventana y no en un
+ * input, así que el foco **no se puede perder**. Lector y humano se separan por el RITMO
+ * —ocho o más caracteres a menos de 35 ms terminados en Enter—. Sin *cooldown*: seis
+ * refrescos iguales son seis lecturas y `× 6` en UNA línea.
  *
- * ── Por qué el cobro EXPANDE el bloque y no abre un modal ────────────────
- * Un modal oscurece el fondo, roba el foco y obliga a dos viajes visuales.
- * Doscientas veces al día eso son minutos. Expandiendo, la lista sigue a la
- * vista —el cliente sigue verificando— y volver a la venta es instantáneo.
+ * ── Lo que canta el lector (`cobro/escaneo.ts`) ──────────────────────────
+ * Un producto; la CAJA de 24 por el código de su presentación (F-147), que entra como
+ * «1 caja (24 pz)» a su precio y descuenta 24; una ETIQUETA de la báscula (F-148), que entra
+ * como su pesada ya resuelta —si el negocio declaró cómo etiqueta su báscula, en Productos—;
+ * o nada del catálogo: dos tonos que bajan y el ALTA RÁPIDA encima, con el código ya puesto.
  *
- * ── Lo que NO va aquí ────────────────────────────────────────────────────
- * Reportes, gráficas, catálogo, historial, alertas de inventario y avisos.
- * **Nada que no sea cobrar.** El único informativo permitido es la barra de
- * una línea de abajo, y sólo porque confirma que el escaneo funcionó.
+ * ── Tres canales, porque hay ruido ───────────────────────────────────────
+ * El pitido (`cliente/pitido.ts`), la línea resaltada un segundo y el nombre en la barra de
+ * estado. El color nunca va solo.
  *
- * ── Alcance recortado para caber en un archivo, dicho y no escondido ─────
- * 1. El **beep** —el canal sonoro de los tres— necesita un módulo de audio
- *    compartido. Quedan los otros dos: el resaltado de un segundo y la barra
- *    de estado. Ninguno de los dos depende sólo del color.
- * 2. Las teclas F1…F8 NO están: «los ocho de siempre» son los ocho más
- *    vendidos, y ese cálculo es del servidor. Poner los ocho primeros del
- *    catálogo enseñaría una memoria muscular falsa, que es peor que no tener
- *    la fila.
- * 3. El alta rápida (PANTALLA 2), el peso embebido (F-148), la presentación
- *    (F-147), el cliente de fiado (F4), el abono (F7) y suspender (F6) son
- *    suyos. Aquí el código desconocido se queda en una banda, no en un `toast`
- *    que se va solo.
- * 4. Sin conexión (F-988) no se simula: la decisión de la cola sigue abierta.
- * 5. `existencia` la expondrá el puente; hoy llega vacía y el punto no sale.
+ * ── El teclado ───────────────────────────────────────────────────────────
+ * F12 efectivo, F9 tarjeta, F10 transferencia, F11 fiado, F2 al buscador, F4 el cliente del
+ * fiado, F6 apartar o retomar, F7 un abono, Supr deshace la última línea, + / − la cantidad
+ * y Esc empieza de nuevo. Los ocho de siempre llevan su tecla donde está libre —F1, F3, F5 y
+ * F8— porque F2, F4, F6 y F7 ya son acciones (D-21).
+ *
+ * ── El descuento y el mixto (D.1 de la 2.4) ───────────────────────────────
+ * «Descuento» abre el diálogo compartido (`~/venta/DescuentoDeVenta`): lo que cabe en el tope
+ * de la cajera se aplica, y lo que no lo autoriza un supervisor tecleando SU PIN aquí mismo.
+ * El total que se dice en voz alta ya va descontado. «Mixto» es parte en efectivo y el resto
+ * con tarjeta o transferencia, cada parte a su método al centavo.
+ *
+ * ── El fiado ─────────────────────────────────────────────────────────────
+ * F11 va a nombre de alguien: sin cliente, pide elegirlo (F4) antes de confirmar. La venta
+ * suma a ventas y no al cajón, y la deuda queda escrita en la misma transacción del cobro.
+ *
+ * ── Sin conexión ─────────────────────────────────────────────────────────
+ * No hay cola, por decisión (A-27, F-988 en EXCEPCIONES): sin red la pantalla lo DICE
+ * —«Sin internet. No se puede cobrar»— y CONFIRMAR no se deja pulsar.
  */
+
+import type { LayoutEanInterno } from '@morphiqpos/domain/catalogo';
+import { Button } from '@morphiqpos/ui/primitivas/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+} from '@morphiqpos/ui/primitivas/dialog';
+import { Input } from '@morphiqpos/ui/primitivas/input';
+import { Label } from '@morphiqpos/ui/primitivas/label';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  Superficie,
+  Tabla,
+  Vacio,
+} from '@morphiqpos/ui/sistema';
+import { Check, PackagePlus, ScanBarcode, Search } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+
+import { consultarPuente, invocarComando } from '~/cliente/api';
+import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
+import { pitar } from '~/cliente/pitido';
+import { useVocabulario } from '~/cliente/vocabulario';
+import { DescuentoDeVenta, type DescuentoElegido } from '~/venta/DescuentoDeVenta';
+
+import { AltaRapida, type ProductoDadoDeAlta } from './AltaRapida.tsx';
+import { AbonoRapido } from './cobro/AbonoRapido.tsx';
+import { DepositoDeEnvase } from './cobro/DepositoDeEnvase.tsx';
+import { AvisoDelCobro, type AvisoDeCobro } from './cobro/Avisos.tsx';
+import {
+  CobroEnReposo,
+  CobroExpandido,
+  Tecla,
+  accionDeTecla,
+  type Metodo,
+  type PagoMixto,
+} from './cobro/BloqueDeCobro.tsx';
+import {
+  armarCatalogo,
+  lineasDeRetomada,
+  presentacionDeCobro,
+  productoDeCobro,
+  type PresentacionDelPuente,
+  type ProductoDelPuente,
+  type RenglonRetomado,
+} from './cobro/catalogo.ts';
+import { columnasDeLaVenta } from './cobro/columnas.tsx';
+import { ElegirCliente, type ClienteDelCobro } from './cobro/ElegirCliente.tsx';
+import { EnEspera } from './cobro/EnEspera.tsx';
+import { layoutDeLaConfiguracion, resolverCodigo } from './cobro/escaneo.ts';
+import {
+  articulosDe,
+  conCantidad,
+  conGranel,
+  conPresentacion,
+  conProducto,
+  ivaIncluido,
+  paraElServidor,
+  totalDe,
+  type LineaDeVenta,
+  type ProductoDeCobro,
+} from './cobro/lineas.ts';
+import { TECLAS_RAPIDAS, TeclasRapidas, teclaDe } from './cobro/TeclasRapidas.tsx';
 
 /** Un lector escribe cada carácter en menos de esto; una mano, jamás. */
 const MS_ENTRE_TECLAS = 35;
@@ -61,27 +122,6 @@ const MS_ENTRE_TECLAS = 35;
 const LARGO_MINIMO_CODIGO = 8;
 /** Lo que dura el resaltado de la línea recién escaneada. */
 const MS_DESTACADO = 1000;
-/** El IVA ya venía DENTRO del precio: 16 de cada 116 pesos cobrados. */
-const IVA_NUMERADOR = 16;
-const IVA_DENOMINADOR = 116;
-/** Los billetes con los que se paga más de la mitad de los tickets. */
-const DENOMINACIONES = [15_000, 20_000, 50_000] as const;
-/** Los desvíos del camino por omisión, con su tecla impresa al lado. */
-const DESVIOS = [
-  { clave: 'tarjeta', etiqueta: 'Tarjeta', tecla: 'F9' },
-  { clave: 'transferencia', etiqueta: 'Transferencia', tecla: 'F10' },
-  { clave: 'fiado', etiqueta: 'Fiado', tecla: 'F11' },
-] as const;
-
-type Metodo = 'efectivo' | (typeof DESVIOS)[number]['clave'];
-
-export interface ProductoDeMostrador {
-  readonly id: string;
-  readonly nombre: string | null;
-  readonly precio_venta: number | null;
-  readonly codigo_barras: string | null;
-  readonly existencia?: number | null;
-}
 
 /** Lo que `caja.estado` contesta, y lo único que esta pantalla necesita de él. */
 interface EstadoDeLaCaja {
@@ -89,169 +129,139 @@ interface EstadoDeLaCaja {
   readonly sesionCajaId: string | null;
 }
 
-export interface CajaDelDia {
-  readonly id: string;
-  readonly estado: string | null;
-  readonly usuario_apertura_nombre: string | null;
-}
+type Panel =
+  | { readonly tipo: 'alta'; readonly codigo: string }
+  | { readonly tipo: 'cliente' }
+  | { readonly tipo: 'abono' }
+  | { readonly tipo: 'espera' }
+  | { readonly tipo: 'descuento' }
+  | { readonly tipo: 'casco' };
 
-export interface LineaDeVenta {
-  readonly productoId: string;
-  readonly nombre: string;
-  readonly precioCentavos: number;
-  readonly cantidad: number;
-  readonly sinExistencia: boolean;
-}
+const TITULOS: Readonly<Record<Exclude<Panel['tipo'], 'alta'>, readonly [string, string]>> = {
+  cliente: ['A quién', 'El fiado va a nombre de alguien: elígelo antes de cobrar.'],
+  abono: ['Abono de fiado', 'Entra a su cuenta, no a la venta.'],
+  espera: ['Apartar o retomar', 'La venta apartada se retoma con su número.'],
+  descuento: ['Descuento', 'Hasta tu tope se aplica solo; arriba, lo autoriza un supervisor.'],
+  casco: ['Casco', 'El depósito entra al cajón y no es venta: vuelve cuando traen el envase.'],
+};
 
 export interface CobrarProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
-  readonly productosIniciales?: readonly ProductoDeMostrador[];
-  readonly cajaInicial?: CajaDelDia | null;
+  readonly productosIniciales?: readonly ProductoDelPuente[];
+  readonly presentacionesIniciales?: readonly PresentacionDelPuente[];
+  readonly cajaAbiertaInicial?: boolean;
   readonly onCobrado?: (ventaId: string) => void;
 }
 
-/** Pesos a centavos contando dígitos: `58.995 * 100` pierde medio centavo. */
-function aCentavos(pesos: number | null | undefined): number {
-  if (pesos === null || pesos === undefined || !Number.isFinite(pesos)) return 0;
-  const [entero = '0', decimal = '00'] = Math.abs(pesos).toFixed(2).split('.');
-  return (pesos < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
+interface Lectura {
+  readonly productos: readonly ProductoDeCobro[];
+  readonly presentaciones: readonly ReturnType<typeof presentacionDeCobro>[];
+  readonly cajaAbierta: boolean;
 }
 
-/** Centavos a pesos para una persona. Aritmética entera de punta a punta. */
-export function enPesos(centavos: number): string {
-  const bruto = Math.abs(centavos);
-  const miles = Math.trunc(bruto / 100)
-    .toString()
-    .replace(/\B(?=(\d{3})+(?!\d))/g, ',');
-  return `${centavos < 0 ? '-' : ''}$${miles}.${(bruto % 100).toString().padStart(2, '0')}`;
-}
-
-export function centavosDeTexto(texto: string): number {
-  const limpio = texto.replace(/[^\d.]/g, '');
-  return limpio === '' ? 0 : aCentavos(Number(limpio));
-}
-
-/** El IVA que ya venía en el precio. Nunca se suma: se desglosa. */
-export function ivaIncluido(total: number): number {
-  return Math.round((total * IVA_NUMERADOR) / IVA_DENOMINADOR);
-}
-
-export function totalDe(lineas: readonly LineaDeVenta[]): number {
-  return lineas.reduce((suma, linea) => suma + linea.precioCentavos * linea.cantidad, 0);
-}
-
-/** Suma o resta. Al llegar a cero la línea desaparece: un «0 ×» no es nada. */
-export function conCantidad(
-  lineas: readonly LineaDeVenta[],
-  productoId: string,
-  paso: number,
-): readonly LineaDeVenta[] {
-  return lineas
-    .map((l) => (l.productoId === productoId ? { ...l, cantidad: l.cantidad + paso } : l))
-    .filter((l) => l.cantidad > 0);
-}
-
-/** El mismo código INCREMENTA su línea; nunca apila un renglón nuevo. */
-export function conProducto(
-  lineas: readonly LineaDeVenta[],
-  producto: ProductoDeMostrador,
-): readonly LineaDeVenta[] {
-  if (lineas.some((l) => l.productoId === producto.id)) return conCantidad(lineas, producto.id, 1);
-  return [
-    ...lineas,
-    {
-      productoId: producto.id,
-      nombre: producto.nombre ?? 'Producto',
-      precioCentavos: aCentavos(producto.precio_venta),
-      cantidad: 1,
-      // Existencia 0 NO bloquea: se agrega y se marca. Bloquear aquí es perder
-      // una venta real por un dato de inventario que casi nunca está al día.
-      sinExistencia: typeof producto.existencia === 'number' && producto.existencia <= 0,
-    },
-  ];
-}
-
-export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarProps) {
+export function Cobrar({
+  productosIniciales,
+  presentacionesIniciales,
+  cajaAbiertaInicial,
+  onCobrado,
+}: CobrarProps) {
+  const enLinea = useEnLinea();
   const voc = useVocabulario();
-  const [productos, setProductos] = useState<readonly ProductoDeMostrador[] | null>(
-    productosIniciales ?? null,
+  const router = useRouter();
+  const [lectura, setLectura] = useState<Lectura | null>(
+    productosIniciales === undefined
+      ? null
+      : {
+          productos: productosIniciales.map(productoDeCobro),
+          presentaciones: (presentacionesIniciales ?? []).map(presentacionDeCobro),
+          cajaAbierta: cajaAbiertaInicial ?? true,
+        },
   );
-  const [caja, setCaja] = useState<CajaDelDia | null | undefined>(
-    productosIniciales === undefined ? cajaInicial : (cajaInicial ?? null),
-  );
+  const [bascula, setBascula] = useState<LayoutEanInterno | null>(null);
+  const [masVendidos, setMasVendidos] = useState<readonly string[]>([]);
+  const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
+  const [intento, setIntento] = useState(0);
   const [lineas, setLineas] = useState<readonly LineaDeVenta[]>([]);
   const [busqueda, setBusqueda] = useState('');
   const [destacada, setDestacada] = useState<string | null>(null);
   const [ultimo, setUltimo] = useState<string | null>(null);
-  const [sinCatalogar, setSinCatalogar] = useState<string | null>(null);
   const [metodo, setMetodo] = useState<Metodo | null>(null);
-  const [recibido, setRecibido] = useState('');
+  const [recibido, setRecibido] = useState<number | null>(null);
+  const [cliente, setCliente] = useState<ClienteDelCobro | null>(null);
+  const [descuento, setDescuento] = useState<DescuentoElegido | null>(null);
+  const [mixto, setMixto] = useState<PagoMixto>({ efectivoCentavos: null, resto: 'tarjeta' });
+  const [panel, setPanel] = useState<Panel | null>(null);
+  const [aviso, setAviso] = useState<AvisoDeCobro | null>(null);
   const [enviando, setEnviando] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const campo = useRef<HTMLInputElement>(null);
-  // La ráfaga del lector no es estado de la vista: repintar en cada tecla
-  // costaría un render por carácter, trece por producto escaneado.
+  // La ráfaga del lector no es estado de la vista: repintar en cada tecla costaría un
+  // render por carácter, trece por producto escaneado.
   const racha = useRef({ texto: '', ultima: 0 });
+  const hayLineas = lineas.length > 0;
 
   useEffect(() => {
     if (productosIniciales !== undefined) return;
-    // El centinela es la señal de aborto: dice si la pantalla sigue montada y
-    // de paso cancela la lectura en vuelo.
     const control = new AbortController();
     const sigueMontada = (): boolean => !control.signal.aborted;
     /**
-     * LA CAJA SE PREGUNTA A `/api/caja/estado`, NO AL PUENTE.
-     *
-     * ── El defecto que esto arregla ──────────────────────────────────────
-     * Esto leía `CorteCaja` —`sesiones_caja`— y se quedaba con la primera fila
-     * en estado «abierto» DE TODO EL NEGOCIO. Y una sesión de caja pertenece a
-     * UNA terminal: `venta.cobrar` exige la de ESTA terminal
-     * (`sesionAbiertaDeTerminal`), porque el arqueo del cajón que tienes
-     * delante no se puede cuadrar con los movimientos del cajón de al lado.
-     *
-     * El resultado era el peor desacuerdo posible: la pantalla decía «caja
-     * abierta» —había una, en otra terminal— dejaba armar la venta entera, y al
-     * pulsar CONFIRMAR el servidor contestaba «Abre la caja antes de cobrar».
-     * Con la caja de la otra caja abierta en la pantalla.
-     *
-     * `/api/caja/estado` es lo que usan las otras cuatro pantallas de caja del
-     * sistema —`abarrotes/Caja`, `Cortes`, `cafeteria/Turno`, `restaurante/Caja`,
-     * `estetica-salon/CajaYCorte`— y resuelve la terminal del ÁMBITO de la
-     * sesión. Ésta era la única que preguntaba por otro camino.
+     * LA CAJA SE PREGUNTA A `/api/caja/estado`, NO AL PUENTE: una sesión de caja es de UNA
+     * terminal, y `venta.cobrar` exige la de ésta. Leer «la primera caja abierta del negocio»
+     * dejaba armar la venta con la caja de la otra terminal abierta y el servidor contestaba
+     * «Abre la caja» al confirmar.
      */
     Promise.all([
-      consultarPuente<ProductoDeMostrador>('ProductoTerminado', {
+      consultarPuente<ProductoDelPuente>('ProductoTerminado', {
+        limite: 2000,
+        signal: control.signal,
+      }),
+      consultarPuente<PresentacionDelPuente>('Presentacion', {
+        filtro: { activa: true },
         limite: 2000,
         signal: control.signal,
       }),
       invocarComando<EstadoDeLaCaja>('/api/caja/estado', {}, { signal: control.signal }),
     ])
-      .then(([filas, estado]) => {
+      .then(([productos, presentaciones, caja]) => {
         if (!sigueMontada()) return;
-        setProductos(filas);
-        setCaja(
-          estado.abierta
-            ? {
-                id: estado.sesionCajaId ?? '',
-                estado: 'abierto',
-                // El nombre de quien abrió no viaja en el estado y no hace falta
-                // para cobrar: es el pie de página, y se prefiere «sin nombre» a
-                // una consulta más en la pantalla que más se abre del día.
-                usuario_apertura_nombre: null,
-              }
-            : null,
-        );
+        setLectura({
+          productos: productos.map(productoDeCobro),
+          presentaciones: presentaciones.map(presentacionDeCobro),
+          cajaAbierta: caja.abierta,
+        });
       })
       .catch((fallo: unknown) => {
         if (!sigueMontada()) return;
-        setProductos([]);
-        setCaja(null);
-        setError(fallo instanceof Error ? fallo.message : 'No se pudo leer el catálogo.');
+        setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer el catálogo.');
       });
+    // La báscula y los ocho de siempre AYUDAN a cobrar; si no se leen, se cobra igual.
+    consultarPuente<Record<string, unknown>>('ConfiguracionNegocio', {
+      limite: 1,
+      signal: control.signal,
+    })
+      .then(([config]) => {
+        if (sigueMontada()) setBascula(layoutDeLaConfiguracion(config?.['bascula_etiqueta']));
+      })
+      .catch(() => undefined);
+    invocarComando<{ productos: readonly { productoId: string }[] }>(
+      '/api/venta/mas-vendidos',
+      {},
+      { signal: control.signal },
+    )
+      .then((respuesta) => {
+        if (sigueMontada()) setMasVendidos(respuesta.productos.map((p) => p.productoId));
+      })
+      .catch(() => undefined);
     return () => {
       control.abort();
     };
-  }, [productosIniciales]);
+  }, [productosIniciales, intento]);
+
+  function reintentar(): void {
+    setFalloDeCarga(null);
+    setLectura(null);
+    setIntento((previo) => previo + 1);
+  }
 
   useEffect(() => {
     if (destacada === null) return;
@@ -263,31 +273,94 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     };
   }, [destacada]);
 
-  const agregar = useCallback((producto: ProductoDeMostrador) => {
-    setLineas((previas) => conProducto(previas, producto));
-    setDestacada(producto.id);
-    setUltimo(producto.nombre ?? 'Producto');
-    setSinCatalogar(null);
+  const catalogo = useMemo(
+    () => armarCatalogo(lectura?.productos ?? [], lectura?.presentaciones ?? []),
+    [lectura],
+  );
+  const rapidos = useMemo(
+    () =>
+      masVendidos
+        .map((id) => catalogo.porId.get(id))
+        .filter((p): p is ProductoDeCobro => p !== undefined)
+        .slice(0, TECLAS_RAPIDAS.length),
+    [masVendidos, catalogo],
+  );
+
+  /** Una línea nueva o una más: el pitido, el resaltado y la barra de estado, juntos. */
+  const alAgregar = useCallback((nuevas: readonly LineaDeVenta[], nombre: string) => {
+    const ultima = nuevas.at(-1);
+    setLineas(nuevas);
+    setDestacada(ultima?.clave ?? null);
+    setUltimo(nombre);
+    setAviso(null);
     setBusqueda('');
+    pitar('agregado');
   }, []);
 
-  const porCodigo = useMemo(() => {
-    const mapa = new Map<string, ProductoDeMostrador>();
-    for (const fila of productos ?? []) if (fila.codigo_barras !== null) mapa.set(fila.codigo_barras, fila); // prettier-ignore
-    return mapa;
-  }, [productos]);
+  const agregar = useCallback(
+    (producto: ProductoDeCobro) => {
+      setLineas((previas) => {
+        const nuevas = conProducto(previas, producto);
+        queueMicrotask(() => {
+          alAgregar(nuevas, producto.nombre);
+        });
+        return nuevas;
+      });
+    },
+    [alAgregar],
+  );
+
+  /** Lo que cantó el lector, resuelto: producto, caja, pesada, o nada del catálogo. */
+  const escaneado = useCallback(
+    (codigo: string) => {
+      const leido = resolverCodigo(codigo, catalogo, bascula);
+      if (leido.tipo === 'producto') {
+        agregar(leido.producto);
+      } else if (leido.tipo === 'presentacion') {
+        alAgregar(
+          conPresentacion(lineas, leido.producto, leido.presentacion),
+          leido.producto.nombre,
+        );
+      } else if (leido.tipo === 'pesada') {
+        alAgregar(
+          conGranel(lineas, leido.producto, leido.cantidad, leido.unidad),
+          leido.producto.nombre,
+        );
+      } else if (leido.tipo === 'malLeido') {
+        pitar('desconocido');
+        setAviso({ tipo: 'malLeido', motivo: leido.motivo });
+      } else {
+        // No un `toast` que se va solo: el alta rápida, encima, con el código ya puesto.
+        pitar('desconocido');
+        setPanel({ tipo: 'alta', codigo: leido.codigo });
+      }
+    },
+    [agregar, alAgregar, bascula, catalogo, lineas],
+  );
 
   /** Lo que F2 encuentra: el primero que coincide, para agregarlo con Enter. */
   const hallazgo = useMemo(() => {
     const aguja = busqueda.trim().toLocaleLowerCase('es-MX');
     if (aguja === '') return undefined;
-    return (productos ?? []).find((f) =>
-      (f.nombre ?? '').toLocaleLowerCase('es-MX').includes(aguja),
+    return (lectura?.productos ?? []).find((p) =>
+      p.nombre.toLocaleLowerCase('es-MX').includes(aguja),
     );
-  }, [productos, busqueda]);
+  }, [lectura, busqueda]);
+
+  /** F11 sin cliente pide el cliente primero; con él, abre el cobro a fiado. */
+  const elegirMetodo = useCallback(
+    (elegido: Metodo) => {
+      if (!hayLineas) return;
+      setMetodo(elegido);
+      if (elegido === 'fiado' && cliente === null) setPanel({ tipo: 'cliente' });
+    },
+    [cliente, hayLineas],
+  );
 
   useEffect(() => {
     const alTeclear = (evento: KeyboardEvent) => {
+      // Con un diálogo abierto, el teclado es suyo.
+      if (panel !== null) return;
       const previo = racha.current;
       const enCampo =
         evento.target instanceof HTMLInputElement || evento.target instanceof HTMLTextAreaElement;
@@ -296,14 +369,11 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
         racha.current = { texto: '', ultima: 0 };
         if (metodo !== null || previo.texto.length < LARGO_MINIMO_CODIGO) return;
         evento.preventDefault();
-        const producto = porCodigo.get(previo.texto);
-        if (producto === undefined) setSinCatalogar(previo.texto);
-        else agregar(producto);
+        escaneado(previo.texto);
         return;
       }
       if (evento.key.length === 1) {
-        // El ritmo se mide SIEMPRE, también con el foco dentro de un campo:
-        // es lo único que distingue al lector de una mano.
+        // El ritmo se mide SIEMPRE, también con el foco dentro de un campo.
         const seguida = evento.timeStamp - previo.ultima < MS_ENTRE_TECLAS;
         racha.current = {
           texto: seguida ? previo.texto + evento.key : evento.key,
@@ -313,59 +383,113 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
         if (!enCampo && (evento.key === '+' || evento.key === '-')) {
           setLineas((previas) => {
             const fin = previas.at(-1);
-            const paso = evento.key === '+' ? 1 : -1;
-            return fin === undefined ? previas : conCantidad(previas, fin.productoId, paso);
+            return fin === undefined
+              ? previas
+              : conCantidad(previas, fin.clave, evento.key === '+' ? 1 : -1);
           });
         }
+        return;
+      }
+      const rapido = TECLAS_RAPIDAS.findIndex((t, i) => t === evento.key && teclaDe(i) !== null);
+      if (rapido !== -1 && metodo === null) {
+        const producto = rapidos[rapido];
+        evento.preventDefault();
+        if (producto !== undefined) agregar(producto);
         return;
       }
       if (evento.key === 'Escape') {
         setMetodo(null);
         setLineas([]);
-        setRecibido('');
+        setRecibido(null);
+        setDescuento(null);
       } else if (evento.key === 'Delete' && !enCampo) {
         // Supr DESHACE la última línea: el error se corrige, no se previene.
         setLineas((previas) => previas.slice(0, -1));
       } else if (evento.key === 'F2') {
         evento.preventDefault();
         campo.current?.focus();
-      } else if (evento.key === 'F12') {
+      } else if (evento.key === 'F6') {
         evento.preventDefault();
-        setMetodo('efectivo');
+        setPanel({ tipo: 'espera' });
+      } else if (evento.key === 'F7') {
+        evento.preventDefault();
+        setPanel({ tipo: 'abono' });
+      } else {
+        // Las teclas del cobro —F12, F9, F10, F11 y F4— se resuelven JUNTO a donde se
+        // imprimen (`BloqueDeCobro`), con la misma guarda que su botón.
+        const accion = accionDeTecla(evento);
+        if (accion === null) return;
+        evento.preventDefault();
+        if (accion.tipo === 'cliente') setPanel({ tipo: 'cliente' });
+        else elegirMetodo(accion.metodo);
       }
     };
     window.addEventListener('keydown', alTeclear);
     return () => {
       window.removeEventListener('keydown', alTeclear);
     };
-  }, [agregar, metodo, porCodigo]);
+  }, [agregar, elegirMetodo, escaneado, metodo, panel, rapidos]);
 
-  const total = totalDe(lineas);
-  const piezas = lineas.reduce((suma, linea) => suma + linea.cantidad, 0);
-  const cambio = centavosDeTexto(recibido) - total;
+  const sinDescuento = totalDe(lineas);
+  /** Lo que se cobra: el descuento ya restado. Uno que ya no cabe en la venta no se aplica. */
+  const aplicado = descuento !== null && descuento.centavos < sinDescuento ? descuento : null;
+  const total = sinDescuento - (aplicado?.centavos ?? 0);
 
   /**
-   * Un solo viaje. El documento no nombra la ruta, así que sigue la convención
-   * `/api/<dominio>/<verbo>`: encadenar abrir-orden, N líneas y cobrar serían
-   * N+2 idas en plena ráfaga. El total viaja para que el servidor RECHACE si
-   * no coincide con el suyo —cobrar un número distinto del que ya se dijo en
-   * voz alta es peor que fallar— y la clave de idempotencia la pone
-   * `invocarComando`, así que un doble Enter no cobra dos veces.
+   * Un solo viaje (`/api/venta/cobrar-mostrador`). El total viaja para que el servidor RECHACE
+   * si no coincide con el suyo —cobrar un número distinto del que ya se dijo en voz alta es
+   * peor que fallar— y la clave de idempotencia la pone `invocarComando`: un doble Enter no
+   * cobra dos veces.
    */
   async function confirmar(): Promise<void> {
+    // Sin red no se cobra (F-988): ni con el botón —deshabilitado— ni con Enter.
+    if (!enLinea || metodo === null) return;
+    if (metodo === 'fiado' && cliente === null) {
+      setPanel({ tipo: 'cliente' });
+      return;
+    }
     setEnviando(true);
     setError(null);
     try {
+      const efectivoDelMixto = mixto.efectivoCentavos ?? 0;
       const venta = await invocarComando<{ ventaId: string }>('/api/venta/cobrar-mostrador', {
-        metodo,
+        metodo: metodo === 'mixto' ? 'efectivo' : metodo,
         totalEsperadoCentavos: total,
-        recibidoCentavos: metodo === 'efectivo' ? centavosDeTexto(recibido) : total,
-        lineas: lineas.map((l) => ({ productoId: l.productoId, cantidad: String(l.cantidad) })),
+        recibidoCentavos: metodo === 'efectivo' ? (recibido ?? 0) : total,
+        ...(metodo === 'fiado' && cliente !== null ? { clienteId: cliente.id } : {}),
+        ...(metodo === 'mixto'
+          ? {
+              pagos: [
+                {
+                  metodo: 'efectivo',
+                  montoCentavos: efectivoDelMixto,
+                  recibidoCentavos: efectivoDelMixto,
+                },
+                { metodo: mixto.resto, montoCentavos: total - efectivoDelMixto },
+              ],
+            }
+          : {}),
+        ...(aplicado === null
+          ? {}
+          : {
+              descuento: {
+                centavos: aplicado.centavos,
+                motivo: aplicado.motivo,
+                ...(aplicado.autorizacion === undefined
+                  ? {}
+                  : { autorizacion: aplicado.autorizacion }),
+              },
+            }),
+        lineas: paraElServidor(lineas),
       });
       setLineas([]);
-      setRecibido('');
+      setRecibido(null);
       setMetodo(null);
+      setDescuento(null);
+      setMixto({ efectivoCentavos: null, resto: 'tarjeta' });
       setUltimo(null);
+      // El cliente era de ESTA venta: la siguiente empieza sin nadie.
+      setCliente(null);
       onCobrado?.(venta.ventaId);
     } catch (fallo) {
       // La venta NO se pierde nunca: la lista sigue ahí y sólo se dice qué pasó.
@@ -375,263 +499,408 @@ export function Cobrar({ productosIniciales, cajaInicial, onCobrado }: CobrarPro
     }
   }
 
-  if (productos === null || caja === undefined) {
-    // Esqueletos con la forma de la venta, no un spinner: así nada salta al
-    // llegar el catálogo y el ojo ya sabe dónde va a mirar.
+  /** El alta rápida guardó: se lee su ficha del puente —con SU precio— y entra a la venta. */
+  async function alDarDeAlta(producto: ProductoDadoDeAlta): Promise<void> {
+    setPanel(null);
+    try {
+      const [fila] = await consultarPuente<ProductoDelPuente>('ProductoTerminado', {
+        filtro: { id: producto.productoId },
+        limite: 1,
+      });
+      if (fila === undefined) return;
+      const nuevo = productoDeCobro(fila);
+      setLectura((previa) =>
+        previa === null ? previa : { ...previa, productos: [...previa.productos, nuevo] },
+      );
+      agregar(nuevo);
+    } catch {
+      setError(`«${producto.nombre}» quedó dado de alta; escanéalo otra vez para agregarlo.`);
+    }
+  }
+
+  function alRetomar(renglones: readonly RenglonRetomado[], codigo: string): void {
+    const { lineas: recuperadas, perdidos } = lineasDeRetomada(renglones, catalogo);
+    setPanel(null);
+    setLineas(recuperadas);
+    setAviso({ tipo: 'retomada', codigo, perdidos });
+  }
+
+  if (falloDeCarga !== null) {
     return (
-      <div className="grid gap-3 p-3 md:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_26rem]">
-        <Skeleton className="min-h-40 w-full rounded-lg md:order-2" />
-        <div className="space-y-2 md:order-1">
-          {Array.from({ length: 6 }, (_, i) => (
-            <Skeleton key={i} className="h-5 w-full rounded-md" />
-          ))}
-        </div>
+      <div className="mx-auto max-w-lg p-(--espacio-6)">
+        <ErrorDePantalla
+          titulo="No se pudo leer el catálogo ni la caja"
+          queHacer="Sin el catálogo no se reconoce ningún código, y sin la caja no se sabe a qué corte pertenece lo que se cobra. Revisa la conexión y vuelve a intentarlo."
+          detalle={falloDeCarga}
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        />
       </div>
     );
   }
 
-  if (caja === null) {
+  if (lectura === null) return <EsqueletoDelCobro />;
+
+  if (!lectura.cajaAbierta) {
+    // UN MURO, no un vacío. La acción va DEBAJO del motivo.
     return (
-      <div className="mx-auto max-w-md space-y-3 rounded-lg border border-warning/60 bg-warning/15 p-6 text-center">
-        <p className="text-xl font-semibold">La caja está cerrada</p>
-        <p className="text-sm">
-          Una venta sin caja no pertenece a ningún corte: al terminar el día no habría contra qué
-          cuadrarla. Por eso esto es un muro y no un aviso.
-        </p>
-        <Button asChild>
-          <a href="/caja">Ábrela para empezar a vender</a>
-        </Button>
+      <div className="mx-auto max-w-xl px-(--espacio-4) py-(--espacio-12)">
+        <Aviso tono="atencion" titulo="La caja está cerrada">
+          <p>
+            {`${voc.conDeterminante('un', 'orden')} sin caja no pertenece a ningún corte: al terminar el día no habría contra qué cuadrarl${voc.terminacion('orden')}.`}
+          </p>
+          <Button asChild className="mt-(--espacio-3)">
+            <a href="/abarrotes/caja">Ábrela para empezar a vender</a>
+          </Button>
+        </Aviso>
       </div>
     );
   }
 
-  if (productos.length === 0) {
+  if (lectura.productos.length === 0) {
     return (
-      <div className="mx-auto max-w-lg space-y-3 p-8 text-center">
-        <p className="text-xl font-semibold">Todavía no hay nada que escanear.</p>
-        <p className="text-muted-foreground">
-          Esta pantalla vive del código de barras: en cuanto el catálogo tenga productos con su
-          código y su precio, pasar el lector por uno lo pone en la lista y lo cobra.
-        </p>
-        <Button asChild>
-          <a href="/productos">Cargar el catálogo</a>
-        </Button>
+      <div className="mx-auto max-w-lg p-(--espacio-4)">
+        <Vacio
+          icono={<PackagePlus />}
+          titulo="Todavía no hay nada que escanear."
+          explicacion={`Esta pantalla vive del código de barras: en cuanto el catálogo tenga ${voc.plural('producto')} con su código y su precio, pasar el lector por uno lo pone en la lista y lo cobra.`}
+          accion={
+            <Button asChild>
+              <a href="/abarrotes/alta-rapida-de-producto">Dar de alta el primero</a>
+            </Button>
+          }
+        />
       </div>
     );
   }
+
+  const columnas = columnasDeLaVenta(voc, (quitar) => {
+    setLineas((previas) =>
+      quitar.granel
+        ? previas.filter((l) => l.clave !== quitar.clave)
+        : conCantidad(previas, quitar.clave, -1),
+    );
+  });
+
+  const piezas = articulosDe(lineas);
 
   return (
-    <div className="grid gap-3 p-3 pb-56 md:grid-cols-[minmax(0,1fr)_18rem] md:pb-48 xl:grid-cols-[minmax(0,1fr)_26rem] xl:pb-3">
-      {/* En teléfono el total se queda pegado arriba; de tablet para arriba es
-          la cabeza de la columna derecha. En los dos casos es lo primero. */}
-      <section
-        aria-label={`Total de ${voc.enFrase('orden')}`}
-        className="sticky top-0 z-20 rounded-lg border border-border bg-card p-4 text-center md:static md:col-start-2 md:row-start-1"
-      >
-        <p className="text-sm font-medium uppercase tracking-widest text-muted-foreground">Total</p>
-        <p className="text-6xl font-bold leading-none tabular-nums md:text-7xl xl:text-8xl">
-          {enPesos(total)}
-        </p>
-        {/* En teléfono desaparecen el desglose y el conteo: ahí no se vende. */}
-        <p className="mt-2 hidden justify-center gap-4 text-sm text-muted-foreground md:flex">
-          <span>{piezas} artículos</span>
-          <span className="tabular-nums">IVA incluido {enPesos(ivaIncluido(total))}</span>
-        </p>
-      </section>
+    // FLEX en teléfono, rejilla de tablet para arriba: en una rejilla lo pegajoso sólo se
+    // pega dentro de su celda, y el total no se quedaba arriba.
+    <div className="flex flex-col gap-(--espacio-3) p-(--espacio-3) pb-56 md:grid md:grid-cols-[minmax(0,1fr)_18rem] md:grid-rows-[auto_1fr_auto] md:pb-48 xl:grid-cols-[minmax(0,1fr)_26rem] xl:pb-(--espacio-3)">
+      <h1 className="sr-only">Cobrar</h1>
+      {enLinea ? null : <AvisoSinConexion className="md:col-span-2" />}
 
+      {/* PRIMARIO · el total. */}
+      <Superficie
+        nivel={2}
+        relleno={4}
+        como="section"
+        aria-label={`Total de ${voc.enFrase('orden')}`}
+        className="sticky top-0 z-20 flex flex-col items-center gap-(--espacio-1) text-center md:static md:col-start-2 md:row-start-1 md:self-start md:shadow-1"
+      >
+        <p className="text-xs font-medium tracking-widest text-texto-sutil uppercase">Total</p>
+        <Dinero centavos={total} tamano="total" className="leading-none" />
+        {aplicado === null ? null : (
+          <p className="inline-flex flex-wrap items-baseline justify-center gap-(--espacio-1) text-sm text-texto-sutil">
+            descuento <Dinero centavos={aplicado.centavos} tamano="sm" />
+            {aplicado.autorizo === undefined ? null : <span>· autorizó {aplicado.autorizo}</span>}
+          </p>
+        )}
+        {/* En teléfono desaparecen el desglose y el conteo: ahí no se vende. */}
+        <p className="mt-(--espacio-2) hidden items-baseline justify-center gap-(--espacio-4) text-sm text-texto-sutil md:flex">
+          <Cifra valor={piezas} unidad={piezas === 1 ? 'artículo' : 'artículos'} tamano="sm" />
+          <span className="inline-flex items-baseline gap-(--espacio-1)">
+            IVA incluido <Dinero centavos={ivaIncluido(total)} tamano="sm" />
+          </span>
+        </p>
+      </Superficie>
+
+      {/* SECUNDARIO · la lista, con el campo de búsqueda encima. */}
       <section
         aria-label={`${voc.titulo('orden')} en curso`}
-        className="space-y-2 md:col-start-1 md:row-span-3"
+        className="flex min-w-0 flex-col gap-(--espacio-2) md:col-start-1 md:row-span-2 md:row-start-1"
       >
-        <div className="space-y-1">
+        <div className="flex flex-col gap-(--espacio-1)">
           <Label htmlFor="cobrar-busqueda">Código o nombre · F2</Label>
-          <Input
-            id="cobrar-busqueda"
-            ref={campo}
-            value={busqueda}
-            placeholder={`${voc.conArticulo('producto')} sin código, o el que no leyó`}
-            onChange={(evento) => {
-              setBusqueda(evento.target.value);
-            }}
-            onKeyDown={(evento) => {
-              if (evento.key === 'Enter' && hallazgo !== undefined) agregar(hallazgo);
-            }}
-          />
+          <div className="relative">
+            <Search
+              aria-hidden="true"
+              className="pointer-events-none absolute top-1/2 left-(--espacio-3) size-4 -translate-y-1/2 text-texto-sutil"
+            />
+            <Input
+              id="cobrar-busqueda"
+              ref={campo}
+              value={busqueda}
+              placeholder={`${voc.conArticulo('producto')} sin código, o el que no leyó`}
+              onChange={(evento) => {
+                setBusqueda(evento.target.value);
+              }}
+              onKeyDown={(evento) => {
+                if (evento.key === 'Enter' && hallazgo !== undefined) agregar(hallazgo);
+              }}
+              className="pl-(--espacio-10)"
+            />
+          </div>
           {hallazgo !== undefined && (
-            <p className="text-sm text-muted-foreground">Enter agrega: {hallazgo.nombre}</p>
+            <p className="flex items-baseline justify-between gap-(--espacio-2) text-sm text-texto-sutil">
+              <span>Enter agrega: {hallazgo.nombre}</span>
+              <Dinero centavos={hallazgo.precioCentavos} tamano="sm" />
+            </p>
           )}
         </div>
 
-        {error !== null && (
-          <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-2">
-            {error} · La venta sigue completa aquí: no se perdió nada.
-          </p>
-        )}
-        {sinCatalogar !== null && (
-          <p role="alert" className="rounded-md border border-warning/60 bg-warning/15 p-2">
-            El código {sinCatalogar} no está en el catálogo. Búscalo por nombre con F2, o dalo de
-            alta sin salir de la venta.
-          </p>
-        )}
+        <AvisoDelCobro aviso={aviso} />
 
-        {/* La lista crece hacia abajo con la última visible: nunca un scroll
-            automático que mueva de sitio las de arriba mientras se verifican. */}
-        <ul className="min-h-32 divide-y divide-border rounded-lg border border-border">
-          {lineas.length === 0 && (
-            <li className="flex min-h-32 flex-col items-center justify-center gap-1 p-6 text-center">
-              <span aria-hidden className="text-3xl tracking-widest">
-                ▊▌▊▎▊
-              </span>
-              <p className="text-lg font-medium">Escanea el primer {voc.singular('producto')}</p>
-              <p className="text-sm text-muted-foreground">
-                El lector ya está escuchando: no hay nada que tocar.
-              </p>
-            </li>
-          )}
-          {lineas.map((linea) => (
-            <li
-              key={linea.productoId}
-              className={`flex items-center gap-2 p-2 ${destacada === linea.productoId ? 'bg-primary/15' : ''}`}
+        {/* Crece hacia abajo: nunca un scroll automático que mueva las de arriba. */}
+        <Tabla
+          etiqueta={`Artículos de ${voc.enFrase('orden')}`}
+          columnas={columnas}
+          filas={lineas}
+          claveDe={(linea) => linea.clave}
+          // La recién escaneada es la fila activa durante un segundo.
+          {...(destacada === null ? {} : { activa: destacada })}
+          alto="max-h-[50vh] md:max-h-[60vh] xl:max-h-[68vh]"
+          vacio={
+            <Superficie
+              nivel={0}
+              relleno={0}
+              className="flex min-h-64 items-center justify-center border-dashed"
             >
-              <span className="w-12 shrink-0 text-right font-bold tabular-nums">
-                {linea.cantidad} ×
-              </span>
-              <span className="flex-1 truncate">
-                {linea.nombre}
-                {/* El color nunca es el único portador: va la palabra. */}
-                {linea.sinExistencia && (
-                  <span className="ml-1 text-xs text-muted-foreground">● sin existencia</span>
-                )}
-              </span>
-              {/* La tablet pierde el precio unitario si no cabe. Nunca pierde
-                  la cantidad: es la que se verifica de reojo. */}
-              <span className="hidden w-20 text-right tabular-nums text-muted-foreground xl:inline">
-                {enPesos(linea.precioCentavos)}
-              </span>
-              <span className="w-24 shrink-0 text-right font-medium tabular-nums">
-                {enPesos(linea.precioCentavos * linea.cantidad)}
-              </span>
-              <Button
-                size="sm"
-                variant="ghost"
-                aria-label={`Quitar uno de ${linea.nombre}`}
-                onClick={() => {
-                  setLineas(conCantidad(lineas, linea.productoId, -1));
-                }}
-              >
-                −
-              </Button>
-            </li>
-          ))}
-        </ul>
+              <Vacio
+                icono={<ScanBarcode />}
+                titulo={`Escanea el primer ${voc.singular('producto')}`}
+                explicacion="El lector ya está escuchando: no hay nada que tocar."
+              />
+            </Superficie>
+          }
+        />
+
+        <TeclasRapidas productos={rapidos} onElegir={agregar} />
       </section>
 
-      {/* En PC es la columna derecha; de tablet para abajo es la franja fija
-          del borde inferior, a la altura del pulgar y sin nada que sostener. */}
-      <aside
+      {/* TERCIARIO · el cobro. En PC es la columna derecha; de tablet para abajo, la franja
+          fija del borde inferior, a la altura del pulgar. */}
+      <Superficie
+        como="aside"
+        nivel={3}
+        radio="sm"
+        relleno={3}
         aria-label="Cobro"
-        className="fixed inset-x-0 bottom-0 z-20 space-y-2 border-t border-border bg-card p-3 md:col-start-2 md:row-start-2 xl:static xl:rounded-lg xl:border"
+        className="fixed inset-x-0 bottom-0 z-20 rounded-none xl:static xl:col-start-2 xl:row-start-2 xl:self-start xl:rounded-lg xl:shadow-1"
       >
-        {metodo === null ? (
-          <>
-            <Button
-              size="lg"
-              className="min-h-20 w-full justify-between text-lg"
-              disabled={lineas.length === 0}
-              onClick={() => {
-                setMetodo('efectivo');
+        <div className="flex w-full flex-col gap-(--espacio-2) md:mx-auto md:max-w-3xl xl:max-w-none">
+          {/* El error vive EN el bloque de cobro, donde se estaba mirando. */}
+          {error !== null && (
+            <Aviso tono="peligro" titulo={error}>
+              {`${voc.conArticulo('orden')} sigue complet${voc.terminacion('orden')} en la lista: no se perdió nada.`}
+            </Aviso>
+          )}
+          {metodo === null ? (
+            <CobroEnReposo hayLineas={hayLineas} onElegir={elegirMetodo} />
+          ) : (
+            <CobroExpandido
+              metodo={metodo}
+              total={total}
+              recibido={recibido}
+              onRecibido={setRecibido}
+              cliente={cliente}
+              onElegirCliente={() => {
+                setPanel({ tipo: 'cliente' });
               }}
-            >
-              <span>COBRAR</span>
-              <span aria-hidden>F12</span>
-            </Button>
-            <div className="flex flex-wrap gap-1">
-              {DESVIOS.map((desvio) => (
-                <Button
-                  key={desvio.clave}
-                  size="sm"
-                  variant="ghost"
-                  disabled={lineas.length === 0}
-                  onClick={() => {
-                    setMetodo(desvio.clave);
-                  }}
-                >
-                  {desvio.etiqueta} <span aria-hidden>{desvio.tecla}</span>
-                </Button>
-              ))}
-            </div>
-          </>
-        ) : (
-          <>
-            {metodo === 'efectivo' && (
-              <>
-                <Label htmlFor="cobrar-recibido">Recibí</Label>
-                <Input
-                  id="cobrar-recibido"
-                  autoFocus
-                  inputMode="decimal"
-                  value={recibido}
-                  onChange={(evento) => {
-                    setRecibido(evento.target.value);
-                  }}
-                  onKeyDown={(evento) => {
-                    if (evento.key === 'Enter' && cambio >= 0 && !enviando) void confirmar();
-                  }}
-                />
-                {/* El cambio en grande porque es el número que se dice en voz
-                    alta y el que causa discusiones. Se lee a un metro. */}
-                <p className="text-sm font-medium uppercase text-muted-foreground">Cambio</p>
-                <p className="text-4xl font-bold tabular-nums xl:text-5xl">{enPesos(cambio)}</p>
-                <div className="flex flex-wrap gap-1">
-                  {[total, ...DENOMINACIONES].map((monto, indice) => (
-                    <Button
-                      key={indice}
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        setRecibido((monto / 100).toFixed(2));
-                      }}
-                    >
-                      {indice === 0 ? 'Exacto' : enPesos(monto)}
-                    </Button>
-                  ))}
-                </div>
-              </>
-            )}
-            <Button
-              size="lg"
-              className="min-h-20 w-full justify-between text-lg"
-              disabled={enviando || (metodo === 'efectivo' && cambio < 0)}
-              onClick={() => {
+              enLinea={enLinea}
+              enviando={enviando}
+              onConfirmar={() => {
                 void confirmar();
               }}
-            >
-              <span>{enviando ? 'Cobrando…' : 'CONFIRMAR'}</span>
-              <span aria-hidden>Enter</span>
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="w-full"
-              onClick={() => {
+              onRegresar={() => {
                 setMetodo(null);
               }}
-            >
-              Esc para regresar
-            </Button>
-          </>
-        )}
-      </aside>
+              mixto={mixto}
+              onMixto={setMixto}
+              descuento={
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="ghost"
+                  className="w-full"
+                  onClick={() => {
+                    if (aplicado === null) setPanel({ tipo: 'descuento' });
+                    else setDescuento(null);
+                  }}
+                >
+                  {aplicado === null ? 'Descuento' : 'Quitar el descuento'}
+                </Button>
+              }
+            />
+          )}
+        </div>
+      </Superficie>
 
-      {/* El único informativo permitido, y sólo porque confirma que el escaneo
-          funcionó: el tercer canal, el que se mira de reojo. */}
+      {/* CUATERNARIO · el único informativo permitido, y sólo porque confirma que el
+          escaneo funcionó: el tercer canal, el que se mira de reojo. */}
       <footer
         role="status"
-        className="hidden justify-between text-xs text-muted-foreground md:col-span-2 md:row-start-3 md:flex"
+        className="hidden items-center justify-between gap-(--espacio-3) border-t border-borde pt-(--espacio-2) text-xs text-texto-sutil md:col-span-2 md:row-start-3 md:flex"
       >
-        <span>Caja abierta · {caja.usuario_apertura_nombre ?? 'sin nombre'}</span>
-        <span>{ultimo === null ? 'Sin escaneos todavía' : `Últ: ${ultimo} ✓`}</span>
+        <span className="inline-flex items-center gap-(--espacio-2)">
+          Caja abierta ·{' '}
+          <button
+            type="button"
+            className="inline-flex items-center gap-(--espacio-1) underline-offset-2 hover:underline"
+            onClick={() => {
+              setPanel({ tipo: 'cliente' });
+            }}
+          >
+            Cliente: {cliente?.nombre ?? '—'}
+          </button>
+          ·
+          <button
+            type="button"
+            className="inline-flex items-center gap-(--espacio-1) underline-offset-2 hover:underline"
+            onClick={() => {
+              setPanel({ tipo: 'espera' });
+            }}
+          >
+            Apartar <Tecla>F6</Tecla>
+          </button>
+          ·
+          <button
+            type="button"
+            className="inline-flex items-center gap-(--espacio-1) underline-offset-2 hover:underline"
+            onClick={() => {
+              setPanel({ tipo: 'abono' });
+            }}
+          >
+            Abono <Tecla>F7</Tecla>
+          </button>
+          ·
+          <button
+            type="button"
+            className="inline-flex items-center gap-(--espacio-1) underline-offset-2 hover:underline"
+            onClick={() => {
+              setPanel({ tipo: 'casco' });
+            }}
+          >
+            Casco
+          </button>
+        </span>
+        {ultimo === null ? (
+          <span>Sin escaneos todavía</span>
+        ) : (
+          <span className="inline-flex items-center gap-(--espacio-1)">
+            Últ: <span className="font-medium text-texto">{ultimo}</span>
+            <Check aria-hidden="true" className="size-4 text-exito" />
+          </span>
+        )}
       </footer>
+
+      {panel?.tipo === 'alta' ? (
+        <AltaRapida
+          enCapa
+          codigoInicial={panel.codigo}
+          onGuardado={(producto) => {
+            void alDarDeAlta(producto);
+          }}
+          onCancelar={() => {
+            setPanel(null);
+          }}
+          onAgregarPresentacion={(productoId) => {
+            router.push(`/abarrotes/producto?producto=${encodeURIComponent(productoId)}`);
+          }}
+        />
+      ) : null}
+
+      <Dialog
+        open={panel !== null && panel.tipo !== 'alta'}
+        onOpenChange={(abierto) => {
+          if (!abierto) setPanel(null);
+        }}
+      >
+        <DialogContent className="max-h-[85dvh] overflow-y-auto sm:max-w-lg">
+          {panel === null || panel.tipo === 'alta' ? null : (
+            <>
+              <DialogHeader>
+                <DialogTitle>{TITULOS[panel.tipo][0]}</DialogTitle>
+                <DialogDescription>{TITULOS[panel.tipo][1]}</DialogDescription>
+              </DialogHeader>
+              {panel.tipo === 'cliente' ? (
+                <ElegirCliente
+                  importe={total}
+                  onElegir={(elegido) => {
+                    setCliente(elegido);
+                    setPanel(null);
+                  }}
+                />
+              ) : panel.tipo === 'descuento' ? (
+                <DescuentoDeVenta
+                  base={sinDescuento}
+                  onAplicar={(elegido) => {
+                    setDescuento(elegido);
+                    setRecibido(null);
+                    setPanel(null);
+                  }}
+                />
+              ) : panel.tipo === 'casco' ? (
+                <DepositoDeEnvase
+                  onListo={(hecho) => {
+                    setPanel(null);
+                    setAviso({ tipo: 'casco', hecho });
+                  }}
+                />
+              ) : panel.tipo === 'abono' ? (
+                <AbonoRapido
+                  onListo={(abono) => {
+                    setPanel(null);
+                    setAviso({ tipo: 'abono', abono });
+                  }}
+                />
+              ) : (
+                <EnEspera
+                  lineas={lineas}
+                  onApartada={(codigo) => {
+                    setPanel(null);
+                    setLineas([]);
+                    setMetodo(null);
+                    setCliente(null);
+                    setAviso({ tipo: 'apartada', codigo });
+                  }}
+                  onRetomada={alRetomar}
+                />
+              )}
+            </>
+          )}
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+/**
+ * Esqueletos con la forma de la venta, no un spinner: el total a la derecha, el campo y los
+ * renglones del ticket a la izquierda. Así nada salta al llegar el catálogo.
+ */
+function EsqueletoDelCobro() {
+  return (
+    <div
+      role="status"
+      aria-busy="true"
+      aria-label="Leyendo el catálogo y la caja"
+      className="grid gap-(--espacio-3) p-(--espacio-3) md:grid-cols-[minmax(0,1fr)_18rem] xl:grid-cols-[minmax(0,1fr)_26rem]"
+    >
+      <div className="flex flex-col gap-(--espacio-3) md:col-start-2 md:row-start-1">
+        <Esqueleto className="h-40 w-full rounded-lg" />
+        <Esqueleto className="hidden h-48 w-full rounded-lg xl:block" />
+      </div>
+      <div className="flex flex-col gap-(--espacio-2) md:col-start-1 md:row-start-1">
+        <Esqueleto className="h-(--altura-control) w-full" />
+        {Array.from({ length: 6 }, (_, indice) => (
+          <div key={indice} className="flex items-center gap-(--espacio-3) py-(--espacio-1)">
+            <Esqueleto className="h-4 w-8" />
+            <Esqueleto className="h-4 flex-1" />
+            <Esqueleto className="h-4 w-20" />
+          </div>
+        ))}
+      </div>
     </div>
   );
 }

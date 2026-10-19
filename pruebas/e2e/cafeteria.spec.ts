@@ -1,5 +1,7 @@
 import { expect, test } from '@playwright/test';
 
+import { exigirElPdfDelCorte } from './ayudantes/corte.ts';
+
 import {
   abrirLaCajaSiHaceFalta,
   abrirPantalla,
@@ -74,6 +76,13 @@ interface BebidaDelPuente {
   readonly precio_venta?: number | null;
 }
 
+/** Una opción de bebida del puente (`Modificador`): su delta llega en centavos. */
+interface OpcionDelPuente {
+  readonly nombre?: string;
+  readonly grupo?: string | null;
+  readonly delta_precio_centavos?: number | null;
+}
+
 /** Pesos como los pinta la pantalla: `$42.90`. */
 function enPesos(centavos: number): string {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(
@@ -98,7 +107,10 @@ function enPesos(centavos: number): string {
  */
 const PANTALLAS: readonly (readonly [string, MarcaDePantalla])[] = [
   ['acceso-por-pin', /¿Quién está operando\?/],
-  ['barra', /La fila está vacía|BARRA/],
+  // «En la fila» y no «BARRA»: la mayúscula del título es CSS, el texto es «Barra». Con
+  // la barra vacía —como estaba la demo hasta C.14, que no emitía comandas— salía
+  // lo primero; con pedidos, lo segundo.
+  ['barra', /La fila está vacía|En la fila/],
   ['cierre-de-turno-y-arqueo', /No hay ningún turno abierto|Cierre de turno/],
   ['clientes-y-sellos', /Se identifica por teléfono/],
   ['cobrar', /Turno cerrado|Cobrar/],
@@ -144,7 +156,10 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     info.annotations.push({ type: 'caja', description: await soltarLaCaja(page) });
   });
 
-  test('la cafetería habla de baristas y barra, y su plantilla no trae sala', async ({ page }) => {
+  test('la cafetería habla de baristas y barra, y su plantilla no trae sala', async ({
+    page,
+    browser,
+  }) => {
     await entrar(page);
     await exigirGiro(page, 'cafeteria', 'cafeteria');
     // Ninguna pantalla puede abrir en 200 y reventar por dentro.
@@ -251,6 +266,35 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     await abrirPantalla(page, '/cafeteria/barra', /La fila está vacía|Barra/);
     await expect(page.getByRole('heading', { name: 'Barra', exact: true })).toBeVisible();
 
+    /**
+     * 2.1 · LO QUE C.10 DE LA 2.4 CONSTRUYÓ EN LAS PANTALLAS DE LA CAFETERÍA.
+     *
+     * La receta dice qué grupo CAMBIA cada línea y cuánto cuesta cada variante; el
+     * catálogo dice qué opciones abre cada bebida y su IVA; clientes y sellos enseña el
+     * pasivo del programa. Las tres eran «alcance recortado».
+     */
+    await abrirPantalla(page, '/cafeteria/recetas', /Recetas/);
+    await page
+      .getByRole('row', { name: /Latte 12 oz/ })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('combobox', { name: 'Qué opción cambia Leche entera' }),
+      'La leche entera del latte no dice que la cambia el grupo «Leche»: la semilla la ' +
+        'declara (`declararLineaSustituible`) y el puente la sirve como ' +
+        '`sustituible_por_grupo_id`. Sin eso el latte de avena descuenta leche entera.',
+    ).toHaveText(/Leche/);
+    await expect(
+      page.getByText('Leche entera → Bebida de avena').first(),
+      'La tabla de variantes no enseña lo que la avena cambia en la receta.',
+    ).toBeVisible();
+
+    await abrirPantalla(page, '/cafeteria/clientes-y-sellos', /Se identifica por teléfono/);
+    await expect(page.getByText('Lo que debe el programa')).toBeVisible();
+
+    await abrirPantalla(page, '/cafeteria/productos', /Hoy no hay|Productos/);
+    await expect(page.getByRole('columnheader', { name: 'Opciones' })).toBeVisible();
+
     // ── 2.5 · SE COBRA EN LA BARRA, Y EL TURNO CUADRA ─────────────────────
     //
     // Abrir el turno con su fondo, cobrar una bebida y cerrar el turno contando
@@ -295,6 +339,18 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
       .getByRole('button', { name: bebida.nombre ?? '' })
       .first()
       .click();
+    // Una bebida con opciones las abre encima del cobro (C.10 de la 2.4). Con las de
+    // omisión —12 oz, entera, normal— el precio es el de la carta.
+    const suyas = await consultarPuente<OpcionDelPuente>(page, 'Modificador', {
+      filtro: { producto_id: bebida.id ?? '' },
+      limite: 5,
+    });
+    if (suyas.length > 0) {
+      await page
+        .getByRole('dialog')
+        .getByRole('button', { name: /^AGREGAR/ })
+        .click();
+    }
 
     // «Aquí» o «Para llevar»: sin canal el botón de cobrar está bloqueado, y con
     // razón —`estrategia_cumplimiento` decide si el pedido entra a la fila de la
@@ -320,18 +376,211 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
     // bebida a preparar, y eso es un movimiento de inventario por la receta.
     await exigirInventarioMovido(page, venta.id ?? '', bebida.nombre ?? '');
 
+    /**
+     * 2a · EL LATTE DE AVENA DESCUENTA AVENA (C.10 de la 2.4, F-027).
+     *
+     * La opción existía y nadie la aplicaba: el mostrador no podía cobrarla —las opciones
+     * eran otra pantalla que metía la bebida en un borrador que el cobro no leía— y aunque
+     * se hubiera cobrado, el consumo descontaba la receta de catálogo, con leche entera.
+     * Aquí se elige la avena en el cobro, se cobra con su delta, y el ledger de ESA venta
+     * tiene que llevar avena y NO leche entera.
+     */
+    const [latte] = await consultarPuente<BebidaDelPuente>(page, 'ProductoTerminado', {
+      filtro: { nombre: 'Latte 12 oz' },
+      limite: 1,
+    });
+    const delLatte = await consultarPuente<OpcionDelPuente>(page, 'Modificador', {
+      filtro: { producto_id: latte?.id ?? '' },
+      limite: 20,
+    });
+    const deltaAvena = delLatte.find((o) => o.nombre === 'Avena')?.delta_precio_centavos ?? 0;
+    const latteDeAvena = Math.round((latte?.precio_venta ?? 0) * 100) + deltaAvena;
+    const idsAntesDelLatte = await ventasDeAntes(page);
+
+    await page.getByRole('button', { name: 'Latte 12 oz' }).first().click();
+    const opcionesDelLatte = page.getByRole('dialog');
+    await opcionesDelLatte.getByRole('button', { name: /^Avena/ }).click();
+    await opcionesDelLatte.getByRole('button', { name: /^AGREGAR/ }).click();
+    await page.locator('#cobrar-nombre').fill('Avena E2E');
+    await page.getByRole('button', { name: 'Aquí' }).click();
+    await expect(
+      botonCobrar,
+      'El cobro no suma la avena: la línea tiene que llevar el delta de la opción.',
+    ).toContainText(enPesos(latteDeAvena));
+    await botonCobrar.click();
+    await exigirCobroAceptado(page, /para empezar\./);
+    const ventaDelLatte = await exigirVentaCobrada(page, latteDeAvena, idsAntesDelLatte);
+    const consumo = await exigirInventarioMovido(
+      page,
+      ventaDelLatte.id ?? '',
+      'Latte 12 oz con avena',
+    );
+    const insumosDelLatte = consumo.map((m) => m.ingrediente_nombre ?? '');
+    expect(
+      insumosDelLatte,
+      `El latte de avena descontó ${insumosDelLatte.join(', ')}: tiene que llevar la avena.`,
+    ).toContain('Bebida de avena');
+    expect(
+      insumosDelLatte,
+      'El latte de avena descontó LECHE ENTERA: el consumo no aplicó la opción elegida.',
+    ).not.toContain('Leche entera');
+
+    /**
+     * 2a · LA BARRA LA PREPARA Y LA ENTREGA (C.14 de la 2.4).
+     *
+     * Hasta C.14 la demo no emitía comandas —sus recetas no iban a ninguna área y no
+     * había estación—, así que la barra estaba siempre vacía y el cierre nunca
+     * encontraba «cobrado sin entregar». Ahora la bebida llega a la barra, y se
+     * despacha por su tarjeta: listo y llamar, y entregar.
+     */
+    await abrirPantalla(page, '/cafeteria/barra', /En la fila|La fila está vacía/);
+    await page.getByRole('button', { name: 'Marcar listo y llamar a Sin nombre' }).first().click();
+    await page
+      .getByRole('button', { name: 'Marcar entregado el pedido de Sin nombre' })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Marcar entregado el pedido de Sin nombre' }),
+      'La bebida cobrada en el mostrador no se pudo entregar desde la barra.',
+    ).toHaveCount(0, { timeout: 30_000 });
+    await page.getByRole('button', { name: 'Marcar listo y llamar a Avena E2E' }).first().click();
+    await page
+      .getByRole('button', { name: 'Marcar entregado el pedido de Avena E2E' })
+      .first()
+      .click();
+    await expect(
+      page.getByRole('button', { name: 'Marcar entregado el pedido de Avena E2E' }),
+    ).toHaveCount(0, { timeout: 30_000 });
+
+    /**
+     * 2b · UN APARTADO DEL MENÚ PÚBLICO, DE PUNTA A PUNTA (C.14 de la 2.4).
+     *
+     * «Se reserva sin pago y se cobra al recoger.» La clienta, SIN sesión, aparta desde
+     * `/n/<slug>/pedir`; el personal lo prepara —la comanda llega a la barra ANTES del
+     * pago—, lo cobra al recoger y lo entrega. Antes el menú público no leía nada sin
+     * sesión y sólo redactaba el pedido para copiarlo.
+     */
+    const slug = process.env['MORPHIQPOS_ORG_DEMO'] ?? 'demo-acople-cafeteria';
+    const origen = new URL(page.url()).origin;
+    const menu = (await (
+      await page.request.get(`${origen}/api/publico/negocio/${slug}/menu`)
+    ).json()) as {
+      readonly datos?: {
+        readonly productos?: readonly {
+          readonly nombre: string;
+          readonly precioCentavos: string;
+          readonly disponible: boolean;
+        }[];
+      };
+    };
+    const apartable = menu.datos?.productos?.find(
+      (p) => p.disponible && Number(p.precioCentavos) > 0,
+    );
+    expect(
+      apartable,
+      'El menú público de la cafetería no trae ningún producto disponible: sin sesión no se ' +
+        'puede apartar nada. Sale de `/api/publico/negocio/<slug>/menu`.',
+    ).toBeDefined();
+    const apartadoCentavos = Number(apartable!.precioCentavos);
+
+    const sinSesion = await browser.newContext();
+    const clienta = await sinSesion.newPage();
+    await clienta.goto(`${origen}/n/${slug}/pedir`);
+    await clienta.getByRole('button', { name: apartable!.nombre }).first().click();
+    await clienta
+      .getByRole('button', { name: /^\d{2}:\d{2}$/ })
+      .first()
+      .click();
+    await clienta.getByLabel('Tu nombre').fill('Apartado E2E');
+    await clienta.getByRole('button', { name: 'Apartar' }).click();
+    await expect(
+      clienta.getByRole('heading', { name: 'Apartado' }),
+      'La clienta tocó «Apartar» sin sesión y no quedó apartado.',
+    ).toBeVisible({ timeout: 30_000 });
+    // Con el vocabulario de la cafetería aunque no haya sesión: sin él decía «se paga
+    // al recogerlo en .», la barra sin nombre.
+    await expect(clienta.getByText(/Se paga al recogerlo en la barra\./)).toBeVisible();
+    await sinSesion.close();
+
+    // Del lado de quien cobra: el apartado está en su lista, con su nombre.
+    await abrirPantalla(page, '/cafeteria/cobrar', /Cobrar|Turno cerrado/);
+    const apartados = page.getByRole('region', { name: 'Apartados de hoy' });
+    const suRenglon = apartados.getByRole('row', { name: /Apartado E2E/ }).last();
+    await expect(
+      suRenglon,
+      'El apartado de la clienta no aparece en «Apartados» del mostrador.',
+    ).toBeVisible({ timeout: 30_000 });
+
+    // PREPARAR: la comanda llega a la barra antes del pago.
+    await suRenglon.getByRole('button', { name: 'Preparar' }).click();
+    const cobrarApartado = suRenglon.getByRole('link', { name: 'Cobrar' });
+    await expect(cobrarApartado).toBeVisible({ timeout: 30_000 });
+    const ordenDelApartado = new URL(
+      (await cobrarApartado.getAttribute('href')) ?? '',
+      origen,
+    ).searchParams.get('pedido');
+    const comandas = await consultarPuente<{ readonly venta_id?: string }>(
+      page,
+      'PedidoPreparacion',
+      { filtro: { venta_id: ordenDelApartado }, limite: 5 },
+    );
+    expect(
+      comandas.length,
+      'Se tocó «Preparar» y la barra no recibió la comanda del apartado: sin ella, el ' +
+        'apartado se prepararía hasta cobrarlo y no adelantaría nada.',
+    ).toBeGreaterThan(0);
+
+    // COBRAR AL RECOGER, en el cobro de ESA orden. La orden ya existía —nació al
+    // apartar—, así que no es una venta NUEVA: se comprueba ESA, que quede pagada con su
+    // total.
+    await cobrarApartado.click();
+    await page.getByRole('button', { name: 'Sin propina' }).first().click();
+    await page.getByRole('button', { name: /^COBRAR/ }).click();
+    await expect
+      .poll(
+        async () => {
+          const [venta] = await consultarPuente<{
+            readonly estado?: string;
+            readonly total?: number;
+          }>(page, 'Venta', { filtro: { id: ordenDelApartado }, limite: 1 });
+          return `${venta?.estado ?? ''} ${String(Math.round((venta?.total ?? 0) * 100))}`;
+        },
+        {
+          message: 'Se cobró el apartado al recogerlo y su orden no quedó pagada con su total.',
+          timeout: 30_000,
+        },
+      )
+      .toBe(`pagada ${String(apartadoCentavos)}`);
+
+    // Y ENTREGAR, que ya se puede: está cobrado.
+    await abrirPantalla(page, '/cafeteria/cobrar', /Cobrar|Turno cerrado/);
+    const cobrado = page
+      .getByRole('region', { name: 'Apartados de hoy' })
+      .getByRole('row', { name: /Apartado E2E/ })
+      .last();
+    await cobrado.getByRole('button', { name: 'Entregar' }).click();
+    await expect(
+      page.getByRole('region', { name: 'Apartados de hoy' }).getByRole('row', {
+        name: /Apartado E2E/,
+      }),
+      'Se entregó el apartado y sigue en la lista de pendientes.',
+    ).toHaveCount(0, { timeout: 30_000 });
+
     // El cierre, con su arqueo. El esperado lo calcula el servidor sumando los
-    // movimientos del turno: la apertura con su fondo y la venta en efectivo.
+    // movimientos del turno: la apertura con su fondo, la venta en efectivo y el
+    // apartado, cobrado al recogerlo.
     await abrirPantalla(
       page,
       '/cafeteria/cierre-de-turno-y-arqueo',
       /Cierre de turno|No hay ningún turno/,
     );
-    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos;
+    const esperadoCentavos = FONDO_CENTAVOS + precioCentavos + latteDeAvena + apartadoCentavos;
     await page.locator('#cierre-efectivo').fill((esperadoCentavos / 100).toFixed(2));
     // El bote de propina va a cero: esta venta no dejó propina, y el cierre exige
     // contar los dos antes de enseñar nada.
     await page.locator('#cierre-bote').fill('0');
+    // Lo que se queda en el cajón para el turno siguiente, como CAMPO (C.6 de la 2.4).
+    await page.locator('#cierre-dejado').fill((FONDO_CENTAVOS / 100).toFixed(2));
     await page.getByRole('button', { name: 'CERRAR TURNO' }).click();
 
     await expect(
@@ -340,6 +589,47 @@ test.describe('cafetería · su vocabulario, sus pantallas y su dashboard', () =
         `${enPesos(precioCentavos)} en efectivo.`,
     ).toBeVisible({ timeout: 30_000 });
     await expect(page.getByText('cuadró exacto').first()).toBeVisible();
+
+    // LA COMISIÓN DE LA TERMINAL (C.10 de la 2.4): si el negocio no la ha dicho, el cierre
+    // la pregunta aquí mismo, y desde entonces el corte la estima.
+    const tasa = page.getByLabel('Cuánto cobra tu terminal (%)');
+    if (await tasa.isVisible()) {
+      await tasa.fill('3.6');
+      await page.getByRole('button', { name: 'Guardar la tasa' }).click();
+      await expect(tasa).toHaveCount(0, { timeout: 30_000 });
+    }
+    await expect(page.getByText('Comisión estimada').first()).toBeVisible();
+
+    // Y EL PDF DEL TURNO (F-234). La descarga sola espera el reparto del bote —bajado
+    // antes, saldría sin él—; aquí no hubo propina que repartir, así que se pide con el
+    // botón, como lo haría quien cierra.
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE TURNO',
+      pulsando: true,
+      textos: [
+        'Apertura, fondo y cambio',
+        `Dinero dejado en caja ${enPesos(FONDO_CENTAVOS)}`,
+        `Efectivo esperado ${enPesos(esperadoCentavos)}`,
+        'Ventas por canal',
+        'Bebidas vendidas',
+      ],
+    });
+
+    // Y SE REIMPRIME DESDE EL HISTORIAL (C.10 de la 2.4): el turno que se acaba de cerrar
+    // abre su corte en `Turno`, con el mismo PDF, sin bajarse solo.
+    await abrirPantalla(page, '/cafeteria/turno', /Turno/);
+    await page.getByRole('tab', { name: 'Historial' }).click();
+    await page
+      .getByRole('row')
+      .filter({ has: page.getByRole('cell') })
+      .filter({ hasNotText: 'en curso' })
+      .first()
+      .click();
+    await exigirElPdfDelCorte(page, {
+      titulo: 'CORTE DE TURNO',
+      pulsando: true,
+      textos: [`Efectivo esperado ${enPesos(esperadoCentavos)}`],
+    });
 
     // ── 3 · CON LA PLANTILLA DE JACARANDA · sala, pero hablando de café ───
     await cambiarDePlantilla(page, 'restaurante');

@@ -48,6 +48,7 @@ Formato de la primera columna:
 | `F-318` | Impresión de comanda en cocina | **Depende del hardware que tenga Miguel.** Térmica de red, USB, o servicio local: las tres exigen arquitecturas distintas y una de ellas obliga a instalar un agente en el sitio del cliente. Está en la lista de bloqueados del prompt. La ruta y la entidad quedan escritas para que sólo falte el conector. |
 | `F-249` | Segunda pantalla para el cliente en cafetería | **Depende del hardware.** Un segundo monitor por HDMI, una tablet emparejada o un display de cajón son tres productos distintos con tres costos distintos. Está en la lista de bloqueados del prompt. |
 | `F-406` | Recordatorio de cita por WhatsApp | **No se elige proveedor.** API oficial de Meta —con su alta, su costo por conversación y su plantilla aprobada— contra un enlace `wa.me` semiautomático. Es la decisión que el `07-ESTADO.md` marca como «la decide Miguel». El resto del no-show (F-412) sí se construye: lo que falta es sólo el canal de salida. |
+| `F-988` | Venta sin conexión con sincronización posterior | **Decisión de Miguel desde el principio, A-27** (`docs/adr/0001-acceso-postgres.md`): no hay modo desconectado en el navegador. Quien no quiera depender de internet instala el sistema COMPLETO —backend y base— en su propio servidor, en su red; por eso toda la lógica vive en la API y en Postgres, y nada en servicios propietarios. Una cola de ventas en el navegador rompería lo que ese mismo diseño protege: el folio, la existencia y la caja los decide el servidor. Las pantallas de cobro lo DICEN en vez de prometerlo: sin internet enseñan «Sin internet. No se puede cobrar» y no aceptan el cobro. |
 
 ## RUTAS
 
@@ -81,7 +82,7 @@ Cuatro no van en ningún menú, y no es un olvido:
 | Clave | Qué es | Por qué no puede estar en el menú |
 |---|---|---|
 | `PANTALLA-SIN-MENU restaurante/acceso-por-pin` | La entrada con PIN del modelo | Es lo que se ve ANTES de que exista sesión, y el menú lateral se pinta DESPUÉS. Ponerla en el menú sería ofrecerle a alguien que ya entró la pantalla de entrar. |
-| `PANTALLA-SIN-MENU cafeteria/acceso-por-pin` | La misma, en la cafetería | Igual. |
+| `PANTALLA-SIN-MENU cafeteria/acceso-por-pin` | La misma, en la cafetería | Se ve ANTES de que exista sesión y el menú lateral se pinta DESPUÉS: ofrecerle la entrada a quien ya entró no sirve. |
 | `PANTALLA-SIN-MENU restaurante/portal-del-comensal` | El portal que abre el COMENSAL con el QR de su mesa | No la abre Miguel ni su personal: la abre el cliente, desde su teléfono, con un token de mesa. No hay sesión de negocio ni menú lateral en esa pantalla. |
 | `PANTALLA-SIN-MENU cafeteria/menu-publico-y-pedido-anticipado` | El menú público y el pedido anticipado, por QR | Lo mismo: es del cliente. Lo que sí está en el menú del negocio es `/cafeteria/recogida`, que es donde el personal ve lo que ese QR pidió. |
 
@@ -96,20 +97,17 @@ mencionan el vocabulario» y decía 55, un número que sonaba bien y no medía n
 `Tablero.tsx`, dos diálogos y el propio módulo, y entre ellos se colaban **trece pantallas de modelo
 que no lo consumían** —con la agenda del salón, que es su pantalla de inicio, entre ellas—.
 
-Ahora se mide una por una, contra la misma lista del §4.3 que usan las demás puertas. Seis no lo
+Ahora se mide una por una, contra la misma lista del §4.3 que usan las demás puertas. Tres no lo
 consumen, y no es un olvido: **no nombran ninguna entidad del diccionario**. Traerles el gancho sería
 importar algo que no se usa para que una puerta se ponga verde.
 
 | Clave | Qué es | Por qué no nombra ninguna entidad |
 |---|---|---|
 | `PANTALLA-SIN-VOCABULARIO restaurante/acceso-por-pin` | La entrada con PIN | Dice «¿Quién está operando?» y pinta nombres de personas. Ni mesa, ni cuenta, ni platillo: nada del diccionario. |
-| `PANTALLA-SIN-VOCABULARIO cafeteria/acceso-por-pin` | La misma, en la barra | Igual. |
+| `PANTALLA-SIN-VOCABULARIO cafeteria/acceso-por-pin` | La misma, en la barra | Pregunta quién opera y pinta nombres de personas: ni bebida, ni turno, ni cliente, nada del diccionario. |
 | `PANTALLA-SIN-VOCABULARIO restaurante/inventario` | Las existencias de la cocina | Habla de INSUMOS y de almacenes, que no son entidades del diccionario: el `producto` de un restaurante es el platillo, y eso se vende, no se cuenta aquí. |
-| `PANTALLA-SIN-VOCABULARIO abarrotes/cortes` | El corte de caja | Dinero, turnos y cajón. «Cuenta el cajón» es el VERBO contar, declarado ya en `NO_ES_LA_ENTIDAD`. |
-| `PANTALLA-SIN-VOCABULARIO ferreteria/conteo` | El conteo por zonas | Cuenta una zona del almacén: existencias e insumos, no la pieza que se vende por mostrador. |
-| `PANTALLA-SIN-VOCABULARIO ferreteria/trabajos-de-mostrador` | Apartados, listas y garantías | Sus tres pestañas nombran documentos del mostrador —lista, apartado, garantía—, ninguno del diccionario. La única «nota» que aparece es el folio, que es un dato. |
 
-**La puerta también falla al revés**: si una de estas seis acaba consumiendo el diccionario, la fila
+**La puerta también falla al revés**: si una de estas tres acaba consumiendo el diccionario, la fila
 sobra y hay que borrarla. Una lista de excepciones que incluye lo que ya funciona deja de leerse.
 
 ### Las HEREDADAS que pierden su sitio en el menú

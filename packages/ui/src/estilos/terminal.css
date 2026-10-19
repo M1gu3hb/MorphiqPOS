@@ -1,0 +1,127 @@
+/**
+ * Estilo `terminal` — retro. Fósforo sobre negro, monoespaciada.
+ *
+ * PARA: quien viene de un POS viejo y **teclea más rápido de lo que mira**. Existe
+ * gente que lleva quince años cobrando con F2 y F12 y a la que un sistema bonito le
+ * baja la velocidad. Para esa persona, esto no es nostalgia: es su herramienta.
+ *
+ * SU PUNTO DE VISTA: la pantalla es una rejilla de caracteres. Densidad `compacta`,
+ * cero radio, cero sombra, cero movimiento —`movimiento: nula`, porque una animación
+ * entre dos teclas es una animación que estorba— y los atajos visibles en cada
+ * acción, que es cosa de las pantallas y no de la paleta.
+ *
+ * El ámbar y no el verde: el ámbar de los monitores de fósforo P3 cansa menos en una
+ * jornada larga que el verde P1, y es el que usaban las cajas de los ochenta por esa
+ * misma razón.
+ *
+ * ── Y el modo claro, que aquí es una traducción y no un modo ──────────────
+ * Un terminal claro no existe. Lo que existe es el papel de impresora matricial:
+ * fondo hueso, tinta casi negra con un punto de verde. Se conserva la rejilla y la
+ * monoespaciada; lo que cambia es de qué está hecha la superficie.
+ */
+
+[data-estilo='terminal'] {
+  --sombra-tinte: 120 20% 12%;
+
+  --fondo: 60 12% 92%;
+  --fondo-sutil: 60 10% 86%;
+  --superficie: 60 14% 96%;
+  --superficie-elevada: 60 14% 98%;
+
+  --texto: 120 20% 10%;
+  --texto-sutil: 120 8% 32%;
+  --texto-tenue: 120 6% 46%;
+
+  --borde: 120 8% 72%;
+  --borde-fuerte: 120 10% 40%;
+  --anillo: 30 90% 32%;
+
+  --primario: 30 90% 32%;
+  --primario-texto: 60 14% 98%;
+  --acento: 120 60% 22%;
+  --acento-texto: 60 14% 98%;
+  --acento-suave: 120 30% 88%;
+  --acento-suave-texto: 120 60% 16%;
+
+  --exito: 120 60% 24%;
+  --exito-texto: 60 14% 98%;
+  --advertencia: 40 95% 46%;
+  --advertencia-texto: 120 20% 10%;
+  --peligro: 0 75% 38%;
+  --peligro-texto: 60 14% 98%;
+  --info: 200 70% 30%;
+  --info-texto: 60 14% 98%;
+
+  --grafico-1: 30 90% 38%;
+  --grafico-2: 120 55% 28%;
+  --grafico-3: 200 70% 36%;
+  --grafico-4: 45 90% 42%;
+  --grafico-5: 280 40% 40%;
+  --grafico-6: 0 70% 42%;
+
+  --velo: 120 20% 12%;
+
+  --lateral-fondo: 120 20% 10%;
+  --lateral-texto: 40 90% 70%;
+  --lateral-activo: 40 95% 55%;
+  --lateral-activo-texto: 120 20% 8%;
+  --lateral-hover: 120 16% 16%;
+  --lateral-borde: 120 14% 24%;
+}
+
+/**
+ * EL TERMINAL DE VERDAD. Negro y fósforo.
+ *
+ * El fondo no es negro puro (`0 0% 0%`) sino un negro con un punto de verde: un
+ * fósforo nunca apagó del todo, y el negro absoluto contra un ámbar saturado produce
+ * un halo que cansa. Éste es el negro que tenían.
+ */
+[data-estilo='terminal'][data-modo='oscuro'] {
+  --sombra-tinte: 0 0% 0%;
+
+  --fondo: 120 16% 6%;
+  --fondo-sutil: 120 14% 10%;
+  --superficie: 120 14% 9%;
+  --superficie-elevada: 120 12% 13%;
+
+  /* El ámbar del fósforo P3, que es el color de toda la interfaz. */
+  --texto: 40 92% 70%;
+  --texto-sutil: 40 60% 58%;
+  --texto-tenue: 40 40% 46%;
+
+  --borde: 120 18% 22%;
+  --borde-fuerte: 40 50% 46%;
+  --anillo: 40 100% 62%;
+
+  --primario: 40 100% 62%;
+  --primario-texto: 120 20% 8%;
+  --acento: 120 70% 58%;
+  --acento-texto: 120 30% 7%;
+  --acento-suave: 120 30% 16%;
+  --acento-suave-texto: 120 70% 72%;
+
+  --exito: 120 70% 58%;
+  --exito-texto: 120 30% 7%;
+  --advertencia: 48 100% 60%;
+  --advertencia-texto: 120 20% 8%;
+  --peligro: 8 90% 64%;
+  --peligro-texto: 8 40% 8%;
+  --info: 190 80% 62%;
+  --info-texto: 190 50% 8%;
+
+  --grafico-1: 40 100% 62%;
+  --grafico-2: 120 70% 56%;
+  --grafico-3: 190 80% 58%;
+  --grafico-4: 60 90% 62%;
+  --grafico-5: 300 60% 66%;
+  --grafico-6: 8 85% 62%;
+
+  --velo: 120 30% 2%;
+
+  --lateral-fondo: 120 20% 4%;
+  --lateral-texto: 40 90% 70%;
+  --lateral-activo: 40 100% 62%;
+  --lateral-activo-texto: 120 20% 6%;
+  --lateral-hover: 120 18% 12%;
+  --lateral-borde: 120 18% 18%;
+}

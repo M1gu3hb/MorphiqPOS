@@ -1,8 +1,8 @@
 'use client';
 
-import { Separator } from '@morphiqpos/ui/primitivas/separator';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useRef, useState } from 'react';
+import { Aviso, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
+import { Check, Coffee } from 'lucide-react';
+import { useEffect, useRef, useState, type ReactElement } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -35,11 +35,24 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * lectura SIEMBRA los nombres sin hablar; al encender el monitor a media mañana
  * hay ocho pedidos listos y ninguno es noticia.
  *
- * ── Por qué el error es un punto discreto y no una banda roja ────────────
+ * ── Por qué el error es un punto gris en la esquina y no una banda roja ──
  * Quien lee es un cliente, no un operador. La pantalla nunca se pone en blanco
- * ni enseña un mensaje técnico: mantiene los últimos nombres y enciende un
- * punto con su palabra al lado — el color nunca va solo. La banda de error que
- * llevan las pantallas de trabajo aquí sería ruido volcado al salón.
+ * ni enseña un mensaje técnico: mantiene los últimos nombres y enciende, abajo a
+ * la izquierda, el punto gris discreto que pide el modelo, con su palabra al
+ * lado. Es el `Aviso` del sistema —por su `status`: se anuncia sin interrumpir—
+ * sin su caja de color: el punto es su `icono`, la palabra va en el gris del
+ * texto sutil y la caja se queda sin borde ni fondo. Un aviso azul volcado al
+ * salón es justo lo que el modelo no quiere. El `ErrorDePantalla` de las
+ * pantallas de trabajo aquí sería ruido, y un botón de reintentar no lo puede
+ * tocar nadie: el latido ya reintenta solo cada dos segundos.
+ *
+ * ── Por qué los listos van cada uno en su tesela, y a su ancho ───────────
+ * En la rejilla, dos nombres de pila en mayúsculas uno junto al otro —«SOFÍA
+ * REGINA»— se leen de lejos como el nombre completo de UNA persona. Cada nombre
+ * en su `Superficie` es un pedido; en la fila de «también listos», igual. Y cada
+ * tesela mide lo que su nombre: con columnas iguales, a 112 px, «FERNANDA» no
+ * cabía en un tercio de 1920 px y se partía en dos renglones. Un nombre se lee
+ * de un golpe o no se lee: las teselas se acomodan en renglones, nunca lo parten.
  *
  * ── Por qué sólo el nombre de pila ───────────────────────────────────────
  * «Mariana Gutiérrez» a 96 px delante de quince desconocidos es una fuga de
@@ -66,14 +79,19 @@ const MS_DESTACADO = 20_000;
 const MS_REFRESCO = 2000;
 
 const MARCO =
-  'pointer-events-none flex min-h-dvh select-none flex-col justify-between gap-8 ' +
-  'bg-background p-8 text-foreground';
-const ZONA = 'flex w-full flex-1 flex-col items-center justify-center gap-6 text-center';
+  'pointer-events-none flex min-h-dvh select-none flex-col justify-between gap-(--espacio-8) ' +
+  'bg-fondo p-(--espacio-8) text-texto';
+const ZONA =
+  'flex w-full flex-1 flex-col items-center justify-center gap-(--espacio-6) text-center';
 const ROTULO =
-  'text-[clamp(1.25rem,3vw,2.5rem)] font-semibold uppercase tracking-[0.4em] text-muted-foreground';
+  'text-[clamp(1.25rem,3vw,2.5rem)] font-semibold uppercase tracking-[0.4em] text-texto-sutil';
 const NOMBRE_ENORME = 'text-[clamp(6rem,17vw,17rem)] font-black uppercase leading-none break-words';
+// Sin `hyphens-auto`: un nombre no se parte con guion en un cartel. `break-words`
+// queda sólo como último recurso, para el nombre que no quepa ni en un renglón entero.
 const NOMBRE_GRANDE = 'text-[clamp(3rem,9vw,7rem)] font-black uppercase leading-none break-words';
 const NOMBRE_MEDIO = 'text-[clamp(1.75rem,5vw,4rem)] font-bold uppercase leading-none';
+/** Las teselas de «Listos» se acomodan por renglones, cada una al ancho de su nombre. */
+const REJILLA_DE_LISTOS = 'flex max-w-full flex-wrap justify-center gap-(--espacio-6)';
 
 export interface PedidoListo {
   readonly id: string;
@@ -155,6 +173,49 @@ function anunciar(
   }
 }
 
+/**
+ * El pie del cartel: la conexión a la izquierda y el negocio a la derecha. Va
+ * igual mientras se prepara la pantalla, para que un monitor que arranca sin red
+ * diga por qué no hay nombres en vez de quedarse en la forma para siempre.
+ */
+function PieDelCartel({
+  sinConexion,
+  yaLeyo,
+  nombreNegocio,
+}: {
+  readonly sinConexion: boolean;
+  readonly yaLeyo: boolean;
+  readonly nombreNegocio: string | undefined;
+}): ReactElement {
+  return (
+    <footer className="flex items-end justify-between gap-(--espacio-4)">
+      {sinConexion ? (
+        // Un punto gris y su palabra. Ni «error», ni un código, ni un reintento, ni
+        // la caja azul de `info`: el aviso se queda con su `status` y nada más.
+        <Aviso
+          tono="info"
+          icono={<span className="mt-(--espacio-1) block size-3 rounded-full bg-texto-tenue" />}
+          titulo={
+            <span className="text-texto-sutil">
+              {yaLeyo
+                ? 'Sin conexión · estos son los últimos nombres'
+                : 'Sin conexión · los nombres aparecen en cuanto vuelva'}
+            </span>
+          }
+          className="max-w-md gap-(--espacio-2) border-0 bg-transparent p-0"
+        />
+      ) : (
+        <span />
+      )}
+      {nombreNegocio !== undefined && nombreNegocio !== '' && (
+        <p className="text-[clamp(1rem,1.5vw,1.5rem)] font-semibold text-texto-sutil">
+          {nombreNegocio}
+        </p>
+      )}
+    </footer>
+  );
+}
+
 export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
   const voc = useVocabulario();
   const [pedidos, setPedidos] = useState<readonly PedidoListo[] | null>(filasIniciales ?? null);
@@ -199,16 +260,18 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
   if (pedidos === null) {
     return (
       <main className={MARCO} aria-label="Pantalla de recogida">
-        {/* Esqueletos con la forma del cartel, nunca un disco girando: desde el
-            salón se ve una pantalla a punto, no una computadora trabajando. */}
-        <div className={ZONA}>
-          <Skeleton className="h-5 w-40 rounded-full" />
-          <Skeleton className="h-40 w-full max-w-3xl rounded-3xl" />
-          <div className="flex flex-wrap justify-center gap-4">
-            <Skeleton className="h-20 w-48 rounded-2xl" />
-            <Skeleton className="h-20 w-48 rounded-2xl" />
+        {/* Esqueletos con la forma del cartel —el rótulo, el panel del nombre y dos
+            teselas—, nunca un disco girando: desde el salón se ve una pantalla a
+            punto, no una computadora trabajando. */}
+        <div role="status" aria-busy="true" aria-label="Preparando los nombres" className={ZONA}>
+          <Esqueleto className="h-(--espacio-8) w-56" />
+          <Esqueleto className="h-[clamp(8rem,22vw,22rem)] w-full max-w-5xl rounded-lg" />
+          <div className="flex flex-wrap justify-center gap-(--espacio-3)">
+            <Esqueleto className="h-20 w-48" />
+            <Esqueleto className="h-20 w-48" />
           </div>
         </div>
+        <PieDelCartel sinConexion={sinConexion} yaLeyo={false} nombreNegocio={nombreNegocio} />
       </main>
     );
   }
@@ -220,75 +283,73 @@ export function Recogida({ filasIniciales, nombreNegocio }: RecogidaProps) {
       {destacado !== null ? (
         <section className={ZONA} aria-live="polite">
           {/* La palabra arriba y el nombre debajo: el cartel se entiende sin
-              haberlo visto nunca antes, que es el caso de casi todos. */}
-          <div className="rounded-[2.5rem] bg-success/15 px-10 py-12">
-            <p className={ROTULO}>Listo</p>
-            <p className={`mt-4 ${NOMBRE_ENORME}`}>{nombreVisible(destacado)}</p>
-          </div>
+              haberlo visto nunca antes, que es el caso de casi todos. Es la
+              superficie más alta de la pantalla porque es la «fila activa». */}
+          <Superficie
+            nivel={2}
+            relleno={0}
+            className="max-w-full border-exito/40 bg-exito/10 px-(--espacio-10) py-(--espacio-12)"
+          >
+            <p className={`flex items-center justify-center gap-(--espacio-3) ${ROTULO}`}>
+              <Check aria-hidden className="size-[1.25em] text-exito" strokeWidth={3} />
+              Listo
+            </p>
+            <p className={`mt-(--espacio-4) ${NOMBRE_ENORME}`}>{nombreVisible(destacado)}</p>
+          </Superficie>
         </section>
       ) : tambien.length > 0 ? (
         // Sin nadie recién salido no queda un hueco: los listos se reparten la
         // pantalla entera y siguen leyéndose desde la puerta.
         <section className={ZONA} aria-live="polite">
           <p className={ROTULO}>Listos</p>
-          <ul className="grid gap-x-16 gap-y-8 sm:grid-cols-2 xl:grid-cols-3">
+          <ul className={REJILLA_DE_LISTOS}>
             {tambien.map((pedido) => (
-              <li key={pedido.id} className={NOMBRE_GRANDE}>
+              <Superficie
+                key={pedido.id}
+                como="li"
+                relleno={3}
+                className={`max-w-full px-(--espacio-6) ${NOMBRE_GRANDE}`}
+              >
                 {nombreVisible(pedido)}
-              </li>
+              </Superficie>
             ))}
           </ul>
         </section>
       ) : (
-        // El vacío ENSEÑA: quien lo lee todavía no sabe cómo funciona esto.
-        <section className={ZONA}>
-          <p className="text-[clamp(2.5rem,7vw,6rem)] leading-tight font-black text-balance">
-            Tu nombre aparecerá aquí
-          </p>
-          <p className="max-w-3xl text-[clamp(1.125rem,2.5vw,2rem)] text-muted-foreground">
-            En cuanto tu {voc.singular('unidad_servicio')} esté listo lo verás en esta pantalla y lo
-            oirás en voz alta. No tienes que hacer nada.
-          </p>
-        </section>
+        // El vacío ENSEÑA: quien lo lee todavía no sabe cómo funciona esto. Es el
+        // vacío que ES la pantalla y se lee desde la puerta: `protagonista`.
+        <Vacio
+          tamano="protagonista"
+          icono={<Coffee />}
+          titulo="Tu nombre aparecerá aquí"
+          explicacion={`En cuanto tu ${voc.singular('unidad_servicio')} esté listo lo verás en esta pantalla y lo oirás en voz alta. No tienes que hacer nada.`}
+          className="flex-1"
+        />
       )}
 
       {destacado !== null && tambien.length > 0 && (
-        <section className="flex flex-col items-center gap-4" aria-live="polite">
-          <Separator className="max-w-3xl" />
-          <p className="text-[clamp(0.875rem,1.5vw,1.25rem)] tracking-[0.3em] text-muted-foreground uppercase">
+        <section className="flex flex-col items-center gap-(--espacio-4)" aria-live="polite">
+          <p className="text-[clamp(0.875rem,1.5vw,1.25rem)] tracking-[0.3em] text-texto-sutil uppercase">
             También listos
           </p>
-          <ul className="flex flex-wrap items-baseline justify-center gap-x-6 gap-y-3">
-            {tambien.map((pedido, indice) => (
-              <li key={pedido.id} className="flex items-baseline gap-x-6">
-                {indice > 0 && (
-                  <span aria-hidden className="text-muted-foreground">
-                    ·
-                  </span>
-                )}
-                <span className={NOMBRE_MEDIO}>{nombreVisible(pedido)}</span>
-              </li>
+          <ul className="flex flex-wrap justify-center gap-(--espacio-3)">
+            {tambien.map((pedido) => (
+              <Superficie
+                key={pedido.id}
+                como="li"
+                nivel={0}
+                radio="md"
+                relleno={3}
+                className={`px-(--espacio-6) ${NOMBRE_MEDIO}`}
+              >
+                {nombreVisible(pedido)}
+              </Superficie>
             ))}
           </ul>
         </section>
       )}
 
-      <footer className="flex items-end justify-between gap-4">
-        {sinConexion ? (
-          // Un punto y su palabra. Ni «error», ni un código, ni un reintento.
-          <p role="alert" className="flex items-center gap-2 text-sm text-muted-foreground">
-            <span aria-hidden className="h-3 w-3 rounded-full border border-border bg-muted" />
-            Sin conexión · estos son los últimos nombres
-          </p>
-        ) : (
-          <span />
-        )}
-        {nombreNegocio !== undefined && nombreNegocio !== '' && (
-          <p className="text-[clamp(1rem,1.5vw,1.5rem)] font-semibold text-muted-foreground">
-            {nombreNegocio}
-          </p>
-        )}
-      </footer>
+      <PieDelCartel sinConexion={sinConexion} yaLeyo nombreNegocio={nombreNegocio} />
     </main>
   );
 }

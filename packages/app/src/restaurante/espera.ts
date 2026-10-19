@@ -153,6 +153,7 @@ export const moverEspera = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { esperaId: 'lista_espera' },
   entrada: entradaMoverEspera,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -197,6 +198,7 @@ export const sentarEspera = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { esperaId: 'lista_espera', mesaId: 'mesas' },
   entrada: entradaSentarEspera,
   async ejecutar(ctx, entrada) {
     const { organizacionId, terminalId, empleoId } = ctx.ambito;

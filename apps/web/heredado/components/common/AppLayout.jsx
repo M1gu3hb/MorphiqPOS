@@ -11,7 +11,16 @@ import PedidoListoWatcher from './PedidoListoWatcher';
 import MobileAdminRadialMenu from './MobileAdminRadialMenu';
 import { useRouteCleanup } from '@/lib/useRouteCleanup';
 
-export default function AppLayout() {
+/**
+ * `marco="modelo"` (bloque D de la 2.4): las pantallas de los cinco modelos no tenían
+ * NINGÚN menú —su layout decía que «al acoplar se decide» y nunca se decidió—, así que la
+ * cajera en Caja no tenía cómo llegar a Cobrar sin teclear la dirección. Entran con el
+ * mismo menú por rol y plantilla, pero sin quitarles su marco: la barra empieza colapsada
+ * a íconos, el contenido va sin relleno (cada modelo tiene su propia composición a sangre)
+ * y en tableta y teléfono se deja el hueco de la hamburguesa para que no tape nada.
+ */
+export default function AppLayout({ marco = 'interno' }) {
+  const deModelo = marco === 'modelo';
   const [collapsed, setCollapsed] = useState(false);
   const { posUser, isLoading } = usePOSAuth();
   const navigate = useNavigate();
@@ -20,14 +29,14 @@ export default function AppLayout() {
 
   React.useEffect(() => {
     if (!isLoading && !posUser) {
-      navigate('/login-pos');
+      navigate('/login-pos', { replace: true });
     }
   }, [posUser, isLoading, navigate]);
 
   if (isLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-slate-200 border-t-primary rounded-full animate-spin" />
+        <div className="w-8 h-8 border-4 border-borde border-t-primary rounded-full animate-spin" />
       </div>
     );
   }
@@ -43,7 +52,10 @@ export default function AppLayout() {
         className={`flex-1 transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-60'} relative z-10`}
         style={{ minHeight: '100dvh' }}
       >
-        <div className="p-4 md:p-6 lg:p-8 pt-14 lg:pt-6" style={{ minHeight: '100dvh' }}>
+        <div
+          className={deModelo ? 'pt-14 lg:pt-0' : 'p-4 md:p-6 lg:p-8 pt-14 lg:pt-6'}
+          style={{ minHeight: '100dvh' }}
+        >
           <Outlet />
         </div>
       </main>

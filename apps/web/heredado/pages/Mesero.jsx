@@ -921,7 +921,7 @@ function Mesero() {
               boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
             }}
           >
-            <UtensilsCrossed className="w-5 h-5 text-white" />
+            <UtensilsCrossed className="w-5 h-5 text-primario-texto" />
           </div>
           <div className="min-w-0">
             <h1 className="text-xl font-heading font-bold leading-tight">Mesero</h1>
@@ -942,7 +942,7 @@ function Mesero() {
               <Bell className="w-4 h-4" />
               <span>Solicitudes</span>
               {(solicitudesActivas?.length || 0) > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-rose-600 text-white text-[10px] font-bold flex items-center justify-center">
+                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-peligro text-peligro-texto text-[10px] font-bold flex items-center justify-center">
                   {solicitudesActivas.length}
                 </span>
               )}
@@ -973,7 +973,7 @@ function Mesero() {
             <button
               key={zona}
               onClick={() => setZonaActiva(zona)}
-              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${zonaActiva === zona ? 'bg-primary text-white shadow-md' : 'bg-white border text-muted-foreground'}`}
+              className={`shrink-0 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all ${zonaActiva === zona ? 'bg-primary text-primario-texto shadow-md' : 'bg-superficie border text-muted-foreground'}`}
             >
               {zona} <span className="opacity-60">({count})</span>
             </button>
@@ -983,8 +983,8 @@ function Mesero() {
 
       {/* Aviso si mesero sin mesas asignadas */}
       {sinMesasAsignadas && (
-        <div className="px-4 py-3 rounded-xl bg-amber-50 border-2 border-amber-200 text-sm text-amber-900 flex items-start gap-2">
-          <UtensilsCrossed className="w-5 h-5 shrink-0 mt-0.5 text-amber-600" />
+        <div className="px-4 py-3 rounded-xl bg-advertencia/10 border-2 border-advertencia/30 text-sm text-advertencia flex items-start gap-2">
+          <UtensilsCrossed className="w-5 h-5 shrink-0 mt-0.5 text-advertencia" />
           <div className="flex-1">
             <p className="font-bold">No tienes mesas asignadas</p>
             <p className="text-xs opacity-90">
@@ -1143,7 +1143,7 @@ function Mesero() {
               {(mesaActiva?.celebracion_especial === true ||
                 ventaActiva?.celebracion_especial === true) && (
                 <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-pink-50 text-pink-700 border-pink-200 dark:bg-pink-950/40 dark:text-pink-300 dark:border-pink-800/60 inline-flex items-center gap-1"
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-acento/10 text-acento border-acento/30 inline-flex items-center gap-1"
                   title={
                     mesaActiva?.tipo_celebracion || ventaActiva?.tipo_celebracion || 'Celebración'
                   }
@@ -1155,7 +1155,7 @@ function Mesero() {
               {/* 6A: badge alergia — texto compacto, sin banner gigante */}
               {(mesaActiva?.notas_alergias || ventaActiva?.notas_alergias) && (
                 <span
-                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/40 dark:text-amber-300 dark:border-amber-800/60 inline-flex items-center gap-1"
+                  className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-advertencia/10 text-advertencia border-advertencia/30 inline-flex items-center gap-1"
                   title={mesaActiva?.notas_alergias || ventaActiva?.notas_alergias}
                 >
                   ⚠ Alergia
@@ -1165,7 +1165,7 @@ function Mesero() {
             {/* 6A: línea pequeña con el detalle de alergia bajo el título.
                 NO se renderiza encima del bloque "Listo para recoger". */}
             {(mesaActiva?.notas_alergias || ventaActiva?.notas_alergias) && (
-              <p className="text-[11px] text-amber-800 dark:text-amber-300 mt-1 leading-snug">
+              <p className="text-[11px] text-advertencia mt-1 leading-snug">
                 <span className="font-semibold">Alergia / indicaciones:</span>{' '}
                 {mesaActiva?.notas_alergias || ventaActiva?.notas_alergias}
               </p>
@@ -1203,7 +1203,7 @@ function Mesero() {
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
                   <button
                     onClick={() => setCategoriaFiltro('todas')}
-                    className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${categoriaFiltro === 'todas' ? 'bg-primary text-white' : 'bg-white border text-muted-foreground'}`}
+                    className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${categoriaFiltro === 'todas' ? 'bg-primary text-primario-texto' : 'bg-superficie border text-muted-foreground'}`}
                   >
                     Todas
                   </button>
@@ -1211,7 +1211,7 @@ function Mesero() {
                     <button
                       key={c.id}
                       onClick={() => setCategoriaFiltro(c.id)}
-                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${categoriaFiltro === c.id ? 'bg-primary text-white' : 'bg-white border text-muted-foreground'}`}
+                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${categoriaFiltro === c.id ? 'bg-primary text-primario-texto' : 'bg-superficie border text-muted-foreground'}`}
                     >
                       {c.nombre}
                     </button>
@@ -1235,7 +1235,7 @@ function Mesero() {
                         <button
                           key={p.id}
                           onClick={() => agregarAlCarrito(p)}
-                          className="p-3 rounded-xl border bg-white text-left hover:bg-muted/30 active:scale-95 transition-all relative"
+                          className="p-3 rounded-xl border bg-superficie text-left hover:bg-muted/30 active:scale-95 transition-all relative"
                           style={{
                             boxShadow:
                               '0 1px 0 rgba(255,255,255,0.9) inset, 0 2px 4px rgba(0,0,0,0.06)',

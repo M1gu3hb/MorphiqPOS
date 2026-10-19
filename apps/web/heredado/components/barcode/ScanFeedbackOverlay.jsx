@@ -40,10 +40,10 @@ export default function ScanFeedbackOverlay({ feedback, sym = '$', onHide, durat
           animation: 'scanFeedbackIn 220ms cubic-bezier(0.34, 1.56, 0.64, 1)',
         }}
       >
-        <div className="flex-shrink-0 h-14 w-14 rounded-full bg-white/95 flex items-center justify-center">
-          <CheckCircle2 className="h-9 w-9 text-green-600" strokeWidth={2.5} />
+        <div className="flex-shrink-0 h-14 w-14 rounded-full bg-superficie/95 flex items-center justify-center">
+          <CheckCircle2 className="h-9 w-9 text-exito" strokeWidth={2.5} />
         </div>
-        <div className="flex-1 min-w-0 text-white">
+        <div className="flex-1 min-w-0 text-exito-texto">
           <p className="text-xs font-bold uppercase tracking-wide opacity-90">{titulo}</p>
           <p className="text-base font-black truncate leading-tight">{feedback.nombre}</p>
           <p className="text-sm font-semibold opacity-95 tabular-nums">

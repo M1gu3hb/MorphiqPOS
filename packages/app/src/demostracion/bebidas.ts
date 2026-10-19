@@ -25,14 +25,13 @@ import type { Transaccion } from '@morphiqpos/data';
  * tamaño, la temperatura y los extras». Ni uno más: la demostración enseña la
  * mecánica, no el menú entero de una cadena.
  *
- * ── Lo que NO se siembra, dicho aquí ───────────────────────────────────────
- * `recetas.sustituible_por_grupo_id` se queda en nulo. La columna existe desde la
- * 084 y hoy NADIE la lee —ni el consumo al cobrar, ni ninguna pantalla—, así que
- * escribirla sería dar por conectado un camino que no está: la sustitución de la
- * línea de receta por la leche elegida no ocurre todavía. Lo que sí se escribe es
- * `insumo_sustituto_id` en cada opción de leche, porque de ahí sale el `agotado`
- * de la vista: «sin leche de avena» es un dato del almacén y no una marca que
- * alguien tenga que acordarse de poner.
+ * ── La leche que se elige es la que sale del almacén (C.10 de la 2.4) ──────
+ * Cada opción de leche dice con qué insumo sustituye (`insumo_sustituto_id`, de
+ * donde sale también el `agotado` de la vista) y la línea de leche entera de cada
+ * bebida del grupo declara que la sustituye «Leche» (`recetas.sustituible_por_grupo_id`).
+ * Hasta la 2.4 esa columna se quedaba en nulo porque nadie la leía; ahora la lee el
+ * cobro (`recetaConOpciones`) y la tabla de variantes de Recetas, así que dejarla en
+ * nulo haría que la demo vendiera lattes de avena descontando leche entera.
  */
 
 export interface ResumenBebidas {
@@ -64,6 +63,11 @@ interface GrupoDemo {
   readonly obligatorio: boolean;
   /** Las bebidas a las que se cuelga, por su nombre EXACTO en la semilla. */
   readonly aplicaA: readonly string[];
+  /**
+   * La clave del insumo cuya LÍNEA DE RECETA sustituye este grupo en esas bebidas: el
+   * grupo «Leche» sustituye la leche entera. Sin esto la opción no cambia el consumo.
+   */
+  readonly sustituyeLaLineaDe?: string;
   readonly opciones: readonly OpcionDemo[];
 }
 
@@ -141,6 +145,7 @@ const GRUPOS: readonly GrupoDemo[] = [
     tipo: 'unica',
     obligatorio: false,
     aplicaA: CON_LECHE_ENTERA,
+    sustituyeLaLineaDe: 'leche',
     opciones: [
       { nombre: 'Entera', deltaCentavos: 0n },
       { nombre: 'Deslactosada', deltaCentavos: 0n, sustituto: 'leche_deslactosada' },
@@ -252,6 +257,13 @@ export async function sembrarOpcionesDeBebida(
         .execute();
       conOpciones.add(nombre);
     }
+
+    if (grupo.sustituyeLaLineaDe !== undefined) {
+      await declararLineaSustituible(tx, organizacionId, fila.id, grupo, {
+        productoPorNombre,
+        insumoPorClave,
+      });
+    }
   }
 
   return {
@@ -259,4 +271,45 @@ export async function sembrarOpcionesDeBebida(
     opcionesDeBebida,
     bebidasConOpciones: conOpciones.size,
   };
+}
+
+/**
+ * La línea de receta que el grupo sustituye, en cada bebida del grupo: la leche entera
+ * del latte la sustituye «Leche». Las recetas ya están sembradas cuando se siembran las
+ * opciones (`resetearDemo`), así que es un `update` acotado a esta organización, a esas
+ * bebidas y a ese insumo.
+ *
+ * Una clave que la semilla no tiene aborta, igual que un sustituto que no existe: un
+ * grupo que declara sustituir algo que no está es una opción que cobra y no descuenta.
+ */
+async function declararLineaSustituible(
+  tx: Transaccion,
+  organizacionId: string,
+  grupoId: string,
+  grupo: GrupoDemo,
+  catalogo: {
+    readonly productoPorNombre: ReadonlyMap<string, string>;
+    readonly insumoPorClave: ReadonlyMap<string, { readonly id: string; readonly unidad: string }>;
+  },
+): Promise<void> {
+  const clave = grupo.sustituyeLaLineaDe ?? '';
+  const insumo = catalogo.insumoPorClave.get(clave);
+  if (insumo === undefined) {
+    throw new ErrorDominio(
+      'INVENTARIO_INVALIDO',
+      `El grupo «${grupo.nombre}» sustituye la línea del insumo «${clave}», que la semilla ` +
+        'de esta demostración no tiene.',
+    );
+  }
+  const productos = grupo.aplicaA
+    .map((nombre) => catalogo.productoPorNombre.get(nombre))
+    .filter((id): id is string => id !== undefined);
+  if (productos.length === 0) return;
+  await tx
+    .updateTable('recetas')
+    .set({ sustituible_por_grupo_id: grupoId })
+    .where('organizacion_id', '=', organizacionId)
+    .where('insumo_id', '=', insumo.id)
+    .where('producto_id', 'in', productos)
+    .execute();
 }

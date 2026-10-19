@@ -59,6 +59,7 @@ export const cobrarRenta = definirComando<
   escribe: true,
   roles: [...COBRA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { rentaId: 'rentas_estacion', sesionCajaId: 'sesiones_caja' },
   entrada: entradaCobrarRenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

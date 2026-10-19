@@ -55,7 +55,7 @@
  *   creer que se miró todo.
  */
 
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -195,6 +195,60 @@ function clasesDelTipo(nodo) {
   return clases;
 }
 
+/**
+ * LOS TIPOS DECLARADOS EN UN ARCHIVO: sus `interface` y sus alias de objeto, cada uno con
+ * la fuente de la que sale (la necesita `getText`).
+ */
+function tiposDe(fuente) {
+  const declaradas = new Map();
+  const recorrer = (nodo) => {
+    if (ts.isInterfaceDeclaration(nodo)) declaradas.set(nodo.name.text, { nodo, fuente });
+    if (ts.isTypeAliasDeclaration(nodo) && ts.isTypeLiteralNode(nodo.type)) {
+      declaradas.set(nodo.name.text, { nodo: nodo.type, fuente });
+    }
+    ts.forEachChild(nodo, recorrer);
+  };
+  recorrer(fuente);
+  return declaradas;
+}
+
+/**
+ * Y LOS QUE LLEGAN IMPORTADOS de un archivo vecino (C.9 de la 2.4).
+ *
+ * Sacar la lógica de una pantalla a un `.ts` —para probarla sin navegador— se llevaba sus
+ * tipos, y la lectura del puente quedaba «sin interfaz en su archivo»: la puerta dejaba de
+ * compararla sin avisar. Se sigue el `import` relativo y se busca el tipo allí.
+ */
+function importadosDe(fuente, archivo) {
+  const importados = new Map();
+  for (const sentencia of fuente.statements) {
+    if (!ts.isImportDeclaration(sentencia)) continue;
+    const modulo = sentencia.moduleSpecifier.text;
+    if (!modulo.startsWith('./') && !modulo.startsWith('../')) continue;
+    const nombres = sentencia.importClause?.namedBindings;
+    if (nombres === undefined || !ts.isNamedImports(nombres)) continue;
+    const base = join(dirname(archivo), modulo);
+    const ruta = [base, `${base}.ts`, `${base}.tsx`].find(
+      (r) => existsSync(r) && /\.tsx?$/.test(r),
+    );
+    if (ruta === undefined) continue;
+    const otra = ts.createSourceFile(
+      ruta,
+      readFileSync(ruta, 'utf8'),
+      ts.ScriptTarget.ESNext,
+      true,
+      ts.ScriptKind.TSX,
+    );
+    const suyos = tiposDe(otra);
+    for (const elemento of nombres.elements) {
+      const original = (elemento.propertyName ?? elemento.name).text;
+      const encontrado = suyos.get(original);
+      if (encontrado !== undefined) importados.set(elemento.name.text, encontrado);
+    }
+  }
+  return importados;
+}
+
 const mapa = leerMapa();
 const fallos = [];
 let comparados = 0;
@@ -215,14 +269,10 @@ for (const archivo of archivosDePantalla(PANTALLAS)) {
     true,
     ts.ScriptKind.TSX,
   );
-  const declaradas = new Map();
+  const declaradas = new Map([...importadosDe(fuente, archivo), ...tiposDe(fuente)]);
   const pedidos = [];
 
   const recorrer = (nodo) => {
-    if (ts.isInterfaceDeclaration(nodo)) declaradas.set(nodo.name.text, nodo);
-    if (ts.isTypeAliasDeclaration(nodo) && ts.isTypeLiteralNode(nodo.type)) {
-      declaradas.set(nodo.name.text, nodo.type);
-    }
     if (
       ts.isCallExpression(nodo) &&
       ts.isIdentifier(nodo.expression) &&
@@ -253,9 +303,9 @@ for (const archivo of archivosDePantalla(PANTALLAS)) {
       continue;
     }
 
-    for (const miembro of declarada.members) {
+    for (const miembro of declarada.nodo.members) {
       if (!ts.isPropertySignature(miembro) || miembro.type === undefined) continue;
-      const nombre = miembro.name.getText(fuente).replace(/['"]/g, '');
+      const nombre = miembro.name.getText(declarada.fuente).replace(/['"]/g, '');
       const conversion = campos.get(nombre);
       if (conversion === undefined) {
         fueraDelMapa += 1;

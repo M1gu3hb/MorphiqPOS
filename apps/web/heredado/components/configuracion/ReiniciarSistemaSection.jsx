@@ -168,7 +168,7 @@ export default function ReiniciarSistemaSection() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base font-heading flex items-center gap-2">
-            <ShieldAlert className="w-4 h-4 text-amber-500" />
+            <ShieldAlert className="w-4 h-4 text-advertencia" />
             Mantenimiento
           </CardTitle>
         </CardHeader>
@@ -223,9 +223,9 @@ export default function ReiniciarSistemaSection() {
             </div>
 
             {/* Borrar SOLO pruebas */}
-            <div className="rounded-lg border border-amber-300/40 p-3 flex flex-col gap-2">
+            <div className="rounded-lg border border-advertencia/40 p-3 flex flex-col gap-2">
               <div className="flex items-center gap-2">
-                <RefreshCw className="w-4 h-4 text-amber-600" />
+                <RefreshCw className="w-4 h-4 text-advertencia" />
                 <p className="font-semibold text-sm">Borrar solo ventas y pruebas</p>
               </div>
               <p className="text-xs text-muted-foreground">
@@ -235,7 +235,7 @@ export default function ReiniciarSistemaSection() {
               </p>
               <Button
                 variant="outline"
-                className="mt-1 w-full border-amber-500/50 text-amber-700 hover:bg-amber-50"
+                className="mt-1 w-full border-advertencia/50 text-advertencia hover:bg-advertencia/10"
                 onClick={() => {
                   setMode('tests');
                   setConfirmText('');

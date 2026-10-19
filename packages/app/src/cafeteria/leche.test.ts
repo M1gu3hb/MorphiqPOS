@@ -182,3 +182,11 @@ describe('el conteo de leche', () => {
     expect(codigo).toBe('PUENTE_NO_ENCONTRADO');
   });
 });
+
+describe('quién cuenta la leche (bloque D de la 2.4)', () => {
+  it('el barista —rol cocina en la cafetería— y el almacén, que la tienen en su pantalla', () => {
+    expect(contarLeche.roles).toContain('cocina');
+    expect(contarLeche.roles).toContain('almacen');
+    expect(contarLeche.escribe).toBe(false);
+  });
+});

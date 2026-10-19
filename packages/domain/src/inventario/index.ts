@@ -9,6 +9,8 @@ export {
 
 export { lineasDelCanal } from './canal.ts';
 
+export { recetaConOpciones, type EfectoDeOpcion, type LineaConOpciones } from './opciones.ts';
+
 export {
   planearAjustesDeConteo,
   sumarCapturas,

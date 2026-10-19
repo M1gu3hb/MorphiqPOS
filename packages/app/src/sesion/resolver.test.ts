@@ -10,6 +10,10 @@ const dobles = vi.hoisted(() => ({
   sesionActiva: vi.fn(),
   resolverAmbito: vi.fn(),
   terminalActiva: vi.fn(),
+  autorizaPresentacion: vi.fn(),
+}));
+vi.mock('./permisos-presentacion.ts', () => ({
+  autorizaPresentacion: dobles.autorizaPresentacion,
 }));
 
 vi.mock('@morphiqpos/data', () => ({
@@ -47,6 +51,7 @@ function token(sid = SID): string {
 beforeEach(() => {
   vi.clearAllMocks();
   dobles.sesionActiva.mockResolvedValue(true);
+  dobles.autorizaPresentacion.mockResolvedValue(true);
   dobles.resolverAmbito.mockResolvedValue({
     organizacionId: '11111111-1111-4111-8111-111111111111',
     sucursalId: null,
@@ -61,6 +66,54 @@ beforeEach(() => {
 });
 
 describe('resolverSesion · registro revocable', () => {
+  it('revocar la sesión del dueño general revoca también su contexto de demostración', async () => {
+    dobles.sesionActiva.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    const firmado = firmarSesion(
+      {
+        sid: SID,
+        empleoId: EMPLEO,
+        identidadId: IDENTIDAD,
+        terminalId: null,
+        exp: 4_102_444_800,
+        presentador: {
+          sid: 'sesion-dueno',
+          empleoId: 'dueno-general',
+          identidadId: 'identidad-dueno',
+          terminalId: null,
+        },
+      },
+      SECRETO,
+    );
+    expect(await resolverSesion({ token: firmado, secreto: SECRETO })).toEqual({
+      ok: false,
+      motivo: 'revocada',
+    });
+    expect(dobles.autorizaPresentacion).not.toHaveBeenCalled();
+  });
+
+  it('una concesión retirada invalida el contexto aunque las dos sesiones sigan activas', async () => {
+    dobles.autorizaPresentacion.mockResolvedValueOnce(false);
+    const firmado = firmarSesion(
+      {
+        sid: SID,
+        empleoId: EMPLEO,
+        identidadId: IDENTIDAD,
+        terminalId: null,
+        exp: 4_102_444_800,
+        presentador: {
+          sid: 'sesion-dueno',
+          empleoId: 'dueno-general',
+          identidadId: 'identidad-dueno',
+          terminalId: null,
+        },
+      },
+      SECRETO,
+    );
+    expect(await resolverSesion({ token: firmado, secreto: SECRETO })).toEqual({
+      ok: false,
+      motivo: 'revocada',
+    });
+  });
   it('el código consulta el registro antes de resolver el ámbito', () => {
     const codigo = readFileSync(FUENTE, 'utf8');
     const registro = codigo.indexOf('await repoSesion.sesionActiva');

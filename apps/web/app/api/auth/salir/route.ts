@@ -1,8 +1,11 @@
 import { validarEntorno } from '@morphiqpos/contracts';
 import { cookieDeCierre, leerCookie, NOMBRE_COOKIE } from '@morphiqpos/app/http';
-import { cerrarSesion } from '@morphiqpos/app/sesion';
+import { cerrarSesion, resolverSesion } from '@morphiqpos/app/sesion';
+import { negociosDelDespliegue } from '@morphiqpos/app/negocio';
 
 import { peticionDeEscrituraValida } from '~/servidor/seguridad-http';
+import { cookieDePresentacion, COOKIE_PRESENTACION } from '~/servidor/cookie-presentacion';
+import { cookieDeEntrada } from '~/servidor/entrada';
 
 /**
  * Cierre de sesion.
@@ -25,11 +28,25 @@ export async function POST(peticion: Request): Promise<Response> {
     );
   }
 
+  const tokenDueno = leerCookie(peticion.headers.get('cookie'), COOKIE_PRESENTACION);
+  const dueno =
+    tokenDueno === undefined
+      ? null
+      : await resolverSesion({ token: tokenDueno, secreto: entorno.SESSION_SECRET });
+  const entrada = dueno?.ok
+    ? (await negociosDelDespliegue(entorno.ORGANIZACION, peticion.headers.get('host'))).find(
+        (n) => n.organizacionId === dueno.sesion.organizacionId,
+      )
+    : undefined;
   await cerrarSesion(
     leerCookie(peticion.headers.get('cookie'), NOMBRE_COOKIE),
     entorno.SESSION_SECRET,
   );
-  return new Response(JSON.stringify({ ok: true, datos: null }), {
+  await cerrarSesion(
+    leerCookie(peticion.headers.get('cookie'), COOKIE_PRESENTACION),
+    entorno.SESSION_SECRET,
+  );
+  const respuesta = new Response(JSON.stringify({ ok: true, datos: null }), {
     status: 200,
     headers: {
       'content-type': 'application/json; charset=utf-8',
@@ -37,4 +54,14 @@ export async function POST(peticion: Request): Promise<Response> {
       'set-cookie': cookieDeCierre(entorno.NODE_ENV === 'production'),
     },
   });
+  respuesta.headers.append(
+    'set-cookie',
+    cookieDePresentacion('', entorno.NODE_ENV === 'production', 0),
+  );
+  if (entrada !== undefined)
+    respuesta.headers.append(
+      'set-cookie',
+      cookieDeEntrada(entrada.slug, entorno.NODE_ENV === 'production'),
+    );
+  return respuesta;
 }

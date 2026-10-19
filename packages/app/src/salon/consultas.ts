@@ -12,6 +12,7 @@ import { sql } from 'kysely';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { profesionalVisible } from './recorte.ts';
 import { desdeMultirango, desdeRango } from './agenda.ts';
 
 /**
@@ -82,6 +83,13 @@ export interface CitaDelDia {
   readonly citaId: string;
   readonly folio: string;
   readonly clienteId: string | null;
+  /**
+   * EL NOMBRE DE LA CLIENTA, servido con la cita (bloque D de la 2.4). La pantalla lo
+   * buscaba en el catálogo de clientas por el puente, que la estilista no puede leer —trae
+   * saldos y crédito— y que además se cortaba en 400: su agenda salía con citas sin nombre
+   * y «No se pudo leer los nombres de las clientas». Quien ve la cita ve a quién atiende.
+   */
+  readonly clienteNombre: string | null;
   readonly profesionalId: string;
   readonly servicioId: string;
   /** El del SERVICIO: `pendiente`, `en_curso`, `cerrado`, `cancelado`. */
@@ -202,15 +210,18 @@ export const agendaDelDia = definirComando<
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaAgendaDelDia,
   async ejecutar(ctx, entrada) {
     // EL DÍA DEL NEGOCIO, no el de Greenwich. Ver `limitesDelDia`.
     const { desde: dia, hasta: finDelDia } = await limitesDelDia(ctx, entrada.fecha);
+    // La estilista ve SU columna sola: con clientas y servicios, la de otra no es suya.
+    const profesionalId = await profesionalVisible(ctx, entrada.profesionalId);
 
-    const profesionales = await leerProfesionales(ctx, entrada.profesionalId);
-    const servicios = await leerServiciosEntre(ctx, dia, finDelDia, entrada.profesionalId);
+    const profesionales = await leerProfesionales(ctx, profesionalId);
+    const servicios = await leerServiciosEntre(ctx, dia, finDelDia, profesionalId);
     const bloqueos = await leerBloqueos(ctx, dia, finDelDia);
-    const horarios = await leerHorarios(ctx, entrada.profesionalId);
+    const horarios = await leerHorarios(ctx, profesionalId);
 
     const columnas: ColumnaDeAgenda[] = profesionales.map((profesional) => {
       const ventanas = ventanasDelDia(horarios, profesional.id, entrada.fecha, dia);
@@ -224,6 +235,7 @@ export const agendaDelDia = definirComando<
           citaId: s.cita_id,
           folio: s.folio,
           clienteId: s.cliente_id,
+          clienteNombre: s.cliente_nombre,
           profesionalId: s.profesional_id,
           servicioId: s.servicio_id,
           estado: s.estado,
@@ -283,6 +295,7 @@ export const huecosDisponibles = definirComando<Transaccion, typeof entradaHueco
     escribe: false,
     roles: [...CABINA],
     paquetes: PAQUETES_TODOS,
+    sucursal: { profesionalId: 'profesionales' },
     entrada: entradaHuecos,
     async ejecutar(ctx, entrada) {
       // Los dos extremos, en la zona del negocio: ofrecer huecos con el día en UTC
@@ -340,6 +353,7 @@ export const proximosHuecos = definirComando<
   escribe: false,
   roles: [...CABINA],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaProximosHuecos,
   async ejecutar(ctx, entrada) {
     // Desde AHORA y no desde hoy a las cero: ofrecer las nueve de la mañana a
@@ -642,6 +656,7 @@ interface FilaServicio {
   readonly cita_id: string;
   readonly folio: string;
   readonly cliente_id: string | null;
+  readonly cliente_nombre: string | null;
   /**
    * El estado de la CITA, que no es el del servicio.
    *
@@ -780,6 +795,24 @@ async function leerProfesionales(
  * el día que alguien la toca, y en la que un `cs.estado` escrito donde iba
  * `c.estado` no falla: devuelve otra cosa, en silencio.
  */
+/** El nombre de cada clienta de las citas del día, de ESTE negocio. */
+async function nombresDeClientas(
+  ctx: ContextoComando<Transaccion>,
+  ids: readonly (string | null)[],
+): Promise<ReadonlyMap<string, string>> {
+  const unicos = [...new Set(ids.filter((id): id is string => id !== null))];
+  if (unicos.length === 0) return new Map();
+  const filas = await ctx.paso('leer_clientas', () =>
+    ctx.tx
+      .selectFrom('clientes')
+      .select(['id', 'nombre'])
+      .where('organizacion_id', '=', ctx.ambito.organizacionId)
+      .where('id', 'in', unicos)
+      .execute(),
+  );
+  return new Map(filas.map((f) => [f.id, f.nombre]));
+}
+
 async function leerServiciosEntre(
   ctx: ContextoComando<Transaccion>,
   desde: Date,
@@ -822,6 +855,10 @@ async function leerServiciosEntre(
 
   const servicios = await ctx.paso('leer_servicios', () => consulta.execute());
   const porCita = new Map(citas.map((c) => [c.id, c]));
+  const nombreDe = await nombresDeClientas(
+    ctx,
+    citas.map((c) => c.cliente_id),
+  );
 
   return servicios.map((s) => {
     const cita = porCita.get(s.cita_id);
@@ -830,6 +867,7 @@ async function leerServiciosEntre(
       cita_id: s.cita_id,
       folio: cita?.folio ?? '',
       cliente_id: cita?.cliente_id ?? null,
+      cliente_nombre: nombreDe.get(cita?.cliente_id ?? '') ?? null,
       estado_cita: cita?.estado ?? 'agendada',
       profesional_id: s.profesional_id,
       servicio_id: s.servicio_id,

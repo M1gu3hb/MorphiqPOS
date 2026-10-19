@@ -136,7 +136,7 @@ export default function PropinaDialog({
       <DialogContent className="sm:max-w-md w-[calc(100%-2rem)] max-h-[92vh] overflow-y-auto p-4 sm:p-6 gap-3">
         <DialogHeader className="space-y-1">
           <DialogTitle className="font-heading flex items-center gap-2 text-base sm:text-lg">
-            <Heart className="w-5 h-5 text-rose-500 shrink-0" />
+            <Heart className="w-5 h-5 text-peligro shrink-0" />
             <span className="truncate">¿Desean agregar propina?</span>
           </DialogTitle>
         </DialogHeader>
@@ -164,8 +164,8 @@ export default function PropinaDialog({
                     onClick={() => elegirPorcentaje(p)}
                     className={`px-2 py-2 rounded-xl border-2 text-center transition-all min-w-0 ${
                       activo
-                        ? 'border-rose-400 bg-rose-50 text-rose-700 shadow-md'
-                        : 'border-border bg-white text-muted-foreground hover:bg-muted'
+                        ? 'border-peligro bg-peligro/10 text-peligro shadow-md'
+                        : 'border-border bg-superficie text-muted-foreground hover:bg-muted'
                     }`}
                   >
                     <p className="font-heading font-black text-base sm:text-lg leading-none">
@@ -194,16 +194,16 @@ export default function PropinaDialog({
 
           {/* Resumen */}
           {(pctActivo !== null || (montoValido && montoNum > 0)) && (
-            <div className="p-3 rounded-xl bg-emerald-50 border border-emerald-200 text-sm">
+            <div className="p-3 rounded-xl bg-exito/10 border border-exito/30 text-sm">
               <div className="flex justify-between gap-2">
                 <span className="text-muted-foreground">Propina</span>
-                <span className="font-bold text-emerald-700">
+                <span className="font-bold text-exito">
                   {formatCurrency(propinaCalculada)}
                 </span>
               </div>
-              <div className="flex justify-between gap-2 border-t border-emerald-200 mt-1 pt-1">
+              <div className="flex justify-between gap-2 border-t border-exito/30 mt-1 pt-1">
                 <span className="font-semibold">Total a cobrar</span>
-                <span className="font-heading font-black text-emerald-700">
+                <span className="font-heading font-black text-exito">
                   {formatCurrency(totalConPropina)}
                 </span>
               </div>

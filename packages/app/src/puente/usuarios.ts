@@ -2,7 +2,8 @@ import 'server-only';
 
 import { leyendoConReintento, obtenerDb } from '@morphiqpos/data';
 
-import { colorDePersona, etiquetaDeRol, rolMH } from './roles.ts';
+import { terminosDeLaOrganizacion } from '../configuracion/vocabulario.ts';
+import { colorDePersona, etiquetaDeRol, etiquetaDeRolEnElGiro, rolMH } from './roles.ts';
 
 /**
  * `UsuarioPOS` — la entidad que son tres tablas.
@@ -51,6 +52,16 @@ export async function listarUsuariosPOS(organizacionId: string): Promise<Registr
       .execute(),
   );
 
+  // La etiqueta del rol en el vocabulario del GIRO (A.8 de la 2.4): en el salón el rol
+  // `mesero` es la estilista. La entrada ya la traducía; Configuración → Accesos no
+  // (auditoría de la 2.4). Si el vocabulario no se puede leer, la genérica: es una
+  // etiqueta, no un permiso.
+  const terminos = await terminosDeLaOrganizacion(organizacionId).catch(() => null);
+  const etiquetaDe = (rol: string): string =>
+    terminos === null
+      ? etiquetaDeRol(rol)
+      : etiquetaDeRolEnElGiro(rol, terminos.giro, terminos.personalizado);
+
   return filas.map((f) => ({
     id: f.id,
     nombre: f.nombre,
@@ -58,7 +69,7 @@ export async function listarUsuariosPOS(organizacionId: string): Promise<Registr
     // El rol viaja en SU vocabulario, que es el que entienden su
     // `permissions.js` y su `ROLE_HOME_ROUTES`.
     rol: rolMH(f.rolBase) ?? f.rolBase,
-    etiqueta: etiquetaDeRol(f.rolBase),
+    etiqueta: etiquetaDe(f.rolBase),
     color: colorDePersona(f.id),
     activo: f.activo,
     tiene_pin: f.credencialId !== null,

@@ -148,7 +148,12 @@ export interface CampoDerivado {
  * el mapa sólo dice cuál se aplica. Una función aquí volvería el mapa código.
  */
 export type Calculo =
-  'costoDeLineaDeReceta' | 'propinaLiquidada' | 'etiquetaSatisfaccion' | 'fechaDeCreacion';
+  | 'costoDeLineaDeReceta'
+  | 'propinaLiquidada'
+  | 'etiquetaSatisfaccion'
+  | 'fechaDeCreacion'
+  | 'dineroDejadoEnCaja'
+  | 'existenciaDelProducto';
 
 export interface CampoCalculado {
   /** Igual que en `CampoMapeado`: quién puede leerlo. `undefined` = cualquiera. */
@@ -179,6 +184,32 @@ export type PoliticaDeEscritura =
   | 'comando'
   /** No se escribe nunca: es una vista o un derivado. */
   | 'lectura';
+
+/**
+ * DE QUÉ SUCURSAL ES UNA FILA, o por qué es de todo el negocio.
+ *
+ * · `columna`: la de esta tabla (o vista). Con `nulaEsDelNegocio`, una fila sin sucursal
+ *   es de todas —la profesional que atiende en cualquiera, el pago que llegó por banco
+ *   sin caja— y la ve cualquier sucursal; sin él, una fila sin sucursal no la ve nadie que
+ *   no consolide.
+ * · `porPadre`: la fila cuelga de otra que sí tiene sucursal —la línea de su venta, el
+ *   movimiento de su caja, el renglón de su compra—: `columna` de esta tabla apunta al
+ *   `id` de `tabla`, y la sucursal se lee ahí (`columnaSucursal`, `sucursal_id` por
+ *   omisión).
+ * · `delNegocio`: es de toda la organización —el catálogo, las clientas, los proveedores—
+ *   y se dice por qué.
+ */
+export type FronteraDeSucursal =
+  | { readonly columna: string; readonly nulaEsDelNegocio?: boolean }
+  | {
+      readonly porPadre: {
+        readonly columna: string;
+        readonly tabla: string;
+        readonly columnaSucursal?: string;
+        readonly nulaEsDelNegocio?: boolean;
+      };
+    }
+  | { readonly delNegocio: string };
 
 export interface MapaEntidad {
   /** La tabla destino en el esquema nuevo. */
@@ -216,6 +247,35 @@ export interface MapaEntidad {
    */
   readonly filtroFijo?: Readonly<Record<string, string | boolean>>;
   /**
+   * LO QUE UN ROL SÓLO VE SI ES SUYO (C.7 de la 2.4).
+   *
+   * «Mi día» de la estilista preguntaba el nombre y enseñaba el día de quien se eligiera:
+   * cualquiera veía la agenda, las comisiones y las liquidaciones de otra. El recorte no
+   * puede ser de la pantalla: para estos roles, el SERVIDOR sólo devuelve las filas de la
+   * profesional ligada al empleo de la sesión (`profesionales.empleo_id`).
+   *
+   * `columna` es la que guarda el `profesional_id` de la fila (`id` en la propia
+   * `Profesional`). `porServicio` es para la cita, cuyo profesional vive en sus
+   * servicios: se ven las citas que tienen al menos un servicio suyo.
+   *
+   * Es el «el profesional sólo ve las suyas si no tiene `ver_agenda_ajena`» de
+   * `estetica-salon/05-DATOS-Y-BACKEND.md`; el permiso por persona no existe todavía, así
+   * que hoy manda el rol.
+   */
+  readonly soloDeQuienEntra?: {
+    readonly roles: readonly string[];
+    readonly columna: string;
+    readonly porServicio?: boolean;
+    /**
+     * `columna` es una CLIENTA, y se ven las que esta profesional atiende: las que tienen
+     * una cita con un servicio suyo, pasado o por venir. Es la misma regla que
+     * `exigirClientaPropia` aplica a los comandos del expediente (cierre de la 2.4): sin
+     * ella el puente servía el expediente, las alergias y las fórmulas de cualquier
+     * clienta del salón a quien entraba como estilista.
+     */
+    readonly porClientaPropia?: boolean;
+  };
+  /**
    * `true` cuando la tabla tiene `sucursal_id not null`.
    *
    * La sucursal la pone el SERVIDOR, igual que la organización, y sale de la
@@ -224,6 +284,12 @@ export interface MapaEntidad {
    * que revienta la creación de la primera mesa del negocio.
    */
   readonly conSucursal?: boolean;
+  /**
+   * LA FRONTERA POR SUCURSAL de lo que se LEE (cierre de la 2.4, D-36). Obligatoria, como
+   * `rolesLectura`: una entidad nueva no puede quedar sin decidir si es de una sucursal.
+   * Quien no consolida (`ROLES_CONSOLIDADOS`) sólo lee lo de la sucursal de su sesión.
+   */
+  readonly sucursal: FronteraDeSucursal;
   /** Orden por omisión cuando él no pide ninguno. */
   readonly ordenPorOmision?: string;
   /**

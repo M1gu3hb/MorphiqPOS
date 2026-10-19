@@ -76,6 +76,7 @@ export const dividirCuentaComando = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes', 'particiones[].tomas[].lineaId': 'orden_lineas' },
   entrada: entradaDividirCuenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

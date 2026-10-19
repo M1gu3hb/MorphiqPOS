@@ -57,6 +57,7 @@ export const abrirLoteGrano = definirComando<Transaccion, typeof entradaAbrirLot
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_OPERATIVOS,
+  sucursal: { compraLineaId: 'compra_lineas' },
   entrada: entradaAbrirLote,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, empleoId } = ctx.ambito;

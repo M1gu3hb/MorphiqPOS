@@ -25,6 +25,11 @@ import { loQueDebo, pagarAProveedor, registrarPorPagar } from './por-pagar.ts';
 const AHORA = new Date('2026-09-16T12:00:00.000Z');
 const PROVEEDOR = '9f000000-0000-4000-8000-000000000001';
 const dias = (n: number) => new Date(AHORA.getTime() + n * 86_400_000);
+// De OTRO negocio: existen en la base, y aquí tienen que no existir (D.4 de la 2.4).
+const OTRA_ORG = '0a000000-0000-4000-8000-0000000000ff';
+const DE_OTRO = '9f000000-0000-4000-8000-0000000000ff';
+const CAJA_PROPIA = '5c000000-0000-4000-8000-000000000001';
+const CAJA_AJENA = '5c000000-0000-4000-8000-0000000000ff';
 
 function documento(cambios: Record<string, unknown> = {}): Record<string, unknown> {
   return {
@@ -42,7 +47,19 @@ function documento(cambios: Record<string, unknown> = {}): Record<string, unknow
 
 const baseDe = (extra: Partial<TablasFalsas> = {}) =>
   crearBaseFalsa(
-    { documentos_por_pagar: [], pagos_a_proveedor: [], ...extra },
+    {
+      documentos_por_pagar: [],
+      pagos_a_proveedor: [],
+      proveedores: [
+        { id: PROVEEDOR, organizacion_id: ORG, nombre: 'Abarrotera del Centro', activo: true },
+        { id: DE_OTRO, organizacion_id: OTRA_ORG, nombre: 'Proveedor ajeno', activo: true },
+      ],
+      sesiones_caja: [
+        { id: CAJA_PROPIA, organizacion_id: ORG },
+        { id: CAJA_AJENA, organizacion_id: OTRA_ORG },
+      ],
+      ...extra,
+    },
     {
       predeterminados: {
         documentos_por_pagar: { compra_id: null, empleado_id: null },
@@ -259,5 +276,57 @@ describe('F-635 · cuánto debo', () => {
 
     expect(salida.totalCentavos).toBe('0');
     expect(salida.diasDelMasViejo).toBe(0);
+  });
+});
+
+describe('D.4 · el proveedor y la caja de OTRO negocio no existen aquí', () => {
+  it('no se registra una factura con el proveedor de otro negocio', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+    const codigo = await codigoDe(() =>
+      registrarPorPagar.ejecutar(ctx, {
+        proveedorId: DE_OTRO,
+        folioProveedor: 'X-1',
+        compraId: null,
+        importeCentavos: 10_000,
+        venceEn: dias(30).toISOString(),
+      }),
+    );
+    expect(codigo).toBe('PROVEEDOR_NO_ENCONTRADO');
+    expect(base.filas('documentos_por_pagar')).toHaveLength(0);
+  });
+
+  it('no se paga al proveedor de otro negocio', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+    const codigo = await codigoDe(() =>
+      pagarAProveedor.ejecutar(ctx, {
+        proveedorId: DE_OTRO,
+        montoCentavos: 1,
+        metodo: 'efectivo',
+        referencia: null,
+        sesionCajaId: null,
+      }),
+    );
+    expect(codigo).toBe('PROVEEDOR_NO_ENCONTRADO');
+    expect(base.filas('pagos_a_proveedor')).toHaveLength(0);
+  });
+
+  it('el pago en efectivo no se cuelga de la caja de otro negocio', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+    const pagar = (sesionCajaId: string) =>
+      pagarAProveedor.ejecutar(ctx, {
+        proveedorId: PROVEEDOR,
+        montoCentavos: 1,
+        metodo: 'efectivo',
+        referencia: null,
+        sesionCajaId,
+      });
+    expect(await codigoDe(() => pagar(CAJA_AJENA))).toBe('CORTE_NO_ENCONTRADO');
+    expect(base.filas('pagos_a_proveedor')).toHaveLength(0);
+    // Con la suya, sí.
+    await pagar(CAJA_PROPIA);
+    expect(base.filas('pagos_a_proveedor')).toHaveLength(1);
   });
 });

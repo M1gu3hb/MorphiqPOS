@@ -198,9 +198,9 @@ export default function IngredienteContenedorDialog({ open, onClose, ingrediente
           </p>
         </div>
 
-        <div className="rounded-lg p-2.5 bg-blue-50 dark:bg-blue-950/30 border border-blue-200 dark:border-blue-800/60 text-xs flex gap-2">
-          <Info className="w-4 h-4 shrink-0 mt-0.5 text-blue-600 dark:text-blue-400" />
-          <p className="text-blue-900 dark:text-blue-100">
+        <div className="rounded-lg p-2.5 bg-info/10 border border-info/30 text-xs flex gap-2">
+          <Info className="w-4 h-4 shrink-0 mt-0.5 text-info" />
+          <p className="text-info">
             Esto solo cambia metadatos del ingrediente.{' '}
             <strong>No modifica stock, costo ni movimientos</strong>. Lo usarás como ingrediente
             base de productos "por porción".

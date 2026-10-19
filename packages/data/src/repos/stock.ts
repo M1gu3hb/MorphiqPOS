@@ -94,3 +94,64 @@ function compararSaldo(a: MovimientoValidado, b: MovimientoValidado): number {
   const claveB = `${b.movimiento.organizacionId}\u0000${b.movimiento.almacenId}\u0000${b.movimiento.insumoId}`;
   return claveA < claveB ? -1 : claveA > claveB ? 1 : 0;
 }
+
+/** Lo que regresa al almacén, con la cantidad en MAGNITUD (positiva) y en unidad base. */
+export interface Regreso {
+  readonly organizacionId: string;
+  readonly almacenId: string;
+  readonly insumoId: string;
+  readonly cantidad: string;
+  readonly unidad: string;
+  readonly devolucionId: string;
+  readonly empleadoId: string;
+}
+
+/**
+ * LA MERCANCÍA QUE REGRESA de una devolución de venta (D-29 de la 2.4).
+ *
+ * Sube la existencia —o la crea, si el insumo se quedó sin renglón— y escribe el
+ * ledger con signo POSITIVO, tipo `devolucion` y referido al DOCUMENTO de la
+ * devolución, no a la venta: una venta puede tener varias, y el kardex tiene que
+ * poder decir cuál regresó qué. Los bloqueos en el mismo orden estable que la salida.
+ */
+export async function regresarAlInventario(
+  regresos: readonly Regreso[],
+  tx: Transaccion,
+): Promise<void> {
+  const ordenados = [...regresos].sort((a, b) => {
+    const claveA = `${a.almacenId}\u0000${a.insumoId}`;
+    const claveB = `${b.almacenId}\u0000${b.insumoId}`;
+    return claveA < claveB ? -1 : claveA > claveB ? 1 : 0;
+  });
+  if (ordenados.length === 0) return;
+
+  for (const regreso of ordenados) {
+    const valor = cantidadATexto(cantidad(regreso.cantidad));
+    await sql`
+      insert into existencias (organizacion_id, almacen_id, insumo_id, cantidad)
+      values (${regreso.organizacionId}, ${regreso.almacenId}, ${regreso.insumoId}, ${valor})
+      on conflict (almacen_id, insumo_id)
+      do update set cantidad = existencias.cantidad + excluded.cantidad, actualizado_en = now()
+    `.execute(tx);
+  }
+
+  const filas = ordenados.map(
+    (regreso) => sql`(
+    ${regreso.organizacionId},
+    ${regreso.almacenId},
+    ${regreso.insumoId},
+    ${'devolucion'},
+    ${cantidadATexto(cantidad(regreso.cantidad))},
+    ${regreso.unidad},
+    ${'devolucion'},
+    ${regreso.devolucionId},
+    ${regreso.empleadoId}
+  )`,
+  );
+  await sql`
+    insert into movimientos_stock (
+      organizacion_id, almacen_id, insumo_id, tipo, cantidad, unidad,
+      referencia_tipo, referencia_id, empleado_id
+    ) values ${sql.join(filas)}
+  `.execute(tx);
+}

@@ -4,11 +4,13 @@ import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
 import {
   calcularConsumo,
   lineasDelCanal,
+  recetaConOpciones,
   type LineaParaConsumo,
 } from '@morphiqpos/domain/inventario';
 import type { Transaccion } from '@morphiqpos/data';
 import { repoCaja, repoFolios, repoOrdenes, repoStock, repoVentaCatalogo } from '@morphiqpos/data';
 
+import { emitirDocumento } from '../cartera/documento.ts';
 import { definirComando } from '../definicion.ts';
 import { comandarLineasPendientes } from '../restaurante/comandar-pendientes.ts';
 import { pasarMesaCobradaALimpieza } from '../restaurante/mesas-escrituras.ts';
@@ -16,6 +18,8 @@ import { marcarPropinaDeOrden, registrarPagoConPropina } from '../propinas/cobro
 import { entradaCobrarOrdenConPropina } from '../propinas/esquemas.ts';
 import { cotizar, exigirTotalVigente } from './cotizar.ts';
 import { repartirPagos } from './pagos.ts';
+import { efectosDeOpcionesPorLinea } from './opciones-en-consumo.ts';
+import { cantidadAConsumir } from './presentacion.ts';
 
 /**
  * `cobrarOrden` — la tarea más importante del corte (F1.1-A-09).
@@ -56,6 +60,7 @@ export const cobrarOrden = definirComando<
   escribe: true,
   roles: ['cajero', 'gerente', 'administrador', 'dueno'],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaCobrarOrdenConPropina,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId, terminalId, empleoId } = ctx.ambito;
@@ -70,7 +75,12 @@ export const cobrarOrden = definirComando<
     const orden = await ctx.paso('cargar_orden', () =>
       repoOrdenes.ordenPorId(ctx.tx, organizacionId, entrada.ordenId),
     );
-    if (orden === null) throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa venta ya no existe.');
+    // De ESTA sucursal (auditoría de la 2.4): la orden se buscaba sólo por negocio, y una
+    // caja podía cobrar —o vaciar— la orden de otra sucursal sabiendo su id. Para quien
+    // cobra, una orden de otra sucursal no existe.
+    if (orden?.sucursalId !== sucursalId) {
+      throw new ErrorDominio('ORDEN_NO_ENCONTRADA', 'Esa venta ya no existe.');
+    }
     // Los estados VIVOS, no sólo 'borrador'. Un restaurante cobra cuentas que
     // ya pasaron por cocina: `restaurante.enviar_pedido` deja la orden en
     // 'confirmada' y `restaurante.solicitar_cuenta` en 'cuenta_solicitada'.
@@ -83,6 +93,47 @@ export const cobrarOrden = definirComando<
       throw new ErrorDominio('ORDEN_NO_EDITABLE', 'Esa venta ya se cobró o se canceló.', {
         estado: orden.estado,
       });
+    }
+
+    // 1.2 · Una nota que ya salió FIRMADA a crédito no se cobra otra vez (auditoría de
+    //       la 2.4). La remisión subió el saldo del cliente por esa entrega; cobrarla
+    //       además en caja metería el mismo material dos veces en el dinero. Se bloquea
+    //       la orden primero: una remisión simultánea de la misma nota también la
+    //       bloquea, así que una de las dos espera y después ve a la otra.
+    const bloqueada = await ctx.paso('bloquear_orden', () =>
+      ctx.tx
+        .selectFrom('ordenes')
+        .select(['id', 'estado'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', entrada.ordenId)
+        .forUpdate()
+        .executeTakeFirst(),
+    );
+    // Y el estado otra vez, YA con el candado (bloque D de la 2.4): dos cobros simultáneos
+    // de la misma venta leyeron los dos «cobrable» antes de bloquear; el segundo, al pasar,
+    // se topaba con el ledger de inventario (23505) y la cajera veía «Algo falló». Ahora se
+    // le dice lo que pasó: ya se cobró.
+    if (
+      bloqueada !== undefined &&
+      !(repoOrdenes.ESTADOS_COBRABLES as readonly string[]).includes(bloqueada.estado)
+    ) {
+      throw new ErrorDominio('ORDEN_NO_EDITABLE', 'Esa venta ya se cobró o se canceló.', {
+        estado: bloqueada.estado,
+      });
+    }
+    const remitida = await ctx.paso('mirar_remision', () =>
+      ctx.tx
+        .selectFrom('remisiones')
+        .select('folio')
+        .where('organizacion_id', '=', organizacionId)
+        .where('orden_id', '=', entrada.ordenId)
+        .executeTakeFirst(),
+    );
+    if (remitida !== undefined) {
+      throw new ErrorDominio(
+        'ORDEN_NO_EDITABLE',
+        `Esa nota ya salió a crédito con la remisión ${remitida.folio}: se cobra en Cuentas, no en caja.`,
+      );
     }
 
     // 1.5 · F-331 y F-328 · El canal y el nombre del vaso se sellan ANTES de
@@ -119,6 +170,18 @@ export const cobrarOrden = definirComando<
     // 3 · Los pagos tienen que sumar exactamente el total. Un pago mixto son
     //     varias filas en `pagos` (corrige P1-11).
     const pagos = repartirPagos(entrada.pagos, totales.totalCentavos);
+
+    // 3.5 · Lo que se FÍA necesita a quién (C.10 de la 2.4). Antes de tocar stock o folio:
+    //       un fiado sin nombre es una deuda que nadie va a cobrar.
+    const fiado = pagos
+      .filter((p) => p.metodo === 'fiado')
+      .reduce((suma, p) => suma + p.montoCentavos, 0n);
+    if (fiado > 0n && entrada.clienteId === undefined) {
+      throw new ErrorDominio(
+        'PAGO_NO_CUADRA',
+        'Para fiar hace falta el cliente: elígelo (F4) antes de cobrar.',
+      );
+    }
 
     // 4 · La caja tiene que estar abierta: sin sesión, el efectivo no tiene
     //     dónde registrarse y el arqueo del día nace incompleto.
@@ -228,6 +291,31 @@ export const cobrarOrden = definirComando<
       }),
     );
 
+    // 8.5 · LO FIADO, EN LA MISMA TRANSACCIÓN (C.10 de la 2.4).
+    //       La venta ocurre al entregar, no al cobrar (`02-DINERO-Y-CAJA` §1 de abarrotes):
+    //       el pago `fiado` ya está en `pagos` —suma a la venta— y no movió el cajón. Aquí
+    //       queda la deuda, con la MISMA comprobación de crédito que `credito.emitir_documento`.
+    //       Si el crédito dice que no, se revierte todo: ni stock, ni folio, ni venta.
+    let documentoDelFiado: string | null = null;
+    if (fiado > 0n && entrada.clienteId !== undefined) {
+      const clienteId = entrada.clienteId;
+      await ctx.paso('sellar_cliente', () =>
+        ctx.tx
+          .updateTable('ordenes')
+          .set({ cliente_id: clienteId })
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', '=', entrada.ordenId)
+          .execute(),
+      );
+      const emitido = await emitirDocumento(ctx, {
+        clienteId,
+        origenTipo: 'venta',
+        origenId: entrada.ordenId,
+        importeCentavos: Number(fiado),
+      });
+      documentoDelFiado = emitido.folio;
+    }
+
     // 9 · Cómo se decidió la propina (porcentaje, monto a mano, desde dónde).
     //     Sólo metadatos: en `ordenes` no cabe ningún importe de propina, y por
     //     eso `total_centavos` no se puede inflar con una (F1-04 §6.1).
@@ -287,6 +375,9 @@ export const cobrarOrden = definirComando<
         totalCentavos: totales.totalCentavos.toString(),
         propinaCentavos: propinaTotal.toString(),
         metodos: pagos.map((p) => p.metodo),
+        ...(documentoDelFiado === null
+          ? {}
+          : { fiadoCentavos: fiado.toString(), clienteId: entrada.clienteId, documentoDelFiado }),
         lineas: cotizacion.lineas.length,
         movimientosStock: movimientos.length,
         comandasEmitidas: comandas.length,
@@ -327,8 +418,12 @@ export const cobrarOrden = definirComando<
  * descuenta nada. Lo que no se puede traducir se OMITE en vez de inventarle un
  * insumo: descontar del almacén equivocado es peor que no descontar, porque el
  * error se propaga a todos los costos y nadie lo ve.
+ *
+ * Se exporta para la remisión firmada de la ferretería (`ferreteria/credito.ts`, 181),
+ * que es venta sin cobro en caja y saca el material con ESTA misma traducción: dos
+ * maneras de decidir qué sale del almacén por una venta serían dos inventarios.
  */
-async function planearConsumo(
+export async function planearConsumo(
   tx: Transaccion,
   organizacionId: string,
   sucursalId: string,
@@ -378,6 +473,12 @@ async function planearConsumo(
     ...new Set(lineas.map((l) => l.productoId).filter((id): id is string => id !== null)),
   ];
   const recetas = await repoVentaCatalogo.recetasDeProductos(tx, organizacionId, productoIds);
+  // F-027 · Lo que eligió el cliente: la leche que sustituye y el tamaño que escala.
+  const efectos = await efectosDeOpcionesPorLinea(
+    tx,
+    organizacionId,
+    lineas.map((l) => l.id),
+  );
 
   for (const linea of lineas) {
     if (linea.productoId === null) continue;
@@ -390,12 +491,15 @@ async function planearConsumo(
     );
     if (producto === null) continue;
 
+    // F-147 · Una presentación trae YA su consumo en unidad base (`factor × cantidad`):
+    // la caja de 24 descuenta 24, en la unidad del insumo, sin conversión de por medio.
+    const aConsumir = cantidadAConsumir(linea, producto.unidadBaseInsumo ?? linea.unidad);
     const comun = {
       organizacionId,
       almacenId,
       ordenId,
       lineaId: linea.id,
-      cantidad: linea.cantidad,
+      cantidad: aConsumir.cantidad,
       permiteVentaSinStock: producto.permiteVentaSinStock,
     };
 
@@ -405,14 +509,19 @@ async function planearConsumo(
         ...comun,
         estrategiaConsumo: 'sku',
         insumoId: producto.insumoId,
-        unidadVenta: linea.unidad,
+        unidadVenta: aConsumir.unidadVenta,
         unidadBase: producto.unidadBaseInsumo,
       });
       continue;
     }
 
     if (producto.estrategiaConsumo === 'receta') {
-      const ingredientes = lineasDelCanal(recetas.get(linea.productoId) ?? [], canal);
+      // La receta que DE VERDAD se preparó: la del canal, con la leche que se eligió y
+      // al tamaño que se pidió. Ver `recetaConOpciones`.
+      const ingredientes = recetaConOpciones(
+        lineasDelCanal(recetas.get(linea.productoId) ?? [], canal),
+        efectos.get(linea.id) ?? [],
+      );
       // Un producto marcado «receta» SIN líneas activas no descuenta nada. Es
       // un estado legítimo —una receta recién vaciada— y no un error: la venta
       // no se bloquea por eso.

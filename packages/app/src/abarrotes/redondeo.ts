@@ -63,6 +63,7 @@ export const registrarRedondeo = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_MOSTRADOR,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaRegistrarRedondeo,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId, terminalId } = ctx.ambito;

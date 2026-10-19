@@ -88,7 +88,7 @@ export default function CocinaStationMiniCard({ pedido, onIniciar, onListo, onQu
         <Button
           size="sm"
           variant="outline"
-          className="h-8 px-2 text-[11px] gap-1 shrink-0 border-red-300 text-red-700 hover:bg-red-50 dark:border-red-700 dark:text-red-300"
+          className="h-8 px-2 text-[11px] gap-1 shrink-0 border-peligro/30 text-peligro hover:bg-peligro/10"
           onClick={(e) => {
             e.stopPropagation();
             setConfirmQuitar(true);
@@ -126,12 +126,12 @@ export default function CocinaStationMiniCard({ pedido, onIniciar, onListo, onQu
               {nombreEst}
             </span>
             {estado === 'listo' && (
-              <span className="text-[10px] font-semibold text-emerald-700 dark:text-emerald-400">
+              <span className="text-[10px] font-semibold text-exito">
                 · Listo
               </span>
             )}
             {estado === 'en_preparacion' && (
-              <span className="text-[10px] font-semibold text-orange-700 dark:text-orange-400">
+              <span className="text-[10px] font-semibold text-advertencia">
                 · En preparación
               </span>
             )}
@@ -164,7 +164,7 @@ export default function CocinaStationMiniCard({ pedido, onIniciar, onListo, onQu
                     type="button"
                     key={i}
                     onClick={(e) => handleClick(e, item)}
-                    className="w-full text-left flex items-start gap-1.5 hover:bg-white/50 dark:hover:bg-white/5 rounded px-1 py-0.5 transition-colors"
+                    className="w-full text-left flex items-start gap-1.5 hover:bg-superficie/50 rounded px-1 py-0.5 transition-colors"
                     title="Ver ficha de cocina"
                   >
                     <span className="font-heading font-black text-sm text-primary tabular-nums shrink-0 leading-tight">
@@ -177,18 +177,18 @@ export default function CocinaStationMiniCard({ pedido, onIniciar, onListo, onQu
                         {item?.producto_nombre || '—'}
                       </p>
                       {lineasMod.length > 0 && (
-                        <p className="text-[10px] text-orange-700 dark:text-orange-300 leading-tight">
+                        <p className="text-[10px] text-advertencia leading-tight">
                           ↳ {lineasMod.join(' · ')}
                         </p>
                       )}
                       {notas && (
-                        <p className="text-[10px] italic text-orange-700 dark:text-orange-300 leading-tight">
+                        <p className="text-[10px] italic text-advertencia leading-tight">
                           ↳ {notas}
                         </p>
                       )}
                     </div>
                     {tieneExtras && (
-                      <AlertCircle className="w-3 h-3 text-orange-600 shrink-0 mt-0.5" />
+                      <AlertCircle className="w-3 h-3 text-advertencia shrink-0 mt-0.5" />
                     )}
                   </button>
                 );

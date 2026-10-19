@@ -3,8 +3,10 @@ import Dashboard from '@/pages/Dashboard';
 import { Tablero as TableroDeTienda } from '~/abarrotes/Tablero';
 import { AgendaDelDia } from '~/estetica-salon/AgendaDelDia';
 import { Tablero as TableroDeCafeteria } from '~/cafeteria/Tablero';
+import { IrAlInicioDelRol } from '~/cliente/IrAlInicioDelRol';
 import { Tablero as TableroDeFerreteria } from '~/ferreteria/Tablero';
 import { sesionDelServidor } from '~/servidor/http';
+import { abreEnLaAgenda } from '~/servidor/inicio-del-salon';
 
 /**
  * LA PANTALLA DE INICIO, que no es la misma para los cinco modelos.
@@ -42,8 +44,20 @@ import { sesionDelServidor } from '~/servidor/http';
  */
 export const dynamic = 'force-dynamic';
 
+/**
+ * Quién ve el tablero: los cuatro (`reportes.tablero_*`) admiten dueño, administrador y
+ * gerente. A los demás, `/` los lleva a su casa —la cajera, a cobrar— en vez de pintarles
+ * un tablero que su puesto no puede leer (bloque D de la 2.4).
+ */
+const VEN_EL_TABLERO: ReadonlySet<string> = new Set(['dueno', 'administrador', 'gerente']);
+
 export default async function Pagina() {
   const sesion = await sesionDelServidor();
+  const conTablero =
+    sesion?.paquete === 'tienda' ||
+    sesion?.paquete === 'ferreteria' ||
+    sesion?.paquete === 'cafeteria';
+  if (conTablero && !VEN_EL_TABLERO.has(sesion.rol)) return <IrAlInicioDelRol />;
 
   // Cada plantilla con el suyo. `restaurante` se queda con el heredado porque el
   // heredado ES el suyo: se construyó para Restaurante MH y sus nueve indicadores
@@ -52,8 +66,11 @@ export default async function Pagina() {
   if (sesion?.paquete === 'ferreteria') return <TableroDeFerreteria />;
   if (sesion?.paquete === 'cafeteria') return <TableroDeCafeteria />;
 
-  // Y la estética no tiene tablero en la casa: tiene AGENDA.
-  if (sesion?.paquete === 'estetica') return <AgendaDelDia />;
+  // Y la estética no tiene tablero en la casa: tiene AGENDA. Para quien la puede leer: al
+  // almacén se le pintaba con el 403 del servidor, y va a su inicio como en los demás giros.
+  if (sesion?.paquete === 'estetica') {
+    return abreEnLaAgenda(sesion.rol) ? <AgendaDelDia /> : <IrAlInicioDelRol />;
+  }
 
   return <Dashboard />;
 }

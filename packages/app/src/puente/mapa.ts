@@ -1,6 +1,11 @@
 import 'server-only';
 
-import { CAMPOS_AUTOMATICOS, type CampoMapeado, type MapaEntidad } from './tipos.ts';
+import {
+  CAMPOS_AUTOMATICOS,
+  type CampoMapeado,
+  type FronteraDeSucursal,
+  type MapaEntidad,
+} from './tipos.ts';
 
 /**
  * LA TABLA DE TRADUCCIÓN (F1-02 §3).
@@ -94,10 +99,49 @@ const VE_FIADO = [...DIRECCION, 'cajero'] as const;
 const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
 const PREPARACION = [...DIRECCION, 'cocina'] as const;
 
-export const MAPA: Readonly<Record<string, MapaEntidad>> = {
+/**
+ * LA FRONTERA POR SUCURSAL de cada entidad (cierre de la 2.4, D-36). Lo operativo —ventas,
+ * cajas, mesas, citas, compras, gastos— es de UNA sucursal, y quien no consolida sólo lee
+ * la suya. Lo que es del negocio entero se dice con su razón.
+ */
+const DE_SU_SUCURSAL = { columna: 'sucursal_id' } as const satisfies FronteraDeSucursal;
+
+/**
+ * La sucursal que admite NULO: la fila sin sucursal es del negocio entero y la ven todas. Es
+ * lo que escribe un comando cuando quien opera no trae sucursal —el dueño desde su teléfono
+ * agenda una cita, da de alta a una profesional—, y con la igualdad sola esa fila
+ * desaparecería para la recepción que la tiene que atender. Toda columna `sucursal_id` que
+ * admite nulo se declara así; lo exige el contrato contra el esquema.
+ */
+const DE_SU_SUCURSAL_O_DEL_NEGOCIO = {
+  columna: 'sucursal_id',
+  nulaEsDelNegocio: true,
+} as const satisfies FronteraDeSucursal;
+
+const DEL_NEGOCIO = {
+  catalogo: {
+    delNegocio:
+      'El catálogo —productos, categorías, insumos, recetas, opciones, zonas del salón y estaciones— es el mismo en todas las sucursales del negocio.',
+  },
+  clientes: {
+    delNegocio:
+      'Las clientas y los clientes son del negocio: el mismo cliente compra, se atiende y debe en cualquier sucursal; su cartera y su expediente van con él.',
+  },
+  existencias: {
+    delNegocio:
+      'Estas vistas suman las existencias de todos los almacenes del negocio: la existencia por sucursal llega con el multisucursal, y hasta entonces se declara consolidada.',
+  },
+  reglas: {
+    delNegocio:
+      'Reglas, comisionistas, proveedores y plantillas son acuerdos del negocio, no de una sucursal.',
+  },
+} as const satisfies Record<string, FronteraDeSucursal>;
+
+const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   // ── Catálogo ─────────────────────────────────────────────────────────────
   ProductoTerminado: {
     tabla: 'productos',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -208,6 +252,40 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
     derivados: {
       /**
+       * LA EXISTENCIA del producto que se vende tal cual (C.9 de la 2.4): las tres piezas de
+       * las que sale el campo calculado `existencia` (abajo).
+       *
+       * Un producto se liga a su insumo por dos caminos, y la demo usa el segundo: el
+       * producto apunta a su insumo base (`insumo_base_id`), o el insumo apunta a su
+       * producto (`insumos.producto_id`, único por producto). La existencia por el segundo
+       * camino la da `materiales_mostrador`, pero en CERO cuando no hay insumo —un latte—,
+       * así que hace falta saber si el insumo existe para no apagar lo que no tiene contador.
+       */
+      existencia_base: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        tabla: 'existencias_por_insumo',
+        porColumna: 'insumo_base_id',
+        emparejaCon: 'insumo_id',
+        columna: 'cantidad',
+        conversion: 'decimal',
+      },
+      existencia_en_mostrador: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        tabla: 'materiales_mostrador',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'existencia',
+        conversion: 'decimal',
+      },
+      insumo_propio_id: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        tabla: 'insumos',
+        porColumna: 'id',
+        emparejaCon: 'producto_id',
+        columna: 'id',
+        conversion: 'texto',
+      },
+      /**
        * F-401 · LA DURACIÓN DE UN SERVICIO ES UNA SECUENCIA, no un número.
        *
        * «Un tinte no dura 110 minutos: dura 40, 45, 15 y 10», y los 45 del procesado
@@ -276,10 +354,23 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'texto',
       },
     },
+    calculados: {
+      /**
+       * La existencia del producto que se vende tal cual, por cualquiera de sus dos
+       * caminos, o nula si no tiene insumo —lo de receta no tiene contador y no se apaga
+       * por eso—. El cobro pinta «sin existencia» y «Agotado» con ella (C.9 de la 2.4).
+       */
+      existencia: {
+        rolesLectura: [...TODOS_LOS_ROLES],
+        formula: 'existenciaDelProducto',
+        conversion: 'decimal',
+      },
+    },
   },
 
   CategoriaProducto: {
     tabla: 'categorias',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -317,6 +408,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   CategoriaIngrediente: {
     tabla: 'categorias',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...RECETAS_E_INVENTARIO],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -333,6 +425,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Ingrediente: {
     tabla: 'insumos',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...RECETAS_E_INVENTARIO],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -371,6 +464,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
       },
       proveedor_default_id: { columna: 'proveedor_id', conversion: 'texto' },
+      // F-149 · En qué zona del anaquel se cuenta: lo escribe `inventario.asignar_zona`.
+      zona_anaquel_id: { columna: 'zona_id', conversion: 'texto', escribible: false },
       notas: { columna: 'notas', conversion: 'texto' },
       tipo_ingrediente: { columna: 'tipo_insumo', conversion: 'texto' },
       capacidad_contenedor_ml: { columna: 'capacidad_contenedor_ml', conversion: 'decimal' },
@@ -436,6 +531,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   RecetaEscandallo: {
     tabla: 'recetas',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...RECETAS_E_INVENTARIO],
     // `guardarReceta` es transaccional CON rollback: borrar las líneas viejas y
     // crear las nuevas sin transacción es el defecto D-11.
@@ -474,6 +570,27 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       // «Receta» es femenino: la columna es `activa`.
       activo: { columna: 'activa', conversion: 'booleano', escribible: false },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
+      /**
+       * F-331 · En qué canales entra la línea: `text[]`, nulo = en todos (083). Viaja
+       * como arreglo.
+       *
+       * NO se servía, y la pantalla de recetas pregunta el canal de cada línea: el
+       * vaso «sólo para llevar» se guardaba bien, volvía como «Siempre» y el SIGUIENTE
+       * guardado —agregar o quitar cualquier otra línea— lo reescribía como «ambos»,
+       * porque el comando reemplaza la receta entera con lo que la pantalla tiene.
+       * Cada edición borraba el canal de todas las demás líneas (C.10 de la 2.4).
+       */
+      aplica_canal: { columna: 'aplica_canal', conversion: 'json', escribible: false },
+      /**
+       * F-027 · El grupo de opciones que puede sustituir esta línea (084): la leche
+       * entera del latte la sustituye el grupo «Leche». Mismo defecto que el canal si
+       * no viaja: el siguiente guardado lo borraría.
+       */
+      sustituible_por_grupo_id: {
+        columna: 'sustituible_por_grupo_id',
+        conversion: 'texto',
+        escribible: false,
+      },
     },
     derivados: {
       // Sin instantánea a propósito: `on delete restrict` impide que el insumo
@@ -511,6 +628,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   // ── Operación ────────────────────────────────────────────────────────────
   Venta: {
     tabla: 'ordenes',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     // `cobrarVenta` es transaccional. Escribir una venta campo por campo desde
     // el navegador —marcarla pagada y DESPUÉS procesar recetas, stock y
@@ -793,6 +911,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   DetalleVenta: {
     tabla: 'orden_lineas',
+    sucursal: { porPadre: { columna: 'orden_id', tabla: 'ordenes' } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     campos: {
@@ -898,6 +1017,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   MovimientoInventario: {
     tabla: 'movimientos_stock',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     rolesLectura: [...INVENTARIO],
     // El ledger es INMUTABLE: se escribe por comando y no se edita jamás.
     escritura: 'comando',
@@ -960,6 +1080,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   MovimientoCaja: {
     tabla: 'movimientos_caja',
+    sucursal: { porPadre: { columna: 'sesion_caja_id', tabla: 'sesiones_caja' } },
     rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-created_at',
@@ -988,6 +1109,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   CorteCaja: {
     tabla: 'sesiones_caja',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -1037,8 +1159,36 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         escribible: false,
       },
-      dinero_dejado_en_caja: {
+      /**
+       * LO RETIRADO al cerrar, que es lo que la columna guarda. Aquí iba
+       * `dinero_dejado_en_caja` leyendo esta misma columna: el cierre no la escribía, así
+       * que salía nula, y el día que la escribiera el heredado habría enseñado como
+       * «dejado» lo que se llevaron. Lo dejado es un cálculo (abajo), C.6 de la 2.4.
+       */
+      efectivo_retirado: {
         columna: 'efectivo_retirado_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      /**
+       * EL ESPERADO Y LA DIFERENCIA DEL CORTE (C.4 de la 2.4).
+       *
+       * La migración 100 creó las dos columnas —«se guarda calculada y no se deduce
+       * después»— y `caja.cerrar` nunca las escribía, así que el histórico no podía
+       * enseñar la diferencia de un corte anterior. Ahora el cierre las escribe; los
+       * cierres anteriores las traen en nulo, y la pantalla lo dice.
+       *
+       * Con nombre PROPIO y no `efectivo_esperado`/`diferencia_efectivo`: ésos los
+       * reserva F1-04 §20.4 como derivados de las pantallas heredadas, y aquí lo que
+       * viaja es la FOTO de lo que se comparó al cerrar, no una cuarta fórmula.
+       */
+      esperado_al_cerrar: {
+        columna: 'efectivo_esperado_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      diferencia_al_cerrar: {
+        columna: 'diferencia_centavos',
         conversion: 'dinero',
         escribible: false,
       },
@@ -1062,6 +1212,10 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'texto',
       },
     },
+    calculados: {
+      // El fondo de mañana. `useCajaAbierta` lo lee como el fondo esperado de la apertura.
+      dinero_dejado_en_caja: { formula: 'dineroDejadoEnCaja', conversion: 'dinero' },
+    },
   },
 
   // ── Restaurante: sala ────────────────────────────────────────────────────
@@ -1076,6 +1230,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   Zona: {
     tabla: 'zonas',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -1097,6 +1252,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   // «escribibles por comando».
   MovimientoCuenta: {
     tabla: 'movimientos_cuenta',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...CAJA],
     escritura: 'lectura',
     ordenPorOmision: '-created_date',
@@ -1123,6 +1279,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   UnionMesa: {
     tabla: 'uniones_mesa',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'lectura',
     ordenPorOmision: '-abierta_en',
@@ -1138,6 +1295,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   EventoMesa: {
     tabla: 'eventos_mesa',
+    sucursal: DE_SU_SUCURSAL,
     // El ledger del salón es un dato de DIRECCIÓN: es con lo que se decide
     // cuánta gente contratar el viernes. Un mesero no necesita el histórico de
     // transiciones para atender su mesa, y dárselo sólo agranda la superficie.
@@ -1158,6 +1316,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   OcupacionMesa: {
     tabla: 'ocupacion_mesas',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...DIRECCION],
     escritura: 'lectura',
     ordenPorOmision: '-inicio',
@@ -1183,6 +1342,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   ConsumoInterno: {
     tabla: 'consumos_internos',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -1209,11 +1369,19 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Cliente: {
     tabla: 'clientes',
+    sucursal: DEL_NEGOCIO.clientes,
     // F-040 · La tabla existe desde la 003 con saldo y límite de crédito, y
     // NUNCA estuvo declarada aquí: no había pantalla, ni comandos, ni nada. El
     // fiado de F-254 escribe contra ella, así que sin esta entrada el tendero
     // podía abonar y no podía ver a quién.
-    rolesLectura: [...VE_FIADO],
+    //
+    // La ESTILISTA (rol `mesero` del salón) lee a SUS clientas y a ninguna otra: la cabina
+    // tiene que saber a quién atiende —su nombre, para su historial y su fórmula— y no lo
+    // sabía: el puente le contestaba «Tu rol no puede leer esa información», la cita salía
+    // «Sin registrar» y la fórmula no se podía guardar (día completo de la estética, cierre
+    // de la 2.4). Su contacto, sus datos fiscales y su crédito siguen siendo de caja.
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'id', porClientaPropia: true },
+    rolesLectura: [...VE_FIADO, 'mesero'],
     escritura: 'comando',
     ordenPorOmision: 'nombre',
     derivados: {
@@ -1249,25 +1417,41 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
        * de un cliente que sí tenía RFC. Son columnas opcionales del esquema —la
        * migración las añade— y aquí van como texto tal cual.
        */
-      rfc: { columna: 'rfc', conversion: 'texto' },
-      regimen_fiscal: { columna: 'regimen_fiscal', conversion: 'texto' },
-      uso_cfdi: { columna: 'uso_cfdi', conversion: 'texto' },
-      codigo_postal: { columna: 'codigo_postal', conversion: 'texto' },
+      rfc: { columna: 'rfc', conversion: 'texto', rolesLectura: [...VE_FIADO] },
+      regimen_fiscal: {
+        columna: 'regimen_fiscal',
+        conversion: 'texto',
+        rolesLectura: [...VE_FIADO],
+      },
+      uso_cfdi: { columna: 'uso_cfdi', conversion: 'texto', rolesLectura: [...VE_FIADO] },
+      codigo_postal: { columna: 'codigo_postal', conversion: 'texto', rolesLectura: [...VE_FIADO] },
       ...soloAutomaticos(['id']),
       nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
-      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
-      correo: { columna: 'correo', conversion: 'texto', escribible: false },
+      telefono: {
+        columna: 'telefono',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...VE_FIADO],
+      },
+      correo: {
+        columna: 'correo',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...VE_FIADO],
+      },
       total_visitas: { columna: 'total_visitas', conversion: 'entero', escribible: false },
       ultima_visita: { columna: 'ultima_visita', conversion: 'fecha', escribible: false },
       saldo_pendiente_centavos: {
         columna: 'saldo_pendiente_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...VE_FIADO],
       },
       limite_credito_centavos: {
         columna: 'limite_credito_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...VE_FIADO],
       },
       activo: { columna: 'activo', conversion: 'booleano', escribible: false },
     },
@@ -1275,6 +1459,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Profesional: {
     tabla: 'profesionales',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'id' },
     // La agenda entera se lee por columna y por color: si el mostrador no puede
     // leer quién atiende, no hay pantalla que pintar.
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -1309,6 +1495,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Cita: {
     tabla: 'citas',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'id', porServicio: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'agendada_para',
@@ -1354,6 +1542,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   CitaServicio: {
     tabla: 'cita_servicios',
+    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas', nulaEsDelNegocio: true } },
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     // Por precio y no por hora: el rango vive en columnas `tstzrange` que el
@@ -1394,12 +1584,59 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         columna: 'nombre',
         conversion: 'texto',
       },
+      /**
+       * Los minutos de PROCESADO del servicio: el hueco en el que la profesional queda libre
+       * aunque la clienta siga sentada. «Mi día» los esperaba y llegaban vacíos (C.9).
+       */
+      minutos_procesado: {
+        tabla: 'servicios',
+        porColumna: 'servicio_id',
+        emparejaCon: 'producto_id',
+        columna: 'duracion_pasiva_min',
+        conversion: 'entero',
+      },
       // El corto, que es el que cabe en una columna de agenda.
       profesional_nombre: {
         tabla: 'profesionales',
         porColumna: 'profesional_id',
         columna: 'nombre_corto',
         conversion: 'texto',
+      },
+    },
+  },
+
+  /**
+   * LAS FALTAS de una clienta (F-416, C.9 de la 2.4).
+   *
+   * La agenda avisa «faltó 2 veces en seis meses» antes de apartarle una hora larga, y la
+   * leía de un `faltas_6m` que el puente nunca sirvió. Contarlas sería una vista nueva —una
+   * migración, que es de Miguel—; servir la fila y contar en la pantalla no lo es. El valor
+   * perdido es dinero del negocio: sólo para dirección.
+   */
+  NoShow: {
+    tabla: 'no_shows',
+    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas', nulaEsDelNegocio: true } },
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    // La estilista ve SUS faltas, no las del salón (auditoría de la 2.4).
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
+    escritura: 'lectura',
+    ordenPorOmision: '-ocurrio_en',
+    campos: {
+      id: { columna: 'id', conversion: 'texto', escribible: false },
+      cliente_id: { columna: 'cliente_id', conversion: 'texto', escribible: false },
+      cita_id: { columna: 'cita_id', conversion: 'texto', escribible: false },
+      profesional_id: { columna: 'profesional_id', conversion: 'texto', escribible: false },
+      ocurrio_en: { columna: 'ocurrio_en', conversion: 'fecha', escribible: false },
+      anticipo_retenido: {
+        columna: 'anticipo_retenido',
+        conversion: 'booleano',
+        escribible: false,
+      },
+      valor_perdido: {
+        rolesLectura: [...DIRECCION],
+        columna: 'valor_perdido_centavos',
+        conversion: 'dinero',
+        escribible: false,
       },
     },
   },
@@ -1419,7 +1656,11 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   ExpedienteBelleza: {
     tabla: 'expedientes_belleza',
-    // Lo ve quien atiende, que es quien tiene las manos en la cabeza de alguien.
+    sucursal: DEL_NEGOCIO.clientes,
+    // Lo ve quien atiende, que es quien tiene las manos en la cabeza de alguien. Y la
+    // estilista, sólo el de SUS clientas: el comando (`exigirClientaPropia`) ya lo exigía
+    // y el puente servía cualquiera, alergias incluidas (cierre de la 2.4).
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'cliente_id', porClientaPropia: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: '-abierto_en',
@@ -1461,6 +1702,9 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   FormulaAplicada: {
     tabla: 'formulas_aplicadas',
+    sucursal: DEL_NEGOCIO.clientes,
+    // Las fórmulas de SUS clientas —también las que mezcló otra—, como el expediente.
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'cliente_id', porClientaPropia: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     // Por el NOMBRE del campo, no por el de la columna: es lo que el contrato
@@ -1491,6 +1735,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   ReglaComision: {
     tabla: 'reglas_comision',
+    sucursal: DEL_NEGOCIO.reglas,
     // Las cinco preguntas del trato de cada quien. Sólo la DIRECCIÓN.
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
@@ -1523,6 +1768,10 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   ComisionCausada: {
     tabla: 'comisiones_causadas',
+    sucursal: {
+      porPadre: { columna: 'profesional_id', tabla: 'profesionales', nulaEsDelNegocio: true },
+    },
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     // Cada quien ve lo suyo por el filtro de la consulta; la dirección lo ve
     // todo. Lo que NO se puede es esconderlo: una comisión que la estilista no
     // puede leer es el pleito del domingo con otro nombre.
@@ -1550,6 +1799,8 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Liquidacion: {
     tabla: 'liquidaciones',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...DIRECCION, 'mesero'],
     escritura: 'comando',
     ordenPorOmision: '-periodo_hasta',
@@ -1570,6 +1821,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Obra: {
     tabla: 'obras',
+    sucursal: DEL_NEGOCIO.clientes,
     // F-639 · La obra se CIERRA, nunca se borra: sus remisiones se consultan
     // años después, y el contratista las pide para su contabilidad de obra.
     rolesLectura: [...VE_FIADO],
@@ -1589,6 +1841,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   AutorizadoCuenta: {
     tabla: 'autorizados_cuenta',
+    sucursal: DEL_NEGOCIO.clientes,
     // El mostrador TIENE que poder leerla: el aviso de «no está en la lista»
     // sirve antes de despachar, o no sirve.
     rolesLectura: [...VE_FIADO],
@@ -1621,6 +1874,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Remision: {
     tabla: 'remisiones',
+    sucursal: { porPadre: { columna: 'orden_id', tabla: 'ordenes' } },
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-entregada_en',
@@ -1668,6 +1922,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Ubicacion: {
     tabla: 'ubicaciones',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     // La lee quien vende: la ubicación existe para encontrar la pieza, sesenta
     // veces al día. Esconderla del cajero la deja sin usuario.
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -1686,6 +1941,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   ProductoAtributo: {
     tabla: 'producto_atributos',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     ordenPorOmision: 'clave',
@@ -1720,6 +1976,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   MaterialContinuo: {
     tabla: 'materiales_continuos',
+    sucursal: DEL_NEGOCIO.existencias,
     // Corta quien despacha y quien está en el almacén; el precio de remate lo
     // decide quien ve márgenes, y eso se filtra por campo más abajo.
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -1759,6 +2016,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   PiezaDeMaterial: {
     tabla: 'piezas_de_material',
+    sucursal: DEL_NEGOCIO.existencias,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     // La más chica primero: el objetivo es CERRAR piezas, no abrirlas.
@@ -1798,6 +2056,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   NotaDeCaja: {
     tabla: 'notas_de_caja',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     // El cajero cobra y el mostradorista pregunta «¿ya pagaron la mía?». Los dos.
     rolesLectura: [...CAJA, 'mesero'],
     escritura: 'comando',
@@ -1870,6 +2129,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   MaterialMostrador: {
     tabla: 'materiales_mostrador',
+    sucursal: DEL_NEGOCIO.existencias,
     // La lee quien vende en el pasillo y quien cotiza. Es el catálogo con su
     // ubicación: esconderlo del cajero lo deja sin usuario (igual que `Ubicacion`).
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -1912,6 +2172,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   PiezaAbierta: {
     tabla: 'piezas_abiertas',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     ordenPorOmision: 'medida_restante_base',
@@ -1938,6 +2199,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Redondeo: {
     tabla: 'redondeos',
+    sucursal: { porPadre: { columna: 'orden_id', tabla: 'ordenes' } },
     // Lo lee quien cuadra el cajón: es la explicación de por qué el arqueo no
     // da exactamente lo que dice la venta.
     rolesLectura: [...CAJA],
@@ -1962,6 +2224,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Presentacion: {
     tabla: 'producto_presentaciones',
+    sucursal: DEL_NEGOCIO.catalogo,
     // El precio de una presentación es público en el mostrador: el six tiene su
     // etiqueta en el anaquel. Esconderlo del cajero sería esconderle lo que va a
     // cobrar.
@@ -1993,6 +2256,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   ZonaAnaquel: {
     tabla: 'zonas_anaquel',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...INVENTARIO, 'cajero'],
     escritura: 'comando',
     // Por el recorrido físico de la tienda: contar saltando de la reja al
@@ -2027,6 +2291,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   Modificador: {
     tabla: 'opciones_de_bebida',
+    sucursal: DEL_NEGOCIO.catalogo,
     // El precio de una opción es público en la barra: está en el menú.
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
@@ -2047,6 +2312,35 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
       varias: { columna: 'varias', conversion: 'booleano', escribible: false },
       orden: { columna: 'orden', conversion: 'entero', escribible: false },
     },
+    derivados: {
+      /**
+       * F-027 · Lo que la opción le hace a la RECETA (084), para la tabla de variantes
+       * de `cafeteria/Recetas` (C.10 de la 2.4): de qué grupo es —el id, que es lo que la
+       * línea de receta declara—, con qué insumo sustituye y cuánto escala. La vista
+       * lleva el `id` de la opción, así que es un salto por clave primaria.
+       *
+       * Ni costo ni existencia: el costo del sustituto lo sirve `Ingrediente` a quien
+       * puede verlo, y aquí sólo va QUÉ insumo es.
+       */
+      grupo_id: {
+        tabla: 'modificador_opciones',
+        porColumna: 'id',
+        columna: 'modificador_id',
+        conversion: 'texto',
+      },
+      insumo_sustituto_id: {
+        tabla: 'modificador_opciones',
+        porColumna: 'id',
+        columna: 'insumo_sustituto_id',
+        conversion: 'texto',
+      },
+      factor_cantidad: {
+        tabla: 'modificador_opciones',
+        porColumna: 'id',
+        columna: 'factor_cantidad',
+        conversion: 'decimal',
+      },
+    },
   },
 
   /**
@@ -2059,6 +2353,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   CarteraPorObra: {
     tabla: 'cartera_por_obra',
+    sucursal: DEL_NEGOCIO.clientes,
     rolesLectura: [...VE_FIADO],
     escritura: 'lectura',
     // Lo más viejo primero: es el renglón que decide si se le sigue fiando.
@@ -2090,6 +2385,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   CarteraFiado: {
     tabla: 'cartera_por_obra',
+    sucursal: DEL_NEGOCIO.clientes,
     rolesLectura: [...VE_FIADO],
     escritura: 'lectura',
     ordenPorOmision: '-saldo_centavos',
@@ -2120,6 +2416,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   PagoCredito: {
     tabla: 'pagos_credito',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-created_at',
@@ -2147,6 +2444,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   ExistenciaMaterial: {
     tabla: 'existencias_de_material',
+    sucursal: DEL_NEGOCIO.existencias,
     rolesLectura: [...INVENTARIO, 'cajero'],
     escritura: 'lectura',
     ordenPorOmision: 'nombre',
@@ -2190,6 +2488,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   PiezaFerreteria: {
     tabla: 'piezas_de_ferreteria',
+    sucursal: DEL_NEGOCIO.existencias,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'lectura',
     ordenPorOmision: 'nombre',
@@ -2243,6 +2542,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   ListaDeTrabajo: {
     tabla: 'listas_de_trabajo',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...CAJA],
     escritura: 'lectura',
     // La última capturada primero: es la que el albañil acaba de dictar.
@@ -2274,6 +2574,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   Equivalencia: {
     tabla: 'equivalencias',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     ordenPorOmision: '-declarado_en',
@@ -2321,6 +2622,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   ConteoDeZona: {
     tabla: 'conteo_de_zona',
+    sucursal: DEL_NEGOCIO.existencias,
     // Cuenta quien está: en una tiendita es el cajero quien conoce el anaquel, y
     // exigir al encargado es cómo el conteo cíclico vuelve a ser una toma anual.
     rolesLectura: [...INVENTARIO, 'cajero'],
@@ -2343,6 +2645,18 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
     },
+    derivados: {
+      // De qué producto es el insumo contado: con él, «ver el kardex» abre la ficha de
+      // ESE producto (C.10 de la 2.4).
+      producto_id: {
+        rolesLectura: [...INVENTARIO, 'cajero'],
+        tabla: 'insumos',
+        porColumna: 'insumo_id',
+        emparejaCon: 'id',
+        columna: 'producto_id',
+        conversion: 'texto',
+      },
+    },
   },
 
   /**
@@ -2362,6 +2676,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   Comisionista: {
     tabla: 'comisionistas',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: 'nombre',
@@ -2381,6 +2696,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   /** El número que se mira a las nueve de la noche: «¿cuánto saldo me queda?». */
   SaldoComisionista: {
     tabla: 'saldos_comisionista',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...VE_FIADO],
     escritura: 'lectura',
     ordenPorOmision: '-actualizado_en',
@@ -2406,6 +2722,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   /** Cada recarga y cada pago de servicio, con sus importes SEPARADOS. */
   OperacionComision: {
     tabla: 'operaciones_comision',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -2431,8 +2748,58 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
+  /**
+   * C.14 de la 2.4 · LOS APARTADOS DE LA CAFETERÍA, para quien los prepara y los cobra.
+   *
+   * Nacen del menú público sin sesión (`portal/anticipado.ts`) o del mostrador, con
+   * su orden CONFIRMADA y sin pagar: se cobran al recoger. La barra necesita verlos
+   * por hora para prepararlos cuando toca, y la caja, su total y si ya se cobró —el
+   * estado de la orden—, para no entregar nada sin cobrar.
+   */
+  PedidoAnticipado: {
+    tabla: 'pedidos_anticipados',
+    sucursal: DE_SU_SUCURSAL,
+    rolesLectura: [...OPERACION_RESTAURANTE],
+    escritura: 'comando',
+    ordenPorOmision: 'hora_prometida',
+    campos: {
+      ...soloAutomaticos(['id']),
+      orden_id: { columna: 'orden_id', conversion: 'texto', escribible: false },
+      nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
+      // El teléfono de quien apartó es un dato personal: la barra canta el NOMBRE, y el
+      // teléfono sólo lo lee quien cobra (auditoría de la 2.4).
+      telefono: {
+        rolesLectura: [...CAJA],
+        columna: 'telefono',
+        conversion: 'texto',
+        escribible: false,
+      },
+      hora_prometida: { columna: 'hora_prometida', conversion: 'fecha', escribible: false },
+      estado: { columna: 'estado', conversion: 'texto', escribible: false },
+      encolado_en: { columna: 'encolado_en', conversion: 'fecha', escribible: false },
+      entregado_en: { columna: 'entregado_en', conversion: 'fecha', escribible: false },
+    },
+    derivados: {
+      // En centavos enteros y con su nombre: `entero`, no `dinero`.
+      total_centavos: {
+        tabla: 'ordenes',
+        porColumna: 'orden_id',
+        columna: 'total_centavos',
+        conversion: 'entero',
+      },
+      // `pagada` o no: lo que decide si se puede entregar.
+      orden_estado: {
+        tabla: 'ordenes',
+        porColumna: 'orden_id',
+        columna: 'estado',
+        conversion: 'texto',
+      },
+    },
+  },
+
   Conteo: {
     tabla: 'tomas_inventario',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     rolesLectura: [...INVENTARIO],
     escritura: 'comando',
     ordenPorOmision: '-iniciada_en',
@@ -2447,33 +2814,9 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
-  ConteoLinea: {
-    tabla: 'toma_conteos',
-    rolesLectura: [...INVENTARIO],
-    escritura: 'comando',
-    ordenPorOmision: '-contado_en',
-    campos: {
-      ...soloAutomaticos(['id']),
-      conteo_id: { columna: 'toma_id', conversion: 'texto', escribible: false },
-      insumo_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
-      esperado: { columna: 'esperado', conversion: 'decimal', escribible: false },
-      contado: { columna: 'contado', conversion: 'decimal', escribible: false },
-      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
-      // El crudo de lo que tecleó la persona. Se expone porque la discusión
-      // «yo conté nueve cajas» se tiene mirando la pantalla, no el log.
-      capturas: { columna: 'capturas', conversion: 'json', escribible: false },
-      movimiento_ajuste_id: {
-        columna: 'movimiento_ajuste_id',
-        conversion: 'texto',
-        escribible: false,
-      },
-      contado_en: { columna: 'contado_en', conversion: 'fecha', escribible: false },
-      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
-    },
-  },
-
   EsquemaPropina: {
     tabla: 'esquemas_propina',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
     ordenPorOmision: '-vigente_desde',
@@ -2486,25 +2829,9 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
-  BeneficiarioPropina: {
-    tabla: 'liquidacion_propina_beneficiarios',
-    // Sólo dueño y administrador: un mesero no ve lo que se le liquidó a otro,
-    // y ése es el pleito que F-242 viene a cerrar, no a alimentar.
-    rolesLectura: ['dueno', 'administrador'],
-    escritura: 'comando',
-    ordenPorOmision: '-monto_centavos',
-    campos: {
-      ...soloAutomaticos(['id']),
-      liquidacion_id: { columna: 'liquidacion_id', conversion: 'texto', escribible: false },
-      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
-      puesto: { columna: 'puesto', conversion: 'texto', escribible: false },
-      puntos: { columna: 'puntos', conversion: 'decimal', escribible: false },
-      monto_centavos: { columna: 'monto_centavos', conversion: 'dinero', escribible: false },
-    },
-  },
-
   TiempoPreparacion: {
     tabla: 'tiempos_preparacion',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     // Cocina SÍ lee esto: es su propio desempeño, no el margen del negocio.
     rolesLectura: [...PREPARACION],
     escritura: 'lectura',
@@ -2525,6 +2852,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   EsperaMesa: {
     tabla: 'lista_espera',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'creada_en',
@@ -2558,6 +2886,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   Mesa: {
     tabla: 'mesas',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'directa',
     // `mesas.sucursal_id` es `not null`: la pone el servidor desde la sesión.
@@ -2634,6 +2963,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   EstacionPreparacion: {
     tabla: 'estaciones_preparacion',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...PREPARACION],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -2665,6 +2995,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacion: {
     tabla: 'comandas',
+    sucursal: DE_SU_SUCURSAL_O_DEL_NEGOCIO,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -2759,6 +3090,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacionItem: {
     tabla: 'comanda_items',
+    sucursal: { porPadre: { columna: 'comanda_id', tabla: 'comandas', nulaEsDelNegocio: true } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'orden_visual',
@@ -2787,6 +3119,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   // ── Restaurante: portal QR ───────────────────────────────────────────────
   SolicitudQR: {
     tabla: 'solicitudes_qr',
+    sucursal: { porPadre: { columna: 'mesa_id', tabla: 'mesas' } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     // Crear una solicitud, atenderla y resolverla mueven mesa y venta. Y el
     // anti-duplicado de `PortalCliente.jsx:524-532` es un TOCTOU (D-17) que
@@ -2874,6 +3207,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   MenuQRSeccion: {
     tabla: 'menu_qr_secciones',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -2904,6 +3238,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   CompraInsumo: {
     tabla: 'compras',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...COMPRAS],
     escritura: 'comando',
     ordenPorOmision: '-fecha',
@@ -2932,6 +3267,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
   /** Su nombre es `DetalleCompra`, no `CompraLinea`. */
   DetalleCompra: {
     tabla: 'compra_lineas',
+    sucursal: { porPadre: { columna: 'compra_id', tabla: 'compras' } },
     rolesLectura: [...COMPRAS],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -2963,12 +3299,16 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       fecha_caducidad: { columna: 'caduca_el', conversion: 'dia', escribible: false },
+      // La clave con que EL PROVEEDOR llama al material en su hoja: la memoria con que
+      // `compras.importar_nota` empareja sola la nota siguiente (C.10 de la 2.4).
+      clave_proveedor: { columna: 'clave_proveedor', conversion: 'texto', escribible: false },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
     },
   },
 
   Proveedor: {
     tabla: 'proveedores',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...COMPRAS],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -2998,6 +3338,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   GastoOperativo: {
     tabla: 'gastos',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-fecha',
@@ -3031,6 +3372,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   PlantillaGasto: {
     tabla: 'plantillas_gasto',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...DIRECCION],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -3053,6 +3395,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
 
   PlantillaCompra: {
     tabla: 'plantillas_compra',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...COMPRAS],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -3080,6 +3423,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   LiquidacionPropina: {
     tabla: 'liquidaciones_propina',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
     // El orden se declara con SU nombre de campo, no con el de la columna: es
@@ -3127,6 +3471,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
    */
   IntegrationSyncLog: {
     tabla: 'bitacora_sincronizacion',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...DIRECCION],
     escritura: 'lectura',
     ordenPorOmision: '-created_date',
@@ -3155,6 +3500,7 @@ export const MAPA: Readonly<Record<string, MapaEntidad>> = {
  */
 const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
   tabla: 'movimientos_stock',
+  sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
   rolesLectura: [...INVENTARIO],
   escritura: 'lectura',
   ordenPorOmision: '-created_date',
@@ -3184,9 +3530,62 @@ const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
   },
 };
 
+/**
+ * LOS ALIAS HONESTOS (C.2 de la 2.4).
+ *
+ * 22 campos se LLAMAN `_centavos` y llegan en PESOS (`conversion: 'dinero'`): es la forma
+ * que esperaban las pantallas heredadas, que los leen así desde hace meses y no se
+ * renombran. Pero un nombre que miente es cómo `CitaEnCurso` pintó una cita de $350.00
+ * como $3.50. Cada uno gana aquí un gemelo con el nombre verdadero —`precio_pesos` junto a
+ * `precio_centavos`—, misma columna, mismos roles de lectura, y de SÓLO LECTURA.
+ *
+ * Sólo en entidades que el puente no deja escribir (`comando` o `lectura`): esos
+ * `update` nunca pasan por aquí, así que una pantalla que reenvía la fila entera no puede
+ * tropezar con la clave nueva. Las pantallas nuevas leen el gemelo, y `verify:unidades`
+ * marca la lectura del nombre que miente.
+ */
+function nombreHonesto(nombre: string): string | null {
+  return nombre.endsWith('_centavos') ? nombre.replace(/_centavos$/, '_pesos') : null;
+}
+
+function gemelos<T extends { readonly conversion: string }>(
+  grupo: Readonly<Record<string, T>> | undefined,
+  hacer: (campo: T) => T,
+): Record<string, T> {
+  const salida: Record<string, T> = {};
+  for (const [nombre, campo] of Object.entries(grupo ?? {})) {
+    const honesto = nombreHonesto(nombre);
+    if (honesto === null || campo.conversion !== 'dinero') continue;
+    if (grupo !== undefined && Object.prototype.hasOwnProperty.call(grupo, honesto)) continue;
+    salida[honesto] = hacer(campo);
+  }
+  return salida;
+}
+
+function conAliasHonestos(entidad: MapaEntidad): MapaEntidad {
+  if (entidad.escritura === 'directa') return entidad;
+  return {
+    ...entidad,
+    campos: {
+      ...entidad.campos,
+      ...gemelos(entidad.campos, (campo) => ({ ...campo, escribible: false })),
+    },
+    ...(entidad.derivados === undefined
+      ? {}
+      : { derivados: { ...entidad.derivados, ...gemelos(entidad.derivados, (c) => c) } }),
+    ...(entidad.calculados === undefined
+      ? {}
+      : { calculados: { ...entidad.calculados, ...gemelos(entidad.calculados, (c) => c) } }),
+  };
+}
+
+export const MAPA: Readonly<Record<string, MapaEntidad>> = Object.fromEntries(
+  Object.entries(MAPA_DECLARADO).map(([nombre, entidad]) => [nombre, conAliasHonestos(entidad)]),
+);
+
 const TODAS: Readonly<Record<string, MapaEntidad>> = {
   ...MAPA,
-  DescuentoInventarioVenta: DESCUENTO_INVENTARIO_VENTA,
+  DescuentoInventarioVenta: conAliasHonestos(DESCUENTO_INVENTARIO_VENTA),
 };
 
 export function entidadMapeada(nombre: string): MapaEntidad | null {

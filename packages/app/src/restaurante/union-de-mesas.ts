@@ -79,6 +79,7 @@ export const unirMesasComando = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { mesaPrincipalId: 'mesas', 'mesaIds[]': 'mesas' },
   modulo: 'mesas',
   entrada: entradaUnirMesas,
   async ejecutar(ctx, entrada) {
@@ -193,6 +194,7 @@ export const separarMesasComando = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { unionId: 'uniones_mesa' },
   modulo: 'mesas',
   entrada: entradaSepararMesas,
   async ejecutar(ctx, entrada) {

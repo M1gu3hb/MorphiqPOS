@@ -9,6 +9,7 @@ import {
 import { ambitoDe, ORG, SESION_CAJA, SUCURSAL, TERMINAL } from '../restaurante/pruebas/sala.ts';
 import {
   moverDepositoEnvase,
+  pasivosDelDia,
   registrarAbonoFiado,
   registrarComision,
   uuidDeProveedor,
@@ -148,9 +149,65 @@ describe('F-255 · la recarga que hoy destruye el margen', () => {
   });
 });
 
-describe('F-254 · el abono de fiado', () => {
-  it('BAJA LA DEUDA: el abono entra NEGATIVO', async () => {
-    const base = baseDe();
+describe('F-254 · el abono de fiado, sobre la cartera (C.10 de la 2.4)', () => {
+  // Lo que la tienda fió: dos documentos, el más viejo vence primero.
+  const DEBE = [
+    {
+      id: 'viejo',
+      organizacion_id: ORG,
+      cliente_id: CLIENTE,
+      folio: 'CR-1',
+      emitido_en: new Date(AHORA.getTime() - 20 * 86_400_000),
+      vence_en: new Date(AHORA.getTime() - 5 * 86_400_000),
+      importe_centavos: 3_000n,
+      saldo_centavos: 3_000n,
+    },
+    {
+      id: 'nuevo',
+      organizacion_id: ORG,
+      cliente_id: CLIENTE,
+      folio: 'CR-2',
+      emitido_en: AHORA,
+      vence_en: new Date(AHORA.getTime() + 15 * 86_400_000),
+      importe_centavos: 4_000n,
+      saldo_centavos: 4_000n,
+    },
+  ];
+
+  const conCartera = (extra: Partial<TablasFalsas> = {}) =>
+    crearBaseFalsa(
+      tienda({
+        clientes: [
+          {
+            id: CLIENTE,
+            organizacion_id: ORG,
+            nombre: 'Doña Mary',
+            limite_credito_centavos: 50_000n,
+            dias_plazo: 15,
+            bloqueado_por_mora: false,
+          },
+        ],
+        documentos_credito: DEBE.map((d) => ({ ...d })),
+        pagos_credito: [],
+        aplicaciones_pago: [],
+        ...extra,
+      }),
+      {
+        predeterminados: {
+          pagos_credito: {
+            referencia: null,
+            movimiento_caja_id: null,
+            sesion_caja_id: null,
+            sucursal_id: null,
+          },
+          movimientos_caja: { referencia_tipo: null, referencia_id: null, motivo: null },
+        },
+      },
+    );
+
+  it('BAJA LA DEUDA QUE LA PANTALLA LEE: el documento más viejo primero', async () => {
+    // El abono iba a `pasivos_terceros`, que nadie lee: el saldo volvía al recargar.
+    const base = conCartera();
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     const salida = await registrarAbonoFiado.ejecutar(ctx, {
@@ -159,14 +216,32 @@ describe('F-254 · el abono de fiado', () => {
       metodo: 'efectivo',
     });
 
-    expect(salida.montoCentavos).toBe('-5000');
-    expect(base.campo('pasivos_terceros', 'naturaleza')).toBe('credito_cliente');
+    const saldo = (id: string): unknown =>
+      base.filas('documentos_credito').find((d) => d['id'] === id)?.['saldo_centavos'];
+    expect(saldo('viejo')).toBe(0n);
+    expect(saldo('nuevo')).toBe(2_000n);
+    expect(salida.saldoDespuesCentavos).toBe('2000');
+    expect(base.filas('pagos_credito')).toHaveLength(1);
+    // Y el libro paralelo ya no se escribe.
+    expect(base.filas('pasivos_terceros')).toEqual([]);
   });
 
-  it('SÓLO EL EFECTIVO ENTRA AL CAJÓN', async () => {
-    // Un abono con tarjeta no lo toca. Registrarlo como si lo hiciera dejaría
-    // el arqueo con dinero que no está.
-    const base = baseDe();
+  it('EL EFECTIVO ENTRA AL CAJÓN como depósito, no como venta', async () => {
+    const base = conCartera();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    await registrarAbonoFiado.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 5_000,
+      metodo: 'efectivo',
+    });
+
+    expect(base.campo('movimientos_caja', 'tipo')).toBe('deposito');
+    expect(base.campo('movimientos_caja', 'monto_centavos')).toBe(5_000n);
+  });
+
+  it('SÓLO EL EFECTIVO ENTRA AL CAJÓN: la tarjeta baja el saldo y no lo toca', async () => {
+    const base = conCartera();
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     await registrarAbonoFiado.ejecutar(ctx, {
@@ -176,11 +251,30 @@ describe('F-254 · el abono de fiado', () => {
     });
 
     expect(base.filas('movimientos_caja')).toEqual([]);
-    expect(base.filas('pasivos_terceros')).toHaveLength(1);
+    expect(
+      base.filas('documentos_credito').find((d) => d['id'] === 'viejo')?.['saldo_centavos'],
+    ).toBe(0n);
+  });
+
+  it('LA TRANSFERENCIA queda por confirmar: el saldo no baja hasta que alguien mire el banco', async () => {
+    const base = conCartera();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await registrarAbonoFiado.ejecutar(ctx, {
+      clienteId: CLIENTE,
+      montoCentavos: 5_000,
+      metodo: 'transferencia',
+    });
+
+    expect(salida.pendienteDeConfirmar).toBe(true);
+    expect(base.filas('documentos_credito').map((d) => d['saldo_centavos'])).toEqual([
+      3_000n,
+      4_000n,
+    ]);
   });
 
   it('un cliente de otro negocio', async () => {
-    const base = baseDe({ clientes: [] });
+    const base = conCartera({ clientes: [] });
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
 
     expect(
@@ -230,6 +324,36 @@ describe('F-256 · el casco', () => {
   });
 });
 
+describe('F-255 · la operación del comisionista, como la acepta la base', () => {
+  // `operacion_comision_tipo_valido` (095): el tipo es el de la OPERACIÓN. La base falsa no
+  // hace cumplir `check`, así que la lista se afirma aquí tal cual está en la migración:
+  // con el tipo de servicio, Postgres rechazaba con 23514 toda recarga y todo recibo.
+  const TIPOS_DE_OPERACION = ['venta', 'compra_saldo', 'entrega', 'ajuste', 'cancelacion'];
+
+  it('una recarga y un recibo se anotan como VENTA del servicio', async () => {
+    for (const operacion of [
+      RECARGA,
+      {
+        ...RECARGA,
+        tipo: 'pago_servicio' as const,
+        proveedorServicio: 'CFE',
+        referencia: '0123456789',
+      },
+    ]) {
+      const base = baseDe();
+      const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+      await registrarComision.ejecutar(ctx, operacion);
+      const [fila] = base.filas('operaciones_comision');
+      expect(fila?.['tipo']).toBe('venta');
+      expect(TIPOS_DE_OPERACION).toContain(fila?.['tipo']);
+      // Qué servicio fue lo dice el comisionista, y por ahí agrupa el corte.
+      expect(base.filas('comisionistas')[0]?.['tipo']).toBe(
+        operacion.tipo === 'recarga' ? 'recarga' : 'recibo',
+      );
+    }
+  });
+});
+
 describe('el titular derivado de un proveedor de servicio', () => {
   it('ES ESTABLE: dos recargas a Telcel suman al mismo saldo', () => {
     expect(uuidDeProveedor('Telcel')).toBe(uuidDeProveedor('Telcel'));
@@ -245,5 +369,82 @@ describe('el titular derivado de un proveedor de servicio', () => {
     expect(uuidDeProveedor('Telcel')).toMatch(
       /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-8[0-9a-f]{3}-[0-9a-f]{12}$/,
     );
+  });
+});
+
+describe('pasivos.del_dia · el dinero ajeno del día, para conciliar (D.2 de la 2.4)', () => {
+  const OTRA_SUCURSAL = '99999999-9999-4999-8999-999999999999';
+  const AYER = new Date('2026-09-14T08:00:00.000Z');
+  const HOY = new Date('2026-09-15T09:00:00.000Z');
+
+  const libros = () =>
+    crearBaseFalsa({
+      pasivos_terceros: [
+        {
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          naturaleza: 'envase_retornable',
+          monto_centavos: 2_000n,
+          created_at: HOY,
+        },
+        {
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          naturaleza: 'servicio_terceros',
+          monto_centavos: 19_400n,
+          created_at: AYER,
+        },
+        {
+          organizacion_id: ORG,
+          sucursal_id: OTRA_SUCURSAL,
+          naturaleza: 'envase_retornable',
+          monto_centavos: 1_000n,
+          created_at: HOY,
+        },
+      ],
+      pagos_credito: [
+        {
+          organizacion_id: ORG,
+          sucursal_id: SUCURSAL,
+          monto_centavos: 5_000n,
+          metodo: 'efectivo',
+          created_at: HOY,
+        },
+        {
+          organizacion_id: ORG,
+          sucursal_id: OTRA_SUCURSAL,
+          monto_centavos: 7_000n,
+          metodo: 'efectivo',
+          created_at: HOY,
+        },
+      ],
+    });
+
+  it('junta los dos libros —pasivos y abonos— de ESTA sucursal y desde la hora pedida', async () => {
+    const base = libros();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('gerente'), AHORA);
+
+    const { movimientos } = await pasivosDelDia.ejecutar(ctx, {
+      desde: '2026-09-15T00:00:00.000Z',
+    });
+
+    expect(movimientos).toEqual([
+      {
+        concepto: 'envase_retornable',
+        montoCentavos: '2000',
+        metodo: null,
+        registradoEn: HOY.toISOString(),
+      },
+      {
+        concepto: 'abono_credito',
+        montoCentavos: '5000',
+        metodo: 'efectivo',
+        registradoEn: HOY.toISOString(),
+      },
+    ]);
+  });
+
+  it('el cajero no la lee: es la vista de quien cuadra el día', () => {
+    expect(pasivosDelDia.roles).not.toContain('cajero');
   });
 });

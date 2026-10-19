@@ -3,7 +3,12 @@ import { fileURLToPath } from 'node:url';
 
 import { describe, expect, it } from 'vitest';
 
-import { INDICES_UNICOS_046, problemasDeSeguridad, type EstadoSeguridad } from './rls.ts';
+import {
+  INDICES_UNICOS_046,
+  problemasDeSeguridad,
+  SUSTITUIDOS,
+  type EstadoSeguridad,
+} from './rls.ts';
 
 const SCRIPT =
   process.env['MORPHIQPOS_RLS_VERIFY_SCRIPT_PATH'] ??
@@ -135,5 +140,33 @@ describe('C-13 · verificación viva de RLS y grants', () => {
     const scripts = leerScripts();
     expect('verify:rls' in scripts && scripts['verify:rls']).toContain('verificar-rls.mjs');
     expect('verify' in scripts && scripts.verify).toContain('pnpm verify:rls');
+  });
+});
+
+describe('un índice crítico SUSTITUIDO por un disparador (179)', () => {
+  const base = (disparadores: readonly string[], sinIndice: string): EstadoSeguridad => ({
+    relaciones: [],
+    funciones: [],
+    indices: INDICES_UNICOS_046.filter((n) => n !== sinIndice).map((nombre) => ({
+      nombre,
+      unico: true,
+      valido: true,
+    })),
+    disparadores,
+  });
+
+  it('deja de exigirse como índice sólo si su disparador está', () => {
+    const indice = 'sesiones_caja_una_abierta_por_sucursal';
+    expect(problemasDeSeguridad(base([SUSTITUIDOS[indice] ?? ''], indice))).toEqual([]);
+    expect(problemasDeSeguridad(base([], indice))).toEqual([
+      `${indice}: ni el índice 046 ni su sustituto (sesiones_caja_cupo_de_la_sucursal) están`,
+    ]);
+  });
+
+  it('un índice crítico sin sustituto declarado sigue siendo obligatorio', () => {
+    const otro = INDICES_UNICOS_046.find((n) => SUSTITUIDOS[n] === undefined) ?? '';
+    expect(problemasDeSeguridad(base(['sesiones_caja_cupo_de_la_sucursal'], otro))).toEqual([
+      `${otro}: índice 046 ausente`,
+    ]);
   });
 });

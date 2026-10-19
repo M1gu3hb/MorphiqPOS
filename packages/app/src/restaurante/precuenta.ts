@@ -84,6 +84,7 @@ export const imprimirPrecuenta = definirComando<
   escribe: true,
   roles: [...ROLES_DE_SALA],
   paquetes: PAQUETES_RESTAURANTE,
+  sucursal: { ordenId: 'ordenes' },
   entrada: entradaImprimirPrecuenta,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

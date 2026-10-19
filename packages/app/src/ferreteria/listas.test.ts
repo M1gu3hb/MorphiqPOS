@@ -27,8 +27,24 @@ const AHORA = new Date('2026-09-15T12:00:00.000Z');
 const LISTA = '11500000-0000-4000-8000-000000000001';
 const PRODUCTO = 'b0000000-0000-4000-8000-000000000002';
 
+const CLIENTE = 'c1000000-0000-4000-8000-000000000001';
+const OTRO_CLIENTE = 'c1000000-0000-4000-8000-000000000002';
+const OBRA = '0b000000-0000-4000-8000-000000000001';
+const NO_EXISTE = 'dead0000-0000-4000-8000-000000000000';
+
 function tabla(extra: Partial<TablasFalsas> = {}): TablasFalsas {
-  return { listas_trabajo: [], lineas_lista_trabajo: [], ...extra };
+  return {
+    listas_trabajo: [],
+    lineas_lista_trabajo: [],
+    // El catálogo y la cartera de ESTE negocio: lo que una lista puede nombrar.
+    productos: [{ id: PRODUCTO, organizacion_id: ORG }],
+    clientes: [
+      { id: CLIENTE, organizacion_id: ORG },
+      { id: OTRO_CLIENTE, organizacion_id: ORG },
+    ],
+    obras: [{ id: OBRA, organizacion_id: ORG, cliente_id: CLIENTE }],
+    ...extra,
+  };
 }
 
 /**
@@ -190,6 +206,86 @@ describe('F-153 · capturar', () => {
 
     expect(codigo).toBe('CONFIGURACION_INVALIDA');
     expect(base.filas('listas_trabajo')).toEqual([]);
+  });
+
+  /**
+   * Lo que la lista nombra se comprueba ANTES de escribir. Era la llave foránea la que lo
+   * paraba, con un 500: una ficha borrada en otra pestaña tumbaba la captura entera.
+   */
+  it('un material que no está en el catálogo se contesta, y no se escribe nada', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const codigo = await codigoDe(() =>
+      capturarListaTrabajo.ejecutar(ctx, {
+        titulo: 'Losa del 3er piso',
+        clienteId: null,
+        obraId: null,
+        nombreLibre: 'Don Beto',
+        telefonoLibre: null,
+        renglones: [
+          {
+            textoPedido: 'varilla del 3, veinte piezas',
+            productoId: NO_EXISTE,
+            cantidad: '20.0000',
+            unidad: 'pieza',
+          },
+        ],
+      }),
+    );
+
+    expect(codigo).toBe('PRODUCTO_NO_ENCONTRADO');
+    expect(base.filas('listas_trabajo')).toEqual([]);
+    expect(base.filas('lineas_lista_trabajo')).toEqual([]);
+  });
+
+  it('un cliente que no es de este negocio se contesta como uno que no existe', async () => {
+    const base = baseDe({
+      clientes: [{ id: NO_EXISTE, organizacion_id: 'otro-negocio' }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const codigo = await codigoDe(() =>
+      capturarListaTrabajo.ejecutar(ctx, {
+        titulo: 'Losa del 3er piso',
+        clienteId: NO_EXISTE,
+        obraId: null,
+        nombreLibre: null,
+        telefonoLibre: null,
+        renglones: RENGLONES,
+      }),
+    );
+
+    expect(codigo).toBe('PUENTE_NO_ENCONTRADO');
+    expect(base.filas('listas_trabajo')).toEqual([]);
+  });
+
+  it('una obra de OTRO cliente no se acepta: el material iría a la cuenta equivocada', async () => {
+    const base = baseDe();
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const conOtro = await codigoDe(() =>
+      capturarListaTrabajo.ejecutar(ctx, {
+        titulo: 'Losa del 3er piso',
+        clienteId: OTRO_CLIENTE,
+        obraId: OBRA,
+        nombreLibre: null,
+        telefonoLibre: null,
+        renglones: RENGLONES,
+      }),
+    );
+    const conSuyo = await capturarListaTrabajo.ejecutar(ctx, {
+      titulo: 'Losa del 3er piso',
+      clienteId: CLIENTE,
+      obraId: OBRA,
+      nombreLibre: null,
+      telefonoLibre: null,
+      renglones: RENGLONES,
+    });
+
+    expect(conOtro).toBe('PUENTE_NO_ENCONTRADO');
+    expect(conSuyo.renglones).toBe(2);
+    expect(base.filas('listas_trabajo')).toHaveLength(1);
   });
 });
 

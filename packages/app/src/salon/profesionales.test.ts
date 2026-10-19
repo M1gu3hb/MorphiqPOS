@@ -6,7 +6,7 @@ import {
   crearBaseFalsa,
   type TablasFalsas,
 } from '../restaurante/pruebas/base-falsa.ts';
-import { ambitoDe, ORG } from '../restaurante/pruebas/sala.ts';
+import { ambitoDe, EMPLEO, ORG } from '../restaurante/pruebas/sala.ts';
 import {
   comisionesDelProfesional,
   comprobanteDeLiquidacion,
@@ -77,7 +77,8 @@ function comision(cambios: Record<string, unknown> = {}): Record<string, unknown
 
 function baseDe(extra: Partial<TablasFalsas> = {}) {
   return crearBaseFalsa({
-    profesionales: [profesional(KARLA, 'Karla', 'e1')],
+    // Karla es la estilista que entra: su empleo es el de la sesión (`ambitoDe`).
+    profesionales: [profesional(KARLA, 'Karla', EMPLEO)],
     citas: [],
     cita_servicios: [],
     clientes: [],
@@ -110,6 +111,17 @@ describe('F-420 · quién atiende', () => {
     const salida = await listaDeProfesionales.ejecutar(ctx, { incluirInactivos: false });
 
     expect(salida.profesionales.map((p) => p.rentaEstacion)).toEqual([false, true]);
+  });
+
+  it('LA ESTILISTA SE VE A ELLA, no el nivel ni la renta de las demás (auditoría de la 2.4)', async () => {
+    const base = baseDe({
+      profesionales: [profesional(KARLA, 'Karla', EMPLEO), profesional(DANY, 'Dany', 'e2')],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    const salida = await listaDeProfesionales.ejecutar(ctx, { incluirInactivos: false });
+
+    expect(salida.profesionales.map((p) => p.profesionalId)).toEqual([KARLA]);
   });
 
   it('los de BAJA no salen salvo que se pidan', async () => {
@@ -229,6 +241,42 @@ describe('F-426 · mi día', () => {
 
     expect(salida.comisionDelDiaCentavos).toBe('36000');
     expect(salida.propinaDelDiaCentavos).toBe('5000');
+  });
+
+  /**
+   * C.9 de la 2.4 · lo que el documento pone al lado de cada cita, y que no llegaba: la
+   * comisión de ESE servicio, cuánto dura su procesado y si la clienta tiene alergias.
+   */
+  it('cada servicio trae SU comisión, su procesado y la alergia del expediente', async () => {
+    const base = baseDe({
+      ...dia,
+      comisiones_causadas: [comision(), comision({ id: 'k2', cita_servicio_id: 'otro' })],
+      servicios: [{ producto_id: 's1', organizacion_id: ORG, duracion_pasiva_min: 45 }],
+      expedientes_belleza: [
+        { cliente_id: CLIENTA, organizacion_id: ORG, alergias: 'Amoniaco: ardor en el cuero' },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    const salida = await miDia.ejecutar(ctx, { profesionalId: KARLA, fecha: '2026-09-16' });
+
+    expect(salida.citas[0]?.comisionCentavos).toBe('36000');
+    expect(salida.citas[0]?.minutosProcesado).toBe(45);
+    expect(salida.citas[0]?.alergias).toBe(true);
+  });
+
+  it('sin comisión causada, sin procesado y con el expediente en blanco, lo dice así', async () => {
+    const base = baseDe({
+      ...dia,
+      expedientes_belleza: [{ cliente_id: CLIENTA, organizacion_id: ORG, alergias: '  ' }],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
+
+    const salida = await miDia.ejecutar(ctx, { profesionalId: KARLA, fecha: '2026-09-16' });
+
+    expect(salida.citas[0]?.comisionCentavos).toBeNull();
+    expect(salida.citas[0]?.minutosProcesado).toBeNull();
+    expect(salida.citas[0]?.alergias).toBe(false);
   });
 
   it('un día sin citas devuelve la lista vacía', async () => {
@@ -358,5 +406,58 @@ describe('F-427 · el comprobante', () => {
     expect(
       await codigoDe(() => comprobanteDeLiquidacion.ejecutar(ctx, { liquidacionId: LIQUIDACION })),
     ).toBe('PUENTE_NO_ENCONTRADO');
+  });
+});
+
+/**
+ * C.10 de la 2.4 · LA ESTILISTA SÓLO VE LO SUYO, también por los comandos.
+ *
+ * El puente ya lo recortaba (C.7), pero «Mi día», las comisiones y la agenda leen
+ * comandos, y los comandos no miraban quién entraba: pasando el id de otra, una estilista
+ * leía su día y sus comisiones.
+ */
+describe('C.10 · el recorte de la estilista en los comandos', () => {
+  const conDany = () =>
+    baseDe({
+      profesionales: [profesional(KARLA, 'Karla', EMPLEO), profesional(DANY, 'Dany', 'e2')],
+      comisiones_causadas: [comision({ profesional_id: DANY, id: 'k-dany' })],
+    });
+
+  it('la estilista NO lee las comisiones de otra pasando su id', async () => {
+    const { ctx } = contextoFalso(conDany().tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() =>
+        comisionesDelProfesional.ejecutar(ctx, {
+          profesionalId: DANY,
+          desde: '2026-09-01',
+          hasta: '2026-09-30',
+        }),
+      ),
+    ).toBe('PUENTE_SIN_PERMISO');
+  });
+
+  it('ni abre «Mi día» de otra', async () => {
+    const { ctx } = contextoFalso(conDany().tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() => miDia.ejecutar(ctx, { profesionalId: DANY, fecha: '2026-09-16' })),
+    ).toBe('PUENTE_SIN_PERMISO');
+  });
+
+  it('la recepción sí lee las de cualquiera', async () => {
+    const { ctx } = contextoFalso(conDany().tx, ambitoDe('cajero'), AHORA);
+    const salida = await comisionesDelProfesional.ejecutar(ctx, {
+      profesionalId: DANY,
+      desde: '2026-09-01',
+      hasta: '2026-09-30',
+    });
+    expect(salida.causadoCentavos).toBe('36000');
+  });
+
+  it('una estilista sin profesional ligada no ve la de nadie', async () => {
+    const sinLigar = baseDe({ profesionales: [profesional(KARLA, 'Karla', 'otro-empleo')] });
+    const { ctx } = contextoFalso(sinLigar.tx, ambitoDe('mesero'), AHORA);
+    expect(
+      await codigoDe(() => miDia.ejecutar(ctx, { profesionalId: KARLA, fecha: '2026-09-16' })),
+    ).toBe('PUENTE_SIN_PERMISO');
   });
 });

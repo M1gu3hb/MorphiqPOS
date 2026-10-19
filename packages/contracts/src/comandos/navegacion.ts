@@ -362,6 +362,24 @@ const FERRETERIA: readonly EntradaDeMenu[] = [
     modulo: 'caja_directa',
     permiso: 'ver_caja',
   },
+  /**
+   * EL CAJÓN Y SU CORTE, heredados de abarrotes (§PANTALLA 9). No tenían dirección: la
+   * ferretería no podía abrir ni cerrar su caja desde el sistema (C.6 de la 2.4).
+   */
+  {
+    ruta: '/ferreteria/fondo-y-movimientos',
+    etiqueta: 'Fondo y movimientos',
+    icono: 'Landmark',
+    modulo: 'caja_directa',
+    permiso: 'ver_caja',
+  },
+  {
+    ruta: '/ferreteria/cortes',
+    etiqueta: 'Cortes',
+    icono: 'ClipboardCheck',
+    modulo: 'cortes',
+    permiso: 'ver_caja',
+  },
   {
     ruta: '/ferreteria/cotizacion',
     etiqueta: 'Cotización',
@@ -442,7 +460,9 @@ const ESTETICA: readonly EntradaDeMenu[] = [
     etiqueta: 'Agenda',
     icono: 'CalendarDays',
     modulo: 'agenda',
-    permiso: 'ver_dashboard',
+    // La recepción y las estilistas la leen todo el día (D.1 de la 2.4): con
+    // `ver_dashboard` sólo la veía quien dirige.
+    permiso: 'ver_agenda',
   },
   {
     ruta: '/estetica-salon/agendar',

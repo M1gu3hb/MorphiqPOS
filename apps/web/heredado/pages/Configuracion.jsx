@@ -40,7 +40,9 @@ import {
 } from 'lucide-react';
 import IntegracionesRespaldos from '@/components/configuracion/IntegracionesRespaldos';
 import DatosSection from '@/components/datos/DatosSection';
-import ModoPresentacion from '@/components/configuracion/ModoPresentacion';
+import { PresentacionDelDueno } from '~/configuracion/PresentacionDelDueno';
+import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
+import { useLocation } from '@/enrutado';
 import { canAccessModule } from '@/lib/packageConfig';
 import ReiniciarSistemaSection from '@/components/configuracion/ReiniciarSistemaSection';
 import CategoriasProductoSection from '@/components/configuracion/CategoriasProductoSection';
@@ -71,6 +73,7 @@ const useIsMobile = () => {
 };
 
 export default function Configuracion() {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { posUser } = usePOSAuth();
   const { paquete_modo } = useConfig();
@@ -443,12 +446,13 @@ export default function Configuracion() {
     <div className="space-y-6">
       <PageHeader title="Configuración" description="Ajustes del sistema MH Astral Systems" />
 
-      <Tabs defaultValue="identidad">
+      <Tabs defaultValue={new URLSearchParams(location.search).get('tab') || 'identidad'}>
         <TabsList className="mb-4 flex-wrap h-auto">
           <TabsTrigger value="identidad">
             <Palette className="w-3 h-3 mr-1" />
             Identidad
           </TabsTrigger>
+          <TabsTrigger value="apariencia">Apariencia</TabsTrigger>
           <TabsTrigger value="negocio">
             <Settings className="w-3 h-3 mr-1" />
             Operación
@@ -491,6 +495,10 @@ export default function Configuracion() {
 
         <TabsContent value="identidad">
           <IdentidadNegocio cfg={cfg} />
+        </TabsContent>
+
+        <TabsContent value="apariencia">
+          <SelectorDeApariencia />
         </TabsContent>
 
         <TabsContent value="negocio">
@@ -675,7 +683,7 @@ export default function Configuracion() {
                     />
                   </div>
                   {bizForm.asignacion_mesas_activa !== true && (
-                    <div className="text-xs px-3 py-2 rounded-lg bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/60 text-amber-800 dark:text-amber-300">
+                    <div className="text-xs px-3 py-2 rounded-lg bg-advertencia/10 border border-advertencia/30 text-advertencia">
                       Para permitir pedidos desde el QR, activa primero la{' '}
                       <strong>asignación de mesas</strong>.
                     </div>
@@ -818,7 +826,7 @@ export default function Configuracion() {
                                 {u.estacion_preparacion_nombre || 'Estación'}
                               </span>
                             ) : (
-                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-amber-50 text-amber-700 border-amber-200">
+                              <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border bg-advertencia/10 text-advertencia border-advertencia/30">
                                 Sin estación
                               </span>
                             )}
@@ -890,7 +898,7 @@ export default function Configuracion() {
 
         {posUser?.rol === 'administrador' && (
           <TabsContent value="presentacion">
-            <ModoPresentacion cfg={cfg} />
+            <PresentacionDelDueno cfg={cfg} />
           </TabsContent>
         )}
 
@@ -933,7 +941,7 @@ export default function Configuracion() {
                     <button
                       key={z}
                       onClick={() => setZonaFiltro(z)}
-                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${zonaFiltro === z ? 'bg-primary text-white' : 'bg-white border text-muted-foreground'}`}
+                      className={`shrink-0 px-3 py-1 rounded-full text-xs font-medium ${zonaFiltro === z ? 'bg-primary text-primario-texto' : 'bg-superficie border text-muted-foreground'}`}
                     >
                       {z}{' '}
                       <span className="opacity-60">

@@ -76,7 +76,7 @@ export default function CocinaMesaGroupCard({ pedidos, onIniciar, onListo, onQui
             boxShadow: '0 1px 0 rgba(255,255,255,0.2) inset, 0 2px 6px rgba(0,0,0,0.15)',
           }}
         >
-          <UtensilsCrossed className="w-4 h-4 text-white" />
+          <UtensilsCrossed className="w-4 h-4 text-primario-texto" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-heading font-black text-sm leading-tight">{mesaLabel}</p>
@@ -100,17 +100,17 @@ export default function CocinaMesaGroupCard({ pedidos, onIniciar, onListo, onQui
         return (
           <div className="px-2 pt-2 space-y-1.5">
             {conAlergia && (
-              <div className="flex items-start gap-1.5 px-2 py-1 rounded-md border-2 bg-amber-100 border-amber-500 dark:bg-amber-950/50 dark:border-amber-600">
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
-                <p className="text-[11px] font-bold text-amber-900 dark:text-amber-100 leading-snug">
+              <div className="flex items-start gap-1.5 px-2 py-1 rounded-md border-2 bg-advertencia/15 border-advertencia">
+                <AlertTriangle className="w-3.5 h-3.5 text-advertencia shrink-0 mt-0.5" />
+                <p className="text-[11px] font-bold text-advertencia leading-snug">
                   Alergia: {conAlergia.notas_alergias}
                 </p>
               </div>
             )}
             {conCele && (
-              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border bg-pink-50 border-pink-300 dark:bg-pink-950/30 dark:border-pink-800/60">
+              <div className="flex items-center gap-1.5 px-2 py-1 rounded-md border bg-acento/10 border-acento/30">
                 <span className="text-sm leading-none">🎉</span>
-                <p className="text-[11px] font-bold text-pink-800 dark:text-pink-200 leading-tight">
+                <p className="text-[11px] font-bold text-acento leading-tight">
                   {conCele?.tipo_celebracion
                     ? `Celebración: ${conCele.tipo_celebracion}`
                     : 'Celebración especial'}

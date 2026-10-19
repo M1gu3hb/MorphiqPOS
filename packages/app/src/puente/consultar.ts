@@ -1,7 +1,8 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, veConsolidado } from '@morphiqpos/contracts';
 import { leyendoConReintento, obtenerDb } from '@morphiqpos/data';
+import { sql, type RawBuilder } from 'kysely';
 
 import { baseLibre } from './db-dinamica.ts';
 
@@ -38,6 +39,17 @@ import {
 export interface Ambito {
   readonly organizacionId: string;
   readonly rol: string;
+  /**
+   * El empleo de la sesión. Lo necesita el recorte `soloDeQuienEntra` (C.7 de la 2.4);
+   * sin él, una entidad con recorte no devuelve NADA a esos roles: falla cerrada.
+   */
+  readonly empleoId?: string;
+  /**
+   * La sucursal de la sesión: la de su terminal, o la de su empleo (`resolverSesion`). La
+   * pide la FRONTERA POR SUCURSAL (D-36): quien no consolida sólo lee lo de la suya, y sin
+   * sucursal no lee nada que sea de una —falla cerrada, como el recorte por persona—.
+   */
+  readonly sucursalId?: string | null;
 }
 
 /**
@@ -84,7 +96,7 @@ type Fila = Record<string, unknown>;
  */
 interface ConsultaLibre {
   leftJoin(tabla: string, columnaIzquierda: string, columnaDerecha: string): ConsultaLibre;
-  where(columna: string, operador: string, valor: unknown): ConsultaLibre;
+  where(columna: string | RawBuilder<unknown>, operador: string, valor: unknown): ConsultaLibre;
   orderBy(columna: string, direccion: 'asc' | 'desc'): ConsultaLibre;
   limit(n: number): ConsultaLibre;
   execute(): Promise<Fila[]>;
@@ -98,6 +110,52 @@ interface ConsultaLibre {
  * SIEMPRE, con join o sin él, para que no haya dos caminos que mantener.
  */
 const BASE = 'b';
+
+/** Ninguna sucursal: la sesión sin sucursal de quien no consolida no empareja ninguna fila. */
+const NINGUNA_SUCURSAL = '00000000-0000-4000-8000-000000000000';
+
+/**
+ * Aplica la frontera por sucursal de la entidad (D-36). Quien consolida —dueño y
+ * administrador— lee todas; los demás, la de su sesión. Una entidad del negocio entero
+ * (`delNegocio`) no se recorta.
+ */
+function conFronteraDeSucursal(
+  consulta: ConsultaLibre,
+  mapa: MapaEntidad,
+  ambito: Ambito,
+): ConsultaLibre {
+  const frontera = mapa.sucursal;
+  if (veConsolidado(ambito.rol) || 'delNegocio' in frontera) return consulta;
+  const sucursal = ambito.sucursalId ?? NINGUNA_SUCURSAL;
+  if ('columna' in frontera) {
+    const columna = sql.ref(`${BASE}.${frontera.columna}`);
+    return frontera.nulaEsDelNegocio === true
+      ? consulta.where(sql`coalesce(${columna}, ${sucursal}::uuid)`, '=', sucursal)
+      : consulta.where(`${BASE}.${frontera.columna}`, '=', sucursal);
+  }
+  const { columna, tabla, columnaSucursal, nulaEsDelNegocio } = frontera.porPadre;
+  const delPadre = sql.ref(columnaSucursal ?? 'sucursal_id');
+  const padres = baseLibre(obtenerDb())
+    .selectFrom(tabla)
+    .select('id' as never)
+    .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+    .where(
+      (nulaEsDelNegocio === true
+        ? sql`coalesce(${delPadre}, ${sucursal}::uuid)`
+        : delPadre) as never,
+      '=',
+      sucursal as never,
+    );
+  return consulta.where(`${BASE}.${columna}`, 'in', padres);
+}
+
+/** El campo si este rol lo puede ver; si no, como si no estuviera en el mapa. */
+function vistoPor<C extends { readonly rolesLectura?: readonly string[] }>(
+  campo: C | undefined,
+  puedeVer: (c: C) => boolean,
+): C | undefined {
+  return campo !== undefined && puedeVer(campo) ? campo : undefined;
+}
 
 /** El alias del grupo de derivados número `n`. Dos campos que hacen exactamente
  * el mismo `join` comparten alias; si cambia una de las columnas de enlace,
@@ -218,6 +276,45 @@ async function consultarUnaVez(
   // 1 · El ámbito. No es negociable y va antes que nada.
   consulta = consulta.where(`${BASE}.organizacion_id`, '=', ambito.organizacionId);
 
+  // 1b · Lo que este rol sólo ve si es SUYO (C.7 de la 2.4): las filas de la profesional
+  //      ligada al empleo de la sesión, y ninguna otra. Del ámbito, nunca del cliente.
+  const recorte = mapa.soloDeQuienEntra;
+  if (recorte?.roles.includes(ambito.rol) === true) {
+    // Sin empleo en el ámbito no hay «suyo» que buscar: cero filas, no todas.
+    const empleoId = ambito.empleoId ?? '00000000-0000-4000-8000-000000000000';
+    const libre = baseLibre(obtenerDb());
+    const suyas = libre
+      .selectFrom('profesionales')
+      .select('id' as never)
+      .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+      .where('empleo_id' as never, '=', empleoId as never);
+    const citasSuyas = libre
+      .selectFrom('cita_servicios')
+      .select('cita_id' as never)
+      .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+      .where('profesional_id' as never, 'in', suyas);
+    if (recorte.porClientaPropia === true) {
+      consulta = consulta.where(
+        `${BASE}.${recorte.columna}`,
+        'in',
+        libre
+          .selectFrom('citas')
+          .select('cliente_id' as never)
+          .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+          .where('id' as never, 'in', citasSuyas),
+      );
+    } else {
+      consulta =
+        recorte.porServicio === true
+          ? consulta.where(`${BASE}.id`, 'in', citasSuyas)
+          : consulta.where(`${BASE}.${recorte.columna}`, 'in', suyas);
+    }
+  }
+
+  // 1c · LA FRONTERA POR SUCURSAL (D-36): quien no consolida lee SU sucursal y ninguna
+  //      otra. De la sesión, nunca del cliente; sin sucursal en la sesión, nada.
+  consulta = conFronteraDeSucursal(consulta, mapa, ambito);
+
   // 2 · El filtro fijo de la entidad (p. ej. categorias.tipo = 'producto').
   for (const [columna, valor] of Object.entries(mapa.filtroFijo ?? {})) {
     consulta = consulta.where(`${BASE}.${columna}`, '=', valor);
@@ -235,7 +332,10 @@ async function consultarUnaVez(
   //     clave que no está en el mapa se RECHAZA en vez de ignorarse: ignorarla
   //     devolvería más filas de las que la pantalla pidió, en silencio.
   for (const [clave, valor] of Object.entries(peticion.filtro ?? {})) {
-    const campo = mapa.campos[clave];
+    // Un campo que este rol no puede VER tampoco puede usarlo para filtrar: filtrar es
+    // preguntar por su valor fila por fila («¿alguien tiene este teléfono?»), y la
+    // respuesta llega aunque la columna no salga. Se contesta como si no existiera.
+    const campo = vistoPor(mapa.campos[clave], puedeVer);
     if (campo === undefined) {
       // Un derivado no se puede filtrar: filtrar por el nombre del mesero
       // parecería funcionar y devolvería lo que dijera el `join`, no lo que la
@@ -282,7 +382,7 @@ async function consultarUnaVez(
   //      vez de devolver algo que parezca una respuesta.
   if (peticion.rango !== undefined) {
     const { campo: clave, desde, hasta } = peticion.rango;
-    const campo = mapa.campos[clave];
+    const campo = vistoPor(mapa.campos[clave], puedeVer);
     if (campo === undefined) {
       throw new ErrorDominio(
         'PUENTE_CAMPO_INVALIDO',
@@ -320,7 +420,10 @@ async function consultarUnaVez(
   if (orden !== undefined && orden !== '') {
     const descendente = orden.startsWith('-');
     const clave = descendente ? orden.slice(1) : orden;
-    const campo = mapa.campos[clave];
+    // El orden por omisión lo decide el MAPA, no quien pide: ordenar por un campo que este
+    // rol no ve no le revela nada que él haya preguntado. El que pide la pantalla, sí.
+    const campo =
+      peticion.orden === undefined ? mapa.campos[clave] : vistoPor(mapa.campos[clave], puedeVer);
     if (campo === undefined) {
       throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', `No se puede ordenar por «${clave}».`);
     }
@@ -465,6 +568,30 @@ const FORMULAS: Readonly<Record<Calculo, (fila: Fila) => unknown>> = {
     const fecha = fila['created_date'];
     if (fecha instanceof Date) return fecha.toISOString();
     return typeof fecha === 'string' && fecha.length > 0 ? fecha : null;
+  },
+  /**
+   * Lo que se quedó en el cajón: contado − retirado (C.6 de la 2.4). La columna es la de
+   * lo RETIRADO —así se llama, y así la usa el corte de turno—; el fondo de mañana se
+   * deriva. Sin cualquiera de los dos, nulo: «no se dijo» no es cero.
+   */
+  dineroDejadoEnCaja(fila) {
+    const contado = enteroDe(fila['efectivo_contado']);
+    const retirado = enteroDe(fila['efectivo_retirado']);
+    if (contado === null || retirado === null) return null;
+    return Number(contado - retirado) / CENTAVOS_POR_PESO;
+  },
+  /**
+   * La existencia del producto: la de su insumo base si lo tiene; si no, la de su insumo
+   * propio (`materiales_mostrador`) SÓLO cuando ese insumo existe; si no, nula. La vista
+   * da cero para un producto sin insumo, y un cero ahí apagaría un latte (C.9 de la 2.4).
+   */
+  existenciaDelProducto(fila) {
+    const base = textoDeNumero(fila['existencia_base']);
+    if (base !== null) return Number(base);
+    const propio = fila['insumo_propio_id'];
+    if (typeof propio !== 'string' || propio === '') return null;
+    const enMostrador = textoDeNumero(fila['existencia_en_mostrador']);
+    return enMostrador === null ? null : Number(enMostrador);
   },
 };
 

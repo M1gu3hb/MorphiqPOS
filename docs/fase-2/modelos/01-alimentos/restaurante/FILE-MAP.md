@@ -204,18 +204,20 @@ Escrito con el código delante. `verify:cobertura` sale en 0 para este modelo:
 
 | Pieza | Dónde quedó | Prueba |
 |---|---|---|
-| **PANTALLA · portal-del-comensal** | `apps/web/src/restaurante/PortalDelComensal.tsx` · página en `apps/web/app/(modelos)/restaurante/portal-del-comensal/page.tsx` | la lógica pura está exportada y es la que se prueba |
+| **PANTALLA · portal-del-comensal** | ~~`apps/web/src/restaurante/PortalDelComensal.tsx`~~ **retirado en la 2.4 (C.11, D-25)**: el portal es UNO, el `PortalCliente` de Miguel en `/qr/[token]`; la página del modelo lo monta sin token | `restaurante.spec` abre la ruta del modelo y exige «Mesa no encontrada» |
 
 La pantalla se pinta con UNA petición al portal por token, que ya existía. No se
 añadió ninguna ruta: se añadió el consumidor. Es la única pantalla de todo el
 sistema que se abre SIN sesión, y por eso la respuesta del token trae ya
 resuelto lo que puede ver: el comensal no consulta, le contestan.
 
-### El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar
+### ~~El cambio de UNA LÍNEA que hará falta en `heredado/` al acoplar~~ — no se hizo, y no se hará (D-25)
 
-`heredado/pages/PortalQR.jsx` deja de resolver su propio estado y pasa a montar
-`PortalDelComensal` con el token de la URL. Es una línea —el `render`— porque
-todo lo demás ya vive en el componente nuevo.
+Se iba a montar `PortalDelComensal` en el QR. En la 2.4 (C.11) se comparó con el de Miguel y
+se quedó el de Miguel: tiene el pedido desde la mesa, el carrito, abrir la mesa y la propina
+en vivo cuando el mesero dispara la cuenta; el del modelo sólo enseñaba carta y cuenta. Desde
+C.16 el heredado pinta con los tokens del estilo, así que lo que le faltaba —verse igual en
+los ocho estilos— ya lo tiene.
 
 ---
 

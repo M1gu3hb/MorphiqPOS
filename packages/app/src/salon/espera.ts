@@ -65,7 +65,10 @@ export interface ResultadoEspera {
   readonly estado: string;
 }
 
-async function exigirEspera(ctx: ContextoComando<Transaccion>, esperaId: string): Promise<void> {
+export async function exigirEspera(
+  ctx: ContextoComando<Transaccion>,
+  esperaId: string,
+): Promise<void> {
   const fila = await ctx.paso('leer_espera', () =>
     ctx.tx
       .selectFrom('lista_espera_citas')
@@ -89,6 +92,7 @@ export const anotarEnEspera = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { profesionalId: 'profesionales' },
   entrada: entradaAnotarEnEspera,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;
@@ -144,6 +148,7 @@ export const avisarDeHueco = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { esperaId: 'lista_espera_citas' },
   entrada: entradaAvisarDeHueco,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
@@ -183,6 +188,7 @@ export const agendarDesdeEspera = definirComando<
   escribe: true,
   roles: [...RECEPCION],
   paquetes: PAQUETES_TODOS,
+  sucursal: { esperaId: 'lista_espera_citas', citaId: 'citas' },
   entrada: entradaAgendarDesdeEspera,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;

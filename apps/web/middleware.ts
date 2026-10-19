@@ -37,7 +37,16 @@ export function middleware(peticion: NextRequest): NextResponse {
   const correlacion = crypto.randomUUID();
   const esDesarrollo = process.env.NODE_ENV === 'development';
 
-  const csp = construirCsp(nonce, esDesarrollo);
+  /**
+   * ¿Este despliegue habla https? Lo dice su CONFIGURACIÓN, no la petición.
+   *
+   * `APP_URL` es la misma variable de la que sale el Origen esperado de una escritura
+   * (R-17), y por la misma razón: lo que llega en la petición lo pone quien llama. Sin
+   * `APP_URL` se asume https, que es lo seguro: un despliegue mal configurado se queda
+   * con la política estricta, no sin ella.
+   */
+  const sirveEnHttps = (process.env['APP_URL'] ?? 'https://').startsWith('https://');
+  const csp = construirCsp(nonce, esDesarrollo, sirveEnHttps);
 
   const cabeceras = new Headers(peticion.headers);
   cabeceras.set(CABECERA_NONCE, nonce);

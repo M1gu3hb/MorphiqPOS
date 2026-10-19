@@ -15,17 +15,17 @@ import CorteViewerDialog from './CorteViewerDialog';
 const TIPO_CONFIG = {
   cierre_diario: {
     label: 'Cierre diario',
-    cls: 'bg-red-100 text-red-700 border-red-200',
+    cls: 'bg-peligro/15 text-peligro border-peligro/30',
     Icon: Lock,
   },
   turno: {
     label: 'Corte de turno',
-    cls: 'bg-amber-100 text-amber-700 border-amber-200',
+    cls: 'bg-advertencia/15 text-advertencia border-advertencia/30',
     Icon: Scissors,
   },
   apertura: {
     label: 'Apertura',
-    cls: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    cls: 'bg-exito/15 text-exito border-exito/30',
     Icon: DoorOpen,
   },
 };

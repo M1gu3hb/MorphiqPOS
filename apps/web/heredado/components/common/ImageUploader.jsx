@@ -105,12 +105,12 @@ export default function ImageUploader({
         style={{ height }}
       >
         <img src={value} alt="Vista previa" className="w-full h-full object-cover" />
-        <div className="absolute inset-0 bg-black/0 group-hover:bg-black/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
+        <div className="absolute inset-0 bg-velo/0 group-hover:bg-velo/40 transition-colors flex items-center justify-center gap-2 opacity-0 group-hover:opacity-100">
           <button
             type="button"
             onClick={abrirSelector}
             disabled={disabled || uploading}
-            className="px-3 py-1.5 rounded-md bg-white text-slate-900 text-xs font-semibold shadow flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-1.5 rounded-md bg-superficie text-texto text-xs font-semibold shadow flex items-center gap-1.5 disabled:opacity-50"
           >
             {uploading ? (
               <Loader2 className="w-3.5 h-3.5 animate-spin" />
@@ -123,7 +123,7 @@ export default function ImageUploader({
             type="button"
             onClick={quitar}
             disabled={disabled || uploading}
-            className="px-3 py-1.5 rounded-md bg-red-600 text-white text-xs font-semibold shadow flex items-center gap-1.5 disabled:opacity-50"
+            className="px-3 py-1.5 rounded-md bg-peligro text-peligro-texto text-xs font-semibold shadow flex items-center gap-1.5 disabled:opacity-50"
           >
             <X className="w-3.5 h-3.5" /> Quitar
           </button>

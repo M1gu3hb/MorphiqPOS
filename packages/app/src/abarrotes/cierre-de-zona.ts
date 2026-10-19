@@ -61,6 +61,11 @@ export const entradaAjustarConteo = z.object({
          * servidor, igual que con los importes.
          */
         contado: z.string().regex(CANTIDAD, 'Lo contado va con hasta cuatro decimales.'),
+        /**
+         * El motivo de ESTA diferencia (C.10 de la 2.4): «caducado» no es «roto» ni
+         * «faltante». Sin él, el de la zona. LA CLAVE de `motivos_merma`.
+         */
+        motivo: z.string().trim().min(3).max(60).optional(),
       }),
     )
     .min(1)
@@ -114,6 +119,16 @@ export const ajustarConteo = definirComando<
     // El motivo, ANTES de escribir un solo renglón: un conteo de cien productos
     // que se aborta a la mitad por un motivo mal escrito es el recorrido entero.
     const motivo = await exigirMotivoDeMerma(ctx, entrada.motivo);
+    const motivosPorInsumo = new Map<string, string>();
+    for (const clave of new Set(
+      entrada.movimientos.map((m) => m.motivo).filter((m) => m !== undefined),
+    )) {
+      await exigirMotivoDeMerma(ctx, clave);
+    }
+    for (const movimiento of entrada.movimientos) {
+      if (movimiento.motivo !== undefined)
+        motivosPorInsumo.set(movimiento.insumoId, movimiento.motivo);
+    }
 
     const zona = await ctx.paso('resolver_zona', () =>
       ctx.tx
@@ -202,6 +217,7 @@ export const ajustarConteo = definirComando<
       { id: tomaId, almacenId, zonaId: zona.id },
       motivo,
       entrada.nota,
+      motivosPorInsumo,
     );
 
     ctx.auditar({

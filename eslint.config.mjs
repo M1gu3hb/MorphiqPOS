@@ -38,6 +38,10 @@ const IGNORADO = [
   // sistema funciona. Tiene su propio tsconfig permisivo (F1-02 §4) y se
   // endurece despues, pantalla por pantalla, cuando cada una ya se ve y anda.
   'apps/web/heredado/**',
+  // Los worktrees de los subagentes (TEAM.md §4): copias enteras del repositorio, ignoradas
+  // por git. Lintearlas desde aquí es lintear el repositorio dos o tres veces —y con lo que
+  // el subagente tenga a medias—.
+  '.claude/**',
 ];
 
 /**

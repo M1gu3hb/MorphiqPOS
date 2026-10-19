@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { FORMA_PIN, hashearPin } from './pin.ts';
+import { protegerDuenoGeneral } from './proteger-dueno-general.ts';
 
 /**
  * Administrar accesos desde la aplicación (F1.1-C-05 y C-06).
@@ -52,9 +53,14 @@ export const establecerPin = definirComando<
   escribe: true,
   roles: [...SOLO_MANDOS],
   paquetes: PAQUETES_TODOS,
+  sinFrontera: {
+    empleado:
+      'El equipo es del negocio: el dueño y el administrador ponen el PIN de la gente de todas las sucursales, también desde la terminal de una.',
+  },
   entrada: entradaEstablecerPin,
   async ejecutar(ctx, entrada) {
     const { organizacionId } = ctx.ambito;
+    await protegerDuenoGeneral(ctx.tx, ctx.ambito, entrada.empleado);
 
     // La identidad se busca DENTRO de la organización de quien manda. Sin este
     // filtro, conocer un uuid ajeno bastaría para ponerle PIN al cajero de otro

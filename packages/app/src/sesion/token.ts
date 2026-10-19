@@ -16,6 +16,13 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 
 /** Lo que viaja dentro del token. Cero datos personales (R31). */
 export interface CargaSesion {
+  /** La sesión del dueño general que autorizó este contexto de demostración. */
+  readonly presentador?: {
+    readonly sid: string;
+    readonly identidadId: string;
+    readonly empleoId: string;
+    readonly terminalId: string | null;
+  };
   /** Identificador de esta sesión, para poder revocarla. */
   readonly sid: string;
   readonly identidadId: string;
@@ -90,6 +97,21 @@ function leerCarga(cuerpo: string): CargaSesion | null {
   if (typeof c['exp'] !== 'number') return null;
   const terminal = c['terminalId'];
   if (terminal !== null && typeof terminal !== 'string') return null;
+  const presentador = c['presentador'];
+  if (
+    presentador !== undefined &&
+    (typeof presentador !== 'object' ||
+      presentador === null ||
+      !('sid' in presentador) ||
+      typeof presentador.sid !== 'string' ||
+      !('identidadId' in presentador) ||
+      typeof presentador.identidadId !== 'string' ||
+      !('empleoId' in presentador) ||
+      typeof presentador.empleoId !== 'string' ||
+      !('terminalId' in presentador) ||
+      (presentador.terminalId !== null && typeof presentador.terminalId !== 'string'))
+  )
+    return null;
 
   return {
     sid: c['sid'],
@@ -97,6 +119,9 @@ function leerCarga(cuerpo: string): CargaSesion | null {
     empleoId: c['empleoId'],
     terminalId: terminal,
     exp: c['exp'],
+    ...(presentador === undefined
+      ? {}
+      : { presentador: presentador as NonNullable<CargaSesion['presentador']> }),
   };
 }
 

@@ -1,8 +1,33 @@
 'use client';
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Skeleton } from '@morphiqpos/ui/primitivas/skeleton';
-import { useEffect, useState } from 'react';
+import {
+  Aviso,
+  Cifra,
+  Dinero,
+  ErrorDePantalla,
+  Esqueleto,
+  GraficaDeBarras,
+  Superficie,
+  Tabla,
+  Vacio,
+  type ColumnaDeTabla,
+} from '@morphiqpos/ui/sistema';
+import {
+  Armchair,
+  Bike,
+  Check,
+  CupSoda,
+  MoveRight,
+  Receipt,
+  ShoppingBag,
+  Smartphone,
+  TrendingDown,
+  TrendingUp,
+  TriangleAlert,
+  type LucideIcon,
+} from 'lucide-react';
+import { useEffect, useState, type ReactNode } from 'react';
 
 import { ErrorApi, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
@@ -23,27 +48,39 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * El dinero que importa es el del turno abierto, porque es el que se va a cortar.
  * Sin turno abierto, la pantalla lo DICE en vez de enseñar ceros que parecen un mal
  * día.
+ *
+ * ── Tres alturas, y ninguna se mueve sola ─────────────────────────────────
+ * Los cuatro de las 10:30 van arriba y con la cifra más grande; el pico lleva la
+ * forma del día y por eso su tarjeta es la más ancha. Los cinco del dinero van un
+ * escalón abajo, y la utilidad cierra esa fila a lo ancho porque es la respuesta a
+ * «¿ganamos?». Abajo, las listas son tablas y las dos cifras sueltas —grano y
+ * sellos— van en la columna de la derecha. El orden no cambia con la hora: la
+ * memoria muscular es lo que deja leer los números en cuatro segundos.
  */
 
 const RUTA = '/api/reportes/tablero-cafeteria';
-
-const PESOS = new Intl.NumberFormat('es-MX', {
-  style: 'currency',
-  currency: 'MXN',
-  maximumFractionDigits: 0,
-});
-const PESOS_EXACTOS = new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' });
 
 /** Arriba de esto la fila se sale a la calle y se pierde gente que ni entra. */
 const BEBIDAS_POR_HORA_QUE_APRIETAN = 45;
 /** Del cobro a la entrega: bajar de 180 a 120 s deja atender 50 % más gente. */
 const SEGUNDOS_QUE_APRIETAN = 180;
 
-const TARJETA = 'rounded-xl border border-border bg-card p-4 text-card-foreground';
-const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-muted-foreground';
-const CIFRA = 'text-3xl font-bold tabular-nums';
-const CIFRA_CHICA = 'text-xl font-semibold tabular-nums';
-const RENGLON = 'flex items-baseline justify-between gap-3 py-1';
+const MARCO = 'flex flex-col gap-(--espacio-4) p-(--espacio-3) md:p-(--espacio-4)';
+const ROTULO = 'text-xs font-semibold uppercase tracking-wide text-texto-sutil';
+const NOTA = 'text-sm text-texto-sutil';
+/** La cifra de los cuatro de las 10:30 y de la utilidad: lo primero que se lee. */
+const CIFRA = 'text-3xl font-semibold';
+/** Un escalón abajo: el dinero del turno y las dos cifras de abajo. */
+const CIFRA_CHICA = 'text-2xl font-semibold';
+
+/**
+ * La fila 1 le da más ancho al pico porque lleva la forma del día; con cuatro
+ * columnas iguales la gráfica quedaba en 200 px y no se leía la ráfaga.
+ */
+const FILA_DE_LAS_DIEZ =
+  'grid gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,1fr)]';
+const FILA_DEL_DINERO = 'grid gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-4';
+const BLOQUES = 'grid gap-(--espacio-3) md:grid-cols-2 xl:grid-cols-3';
 
 interface BebidaDelDia {
   readonly producto: string;
@@ -66,6 +103,17 @@ export interface TableroDeCafeteria {
     readonly bebidas: number;
   };
   readonly pico: { readonly bebidasPorHora: number; readonly hora: string | null };
+  /**
+   * La serie de la ráfaga, hora por hora. La forma del día, no sólo su máximo.
+   *
+   * OPCIONAL aquí y obligatorio en el servidor, y no es un descuido: esta interfaz es
+   * lo que el CLIENTE puede dar por cierto, e `invocarComando<T>` no valida nada en
+   * tiempo de ejecución —el tipo es una promesa, no una garantía—. Durante un
+   * despliegue el servidor puede ser todavía el de ayer, y el de ayer no manda este
+   * campo. En esta misma fase ese modo de fallo costó una pantalla en blanco: el mapa
+   * de mesas llamando `localeCompare` sobre un número que el puente servía entero.
+   */
+  readonly ritmo?: readonly { readonly hora: string; readonly bebidas: number }[];
   readonly entrega: { readonly segundos: number | null; readonly comandas: number };
   readonly seAcaba: {
     readonly insumo: string | null;
@@ -92,17 +140,24 @@ export interface TableroProps {
   readonly datosIniciales?: TableroDeCafeteria;
 }
 
-const pesos = (centavos: string): string => PESOS.format(Number(centavos) / 100);
-const pesosExactos = (centavos: string): string => PESOS_EXACTOS.format(Number(centavos) / 100);
-const porciento = (bp: number): string => `${(bp / 100).toFixed(1)} %`;
+/**
+ * El canal, como se dice en la barra, y con su icono: el color nunca es el único
+ * portador (§4.6), y en la mezcla «para llevar» se reconoce antes por la bolsa.
+ */
+const CANALES: Readonly<Record<string, { readonly etiqueta: string; readonly Icono: LucideIcon }>> =
+  {
+    aqui: { etiqueta: 'Aquí', Icono: Armchair },
+    llevar: { etiqueta: 'Para llevar', Icono: ShoppingBag },
+    plataforma: { etiqueta: 'Plataforma', Icono: Smartphone },
+    domicilio: { etiqueta: 'A domicilio', Icono: Bike },
+  };
 
-/** El canal, como se dice en la barra. */
-const CANALES: Readonly<Record<string, string>> = {
-  aqui: 'Aquí',
-  llevar: 'Para llevar',
-  plataforma: 'Plataforma',
-  domicilio: 'A domicilio',
-};
+interface CanalDeLaMezcla {
+  readonly canal: string;
+  readonly centavos: number;
+  /** De 0 a 100: la parte del día que cobró este canal. */
+  readonly parte: number;
+}
 
 function comoFecha(fecha: string): string {
   return new Intl.DateTimeFormat('es-MX', {
@@ -112,17 +167,14 @@ function comoFecha(fecha: string): string {
   }).format(new Date(`${fecha}T12:00:00`));
 }
 
-function comparacion(hoy: string, referencia: string): string {
-  const base = Number(referencia);
-  if (base <= 0) return 'sin ráfaga ese día la semana pasada';
-  const cambio = Math.round(((Number(hoy) - base) / base) * 100);
-  return `${cambio > 0 ? '+' : ''}${String(cambio)} % contra el mismo día de la semana pasada`;
-}
-
 /** «2:35» se lee mejor que «155 s» cuando se habla de una fila. */
 function comoReloj(segundos: number): string {
   const minutos = Math.floor(segundos / 60);
   return `${String(minutos)}:${String(segundos % 60).padStart(2, '0')}`;
+}
+
+function dias(cuantos: number): string {
+  return cuantos === 1 ? 'día' : 'días';
 }
 
 function mensajeDe(fallo: unknown): string {
@@ -130,10 +182,151 @@ function mensajeDe(fallo: unknown): string {
   return 'No se pudo cargar el tablero.';
 }
 
+/** La mezcla con su parte ya calculada: la barra y el porcentaje salen del mismo número. */
+function mezclaConPartes(mezcla: TableroDeCafeteria['mezcla']): readonly CanalDeLaMezcla[] {
+  const total = mezcla.reduce((suma, m) => suma + Number(m.centavos), 0);
+  return mezcla.map((m) => ({
+    canal: m.canal,
+    centavos: Number(m.centavos),
+    parte: total === 0 ? 0 : (Number(m.centavos) / total) * 100,
+  }));
+}
+
+/**
+ * La ráfaga contra el mismo día de la semana pasada. La flecha y el signo dicen lo
+ * mismo que el color, para quien no lo distingue.
+ */
+function Comparacion({ hoy, referencia }: { readonly hoy: string; readonly referencia: string }) {
+  const base = Number(referencia);
+  if (base <= 0) return <span>sin ráfaga ese día la semana pasada</span>;
+  const cambio = Math.round(((Number(hoy) - base) / base) * 100);
+  const Flecha = cambio > 0 ? TrendingUp : cambio < 0 ? TrendingDown : MoveRight;
+  const tono = cambio > 0 ? 'text-exito' : cambio < 0 ? 'text-peligro' : 'text-texto';
+  return (
+    <span>
+      <span
+        className={`inline-flex items-center gap-(--espacio-1) font-numeros text-base font-semibold tabular-nums ${tono}`}
+      >
+        <Flecha aria-hidden="true" className="size-4" />
+        {cambio > 0 ? '+' : cambio < 0 ? '−' : ''}
+        {Math.abs(cambio)} %
+      </span>{' '}
+      contra el mismo día de la semana pasada
+    </span>
+  );
+}
+
+/** Una tarjeta del tablero: su rótulo arriba y su dato. `alerta` la tiñe y la nota lo dice. */
+function Indicador({
+  id,
+  titulo,
+  alerta = false,
+  className = '',
+  children,
+}: {
+  readonly id: string;
+  readonly titulo: ReactNode;
+  readonly alerta?: boolean;
+  readonly className?: string;
+  readonly children: ReactNode;
+}) {
+  return (
+    <Superficie
+      como="section"
+      aria-labelledby={id}
+      className={`flex min-w-0 flex-col gap-(--espacio-2) ${alerta ? 'border-peligro' : ''} ${className}`}
+    >
+      <h2 id={id} className={ROTULO}>
+        {titulo}
+      </h2>
+      {children}
+    </Superficie>
+  );
+}
+
+/** La línea de debajo de la cifra. Cuando aprieta, lleva el triángulo y la palabra. */
+function Nota({
+  alerta = false,
+  children,
+}: {
+  readonly alerta?: boolean;
+  readonly children: ReactNode;
+}) {
+  if (!alerta) return <p className={NOTA}>{children}</p>;
+  return (
+    <p className="flex items-start gap-(--espacio-1) text-sm font-semibold text-peligro">
+      <TriangleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+      <span>{children}</span>
+    </p>
+  );
+}
+
+/**
+ * El saludo y las dos salidas. Va en los tres estados: aunque el tablero no cargue,
+ * cobrar y la barra siguen a un toque. Las acciones son el hermano siguiente del
+ * bloque del `h1`, que es como las encuentra `accionesDelTablero`.
+ */
+function Encabezado({ fecha }: { readonly fecha: ReactNode }) {
+  const voc = useVocabulario();
+  return (
+    <header className="flex flex-wrap items-end justify-between gap-(--espacio-2)">
+      <div className="flex flex-col gap-(--espacio-1)">
+        <h1 className="text-2xl font-bold">Buen día</h1>
+        {fecha}
+      </div>
+      <div className="flex gap-(--espacio-2)">
+        <Button asChild size="sm">
+          <a href="/cafeteria/cobrar">Ir a cobrar</a>
+        </Button>
+        <Button asChild size="sm" variant="outline">
+          <a href="/cafeteria/barra">Ver {voc.enFrase('preparacion')}</a>
+        </Button>
+      </div>
+    </header>
+  );
+}
+
+/** Cargando: la forma de las tres filas, para que al llegar los números nada salte. */
+function TableroCargando() {
+  return (
+    <main className={MARCO}>
+      <Encabezado fecha={<Esqueleto className="h-4 w-40" />} />
+      <div
+        role="status"
+        aria-busy="true"
+        aria-label="Cargando el tablero"
+        className="flex flex-col gap-(--espacio-4)"
+      >
+        <div className={FILA_DE_LAS_DIEZ}>
+          {Array.from({ length: 4 }, (_, indice) => (
+            <Esqueleto key={indice} className="h-36 w-full rounded-lg" />
+          ))}
+        </div>
+        <div className={FILA_DEL_DINERO}>
+          {Array.from({ length: 4 }, (_, indice) => (
+            <Esqueleto key={indice} className="h-28 w-full rounded-lg" />
+          ))}
+          <Esqueleto className="h-20 w-full rounded-lg md:col-span-2 xl:col-span-4" />
+        </div>
+        <div className={BLOQUES}>
+          <Esqueleto className="h-48 w-full rounded-lg" />
+          <Esqueleto className="h-48 w-full rounded-lg xl:row-span-2 xl:h-full" />
+          <Esqueleto className="h-28 w-full rounded-lg" />
+          <Esqueleto className="h-48 w-full rounded-lg" />
+          <Esqueleto className="h-28 w-full rounded-lg" />
+        </div>
+      </div>
+    </main>
+  );
+}
+
 export function Tablero({ datosIniciales }: TableroProps) {
   const voc = useVocabulario();
   const [datos, setDatos] = useState<TableroDeCafeteria | null>(datosIniciales ?? null);
   const [error, setError] = useState<string | null>(null);
+  // Cada intento de lectura es un número: «Volver a intentar» lo sube y el efecto
+  // lee otra vez. El estado se limpia EN EL CLIC, no dentro del efecto.
+  const [intento, setIntento] = useState(0);
 
   useEffect(() => {
     if (datosIniciales !== undefined) return;
@@ -151,291 +344,374 @@ export function Tablero({ datosIniciales }: TableroProps) {
     return () => {
       control.abort();
     };
-  }, [datosIniciales]);
+  }, [datosIniciales, intento]);
+
+  function reintentar(): void {
+    setError(null);
+    setDatos(null);
+    setIntento((previo) => previo + 1);
+  }
 
   if (error !== null) {
     return (
-      <main className="space-y-3 p-4">
-        <h1 className="text-2xl font-bold">Buen día</h1>
-        <p role="alert" className="rounded-md border border-destructive bg-destructive/15 p-3">
-          {error}
-        </p>
+      <main className={MARCO}>
+        <Encabezado fecha={null} />
+        <ErrorDePantalla
+          titulo="No se pudo leer el tablero"
+          queHacer="El tablero sólo lee: no se movió nada del turno. Revisa la conexión y vuelve a intentarlo."
+          detalle={error}
+          reintentar={<Button onClick={reintentar}>Volver a intentar</Button>}
+        />
       </main>
     );
   }
 
-  if (datos === null) {
-    return (
-      <main className="space-y-3 p-4">
-        <h1 className="text-2xl font-bold">Buen día</h1>
-        <Skeleton className="h-32 w-full" />
-        <Skeleton className="h-32 w-full" />
-      </main>
-    );
-  }
+  if (datos === null) return <TableroCargando />;
 
-  const { rafaga, pico, entrega, seAcaba, cajon, costoPorBebida, tarjeta, utilidad } = datos;
-  const { mezcla, porUtilidad, grano, merma, sellos } = datos;
-  const totalMezcla = mezcla.reduce((suma, m) => suma + Number(m.centavos), 0);
+  const { rafaga, pico, ritmo, entrega, seAcaba, cajon, costoPorBebida, tarjeta, utilidad } = datos;
+  const { porUtilidad, grano, merma, sellos } = datos;
+  const mezcla = mezclaConPartes(datos.mezcla);
+  const totalMezcla = mezcla.reduce((suma, m) => suma + m.centavos, 0);
+  const totalMerma = merma.reduce((suma, m) => suma + Number(m.costoCentavos), 0);
+  const vecesDeMerma = merma.reduce((suma, m) => suma + m.veces, 0);
+
+  const picoAprieta = pico.bebidasPorHora >= BEBIDAS_POR_HORA_QUE_APRIETAN;
+  const entregaAprieta = entrega.segundos !== null && entrega.segundos > SEGUNDOS_QUE_APRIETAN;
+  const granoPasado = grano.dias !== null && grano.optimos !== null && grano.dias > grano.optimos;
+  const utilidadNegativa = Number(utilidad.centavos) < 0;
+
+  const columnasDeMezcla: readonly ColumnaDeTabla<CanalDeLaMezcla>[] = [
+    {
+      clave: 'canal',
+      titulo: 'Canal',
+      celda: (fila) => {
+        const canal = CANALES[fila.canal];
+        const Icono = canal?.Icono;
+        return (
+          <span className="flex items-center gap-(--espacio-2)">
+            {Icono === undefined ? null : (
+              <Icono aria-hidden="true" className="size-4 shrink-0 text-texto-sutil" />
+            )}
+            {canal?.etiqueta ?? fila.canal}
+          </span>
+        );
+      },
+    },
+    {
+      clave: 'parte',
+      titulo: 'Parte del día',
+      celda: (fila) => (
+        <span className="flex items-center gap-(--espacio-2)">
+          {/* La barra es la proporción, que es lo único que una gráfica hace mejor
+              que una lista. El número de al lado dice lo mismo en texto. */}
+          <span
+            aria-hidden="true"
+            className="block h-1.5 min-w-12 flex-1 rounded-full bg-fondo-sutil"
+          >
+            <span
+              className="block h-full rounded-full bg-primario"
+              style={{ width: `${String(Math.round(fila.parte))}%` }}
+            />
+          </span>
+          <Cifra
+            valor={Math.round(fila.parte)}
+            unidad="%"
+            tamano="sm"
+            className="w-12 text-right"
+          />
+        </span>
+      ),
+    },
+    {
+      clave: 'importe',
+      titulo: 'Cobrado',
+      numerica: true,
+      celda: (fila) => <Dinero centavos={fila.centavos} tamano="sm" />,
+    },
+  ];
+
+  const columnasDeUtilidad: readonly ColumnaDeTabla<BebidaDelDia>[] = [
+    {
+      clave: 'producto',
+      titulo: voc.titulo('linea_orden'),
+      celda: (bebida) => <span className="line-clamp-1">{bebida.producto}</span>,
+    },
+    {
+      clave: 'unidades',
+      titulo: 'Vendidas',
+      numerica: true,
+      celda: (bebida) => <Cifra valor={bebida.unidades} tamano="sm" className="text-texto-sutil" />,
+    },
+    {
+      clave: 'utilidad',
+      titulo: 'Utilidad',
+      numerica: true,
+      celda: (bebida) => <Dinero centavos={Number(bebida.utilidadCentavos)} tamano="sm" />,
+    },
+  ];
+
+  const columnasDeMerma: readonly ColumnaDeTabla<MermaPorMotivo>[] = [
+    {
+      clave: 'motivo',
+      titulo: 'Motivo',
+      celda: (fila) => <span className="line-clamp-1">{fila.motivo}</span>,
+    },
+    {
+      clave: 'veces',
+      titulo: 'Veces',
+      numerica: true,
+      celda: (fila) => <Cifra valor={fila.veces} tamano="sm" />,
+    },
+    {
+      clave: 'costo',
+      titulo: 'Costo',
+      numerica: true,
+      celda: (fila) => <Dinero centavos={Number(fila.costoCentavos)} tamano="sm" />,
+    },
+  ];
 
   return (
-    <main className="space-y-3 p-4">
-      <header className="flex flex-wrap items-end justify-between gap-2">
-        <div>
-          <h1 className="text-2xl font-bold">Buen día</h1>
-          <p className="text-sm text-muted-foreground">{comoFecha(datos.fecha)}</p>
-        </div>
-        <div className="flex gap-2">
-          <Button asChild size="sm">
-            <a href="/cafeteria/cobrar">Ir a cobrar</a>
-          </Button>
-          <Button asChild size="sm" variant="outline">
-            <a href="/cafeteria/barra">Ver {voc.enFrase('preparacion')}</a>
-          </Button>
-        </div>
-      </header>
+    <main className={MARCO}>
+      <Encabezado fecha={<p className={NOTA}>{comoFecha(datos.fecha)}</p>} />
 
-      {!datos.turnoAbierto && (
-        <p
-          role="status"
-          className="rounded-md border border-border bg-muted/40 p-3 text-sm text-muted-foreground"
+      {datos.turnoAbierto ? null : (
+        <Aviso
+          tono="atencion"
+          titulo="Sin turno abierto"
+          accion={
+            <Button asChild size="sm" variant="outline">
+              <a href="/cafeteria/turno">Abrir turno</a>
+            </Button>
+          }
         >
-          Sin turno abierto: lo del turno está en cero porque todavía no empieza, no porque haya ido
-          mal. Ábrelo en Turno y el tablero se llena solo.
-        </p>
+          Lo del turno está en cero porque todavía no empieza, no porque haya ido mal. Ábrelo en
+          Turno y el tablero se llena solo.
+        </Aviso>
       )}
 
       {/* ── FILA 1 · los cuatro de las 10:30 ────────────────────────────── */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <section className={TARJETA} aria-labelledby="t-rafaga">
-          <h2 id="t-rafaga" className={ROTULO}>
-            Lo cobrado en la ráfaga
-          </h2>
-          <p className={CIFRA}>{pesos(rafaga.hoyCentavos)}</p>
-          <p className="text-sm text-muted-foreground">
-            07:00 a 10:30 · {comparacion(rafaga.hoyCentavos, rafaga.referenciaCentavos)}
+      <div className={FILA_DE_LAS_DIEZ}>
+        <Indicador id="t-rafaga" titulo="Lo cobrado en la ráfaga">
+          <Dinero centavos={Number(rafaga.hoyCentavos)} tamano="lg" className={CIFRA} />
+          <p className="text-sm">
+            <Comparacion hoy={rafaga.hoyCentavos} referencia={rafaga.referenciaCentavos} />
           </p>
-        </section>
+          <p className={`mt-auto ${NOTA}`}>De 07:00 a 10:30</p>
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-pico">
-          <h2 id="t-pico" className={ROTULO}>
-            {voc.titulo('linea_orden', true)} por hora en el pico
-          </h2>
-          <p className={CIFRA}>{pico.bebidasPorHora}</p>
-          <p
-            className={
-              pico.bebidasPorHora >= BEBIDAS_POR_HORA_QUE_APRIETAN
-                ? 'text-sm font-semibold text-destructive'
-                : 'text-sm text-muted-foreground'
-            }
-          >
+        {/* 2 · EL PICO, y debajo LA FORMA DEL DÍA.
+            El número dice cuánto; la gráfica dice cuándo y cuánto DURA, y son dos
+            decisiones distintas: 45 bebidas en una hora suelta es un día raro, y 40,
+            45 y 38 seguidas son tres horas en las que hace falta un tercero. Es la
+            única gráfica de este tablero, y es la que define al giro: una cafetería
+            ES su ráfaga de la mañana. */}
+        <Indicador
+          id="t-pico"
+          titulo={`${voc.titulo('linea_orden', true)} por hora en el pico`}
+          alerta={picoAprieta}
+        >
+          <Cifra valor={pico.bebidasPorHora} tamano="lg" className={CIFRA} />
+          <Nota alerta={picoAprieta}>
             {pico.hora === null ? 'sin movimiento todavía' : `la hora de las ${pico.hora}`}
-            {pico.bebidasPorHora >= BEBIDAS_POR_HORA_QUE_APRIETAN
-              ? ' · con dos personas la fila se sale a la calle'
-              : ''}
-          </p>
-        </section>
+            {picoAprieta ? ' · con dos personas la fila se sale a la calle' : ''}
+          </Nota>
+          {/* `?? []` y no `ritmo.length` a secas: `invocarComando<T>` NO valida nada en
+              tiempo de ejecución, así que el tipo es una promesa y no una garantía. En
+              esta misma fase eso costó una pantalla en blanco —el mapa de mesas
+              llamando `localeCompare` sobre un número— y el modo de fallo es idéntico:
+              un servidor de una versión anterior devuelve el tablero sin este campo y
+              lo que ve la dueña es la página de error del navegador, no un hueco. */}
+          {(ritmo ?? []).length > 1 && (
+            <GraficaDeBarras
+              className="mt-auto"
+              titulo={`${voc.titulo('linea_orden', true)} por hora, de la apertura al cierre`}
+              ejes={(ritmo ?? []).map((punto) => punto.hora)}
+              series={[{ etiqueta: 'Hoy', valores: (ritmo ?? []).map((punto) => punto.bebidas) }]}
+              formato={(valor) => String(Math.round(valor))}
+              alto={140}
+            />
+          )}
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-entrega">
-          <h2 id="t-entrega" className={ROTULO}>
-            Del cobro a la entrega
-          </h2>
-          <p className={CIFRA}>{entrega.segundos === null ? '—' : comoReloj(entrega.segundos)}</p>
-          <p
-            className={
-              entrega.segundos !== null && entrega.segundos > SEGUNDOS_QUE_APRIETAN
-                ? 'text-sm font-semibold text-destructive'
-                : 'text-sm text-muted-foreground'
-            }
-          >
+        <Indicador id="t-entrega" titulo="Del cobro a la entrega" alerta={entregaAprieta}>
+          <p className={`font-numeros tabular-nums ${CIFRA}`}>
+            {entrega.segundos === null ? '—' : comoReloj(entrega.segundos)}
+          </p>
+          <Nota alerta={entregaAprieta}>
             {entrega.comandas === 0
               ? 'todavía no se entrega nada hoy'
               : `${String(entrega.comandas)} entregas · bajar a 2:00 deja atender 50 % más`}
-          </p>
-        </section>
+          </Nota>
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-acaba">
-          <h2 id="t-acaba" className={ROTULO}>
-            Lo que se acaba primero
-          </h2>
-          <p className={CIFRA}>{seAcaba.dias === null ? '—' : `${String(seAcaba.dias)} d`}</p>
-          <p className="text-sm text-muted-foreground">
+        <Indicador id="t-acaba" titulo="Lo que se acaba primero">
+          {seAcaba.dias === null ? (
+            <p className={CIFRA}>—</p>
+          ) : (
+            <Cifra valor={seAcaba.dias} unidad={dias(seAcaba.dias)} tamano="lg" className={CIFRA} />
+          )}
+          <Nota>
             {seAcaba.insumo === null
               ? 'todavía no hay consumo que medir'
               : `${seAcaba.insumo} · quedan ${seAcaba.existencia} ${seAcaba.unidad ?? ''}`}
-          </p>
-        </section>
+          </Nota>
+        </Indicador>
       </div>
 
       {/* ── FILA 2 · los cinco del dinero ───────────────────────────────── */}
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <section className={TARJETA} aria-labelledby="t-cajon">
-          <h2 id="t-cajon" className={ROTULO}>
-            Efectivo en el cajón
-          </h2>
-          <p className={CIFRA}>{pesos(cajon.efectivoCentavos)}</p>
-          <p className="text-sm text-muted-foreground">
-            El cajón está en {voc.enFrase('preparacion')}, a la vista de la calle.
-          </p>
-        </section>
+      <div className={FILA_DEL_DINERO}>
+        <Indicador id="t-cajon" titulo="Efectivo en el cajón">
+          <Dinero centavos={Number(cajon.efectivoCentavos)} tamano="lg" className={CIFRA_CHICA} />
+          <Nota>El cajón está en {voc.enFrase('preparacion')}, a la vista de la calle.</Nota>
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-cambio">
-          <h2 id="t-cambio" className={ROTULO}>
-            Cambio disponible
-          </h2>
-          <p className={CIFRA}>{pesos(cajon.cambioCentavos)}</p>
-          <p className="text-sm text-muted-foreground">
+        <Indicador id="t-cambio" titulo="Cambio disponible">
+          <Dinero centavos={Number(cajon.cambioCentavos)} tamano="lg" className={CIFRA_CHICA} />
+          <Nota>
             En monedas y billetes chicos. Quedarse sin cambio a las 8:00 con quince personas en fila
             es perder la ráfaga entera.
-          </p>
-        </section>
+          </Nota>
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-costo">
-          <h2 id="t-costo" className={ROTULO}>
-            Costo por {voc.singular('linea_orden')}
-          </h2>
-          <p className={CIFRA}>{pesosExactos(costoPorBebida.centavos)}</p>
-          <p className="text-sm text-muted-foreground">
+        <Indicador id="t-costo" titulo={`Costo por ${voc.singular('linea_orden')}`}>
+          <Dinero centavos={Number(costoPorBebida.centavos)} tamano="lg" className={CIFRA_CHICA} />
+          <Nota>
             {costoPorBebida.bebidas} en el turno · si sube, o el molino está mal calibrado o alguien
             sirve de más
-          </p>
-        </section>
+          </Nota>
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-tarjeta">
-          <h2 id="t-tarjeta" className={ROTULO}>
-            Tarjeta del turno
-          </h2>
-          <p className={CIFRA}>{pesos(tarjeta.centavos)}</p>
-          <p className="text-sm text-muted-foreground">
-            {porciento(tarjeta.deLaVentaBp)} de lo cobrado
-          </p>
-        </section>
+        <Indicador id="t-tarjeta" titulo="Tarjeta del turno">
+          <Dinero centavos={Number(tarjeta.centavos)} tamano="lg" className={CIFRA_CHICA} />
+          <Nota>
+            <Cifra valor={tarjeta.deLaVentaBp / 100} decimales={1} unidad="%" tamano="sm" /> de lo
+            cobrado
+          </Nota>
+        </Indicador>
+
+        {/* La utilidad cierra la fila a lo ancho: es la respuesta a «¿ganamos esta
+            mañana?», verde o roja, y la roja además entre paréntesis. */}
+        <Superficie
+          como="section"
+          aria-labelledby="t-utilidad"
+          className={`flex flex-col gap-(--espacio-2) md:col-span-2 md:flex-row md:items-center md:justify-between xl:col-span-4 ${utilidadNegativa ? 'border-peligro' : ''}`}
+        >
+          <div className="flex flex-col gap-(--espacio-1)">
+            <h2 id="t-utilidad" className={ROTULO}>
+              Utilidad del turno
+            </h2>
+            <Nota>
+              <Cifra valor={utilidad.margenBp / 100} decimales={1} unidad="%" tamano="sm" /> de
+              margen, con los gastos del turno ya restados
+            </Nota>
+          </div>
+          <Dinero
+            centavos={Number(utilidad.centavos)}
+            tamano="lg"
+            className={utilidadNegativa ? CIFRA : `${CIFRA} text-exito`}
+          />
+        </Superficie>
       </div>
 
-      <section className={TARJETA} aria-labelledby="t-utilidad">
-        <h2 id="t-utilidad" className={ROTULO}>
-          Utilidad del turno
-        </h2>
-        <p
-          className={
-            Number(utilidad.centavos) < 0 ? `${CIFRA} text-destructive` : `${CIFRA} text-success`
-          }
-        >
-          {pesos(utilidad.centavos)}
-        </p>
-        <p className="text-sm text-muted-foreground">
-          {porciento(utilidad.margenBp)} de margen, con los gastos del turno ya restados
-        </p>
-      </section>
-
       {/* ── BLOQUES DE ABAJO ────────────────────────────────────────────── */}
-      <div className="grid gap-3 xl:grid-cols-2">
-        <section className={TARJETA} aria-labelledby="t-mezcla">
-          <h2 id="t-mezcla" className={ROTULO}>
-            Mezcla del día
-          </h2>
-          {mezcla.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no se cobra nada hoy.</p>
-          ) : (
-            <ul className="space-y-1">
-              {mezcla.map((canal) => {
-                const parte = totalMezcla === 0 ? 0 : Number(canal.centavos) / totalMezcla;
-                return (
-                  <li key={canal.canal}>
-                    <div className={RENGLON}>
-                      <span className="flex-1">{CANALES[canal.canal] ?? canal.canal}</span>
-                      <span className="text-sm text-muted-foreground">
-                        {Math.round(parte * 100)} %
-                      </span>
-                      <span className="tabular-nums">{pesos(canal.centavos)}</span>
-                    </div>
-                    {/* La barra es la proporción, que es lo único que una gráfica
-                        hace mejor que una lista. */}
-                    <div className="h-1 w-full rounded-full bg-muted">
-                      <div
-                        className="h-1 rounded-full bg-primary"
-                        style={{ width: `${String(Math.round(parte * 100))}%` }}
-                      />
-                    </div>
-                  </li>
-                );
-              })}
-            </ul>
-          )}
-        </section>
+      <div className={BLOQUES}>
+        <Indicador id="t-mezcla" titulo="Mezcla del día">
+          <Tabla
+            etiqueta="Mezcla del día por canal"
+            columnas={columnasDeMezcla}
+            filas={mezcla}
+            claveDe={(fila) => fila.canal}
+            pie={{ canal: 'Total', importe: <Dinero centavos={totalMezcla} tamano="sm" /> }}
+            vacio={
+              <Vacio
+                icono={<Receipt />}
+                titulo="Todavía no se cobra nada hoy."
+                className="py-(--espacio-6)"
+              />
+            }
+          />
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-utilidades">
-          <h2 id="t-utilidades" className={ROTULO}>
-            {voc.titulo('linea_orden', true)} por utilidad
-          </h2>
-          {porUtilidad.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Todavía no se vende nada hoy.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {porUtilidad.map((bebida) => (
-                <li key={bebida.producto} className={RENGLON}>
-                  <span className="min-w-0 flex-1 truncate">{bebida.producto}</span>
-                  <span className="text-sm text-muted-foreground">{bebida.unidades}</span>
-                  <span className="tabular-nums">{pesos(bebida.utilidadCentavos)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-          <p className="mt-2 text-xs text-muted-foreground">
+        <Indicador
+          id="t-utilidades"
+          titulo={`${voc.titulo('linea_orden', true)} por utilidad`}
+          className="xl:row-span-2"
+        >
+          <Tabla
+            etiqueta={`${voc.titulo('linea_orden', true)} del día por utilidad`}
+            columnas={columnasDeUtilidad}
+            filas={porUtilidad}
+            claveDe={(bebida) => bebida.producto}
+            vacio={
+              <Vacio
+                icono={<CupSoda />}
+                titulo="Todavía no se vende nada hoy."
+                className="py-(--espacio-6)"
+              />
+            }
+          />
+          <p className="mt-auto text-xs text-texto-sutil">
             Por lo que DEJAN, no por unidades: el latte vende más y el americano deja más.
           </p>
-        </section>
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-grano">
-          <h2 id="t-grano" className={ROTULO}>
-            Frescura del grano abierto
-          </h2>
-          <p className={CIFRA}>{grano.dias === null ? '—' : `${String(grano.dias)} d`}</p>
-          <p
-            className={
-              grano.dias !== null && grano.optimos !== null && grano.dias > grano.optimos
-                ? 'text-sm font-semibold text-destructive'
-                : 'text-sm text-muted-foreground'
-            }
-          >
+        <Indicador id="t-grano" titulo="Frescura del grano abierto" alerta={granoPasado}>
+          {grano.dias === null ? (
+            <p className={CIFRA_CHICA}>—</p>
+          ) : (
+            <Cifra
+              valor={grano.dias}
+              unidad={dias(grano.dias)}
+              tamano="lg"
+              className={CIFRA_CHICA}
+            />
+          )}
+          <Nota alerta={granoPasado}>
             {grano.dias === null
               ? 'no hay lote abierto declarado'
               : grano.optimos === null
                 ? 'desde el tueste'
-                : `desde el tueste · óptimo hasta ${String(grano.optimos)} d`}
-          </p>
-        </section>
+                : `desde el tueste · óptimo hasta ${String(grano.optimos)} ${dias(grano.optimos)}`}
+          </Nota>
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-merma">
-          <h2 id="t-merma" className={ROTULO}>
-            Merma de {voc.singular('preparacion')} del turno
-          </h2>
-          {merma.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Sin merma declarada en este turno.</p>
-          ) : (
-            <ul className="divide-y divide-border">
-              {merma.map((motivo) => (
-                <li key={motivo.motivo} className={RENGLON}>
-                  <span className="min-w-0 flex-1 truncate">{motivo.motivo}</span>
-                  <span className="text-sm text-muted-foreground">{motivo.veces}</span>
-                  <span className="tabular-nums">{pesosExactos(motivo.costoCentavos)}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </section>
+        <Indicador id="t-merma" titulo={<>Merma de {voc.singular('preparacion')} del turno</>}>
+          <Tabla
+            etiqueta={`Merma de ${voc.singular('preparacion')} por motivo`}
+            columnas={columnasDeMerma}
+            filas={merma}
+            claveDe={(fila) => fila.motivo}
+            pie={{
+              motivo: 'Total',
+              veces: <Cifra valor={vecesDeMerma} tamano="sm" />,
+              costo: <Dinero centavos={totalMerma} tamano="sm" />,
+            }}
+            vacio={
+              <Vacio
+                icono={<Check />}
+                titulo="Sin merma declarada en este turno."
+                className="py-(--espacio-6)"
+              />
+            }
+          />
+        </Indicador>
 
-        <section className={TARJETA} aria-labelledby="t-sellos">
-          <h2 id="t-sellos" className={ROTULO}>
-            Sellos
-          </h2>
-          <p className={CIFRA_CHICA}>
-            {sellos.otorgadosHoy} otorgados hoy · {sellos.vivos} vivos
+        <Indicador id="t-sellos" titulo="Sellos">
+          <p className="flex flex-wrap items-baseline gap-x-(--espacio-3) gap-y-(--espacio-1)">
+            <span>
+              <Cifra valor={sellos.otorgadosHoy} tamano="lg" className={CIFRA_CHICA} />{' '}
+              <span className={NOTA}>otorgados hoy</span>
+            </span>
+            <span>
+              <Cifra valor={sellos.vivos} tamano="lg" className={CIFRA_CHICA} />{' '}
+              <span className={NOTA}>vivos</span>
+            </span>
           </p>
-          <p className="text-sm text-muted-foreground">
-            Costarían {pesos(sellos.costoSiSeCanjeanCentavos)} si se canjearan todos.
-          </p>
-        </section>
+          <Nota>
+            Costarían <Dinero centavos={Number(sellos.costoSiSeCanjeanCentavos)} tamano="sm" /> si
+            se canjearan todos.
+          </Nota>
+        </Indicador>
       </div>
     </main>
   );

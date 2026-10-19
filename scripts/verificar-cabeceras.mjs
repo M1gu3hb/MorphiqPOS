@@ -20,6 +20,24 @@ const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const WEB = join(RAIZ, 'apps', 'web');
 const PUERTO = 3199;
 
+/**
+ * LA RUTA CONTRA LA QUE SE MIDE, y por qué importa cuál.
+ *
+ * ── La puerta medía sobre un 404 ────────────────────────────────────────
+ * Aquí decía `/estilos`, la página del sistema de diseño de la Fase 1, y esa ruta
+ * **se borró**. Así que la comprobación llevaba meses midiendo las cabeceras de la
+ * página de error de Next: las cabeceras de seguridad las pone el proxy y salen igual
+ * en un 404, así que la puerta daba VERDE sin haber mirado ni una pantalla de la
+ * aplicación. Y lo que comprueba no es decorativo: si los `<script>` de Next no
+ * llevaran el nonce, la aplicación se serviría sin hidratar —se ve bien y no responde
+ * a un clic— y este verde no lo habría notado.
+ *
+ * `/login-pos` es la pantalla de acceso: existe, se pinta sin sesión y trae los
+ * scripts de Next. Y más abajo se exige que NO sea un 404, para que el día que esta
+ * ruta se mueva la puerta lo diga en vez de volver a medir la nada.
+ */
+const RUTA_SONDA = '/login-pos';
+
 /** Cabeceras exigidas y como se comprueba cada una. */
 const EXIGIDAS = [
   {
@@ -76,7 +94,17 @@ async function esperarServidor(url, intentos = 60) {
 
 const urlExterna = process.argv[2];
 let servidor = null;
-let url = urlExterna;
+/**
+ * Contra un despliegue tambien se mide una PANTALLA: si el argumento viene sin
+ * camino, se le pone el de la sonda. Medir la raiz contra un despliegue devuelve la
+ * redireccion a la pantalla de acceso, y una redireccion no trae scripts que firmar.
+ */
+let url =
+  urlExterna === undefined
+    ? undefined
+    : new URL(urlExterna).pathname === '/'
+      ? new URL(RUTA_SONDA, urlExterna).toString()
+      : urlExterna;
 
 if (!urlExterna) {
   // Se invoca el CLI de Next con node directamente, no el shim pnpm.cmd:
@@ -98,7 +126,7 @@ if (!urlExterna) {
     }
   }
 
-  url = `http://localhost:${PUERTO}/estilos`;
+  url = `http://localhost:${PUERTO}${RUTA_SONDA}`;
   servidor = spawn(process.execPath, [CLI_NEXT, 'start', '-p', String(PUERTO)], {
     cwd: WEB,
     stdio: 'ignore',
@@ -124,6 +152,23 @@ if (!respuesta) {
 }
 
 const fallos = [];
+
+/**
+ * LA SONDA TIENE QUE SER UNA PANTALLA DE VERDAD.
+ *
+ * Es el cerrojo que faltaba: las cabeceras de seguridad las pone el proxy y salen
+ * igual en la página de error, así que sin esto la puerta puede pasar midiendo un 404
+ * —y lo estuvo haciendo—. Si la ruta sonda deja de existir, aquí falla y se cambia,
+ * en vez de dar un verde que no significó nada.
+ */
+if (respuesta.status === 404) {
+  console.error(
+    `✗ La ruta sonda ${url} devuelve 404. Las cabeceras de seguridad salen igual en la ` +
+      'pagina de error, asi que medirlas ahi no prueba nada: apunta RUTA_SONDA a una ' +
+      'pantalla que exista.',
+  );
+  terminar(1);
+}
 
 for (const exigida of EXIGIDAS) {
   const valor = respuesta.headers.get(exigida.nombre);

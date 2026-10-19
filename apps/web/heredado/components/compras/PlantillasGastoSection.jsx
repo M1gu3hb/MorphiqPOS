@@ -265,7 +265,7 @@ export default function PlantillasGastoSection() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <AlertTriangle className="w-5 h-5 text-advertencia" />
               ¿Eliminar plantilla?
             </AlertDialogTitle>
             <AlertDialogDescription>
@@ -290,7 +290,7 @@ export default function PlantillasGastoSection() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle className="flex items-center gap-2">
-              <AlertTriangle className="w-5 h-5 text-amber-500" />
+              <AlertTriangle className="w-5 h-5 text-advertencia" />
               Ya hay un gasto este mes
             </AlertDialogTitle>
             <AlertDialogDescription>

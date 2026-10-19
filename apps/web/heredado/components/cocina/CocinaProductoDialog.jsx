@@ -48,15 +48,15 @@ export default function CocinaProductoDialog({ open, onClose, item }) {
       <DialogContent className="sm:max-w-md w-[calc(100%-2rem)] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
         <DialogHeader>
           <DialogTitle className="font-heading flex items-center gap-2">
-            <ChefHat className="w-5 h-5 text-orange-600" />
+            <ChefHat className="w-5 h-5 text-advertencia" />
             {item?.producto_nombre || producto?.nombre || 'Producto'}
           </DialogTitle>
         </DialogHeader>
 
         <div className="space-y-3">
           {(item?.cantidad || 0) > 0 && (
-            <div className="rounded-xl bg-amber-50 border border-amber-200 px-3 py-2">
-              <p className="text-xs font-bold text-amber-800">
+            <div className="rounded-xl bg-advertencia/10 border border-advertencia/30 px-3 py-2">
+              <p className="text-xs font-bold text-advertencia">
                 Cantidad solicitada: {item.cantidad}
               </p>
             </div>
@@ -67,7 +67,7 @@ export default function CocinaProductoDialog({ open, onClose, item }) {
               <p className="text-[10px] uppercase font-bold text-muted-foreground mb-1">
                 Descripción
               </p>
-              <p className="text-sm text-slate-700">{producto.descripcion}</p>
+              <p className="text-sm text-texto">{producto.descripcion}</p>
             </div>
           )}
 
@@ -80,7 +80,7 @@ export default function CocinaProductoDialog({ open, onClose, item }) {
                 {ingredientes.map((nombre, i) => (
                   <span
                     key={`${nombre}-${i}`}
-                    className="px-2 py-1 rounded-full text-xs bg-slate-100 border text-slate-700"
+                    className="px-2 py-1 rounded-full text-xs bg-fondo-sutil border text-texto"
                   >
                     {nombre}
                   </span>
@@ -92,11 +92,11 @@ export default function CocinaProductoDialog({ open, onClose, item }) {
           )}
 
           {item?.notas && (
-            <div className="rounded-xl border-2 border-orange-300 bg-orange-50 p-3">
-              <p className="text-[10px] uppercase font-bold text-orange-700 mb-1 flex items-center gap-1">
+            <div className="rounded-xl border-2 border-advertencia/30 bg-advertencia/10 p-3">
+              <p className="text-[10px] uppercase font-bold text-advertencia mb-1 flex items-center gap-1">
                 <FileText className="w-3 h-3" /> Indicaciones del pedido
               </p>
-              <p className="text-sm font-medium text-orange-900">{item.notas}</p>
+              <p className="text-sm font-medium text-advertencia">{item.notas}</p>
             </div>
           )}
         </div>

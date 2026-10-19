@@ -59,7 +59,7 @@ export default function AbrirMesaQRDialog({ mesa, loading, onClose, onConfirm })
       initial={{ opacity: 0 }}
       animate={{ opacity: 1 }}
       exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/50 flex items-end sm:items-center justify-center"
+      className="fixed inset-0 z-50 bg-velo/50 flex items-end sm:items-center justify-center"
     >
       <motion.div
         initial={{ y: 40 }}
@@ -130,7 +130,7 @@ export default function AbrirMesaQRDialog({ mesa, loading, onClose, onConfirm })
 
           <div>
             <label className="text-xs font-semibold uppercase tracking-wide text-muted-foreground flex items-center gap-1.5">
-              <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+              <AlertTriangle className="w-3.5 h-3.5 text-advertencia" />
               Alergias / indicaciones <span className="opacity-60 normal-case">(opcional)</span>
             </label>
             <input
@@ -154,7 +154,7 @@ export default function AbrirMesaQRDialog({ mesa, loading, onClose, onConfirm })
                 className="w-4 h-4"
               />
               <span className="text-sm font-medium flex items-center gap-1.5">
-                <PartyPopper className="w-4 h-4 text-pink-500" />
+                <PartyPopper className="w-4 h-4 text-acento" />
                 ¿Es una celebración especial?
               </span>
             </label>
@@ -183,7 +183,7 @@ export default function AbrirMesaQRDialog({ mesa, loading, onClose, onConfirm })
           </div>
 
           {error && (
-            <div className="text-xs text-rose-600 bg-rose-50 dark:bg-rose-950/30 border border-rose-200 dark:border-rose-800/60 rounded-lg px-3 py-2">
+            <div className="text-xs text-peligro bg-peligro/10 border border-peligro/30 rounded-lg px-3 py-2">
               {error}
             </div>
           )}

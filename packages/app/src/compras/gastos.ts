@@ -76,7 +76,9 @@ export const registrarGasto = definirComando<
 
     const enEfectivo = entrada.metodoPago === 'efectivo';
     const sesion = enEfectivo
-      ? await ctx.paso('cargar_caja', () => sesionAbierta(ctx.tx, organizacionId, sucursalId))
+      ? await ctx.paso('cargar_caja', () =>
+          sesionAbierta(ctx.tx, organizacionId, sucursalId, ctx.ambito.terminalId),
+        )
       : null;
     const sesionCajaId = sesion?.id ?? null;
 

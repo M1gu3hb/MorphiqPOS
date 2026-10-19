@@ -1,15 +1,4 @@
 import { PAQUETES_OPERATIVOS, PAQUETES_RESTAURANTE } from '@morphiqpos/contracts';
-import type { Transaccion } from '@morphiqpos/data';
-import {
-  Kysely,
-  PostgresAdapter,
-  PostgresIntrospector,
-  PostgresQueryCompiler,
-  type CompiledQuery,
-  type DatabaseConnection,
-  type Driver,
-  type QueryResult,
-} from 'kysely';
 import { describe, expect, it } from 'vitest';
 
 import { archivarProducto } from '../catalogo/productos.ts';
@@ -24,10 +13,9 @@ import {
 } from './inventario.ts';
 import { registrarConsumoInterno } from './consumo-interno.ts';
 import { actualizarCostoInsumo, eliminarReceta, guardarReceta } from './recetas.ts';
-import { crearComando } from '../comando.ts';
 import { resetearDemo } from '../demostracion/resetear.ts';
-import { ambitoDeCajero, crearFabrica } from '../pruebas/dobles.ts';
-import type { RepositorioComandos } from '../repositorio.ts';
+import { ambitoDeCajero } from '../pruebas/dobles.ts';
+import { arnesGrabador } from '../pruebas/grabadora.ts';
 
 describe('B-11 · comandos de insumos y almacenes', () => {
   it('la operación viene con las TRES plantillas, y nombres de comando estables', () => {
@@ -178,61 +166,8 @@ describe('B-12 · recetas por paquete', () => {
  * Postgres revierta de verdad —la conexión de guion no revierte nada—; esa
  * mitad la cubre `comando.integracion.test.ts` contra una base real.
  */
-class ConexionGrabadora implements DatabaseConnection {
-  readonly consultas: CompiledQuery[] = [];
-  constructor(private readonly respuestas: readonly (readonly unknown[])[]) {}
-  async executeQuery<R>(consulta: CompiledQuery): Promise<QueryResult<R>> {
-    this.consultas.push(consulta);
-    const filas = this.respuestas[this.consultas.length - 1] ?? [];
-    return { rows: filas as R[] };
-  }
-  async *streamQuery<R>(): AsyncIterableIterator<QueryResult<R>> {
-    yield { rows: [] };
-  }
-}
-
-class DriverGrabador implements Driver {
-  constructor(private readonly conexion: ConexionGrabadora) {}
-  init(): Promise<void> {
-    return Promise.resolve();
-  }
-  async acquireConnection(): Promise<DatabaseConnection> {
-    return this.conexion;
-  }
-  beginTransaction(): Promise<void> {
-    return Promise.resolve();
-  }
-  commitTransaction(): Promise<void> {
-    return Promise.resolve();
-  }
-  rollbackTransaction(): Promise<void> {
-    return Promise.resolve();
-  }
-  releaseConnection(): Promise<void> {
-    return Promise.resolve();
-  }
-  destroy(): Promise<void> {
-    return Promise.resolve();
-  }
-}
-
 function arnes(respuestas: readonly (readonly unknown[])[]) {
-  const conexion = new ConexionGrabadora(respuestas);
-  const db = new Kysely<never>({
-    dialect: {
-      createAdapter: () => new PostgresAdapter(),
-      createDriver: () => new DriverGrabador(conexion),
-      createIntrospector: (kysely) => new PostgresIntrospector(kysely),
-      createQueryCompiler: () => new PostgresQueryCompiler(),
-    },
-  });
-  const fabrica = crearFabrica('restaurante');
-  const ejecutar = crearComando<Transaccion>({
-    repositorio: fabrica.repositorio as unknown as RepositorioComandos<Transaccion>,
-    conTransaccion: <T>(fn: (tx: Transaccion) => Promise<T>): Promise<T> =>
-      fabrica.conTransaccion(() => fn(db as unknown as Transaccion)),
-  });
-  return { ejecutar, conexion, fabrica };
+  return arnesGrabador(respuestas);
 }
 
 const PRODUCTO = '66666666-6666-4666-8666-666666666666';

@@ -27,6 +27,24 @@ export const ROLES = [
 export type Rol = (typeof ROLES)[number];
 
 /**
+ * QUIÉN VE LO CONSOLIDADO: las sucursales juntas (cierre de la 2.4, D-36).
+ *
+ * El dueño y el administrador responden por el negocio entero —el corte de las tres
+ * sucursales, la cartera de todas, quién vendió dónde— y entran muchas veces sin terminal,
+ * desde su teléfono. Todos los demás —gerente, cajero, mesero, cocina, almacén— trabajan
+ * en UNA sucursal: la de su terminal, o la de su empleo. Lo operativo de otra sucursal no
+ * existe para ellos, en las lecturas del puente y en los comandos.
+ *
+ * El gerente NO consolida a propósito: es el encargado de SU sucursal. Si un cliente quiere
+ * un gerente regional, se le da el rol de administrador, que es exactamente eso.
+ */
+export const ROLES_CONSOLIDADOS = ['dueno', 'administrador'] as const satisfies readonly Rol[];
+
+export function veConsolidado(rol: string): boolean {
+  return (ROLES_CONSOLIDADOS as readonly string[]).includes(rol);
+}
+
+/**
  * Los giros describen qué clase de negocio opera la organización.
  *
  * Esta lista y el `check` de `organizaciones.giro` son LA MISMA: la escribió la
@@ -183,6 +201,11 @@ export function paquetePermitidoParaGiro(paquete: Paquete, giro: Giro): boolean 
  * hace que no pueda operar caja: abrir una sesión de caja exige terminal.
  */
 export interface Ambito {
+  /** Actor original cuando opera una demostración autorizada en otro negocio. */
+  readonly presentador?: {
+    readonly empleoId: string;
+    readonly identidadId: string;
+  };
   readonly organizacionId: string;
   readonly sucursalId: string | null;
   readonly terminalId: string | null;

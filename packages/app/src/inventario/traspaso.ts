@@ -67,6 +67,11 @@ export const enviarTraspaso = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { almacenOrigen: 'almacenes' },
+  sinFrontera: {
+    almacenDestino:
+      'El almacén DESTINO de un traspaso es, por definición, de otra sucursal: se manda de la propia a la otra.',
+  },
   modulo: 'movimientos_inventario',
   entrada: entradaEnviarTraspaso,
   async ejecutar(ctx, entrada) {
@@ -169,6 +174,7 @@ export const recibirTraspaso = definirComando<
   escribe: true,
   roles: [...ROLES],
   paquetes: PAQUETES_TODOS,
+  sucursal: { traspasoId: 'traspasos' },
   modulo: 'movimientos_inventario',
   entrada: entradaRecibirTraspaso,
   async ejecutar(ctx, entrada) {

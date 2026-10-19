@@ -4,19 +4,19 @@ import { cn } from '../utilidades/cn'
 import { Slot } from "radix-ui"
 
 const badgeVariants = cva(
-  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 aria-invalid:border-destructive aria-invalid:ring-destructive/20 oscuro:aria-invalid:ring-destructive/40 [&>svg]:pointer-events-none [&>svg]:size-3",
+  "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-full border border-transparent px-2 py-0.5 text-xs font-medium whitespace-nowrap transition-[color,box-shadow] focus-visible:border-anillo focus-visible:ring-[3px] focus-visible:ring-anillo/50 aria-invalid:border-peligro aria-invalid:ring-peligro/20 oscuro:aria-invalid:ring-peligro/40 [&>svg]:pointer-events-none [&>svg]:size-3",
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+        default: "bg-primario text-primario-texto [a&]:hover:bg-primario/90",
         secondary:
-          "bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+          "bg-fondo-sutil text-texto [a&]:hover:bg-fondo-sutil/90",
         destructive:
-          "bg-destructive text-destructive-foreground focus-visible:ring-destructive/20 oscuro:bg-destructive/60 oscuro:focus-visible:ring-destructive/40 [a&]:hover:bg-destructive/90",
+          "bg-peligro text-peligro-texto focus-visible:ring-peligro/20 oscuro:bg-peligro/60 oscuro:focus-visible:ring-peligro/40 [a&]:hover:bg-peligro/90",
         outline:
-          "border-border text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        ghost: "[a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-        link: "text-primary underline-offset-4 [a&]:hover:underline",
+          "border-borde text-texto [a&]:hover:bg-acento-suave [a&]:hover:text-acento-suave-texto",
+        ghost: "[a&]:hover:bg-acento-suave [a&]:hover:text-acento-suave-texto",
+        link: "text-primario underline-offset-4 [a&]:hover:underline",
       },
     },
     defaultVariants: {

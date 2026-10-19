@@ -34,10 +34,10 @@ import TicketViewerDialog from '@/components/tickets/TicketViewerDialog';
 import { useConfig } from '@/lib/ConfigContext';
 
 const ESTADO_COLORS = {
-  pagada: 'bg-emerald-100 text-emerald-700',
-  cancelada: 'bg-red-100 text-red-700',
-  abierta: 'bg-blue-100 text-blue-700',
-  en_preparacion: 'bg-orange-100 text-orange-700',
+  pagada: 'bg-exito/15 text-exito',
+  cancelada: 'bg-peligro/15 text-peligro',
+  abierta: 'bg-info/15 text-info',
+  en_preparacion: 'bg-advertencia/15 text-advertencia',
 };
 
 export default function Ventas() {
@@ -180,14 +180,14 @@ export default function Ventas() {
           {filtered.map((v) => (
             <Card
               key={v.id}
-              className="premium-sheen p-4 hover:shadow-sm transition-shadow bg-white/80 backdrop-blur-sm"
+              className="premium-sheen p-4 hover:shadow-sm transition-shadow bg-superficie/80 backdrop-blur-sm"
             >
               <div className="flex items-center gap-4 flex-wrap">
                 <div className="flex-1 min-w-0 cursor-pointer" onClick={() => setSelectedVenta(v)}>
                   <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-heading font-bold">{v.folio}</span>
                     <Badge
-                      className={`${ESTADO_COLORS[v.estado] || 'bg-gray-100 text-gray-600'} text-[10px] border-0`}
+                      className={`${ESTADO_COLORS[v.estado] || 'bg-fondo-sutil text-texto-sutil'} text-[10px] border-0`}
                     >
                       {v.estado}
                     </Badge>
@@ -228,7 +228,7 @@ export default function Ventas() {
                   </p>
                   {v.margen_snapshot > 0 && (
                     <p
-                      className={`text-xs ${colorize ? 'text-emerald-600 dark:text-emerald-300' : 'text-muted-foreground'}`}
+                      className={`text-xs ${colorize ? 'text-exito' : 'text-muted-foreground'}`}
                     >
                       {formatPercent(v.margen_snapshot)} margen
                     </p>
@@ -336,7 +336,7 @@ export default function Ventas() {
                 <div>
                   <p className="text-xs text-muted-foreground">Costo</p>
                   <p
-                    className={`font-bold ${colorize ? 'text-orange-600 dark:text-orange-300' : ''}`}
+                    className={`font-bold ${colorize ? 'text-advertencia' : ''}`}
                   >
                     {formatCurrency(selectedVenta.costo_total_snapshot)}
                   </p>
@@ -344,7 +344,7 @@ export default function Ventas() {
                 <div>
                   <p className="text-xs text-muted-foreground">Utilidad</p>
                   <p
-                    className={`font-bold ${colorize ? 'text-emerald-600 dark:text-emerald-300' : ''}`}
+                    className={`font-bold ${colorize ? 'text-exito' : ''}`}
                   >
                     {formatCurrency(selectedVenta.utilidad_bruta_snapshot)}
                   </p>

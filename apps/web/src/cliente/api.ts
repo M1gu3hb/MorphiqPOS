@@ -1,5 +1,7 @@
 import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
 
+import { crearRegistroDeIntentos } from './claves-de-intento.ts';
+
 /**
  * El único camino del navegador al servidor (F1.1-X-01).
  *
@@ -8,8 +10,10 @@ import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
  * que se olvide de mandarla duplica un cobro en el primer doble clic, y no se
  * descubre hasta que un arqueo no cuadre.
  *
- * Aquí la clave se genera sola y se conserva entre reintentos, así que
- * olvidarla no es una opción disponible.
+ * Aquí la clave se genera sola y se conserva entre reintentos DEL MISMO PEDIDO
+ * (`claves-de-intento.ts`): la misma ruta con el mismo cuerpo, mientras no haya una
+ * respuesta definitiva, lleva la misma clave. Hasta la auditoría de la 2.4 esta frase
+ * decía eso y el código generaba una clave nueva en cada llamada.
  *
  * ── Sobre la fusión de los dos carriles ────────────────────────────────────
  * Había dos clientes distintos, uno por carril. Este es el que conserva la
@@ -26,6 +30,27 @@ export class ErrorApi extends Error {
   ) {
     super(error.mensaje);
     this.name = 'ErrorApi';
+  }
+}
+
+/**
+ * LA RESPUESTA QUE NO LLEGÓ: `fetch` lanzó —el módem, el wifi del local— y no se sabe si
+ * el servidor alcanzó a hacerlo.
+ *
+ * La pantalla enseñaba el mensaje del navegador, «Failed to fetch», en inglés y sin decir
+ * lo único que importa en ese momento: que pudo haberse hecho y que tocar OTRA VEZ el
+ * mismo botón es seguro, porque el reintento lleva la misma clave
+ * (`claves-de-intento.ts`) y el servidor devuelve lo que ya hizo en vez de repetirlo.
+ * «No se cobró nada», que es lo que decía la caja de la tienda, era justo lo que no se
+ * sabía.
+ */
+export class ErrorSinRespuesta extends Error {
+  constructor() {
+    super(
+      'No llegó la respuesta del servidor y puede que sí se haya hecho. Vuelve a tocar el ' +
+        'mismo botón: si ya estaba hecho, no se repite.',
+    );
+    this.name = 'ErrorSinRespuesta';
   }
 }
 
@@ -57,19 +82,35 @@ export async function invocarComando<T>(
   entrada: unknown,
   opciones: OpcionesComando = {},
 ): Promise<T> {
-  const respuesta = await fetch(ruta, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'idempotency-key': opciones.idempotencyKey ?? nuevaClave(),
-      [CABECERA_PETICION_PROPIA]: '1',
-    },
-    body: JSON.stringify(entrada),
-    credentials: 'same-origin',
-    ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
-  });
+  const cuerpo = JSON.stringify(entrada);
+  const firma = `${ruta} ${cuerpo}`;
+  const clave = opciones.idempotencyKey ?? INTENTOS.claveDe(firma, Date.now());
+  // Si `fetch` lanza —sin red, abortado— la clave se QUEDA: no se sabe si llegó, y el
+  // reintento tiene que poder recibir el resultado guardado en vez de repetirlo.
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(ruta, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': clave,
+        [CABECERA_PETICION_PROPIA]: '1',
+      },
+      body: cuerpo,
+      credentials: 'same-origin',
+      ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
+    });
+  } catch (fallo) {
+    // Abortar lo pidió quien llama —se fue de la pantalla—: se le devuelve tal cual.
+    if (opciones.signal?.aborted === true) throw fallo;
+    throw new ErrorSinRespuesta();
+  }
+  if (opciones.idempotencyKey === undefined) INTENTOS.respondio(firma, respuesta.status);
   return leerResultado<T>(respuesta);
 }
+
+/** Los pedidos de escritura sin respuesta definitiva, con su clave. Uno por pestaña. */
+const INTENTOS = crearRegistroDeIntentos(() => nuevaClave());
 
 /** Alias histórico del carril B. Misma función, mismas garantías. */
 export const ejecutarApi = <T>(ruta: string, entrada: unknown): Promise<T> =>
@@ -183,4 +224,26 @@ function esResultado<T>(valor: unknown): valor is Resultado<T> {
   if (typeof valor !== 'object' || valor === null) return false;
   const v = valor as { ok?: unknown };
   return typeof v.ok === 'boolean';
+}
+
+/**
+ * SUBIR UNA IMAGEN (`/api/archivos/subir`), la única escritura que no es JSON: una imagen
+ * viaja en `multipart`. Devuelve la URL que el comando del dominio guarda —la foto de la
+ * pieza, la del expediente— (C.10 de la 2.4).
+ *
+ * Mismas cabeceras que `invocarComando` —la propia y la clave de idempotencia— y la misma
+ * lectura del resultado: un 403 de un rol que no sube archivos llega como `ErrorApi` con
+ * su mensaje, que es lo que la pantalla enseña.
+ */
+export async function subirImagen(archivo: File): Promise<string> {
+  const cuerpo = new FormData();
+  cuerpo.append('archivo', archivo);
+  const respuesta = await fetch('/api/archivos/subir', {
+    method: 'POST',
+    headers: { 'idempotency-key': nuevaClave(), [CABECERA_PETICION_PROPIA]: '1' },
+    body: cuerpo,
+    credentials: 'same-origin',
+  });
+  const { file_url: url } = await leerResultado<{ readonly file_url: string }>(respuesta);
+  return url;
 }

@@ -68,6 +68,7 @@ export const capturarFormula = definirComando<
   escribe: true,
   roles: [...PROFESIONAL],
   paquetes: PAQUETES_TODOS,
+  sucursal: { citaId: 'citas' },
   entrada: entradaCapturarFormula,
   async ejecutar(ctx, entrada) {
     const { organizacionId, empleoId } = ctx.ambito;

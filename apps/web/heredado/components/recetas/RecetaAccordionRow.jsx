@@ -81,10 +81,10 @@ export default function RecetaAccordionRow({
   }
   const margenColor = (m) =>
     m >= 60
-      ? 'text-emerald-700 dark:text-emerald-300'
+      ? 'text-exito'
       : m >= 40
-        ? 'text-yellow-700 dark:text-yellow-300'
-        : 'text-red-700 dark:text-red-300';
+        ? 'text-advertencia'
+        : 'text-peligro';
 
   return (
     <Card
@@ -131,7 +131,7 @@ export default function RecetaAccordionRow({
               </div>
               <div className="text-center px-2">
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">Costo</p>
-                <p className="font-heading font-bold text-orange-600">
+                <p className="font-heading font-bold text-advertencia">
                   {formatCurrency(totalCosto)}
                 </p>
               </div>
@@ -139,7 +139,7 @@ export default function RecetaAccordionRow({
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
                   Utilidad
                 </p>
-                <p className="font-heading font-bold text-emerald-600">
+                <p className="font-heading font-bold text-exito">
                   {formatCurrency(producto.utilidadCalc)}
                 </p>
               </div>
@@ -163,7 +163,7 @@ export default function RecetaAccordionRow({
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
                   Costo / {varMetrics.u}
                 </p>
-                <p className="font-heading font-bold text-orange-600">
+                <p className="font-heading font-bold text-advertencia">
                   {varMetrics.hay ? formatCurrency(varMetrics.costo) : '—'}
                 </p>
               </div>
@@ -171,7 +171,7 @@ export default function RecetaAccordionRow({
                 <p className="text-[10px] text-muted-foreground uppercase tracking-wide">
                   Utilidad / {varMetrics.u}
                 </p>
-                <p className="font-heading font-bold text-emerald-600">
+                <p className="font-heading font-bold text-exito">
                   {varMetrics.hay ? formatCurrency(varMetrics.util) : '—'}
                 </p>
               </div>
@@ -199,7 +199,7 @@ export default function RecetaAccordionRow({
           ) : null}
         </div>
         <div
-          className="w-9 h-9 rounded-full flex items-center justify-center bg-white border shrink-0 transition-transform"
+          className="w-9 h-9 rounded-full flex items-center justify-center bg-superficie border shrink-0 transition-transform"
           style={{
             transform: open ? 'rotate(180deg)' : 'rotate(0deg)',
             boxShadow: '0 1px 0 rgba(255,255,255,0.9) inset, 0 2px 4px rgba(0,0,0,0.08)',
@@ -241,7 +241,7 @@ export default function RecetaAccordionRow({
               </div>
             ) : (
               <>
-                <div className="rounded-xl overflow-hidden border bg-white">
+                <div className="rounded-xl overflow-hidden border bg-superficie">
                   <div className="grid grid-cols-12 gap-2 px-3 py-2 text-[10px] font-semibold uppercase text-muted-foreground bg-muted/50">
                     <div className="col-span-4">Ingrediente</div>
                     <div className="col-span-2 text-right">Cantidad</div>
@@ -268,13 +268,13 @@ export default function RecetaAccordionRow({
                   <Stat
                     label="Costo producción"
                     value={formatCurrency(totalCosto)}
-                    color="text-orange-600"
+                    color="text-advertencia"
                   />
                   <Stat label="Precio venta" value={formatCurrency(producto.precio_venta)} />
                   <Stat
                     label="Utilidad"
                     value={formatCurrency(producto.utilidadCalc)}
-                    color="text-emerald-600"
+                    color="text-exito"
                   />
                   <Stat label="Margen" value={formatPercent(producto.margenCalc)} />
                 </div>
@@ -334,7 +334,7 @@ export default function RecetaAccordionRow({
 function Stat({ label, value, color }) {
   return (
     <div
-      className="p-3 rounded-xl bg-white border text-center"
+      className="p-3 rounded-xl bg-superficie border text-center"
       style={{ boxShadow: '0 1px 0 rgba(255,255,255,0.95) inset, 0 1px 3px rgba(0,0,0,0.04)' }}
     >
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide">{label}</p>

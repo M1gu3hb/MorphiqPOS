@@ -147,9 +147,9 @@ export default function CocinaPedidoCardPremium({
       {/* Badge huérfano informativo */}
       {isHuerfano && (
         <div className="pl-3 pr-2 pt-2">
-          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-700/50">
-            <AlertTriangle className="w-3.5 h-3.5 text-amber-600 shrink-0" />
-            <span className="text-[11px] font-medium text-amber-800 dark:text-amber-300">
+          <div className="flex items-center gap-1.5 px-2 py-1 rounded-md bg-advertencia/10 border border-advertencia/30">
+            <AlertTriangle className="w-3.5 h-3.5 text-advertencia shrink-0" />
+            <span className="text-[11px] font-medium text-advertencia">
               Sin venta asociada
             </span>
           </div>
@@ -159,13 +159,13 @@ export default function CocinaPedidoCardPremium({
       {/* 6A: ALERGIA / INDICACIONES CRÍTICAS — debe verse fuerte en cocina */}
       {pedido?.notas_alergias && (
         <div className="pl-4 pr-3 pt-2">
-          <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border-2 bg-amber-100 border-amber-500 dark:bg-amber-950/50 dark:border-amber-600">
-            <AlertTriangle className="w-4 h-4 text-amber-700 dark:text-amber-300 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2 px-2.5 py-2 rounded-lg border-2 bg-advertencia/15 border-advertencia">
+            <AlertTriangle className="w-4 h-4 text-advertencia shrink-0 mt-0.5" />
             <div className="min-w-0 flex-1">
-              <p className="text-[11px] font-black uppercase tracking-wide text-amber-900 dark:text-amber-200 leading-tight">
+              <p className="text-[11px] font-black uppercase tracking-wide text-advertencia leading-tight">
                 ⚠️ Alergias / indicaciones
               </p>
-              <p className="text-sm font-bold text-amber-900 dark:text-amber-100 leading-snug">
+              <p className="text-sm font-bold text-advertencia leading-snug">
                 {pedido.notas_alergias}
               </p>
             </div>
@@ -176,9 +176,9 @@ export default function CocinaPedidoCardPremium({
       {/* 6A: CELEBRACIÓN ESPECIAL — sutil, no rompe layout */}
       {pedido?.celebracion_especial === true && (
         <div className="pl-4 pr-3 pt-2">
-          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-pink-50 border-pink-300 dark:bg-pink-950/30 dark:border-pink-800/60">
+          <div className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg border bg-acento/10 border-acento/30">
             <span className="text-base leading-none">🎉</span>
-            <p className="text-[11px] font-bold text-pink-800 dark:text-pink-200 leading-tight">
+            <p className="text-[11px] font-bold text-acento leading-tight">
               {pedido?.tipo_celebracion
                 ? `Celebración: ${pedido.tipo_celebracion}`
                 : 'Celebración especial'}
@@ -200,7 +200,7 @@ export default function CocinaPedidoCardPremium({
             boxShadow: `0 2px 6px ${theme.barColor}55, 0 1px 0 rgba(255,255,255,0.2) inset`,
           }}
         >
-          <UtensilsCrossed className="w-5 h-5 text-white" />
+          <UtensilsCrossed className="w-5 h-5 text-primario-texto" />
         </div>
         <div className="flex-1 min-w-0">
           <p className="font-heading font-black text-base leading-tight">
@@ -211,7 +211,7 @@ export default function CocinaPedidoCardPremium({
               <Clock className="w-3 h-3" /> {timeLabel}
             </span>
             <span
-              className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-white tabular-nums"
+              className="px-1.5 py-0.5 rounded-full text-[10px] font-bold text-primario-texto tabular-nums"
               style={{ background: theme.pillBg }}
             >
               {totalProductos} {totalProductos === 1 ? 'item' : 'items'} · {itemCount} tipo
@@ -303,7 +303,7 @@ export default function CocinaPedidoCardPremium({
               <Button
                 size="sm"
                 variant="outline"
-                className="h-7 text-[11px] border-red-300 text-red-700 hover:bg-red-50"
+                className="h-7 text-[11px] border-peligro/30 text-peligro hover:bg-peligro/10"
                 onClick={(e) => {
                   e.stopPropagation();
                   setConfirmQuitar(true);
@@ -345,14 +345,14 @@ export default function CocinaPedidoCardPremium({
                     key={i}
                     className={`rounded-lg overflow-hidden ${
                       tieneExtras
-                        ? 'border-l-4 border-orange-400 bg-orange-50/60 dark:bg-orange-950/20'
+                        ? 'border-l-4 border-advertencia bg-advertencia/60'
                         : 'bg-card border'
                     }`}
                   >
                     <button
                       type="button"
                       onClick={(e) => handleProductoClick(e, item)}
-                      className="w-full flex items-start gap-2 text-left px-2.5 py-2 hover:bg-white/70 dark:hover:bg-white/5 transition-colors group"
+                      className="w-full flex items-start gap-2 text-left px-2.5 py-2 hover:bg-superficie/70 transition-colors group"
                       title="Ver ficha interna del producto"
                     >
                       {esVariable ? (
@@ -369,13 +369,13 @@ export default function CocinaPedidoCardPremium({
                       )}
                       <div className="flex-1 min-w-0">
                         <p
-                          className={`text-sm leading-tight ${tieneExtras ? 'font-bold text-orange-900 dark:text-orange-100' : 'font-semibold'}`}
+                          className={`text-sm leading-tight ${tieneExtras ? 'font-bold text-advertencia' : 'font-semibold'}`}
                         >
                           {item?.producto_nombre || '—'}
                         </p>
                       </div>
                       {tieneExtras && (
-                        <AlertCircle className="w-3.5 h-3.5 text-orange-600 mt-0.5 shrink-0" />
+                        <AlertCircle className="w-3.5 h-3.5 text-advertencia mt-0.5 shrink-0" />
                       )}
                       {item?.producto_id && (
                         <BookOpen className="w-3.5 h-3.5 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity mt-0.5 shrink-0" />
@@ -388,7 +388,7 @@ export default function CocinaPedidoCardPremium({
                         {lineasMod.map((linea, idx) => (
                           <p
                             key={idx}
-                            className="text-[11px] font-semibold text-orange-800 dark:text-orange-200 ml-9 bg-orange-100 dark:bg-orange-900/40 border border-orange-200 dark:border-orange-700/40 px-2 py-0.5 rounded"
+                            className="text-[11px] font-semibold text-advertencia ml-9 bg-advertencia/15 border border-advertencia/30 px-2 py-0.5 rounded"
                           >
                             ↳ {linea}
                           </p>
@@ -398,7 +398,7 @@ export default function CocinaPedidoCardPremium({
 
                     {/* Notas libres */}
                     {notas && (
-                      <p className="text-[11px] italic text-orange-800 dark:text-orange-200 ml-9 mr-2 mb-1.5 bg-orange-100/60 dark:bg-orange-900/30 border border-orange-200 dark:border-orange-700/40 px-2 py-0.5 rounded font-medium">
+                      <p className="text-[11px] italic text-advertencia ml-9 mr-2 mb-1.5 bg-advertencia/60 border border-advertencia/30 px-2 py-0.5 rounded font-medium">
                         ↳ {notas}
                       </p>
                     )}
@@ -412,8 +412,8 @@ export default function CocinaPedidoCardPremium({
 
           {/* Nota general del pedido (mesa, no de un item) */}
           {pedido?.notas && (
-            <div className="rounded-lg border border-yellow-200 dark:border-yellow-800/50 bg-yellow-50 dark:bg-yellow-950/30 px-2.5 py-1.5">
-              <p className="text-[11px] italic text-yellow-900 dark:text-yellow-200">
+            <div className="rounded-lg border border-advertencia/30 bg-advertencia/10 px-2.5 py-1.5">
+              <p className="text-[11px] italic text-advertencia">
                 📝 <span className="font-bold">Mesa:</span> {pedido.notas}
               </p>
             </div>

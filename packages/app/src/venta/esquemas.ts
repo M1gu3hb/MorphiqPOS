@@ -44,6 +44,16 @@ export const entradaAgregarLinea = z.object({
   cantidad: cantidadDecimal,
   /** Para productos por medida o por porción. El catálogo decide si aplica. */
   unidad: z.string().min(1).max(10).optional(),
+  /**
+   * F-147 · Se vende la CAJA, no 24 piezas: la línea lleva el precio de la presentación
+   * y descuenta `factor × cantidad` en unidad base. El precio lo pone el servidor.
+   */
+  presentacionId: z.uuid().optional(),
+});
+
+/** Quitar TODAS las líneas de un borrador: lo que dejó un cobro que no se completó. */
+export const entradaVaciarOrden = z.object({
+  ordenId: z.uuid(),
 });
 
 export const entradaQuitarLinea = z.object({
@@ -63,7 +73,12 @@ export const entradaCotizarOrden = z.object({
 
 /** Un renglón de pago. Un pago mixto son varios (corrige P1-11). */
 export const entradaPago = z.object({
-  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia']),
+  /**
+   * `fiado` es lo que se entrega sin cobrar (C.10 de la 2.4): suma a la venta, NO al cajón, y
+   * deja un documento de crédito a nombre de `clienteId` en la misma transacción. El `check`
+   * de `pagos.metodo` lo admite desde la 003; lo que faltaba era dejarlo pasar aquí.
+   */
+  metodo: z.enum(['efectivo', 'tarjeta', 'transferencia', 'fiado']),
   montoCentavos: centavosNoNegativos,
   /** Sólo en efectivo: cuánto puso el cliente. Sirve para el cambio. */
   recibidoCentavos: centavosNoNegativos.optional(),
@@ -81,6 +96,11 @@ export const entradaCobrarOrden = z.object({
    * un número al cliente, y cobrar otro distinto sin avisar es peor que fallar.
    */
   totalEsperadoCentavos: centavosNoNegativos.optional(),
+  /**
+   * A quién se le fía. Obligatorio si algún pago es `fiado`: un fiado sin nombre es una deuda
+   * que nadie va a cobrar. Se sella también en la orden, para el ticket y la ficha.
+   */
+  clienteId: z.uuid().optional(),
   /**
    * F-331 · Por dónde sale esta venta. Decide el EMPAQUE, y con él el costo.
    *
@@ -192,6 +212,36 @@ export const entradaCerrarCaja = z.object({
    * contó"»— así que sin esto el reparto del bote tampoco podía funcionar nunca.
    */
   boteContadoCentavos: centavosNoNegativos.optional(),
+  /**
+   * EL DINERO QUE SE QUEDA EN EL CAJÓN, que es el fondo de mañana (C.6 de la 2.4).
+   *
+   * Viajaba como texto en `notas` —«Dinero dejado en caja (fondo): $1,000.00»—, así que
+   * el día siguiente no podía compararse con nada y el PDF no podía enseñarlo. Ahora es
+   * un campo: se guarda lo RETIRADO (`efectivo_retirado_centavos`, contado − dejado) y lo
+   * dejado se deriva, igual que en el corte de turno. Sin él la columna queda en NULL,
+   * que es «no se dijo», no «se dejó cero».
+   */
+  fondoDejadoCentavos: centavosNoNegativos.optional(),
+  /**
+   * EL CONTEO por denominación (F-231): el total lo calcula la máquina. Si viaja, el
+   * efectivo contado tiene que ser su suma; si no cuadra, el cierre se rechaza en vez de
+   * guardar dos números distintos para el mismo cajón.
+   */
+  denominaciones: z
+    .array(
+      z.object({
+        denominacionCentavos: z.number().int().positive().max(100_000_00),
+        piezas: z.number().int().min(0).max(100_000),
+      }),
+    )
+    .max(20)
+    .optional(),
+  /**
+   * Lo suelto que no se cuenta por piezas —las monedas de centavos—, como importe. El
+   * conteo por denominación MÁS esto tiene que dar lo contado. No se guarda como una
+   * denominación inventada: quien lea el conteo lo obtiene como contado − la suma.
+   */
+  sueltosCentavos: centavosNoNegativos.optional(),
   notas: z.string().max(500).optional(),
 });
 

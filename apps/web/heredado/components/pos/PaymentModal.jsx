@@ -88,7 +88,7 @@ export default function PaymentModal({
                   <span>Subtotal venta</span>
                   <span>{formatCurrency(total)}</span>
                 </div>
-                <div className="flex justify-between px-4 text-rose-600">
+                <div className="flex justify-between px-4 text-peligro">
                   <span>Propina</span>
                   <span>+ {formatCurrency(propinaSafe)}</span>
                 </div>
@@ -137,9 +137,9 @@ export default function PaymentModal({
                 className="text-lg font-bold text-center h-12"
               />
               {parseFloat(montoRecibido) >= totalACobrar && (
-                <div className="text-center p-3 bg-emerald-50 rounded-lg border border-emerald-200">
-                  <p className="text-xs text-emerald-600">Cambio</p>
-                  <p className="text-xl font-heading font-bold text-emerald-700">
+                <div className="text-center p-3 bg-exito/10 rounded-lg border border-exito/30">
+                  <p className="text-xs text-exito">Cambio</p>
+                  <p className="text-xl font-heading font-bold text-exito">
                     {formatCurrency(cambio)}
                   </p>
                 </div>
