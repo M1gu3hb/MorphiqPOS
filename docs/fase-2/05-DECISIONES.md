@@ -778,6 +778,113 @@ abierta— recibía la foto vieja: «la caja está cerrada».
 **Decisión.** La clave de idempotencia sólo se mira, se reclama y se guarda cuando el comando
 `escribe`. Para una lectura se ignora: se vuelve a leer siempre.
 
+## D-36 · 19-10-2026 · La frontera por sucursal: el dueño y el administrador consolidan; los demás ven y operan SU sucursal
+
+**Contexto.** El modelo de datos ya es multisucursal (`sucursal_id` en ventas, cajas, mesas,
+citas, compras…), pero el puente sólo acotaba por organización —y, para la estilista, por
+persona— y cada comando resolvía sus ids por organización. Entre dos sucursales de un mismo
+negocio no había frontera: el gerente del centro leía las ventas, el kárdex y el corte del
+norte, y desde el norte se le agregaban renglones a una orden del centro. Hoy los nueve
+negocios de producción tienen UNA sucursal, así que nada real se filtraba; pero el día que
+llegue la segunda, la fuga ya estaría hecha.
+
+**Decisión.**
+- `ROLES_CONSOLIDADOS = ['dueno', 'administrador']` (`packages/contracts`). El gerente NO
+  consolida: es el encargado de SU sucursal; un gerente regional es un administrador.
+- LEER: cada entidad del puente declara su frontera (obligatoria en el tipo): su
+  `sucursal_id`, la de su padre (renglones → orden, kárdex → almacén, movimientos → caja),
+  o «del negocio» con su razón (catálogo, clientas y su cartera, reglas, existencias
+  consolidadas). `consultar` la aplica de la sesión, nunca del cliente; sin sucursal en la
+  sesión, falla cerrada.
+- OPERAR: cada comando declara qué campos de su entrada son ids de algo de una sucursal
+  (`sucursal: { ordenId: 'ordenes' }`; 141 comandos) y `definirComando` comprueba que el
+  campo existe. El envoltorio cambia los ids de OTRA sucursal por uno que no existe antes
+  del cuerpo: el comando contesta lo mismo que a un id al azar. El dueño y el administrador
+  leen todo, pero cuando ESCRIBEN desde una terminal operan esa sucursal (el cobro entra en
+  ESE cajón); sin terminal, operan cualquiera.
+- Una `sucursal_id` que admite nulo se lee con su `coalesce`: la fila sin sucursal es del
+  negocio. Lo exige un contrato contra el esquema migrado.
+
+**Alternativas descartadas.**
+- *RLS por sucursal en Postgres* (`set local` del ámbito y políticas por tabla): la
+  aplicación entra con un rol con `bypassrls`, y cambiarlo toca todas las conexiones, el
+  pooler y cada migración; demasiado radio para este corte.
+- *Una comprobación escrita a mano en cada comando*: cien sitios que alguien tiene que
+  acordarse de escribir, y cada uno contestando distinto («es de otra sucursal» ya dice que
+  existe).
+- *Un diccionario de nombres de campo → tabla aplicado a todos los comandos*: `rentaId` y
+  `piezaId` significan tablas distintas en comandos distintos; la declaración es explícita.
+
+**Consecuencias.**
+- Un comando nuevo que recibe un id de sucursal y no lo declara pone en rojo
+  `sucursal/frontera.contrato.test.ts`, que carga los 263 comandos.
+- Devolver en el centro una venta del norte no es posible hoy (la devolución sale del cajón
+  de quien la hace). Si un cliente lo pide, es una decisión de producto con su contabilidad
+  entre sucursales, no un permiso que se abre.
+- PENDIENTE declarado: los TABLEROS (`reportes.tablero_*`) y `venta.mas_vendidos` agregan el
+  negocio entero también para el gerente, y las vistas de existencias del puente se
+  declaran consolidadas. Con una sucursal por negocio no cambia nada; se acotan cuando
+  llegue el alta de la segunda sucursal.
+
+## D-37 · 19-10-2026 · Lo vendido a cuenta se devuelve a cuenta, y el corte resta lo devuelto el día en que se devuelve
+
+**Contexto.** `venta.devolver_venta` exige devolver por el método con que se pagó, y sólo
+conocía efectivo, tarjeta y transferencia: una venta fiada (tienda) o remitida a crédito
+(ferretería) NO se podía devolver, y la única salida era sacar dinero del cajón por un
+material que nunca se pagó (`ferreteria/02-DINERO-Y-CAJA` §8.3). Además el corte filtraba
+las ventas por su estado ACTUAL: una venta devuelta entera desaparecía retroactivamente del
+corte del día en que se cobró.
+
+**Decisión.**
+- Migración 182: `devoluciones.metodo` admite `fiado` y `credito`, y una devolución a
+  cuenta nombra SIEMPRE su documento de cartera (`documento_credito_id`, con un `check` que
+  lo ata y una llave a la misma organización). La parte que el cliente ya pagó se devuelve
+  por el método con que la pagó; lo que sigue debiéndose, a su cuenta. Fiado y crédito son
+  el mismo concepto —«a cuenta»— con dos nombres de giro.
+- El corte cuenta como vendida la orden reembolsada si tiene devoluciones (`ORDEN_VENDIDA`),
+  y la hoja trae una sección de devoluciones: lo devuelto se resta el día en que se devuelve,
+  con su método, quién y por qué; la utilidad se calcula sobre la venta neta.
+
+**Alternativas.** Cancelar la venta en vez de devolverla (borra la historia y descuadra el
+día de la venta); un método «nota de crédito» aparte (otro saldo que conciliar con el
+mismo cliente).
+
+**Consecuencias.** La conciliación sabe reconstruir el saldo de un documento —importe −
+pagos aplicados − devoluciones— sin creerle a la columna cacheada. El código de `main`
+sigue funcionando con la 182 aplicada (sólo ensancha y agrega una columna nula).
+
+## D-38 · 19-10-2026 · La respuesta que no llega se dice como es, y el reintento es seguro
+
+**Contexto.** Si el servidor cobraba y la respuesta se perdía, la caja enseñaba «Failed to
+fetch» y la de la tienda caía en «No se cobró nada», que era justo lo que no se sabía.
+
+**Decisión.** `invocarComando` lanza `ErrorSinRespuesta`: «puede que sí se haya hecho;
+vuelve a tocar el mismo botón: si ya estaba hecho, no se repite». Es verdad porque el mismo
+pedido conserva su clave de idempotencia hasta tener respuesta definitiva y el servidor
+devuelve el resultado guardado. Un abort de quien llama sale tal cual.
+
+**Consecuencias.** El día de la tienda lo recorre: corta la respuesta de un cobro después de
+que el servidor lo hizo, la cajera vuelve a tocar y en el servidor hay UNA venta.
+
+## D-39 · 19-10-2026 · Las jornadas corren en CI sin reintentos, en el aparato de quien opera
+
+**Contexto.** Las suites de día completo, de matriz de permisos y de aislamiento existían y
+no corrían en ninguna parte; `playwright.config.ts` permite un reintento en CI.
+
+**Decisión.** Dos trabajos nuevos en `verificar.yml`: «Jornada completa» por modelo y
+«Permisos por rol y aislamiento». Las jornadas corren con `--retries=0` y `--workers=1`: un
+día que sólo cuadra al segundo intento no cuadró. Los aparatos son los del modelo
+(`04-INTERFAZ`): PC y tableta en el mostrador; tableta en restaurante y salón; el teléfono
+dentro del día, donde el negocio lo usa (el dueño lee el corte, la estilista su día). Todo
+sobre Chromium; WebKit entra con la pantalla de mesero del iPad.
+
+**Alternativas.** Correr cada día en los tres aparatos (probaría cobrar desde un teléfono,
+que el producto declara que no hace); permitir el reintento (escondería el fallo que se
+quiere ver).
+
+**Consecuencias.** Cinco trabajos más por empujón, en paralelo; si uno se pone rojo, el
+artefacto `jornada-<modelo>` trae la traza.
+
 ## DECISIONES PENDIENTES · las tiene que tomar Miguel
 
 *Revisadas el 24-09-2026 (C.15 de la 2.4). De las cuatro, sólo P-02 sigue abierta. Las otras

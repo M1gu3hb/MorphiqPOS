@@ -11,16 +11,17 @@ vocabulario, sus pantallas y su tablero.
 >
 > Antes de tocar nada, lee [`CONTEXTO_MAESTRO.md`](CONTEXTO_MAESTRO.md),
 > [`DECISIONES.md`](DECISIONES.md) y [`REGLAS.md`](REGLAS.md). Si algo no está escrito ahí,
-> no está decidido. Si vas a escribir código, lee además [`TEAM.md`](TEAM.md): hay **dos
-> agentes trabajando en paralelo** y cada uno tiene su zona.
+> no está decidido. Si vas a escribir código, lee además [`TEAM.md`](TEAM.md): quién dirige,
+> quién desarrolla y cómo se entrega.
 >
 > El README anterior de planeación se conserva en
 > [`docs/README-PLANEACION.md`](docs/README-PLANEACION.md).
 
-**Corte actual: Fase 2.3 — el acople.** La Fase 1 construyó el punto de venta y la Fase 2 los
-cinco modelos de negocio; la 2.3 los conectó al sistema vivo: 109 migraciones aplicadas, 62
-pantallas de modelo colgando de su menú, cinco demostraciones que cobran de punta a punta por
-la interfaz y el CI verde. El estado al día vive en
+**Corte actual: Fase 2.4 — la estabilización de los cinco modelos.** La Fase 1 construyó el
+punto de venta y la Fase 2 los cinco modelos de negocio; la 2.3 los conectó al sistema vivo y
+la 2.4 los cierra: cada modelo vive un día completo conciliado al centavo contra el servidor,
+con permisos por rol, aislamiento entre negocios y entre sucursales, y esas suites corriendo
+en CI. El estado al día —qué está aprobado y qué no— vive en
 [`docs/fase-2/07-ESTADO.md`](docs/fase-2/07-ESTADO.md) y el detalle de cada decisión en
 [`docs/fase-2/BITACORA.md`](docs/fase-2/BITACORA.md).
 

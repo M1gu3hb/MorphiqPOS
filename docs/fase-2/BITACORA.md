@@ -6552,3 +6552,61 @@ a medias por límite de uso (revisar su borrador `dia-completo-restaurante.spec.
 **En qué voy:** el día de la estética falla en «Fórmula guardada en su historial.» (paso de
 Karla en la cabina, tablet). Pendiente: correr ferretería (escritorio) y restaurante (tablet);
 aplicar la 181 a la base viva por F2.3 §4; D.5–D.8, D.10–D.11; bloques E y F; reporte 020.
+
+
+## 19-10-2026 · Etapa 2.4 · El cierre de la estabilización (rama `claude/morphiq-pos-stabilization-u5qfo1`)
+
+Encargo de Miguel: cerrar la estabilización de los cinco modelos —dinero e inventario
+conciliados, permisos, pruebas en CI y esquema alineado—. Esta sesión de Claude Code hace el
+desarrollo; Miguel y ChatGPT dirigen y revisan (`TEAM.md` reescrito: los carriles A/B pasan a
+«Histórico»). La rama sale de `fase-2.4` (`0178217`) y lo trae todo.
+
+**Línea base, contrastada y no creída:** unitarias 4,038 en verde; lint con 25 errores en una
+spec de exploración que se había quedado dentro (borrada) y formato roto en dos archivos;
+`verify:adopcion` con siete «pantallas» del restaurante en rojo que eran PIEZAS que una pantalla
+pinta (el verificador las distingue ahora por su envoltorio y su `SIN_ESTADO` con razón, con
+pruebas propias); el CI rojo del portal del comensal era una expectativa vieja (sin token la
+página dice «QR inválido» desde D-25), no un defecto. La barra de la cafetería se contaba antes
+de que la lista llegara: la prueba espera ahora un estado cargado.
+
+**Lo construido, cada cosa con su prueba vista roja:**
+- La base desechable corre en Docker con PostgreSQL 17.6 (`MORPHIQPOS_BASE_DESECHABLE_IMAGEN`),
+  con el almacén declarado y el puerto del servidor por variable.
+- La estilista lee a SUS clientas por el puente (no podía guardar la fórmula: «Sin
+  registrar»), y nadie filtra por un campo que no puede ver.
+- **D-37:** lo vendido fiado o a crédito se devuelve a cuenta (migración **182**), con el saldo
+  del documento, la remisión y la ficha bajando juntos y bajo candado; la parte pagada sale
+  por su método. El corte deja de borrar retroactivamente las ventas devueltas y resta lo
+  devuelto el día en que se devuelve (sección «Devoluciones», venta neta, utilidad neta). El
+  folio para devolver se busca en la sucursal de quien devuelve.
+- **D-36:** la frontera por sucursal, en el puente y en 141 comandos, con roles consolidados
+  (dueño y administrador). La prueba contra Postgres con dos sucursales la vio roja sin el
+  cambio: desde el norte se agregaban renglones a una orden del centro y se leía su corte.
+  Fuera `ConteoLinea` y `BeneficiarioPropina` (tablas sin `organizacion_id`).
+- **D-38:** la respuesta que no llega se dice en español y el reintento es seguro; el día de
+  la tienda corta la respuesta de un cobro ya hecho y exige UNA venta.
+- El dueño lee el corte en un teléfono de verdad (Pixel 7, otra entrada con PIN) en la tienda
+  y la ferretería; el paso se llamaba «en su teléfono» y corría en la PC.
+- El aislamiento entre negocios comparaba un cuerpo con el MISMO id ajeno en dos campos contra
+  uno con dos ids al azar distintos: el relevo de turno contestaba otra regla. Ahora un id por
+  tabla en las dos peticiones.
+- **D-39:** CI corre la jornada completa de cada modelo (PC y tableta en mostrador, tableta en
+  restaurante y salón; sin reintentos) y la matriz de permisos y el aislamiento con las cinco
+  demos.
+
+**Jornadas (base desechable, escritorio):** tienda 58 s, cafetería 1.4 min, ferretería 2.0
+min, las tres conciliadas al centavo con la prueba del centavo de más; las tres también en
+tableta. En teléfono el día entero NO se corre: el producto declara que el teléfono es del
+dueño, de lectura (`abarrotes/00-FICHA` §E); el teléfono va dentro del día. Restaurante y
+estética: dos subagentes los continúan en sus worktrees (los anteriores se cortaron por límite
+de uso y el contenedor se reinició; su trabajo se guardó como parche y se fusionó con la rama).
+
+**Las migraciones 181 y 182:** ledger de producción verificado (112/112 hashes, faltan
+exactamente esas dos); ensayo 180→182 en una base desechable con datos por los comandos, 134
+tablas idénticas y la nueva columna nula; ensayo con `rollback` sobre los datos reales de
+producción, sin dejar nada. **NO aplicadas: falta el respaldo.** Esta sesión no tiene
+`DATABASE_URL` ni la clave de servicio, y vaciar los datos por el conector los habría
+expuesto. Plan, comandos y vuelta atrás en `docs/fase-2/MIGRACIONES-181-182.md`.
+
+**En qué voy:** integrar lo de los dos subagentes cuando entreguen; el PR contra `main`; el CI
+sobre el SHA del PR; el preview; `07-ESTADO.md` y el reporte 020.
