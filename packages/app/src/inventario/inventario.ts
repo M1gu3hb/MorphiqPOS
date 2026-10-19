@@ -11,13 +11,15 @@ import { exigirMotivoDeMerma } from './motivos.ts';
 const ROLES = ['dueno', 'administrador', 'gerente', 'almacen'] as const;
 const id = z.uuid();
 const unidad = z.enum(['pieza', 'kg', 'g', 'l', 'ml', 'm']);
+// `abort`: si no es un número, `noEsCero` no se pregunta —su `BigInt` lanzaría y la entrada
+// mal escrita saldría como error interno en vez de 400—.
 const cantidadPositiva = z
   .string()
-  .regex(/^\d{1,10}(?:\.\d{1,4})?$/)
+  .regex(/^\d{1,10}(?:\.\d{1,4})?$/, { abort: true })
   .refine(noEsCero);
 const cantidadConSigno = z
   .string()
-  .regex(/^-?\d{1,10}(?:\.\d{1,4})?$/)
+  .regex(/^-?\d{1,10}(?:\.\d{1,4})?$/, { abort: true })
   .refine(noEsCero);
 const importe = z.string().regex(/^\d+(?:\.\d{1,2})?$/);
 

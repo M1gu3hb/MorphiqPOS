@@ -22,7 +22,11 @@ import { z } from 'zod';
 /** Cantidad como cadena decimal: `numeric(14,4)` en la base, nunca un float (R15). */
 const cantidadDecimal = z
   .string()
-  .regex(/^\d{1,10}(\.\d{1,4})?$/, 'La cantidad debe ser un decimal de hasta cuatro cifras.')
+  .regex(/^\d{1,10}(\.\d{1,4})?$/, {
+    error: 'La cantidad debe ser un decimal de hasta cuatro cifras.',
+    // Sin `abort`, zod 4 corre el `refine` aunque esto no pase, y su `BigInt` LANZA.
+    abort: true,
+  })
   .refine((v) => BigInt(v.replace('.', '')) > 0n, 'La cantidad debe ser mayor que cero.');
 
 const texto = (maximo: number) => z.string().trim().max(maximo);

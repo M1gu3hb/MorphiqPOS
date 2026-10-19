@@ -18,7 +18,12 @@ import { z } from 'zod';
 const importe = z
   .string()
   .trim()
-  .regex(/^\d{1,10}(?:\.\d{1,4})?$/, 'El importe se escribe con dígitos y hasta cuatro decimales.');
+  .regex(/^\d{1,10}(?:\.\d{1,4})?$/, {
+    error: 'El importe se escribe con dígitos y hasta cuatro decimales.',
+    // Sin `abort`, zod 4 corre el `refine` de abajo aunque esto no pase, y `BigInt` de un
+    // texto que no es número LANZA: la entrada mal escrita salía como error interno (500).
+    abort: true,
+  });
 
 const importePositivo = importe.refine(esPositivo, 'El importe debe ser mayor que cero.');
 
@@ -26,7 +31,10 @@ const importePositivo = importe.refine(esPositivo, 'El importe debe ser mayor qu
 const cantidadPositiva = z
   .string()
   .trim()
-  .regex(/^\d{1,10}(?:\.\d{1,4})?$/, 'La cantidad se escribe con hasta cuatro decimales.')
+  .regex(/^\d{1,10}(?:\.\d{1,4})?$/, {
+    error: 'La cantidad se escribe con hasta cuatro decimales.',
+    abort: true,
+  })
   .refine(esPositivo, 'La cantidad debe ser mayor que cero.');
 
 const unidadDeCompra = z.string().trim().min(1).max(30);

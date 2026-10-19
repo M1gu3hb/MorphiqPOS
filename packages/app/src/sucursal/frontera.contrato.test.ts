@@ -1,11 +1,7 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join } from 'node:path';
-import { fileURLToPath } from 'node:url';
-
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 
-import type { DefinicionComando } from '../definicion.ts';
+import { comandosRegistrados } from '../pruebas/comandos-registrados.ts';
 import { esTablaDeSucursal, FRONTERA_DE_TABLAS, segmentosDe } from './frontera.ts';
 
 /**
@@ -86,19 +82,6 @@ const DEL_NEGOCIO_POR_NOMBRE: Readonly<Record<string, Readonly<Record<string, st
   },
 };
 
-type Definicion = DefinicionComando<unknown, z.ZodType, unknown>;
-
-function esDefinicion(valor: unknown): valor is Definicion {
-  return (
-    typeof valor === 'object' &&
-    valor !== null &&
-    typeof (valor as { nombre?: unknown }).nombre === 'string' &&
-    Array.isArray((valor as { roles?: unknown }).roles) &&
-    typeof (valor as { ejecutar?: unknown }).ejecutar === 'function' &&
-    (valor as { entrada?: unknown }).entrada instanceof z.ZodType
-  );
-}
-
 /** Los caminos de todos los campos de texto de la entrada, con `[]` en los arreglos. */
 function caminos(esquema: unknown, prefijo = ''): string[] {
   if (typeof esquema !== 'object' || esquema === null) return [];
@@ -121,23 +104,7 @@ function caminos(esquema: unknown, prefijo = ''): string[] {
   return nodo.type === 'string' ? [prefijo] : [];
 }
 
-/** Todos los módulos de `packages/app/src` que definen comandos, sin pruebas ni dobles. */
-function modulosConComandos(dir: string): string[] {
-  return readdirSync(dir).flatMap((nombre) => {
-    const ruta = join(dir, nombre);
-    if (statSync(ruta).isDirectory()) return nombre === 'pruebas' ? [] : modulosConComandos(ruta);
-    if (!nombre.endsWith('.ts') || nombre.endsWith('.test.ts')) return [];
-    return readFileSync(ruta, 'utf8').includes('definirComando') ? [ruta] : [];
-  });
-}
-
-const COMANDOS = new Map<string, Definicion>();
-for (const ruta of modulosConComandos(fileURLToPath(new URL('..', import.meta.url)))) {
-  const modulo = (await import(ruta)) as Record<string, unknown>;
-  for (const valor of Object.values(modulo)) {
-    if (esDefinicion(valor)) COMANDOS.set(valor.nombre, valor);
-  }
-}
+const COMANDOS = await comandosRegistrados();
 
 describe('la frontera por sucursal de los comandos (D-36)', () => {
   it('se cargan los comandos de verdad, no una lista vacía', () => {
