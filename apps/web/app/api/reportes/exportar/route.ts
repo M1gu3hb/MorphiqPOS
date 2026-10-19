@@ -79,8 +79,15 @@ export function POST(peticion: Request): Promise<Response> {
 
       const desde = fecha(cuerpo.desde);
       const hasta = fecha(cuerpo.hasta);
+      // El gerente exporta, y exporta SU sucursal (D-36): el exporte lee por el puente,
+      // así que lleva el mismo ámbito que una consulta.
       const armado = await armarExporte(
-        { organizacionId: sesion.organizacionId, rol: sesion.rol },
+        {
+          organizacionId: sesion.organizacionId,
+          rol: sesion.rol,
+          empleoId: sesion.empleoId,
+          sucursalId: sesion.sucursalId,
+        },
         {
           entidad,
           formato,

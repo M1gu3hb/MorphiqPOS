@@ -48,11 +48,13 @@ export function POST(peticion: Request): Promise<Response> {
       cuerpo.operacion === 'get' || cuerpo.operacion === 'filter' ? cuerpo.operacion : 'list';
 
     // El empleo viaja para el recorte por persona (C.7 de la 2.4): la estilista sólo lee
-    // su agenda, sus comisiones y sus liquidaciones.
+    // su agenda, sus comisiones y sus liquidaciones. Y la sucursal, para la frontera por
+    // sucursal (D-36): quien no consolida sólo lee lo de la suya.
     const ambito = {
       organizacionId: sesion.organizacionId,
       rol: sesion.rol,
       empleoId: sesion.empleoId,
+      sucursalId: sesion.sucursalId,
     };
 
     // `ConfiguracionNegocio` es un documento JSON, no una tabla con columnas.

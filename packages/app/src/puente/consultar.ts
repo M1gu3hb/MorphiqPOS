@@ -1,7 +1,8 @@
 import 'server-only';
 
-import { ErrorDominio } from '@morphiqpos/contracts';
+import { ErrorDominio, veConsolidado } from '@morphiqpos/contracts';
 import { leyendoConReintento, obtenerDb } from '@morphiqpos/data';
+import { sql, type RawBuilder } from 'kysely';
 
 import { baseLibre } from './db-dinamica.ts';
 
@@ -43,6 +44,12 @@ export interface Ambito {
    * sin él, una entidad con recorte no devuelve NADA a esos roles: falla cerrada.
    */
   readonly empleoId?: string;
+  /**
+   * La sucursal de la sesión: la de su terminal, o la de su empleo (`resolverSesion`). La
+   * pide la FRONTERA POR SUCURSAL (D-36): quien no consolida sólo lee lo de la suya, y sin
+   * sucursal no lee nada que sea de una —falla cerrada, como el recorte por persona—.
+   */
+  readonly sucursalId?: string | null;
 }
 
 /**
@@ -89,7 +96,7 @@ type Fila = Record<string, unknown>;
  */
 interface ConsultaLibre {
   leftJoin(tabla: string, columnaIzquierda: string, columnaDerecha: string): ConsultaLibre;
-  where(columna: string, operador: string, valor: unknown): ConsultaLibre;
+  where(columna: string | RawBuilder<unknown>, operador: string, valor: unknown): ConsultaLibre;
   orderBy(columna: string, direccion: 'asc' | 'desc'): ConsultaLibre;
   limit(n: number): ConsultaLibre;
   execute(): Promise<Fila[]>;
@@ -103,6 +110,44 @@ interface ConsultaLibre {
  * SIEMPRE, con join o sin él, para que no haya dos caminos que mantener.
  */
 const BASE = 'b';
+
+/** Ninguna sucursal: la sesión sin sucursal de quien no consolida no empareja ninguna fila. */
+const NINGUNA_SUCURSAL = '00000000-0000-4000-8000-000000000000';
+
+/**
+ * Aplica la frontera por sucursal de la entidad (D-36). Quien consolida —dueño y
+ * administrador— lee todas; los demás, la de su sesión. Una entidad del negocio entero
+ * (`delNegocio`) no se recorta.
+ */
+function conFronteraDeSucursal(
+  consulta: ConsultaLibre,
+  mapa: MapaEntidad,
+  ambito: Ambito,
+): ConsultaLibre {
+  const frontera = mapa.sucursal;
+  if (veConsolidado(ambito.rol) || 'delNegocio' in frontera) return consulta;
+  const sucursal = ambito.sucursalId ?? NINGUNA_SUCURSAL;
+  if ('columna' in frontera) {
+    const columna = sql.ref(`${BASE}.${frontera.columna}`);
+    return frontera.nulaEsDelNegocio === true
+      ? consulta.where(sql`coalesce(${columna}, ${sucursal}::uuid)`, '=', sucursal)
+      : consulta.where(`${BASE}.${frontera.columna}`, '=', sucursal);
+  }
+  const { columna, tabla, columnaSucursal, nulaEsDelNegocio } = frontera.porPadre;
+  const delPadre = sql.ref(columnaSucursal ?? 'sucursal_id');
+  const padres = baseLibre(obtenerDb())
+    .selectFrom(tabla)
+    .select('id' as never)
+    .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+    .where(
+      (nulaEsDelNegocio === true
+        ? sql`coalesce(${delPadre}, ${sucursal}::uuid)`
+        : delPadre) as never,
+      '=',
+      sucursal as never,
+    );
+  return consulta.where(`${BASE}.${columna}`, 'in', padres);
+}
 
 /** El campo si este rol lo puede ver; si no, como si no estuviera en el mapa. */
 function vistoPor<C extends { readonly rolesLectura?: readonly string[] }>(
@@ -265,6 +310,10 @@ async function consultarUnaVez(
           : consulta.where(`${BASE}.${recorte.columna}`, 'in', suyas);
     }
   }
+
+  // 1c · LA FRONTERA POR SUCURSAL (D-36): quien no consolida lee SU sucursal y ninguna
+  //      otra. De la sesión, nunca del cliente; sin sucursal en la sesión, nada.
+  consulta = conFronteraDeSucursal(consulta, mapa, ambito);
 
   // 2 · El filtro fijo de la entidad (p. ej. categorias.tipo = 'producto').
   for (const [columna, valor] of Object.entries(mapa.filtroFijo ?? {})) {

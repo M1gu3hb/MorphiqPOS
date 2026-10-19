@@ -11,10 +11,6 @@ export const UNIDADES_DEL_PUENTE = {
     tope_por_salida_centavos: 'pesos',
     tope_por_salida_pesos: 'pesos',
   },
-  BeneficiarioPropina: {
-    monto_centavos: 'pesos',
-    monto_pesos: 'pesos',
-  },
   CarteraFiado: {
     limite_centavos: 'centavos',
     saldo_centavos: 'centavos',

@@ -116,7 +116,9 @@ describe('la forma del mapa', () => {
         gemelos += 1;
       }
     }
-    expect(gemelos).toBeGreaterThanOrEqual(22);
+    // Eran 22; `BeneficiarioPropina.monto_centavos` se fue con su entidad, que leía una tabla
+    // sin `organizacion_id` y por eso no podía acotarse a un negocio (D-36).
+    expect(gemelos).toBeGreaterThanOrEqual(21);
   });
 
   it('un campo constante nunca es escribible', () => {

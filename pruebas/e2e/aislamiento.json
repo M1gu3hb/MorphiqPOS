@@ -1,7 +1,6 @@
 {
   "entidades": [
     { "entidad": "AutorizadoCuenta", "tabla": "autorizados_cuenta" },
-    { "entidad": "BeneficiarioPropina", "tabla": "liquidacion_propina_beneficiarios" },
     { "entidad": "CarteraFiado", "tabla": "cartera_por_obra" },
     { "entidad": "CategoriaIngrediente", "tabla": "categorias" },
     { "entidad": "Cita", "tabla": "citas" },
@@ -13,7 +12,6 @@
     { "entidad": "ConsumoInterno", "tabla": "consumos_internos" },
     { "entidad": "Conteo", "tabla": "tomas_inventario" },
     { "entidad": "ConteoDeZona", "tabla": "conteo_de_zona" },
-    { "entidad": "ConteoLinea", "tabla": "toma_conteos" },
     { "entidad": "CorteCaja", "tabla": "sesiones_caja" },
     { "entidad": "DetalleCompra", "tabla": "compra_lineas" },
     { "entidad": "DetalleVenta", "tabla": "orden_lineas" },

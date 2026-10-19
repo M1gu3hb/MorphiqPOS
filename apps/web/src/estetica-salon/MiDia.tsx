@@ -67,8 +67,9 @@ export type { CitaDeMiDia } from './mi-dia.ts';
  * «total» debajo: no existe un número que junte esas dos cosas.
  *
  * ── Y por qué la propina puede decir «sin dato» en vez de $0 ─────────────
- * Porque hoy no se puede leer: `BeneficiarioPropina` la ven sólo dueño y
- * administrador, y `ComisionCausada.tipo` no tiene 'propina' —son 'servicio',
+ * Porque hoy no se puede leer: el reparto por persona vive en
+ * `liquidacion_propina_beneficiarios`, que no lleva organización y por eso el
+ * puente no la expone (D-36), y `ComisionCausada.tipo` no tiene 'propina' —son 'servicio',
  * 'producto', 'venta_paquete', 'ajuste' y 'contrapartida'—. Un $0 sería mentira
  * y fundirla con la comisión sería justo el error que la regla prohíbe, así que
  * el renglón se queda, vacío y dicho con palabras.

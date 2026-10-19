@@ -50,8 +50,9 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
 
   it('el mapa mantiene explícitas las restricciones sensibles', () => {
     const codigo = readFileSync(FUENTE_MAPA, 'utf8');
+    // El corte es de la caja Y de su sucursal (D-36): el gerente del centro no lee el del norte.
     expect(codigo).toMatch(
-      /CorteCaja:\s*{\s*tabla: 'sesiones_caja',\s*rolesLectura: \[\.\.\.CAJA\]/,
+      /CorteCaja:\s*{\s*tabla: 'sesiones_caja',\s*sucursal: DE_SU_SUCURSAL,\s*rolesLectura: \[\.\.\.CAJA\]/,
     );
     expect(codigo).toMatch(/qr_token:\s*\{\s*rolesLectura: \[\.\.\.DIRECCION\]/);
     expect(codigo).toMatch(/IntegrationSyncLog:\s*\{[\s\S]{0,200}?escritura: 'lectura'/);

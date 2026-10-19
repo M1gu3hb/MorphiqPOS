@@ -1,6 +1,11 @@
 import 'server-only';
 
-import { CAMPOS_AUTOMATICOS, type CampoMapeado, type MapaEntidad } from './tipos.ts';
+import {
+  CAMPOS_AUTOMATICOS,
+  type CampoMapeado,
+  type FronteraDeSucursal,
+  type MapaEntidad,
+} from './tipos.ts';
 
 /**
  * LA TABLA DE TRADUCCIÓN (F1-02 §3).
@@ -94,10 +99,37 @@ const VE_FIADO = [...DIRECCION, 'cajero'] as const;
 const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
 const PREPARACION = [...DIRECCION, 'cocina'] as const;
 
+/**
+ * LA FRONTERA POR SUCURSAL de cada entidad (cierre de la 2.4, D-36). Lo operativo —ventas,
+ * cajas, mesas, citas, compras, gastos— es de UNA sucursal, y quien no consolida sólo lee
+ * la suya. Lo que es del negocio entero se dice con su razón.
+ */
+const DE_SU_SUCURSAL = { columna: 'sucursal_id' } as const satisfies FronteraDeSucursal;
+
+const DEL_NEGOCIO = {
+  catalogo: {
+    delNegocio:
+      'El catálogo —productos, categorías, insumos, recetas, opciones, zonas del salón y estaciones— es el mismo en todas las sucursales del negocio.',
+  },
+  clientes: {
+    delNegocio:
+      'Las clientas y los clientes son del negocio: el mismo cliente compra, se atiende y debe en cualquier sucursal; su cartera y su expediente van con él.',
+  },
+  existencias: {
+    delNegocio:
+      'Estas vistas suman las existencias de todos los almacenes del negocio: la existencia por sucursal llega con el multisucursal, y hasta entonces se declara consolidada.',
+  },
+  reglas: {
+    delNegocio:
+      'Reglas, comisionistas, proveedores y plantillas son acuerdos del negocio, no de una sucursal.',
+  },
+} as const satisfies Record<string, FronteraDeSucursal>;
+
 const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   // ── Catálogo ─────────────────────────────────────────────────────────────
   ProductoTerminado: {
     tabla: 'productos',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -326,6 +358,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   CategoriaProducto: {
     tabla: 'categorias',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -363,6 +396,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   CategoriaIngrediente: {
     tabla: 'categorias',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...RECETAS_E_INVENTARIO],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -379,6 +413,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Ingrediente: {
     tabla: 'insumos',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...RECETAS_E_INVENTARIO],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -484,6 +519,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   RecetaEscandallo: {
     tabla: 'recetas',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...RECETAS_E_INVENTARIO],
     // `guardarReceta` es transaccional CON rollback: borrar las líneas viejas y
     // crear las nuevas sin transacción es el defecto D-11.
@@ -580,6 +616,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   // ── Operación ────────────────────────────────────────────────────────────
   Venta: {
     tabla: 'ordenes',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     // `cobrarVenta` es transaccional. Escribir una venta campo por campo desde
     // el navegador —marcarla pagada y DESPUÉS procesar recetas, stock y
@@ -862,6 +899,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   DetalleVenta: {
     tabla: 'orden_lineas',
+    sucursal: { porPadre: { columna: 'orden_id', tabla: 'ordenes' } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     campos: {
@@ -967,6 +1005,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   MovimientoInventario: {
     tabla: 'movimientos_stock',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     rolesLectura: [...INVENTARIO],
     // El ledger es INMUTABLE: se escribe por comando y no se edita jamás.
     escritura: 'comando',
@@ -1029,6 +1068,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   MovimientoCaja: {
     tabla: 'movimientos_caja',
+    sucursal: { porPadre: { columna: 'sesion_caja_id', tabla: 'sesiones_caja' } },
     rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-created_at',
@@ -1057,6 +1097,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   CorteCaja: {
     tabla: 'sesiones_caja',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -1177,6 +1218,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   Zona: {
     tabla: 'zonas',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -1198,6 +1240,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   // «escribibles por comando».
   MovimientoCuenta: {
     tabla: 'movimientos_cuenta',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...CAJA],
     escritura: 'lectura',
     ordenPorOmision: '-created_date',
@@ -1224,6 +1267,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   UnionMesa: {
     tabla: 'uniones_mesa',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'lectura',
     ordenPorOmision: '-abierta_en',
@@ -1239,6 +1283,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   EventoMesa: {
     tabla: 'eventos_mesa',
+    sucursal: DE_SU_SUCURSAL,
     // El ledger del salón es un dato de DIRECCIÓN: es con lo que se decide
     // cuánta gente contratar el viernes. Un mesero no necesita el histórico de
     // transiciones para atender su mesa, y dárselo sólo agranda la superficie.
@@ -1259,6 +1304,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   OcupacionMesa: {
     tabla: 'ocupacion_mesas',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...DIRECCION],
     escritura: 'lectura',
     ordenPorOmision: '-inicio',
@@ -1284,6 +1330,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   ConsumoInterno: {
     tabla: 'consumos_internos',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -1310,6 +1357,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Cliente: {
     tabla: 'clientes',
+    sucursal: DEL_NEGOCIO.clientes,
     // F-040 · La tabla existe desde la 003 con saldo y límite de crédito, y
     // NUNCA estuvo declarada aquí: no había pantalla, ni comandos, ni nada. El
     // fiado de F-254 escribe contra ella, así que sin esta entrada el tendero
@@ -1399,6 +1447,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Profesional: {
     tabla: 'profesionales',
+    sucursal: { columna: 'sucursal_id', nulaEsDelNegocio: true },
     soloDeQuienEntra: { roles: ['mesero'], columna: 'id' },
     // La agenda entera se lee por columna y por color: si el mostrador no puede
     // leer quién atiende, no hay pantalla que pintar.
@@ -1434,6 +1483,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Cita: {
     tabla: 'citas',
+    sucursal: DE_SU_SUCURSAL,
     soloDeQuienEntra: { roles: ['mesero'], columna: 'id', porServicio: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
@@ -1480,6 +1530,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   CitaServicio: {
     tabla: 'cita_servicios',
+    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas' } },
     soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
@@ -1552,6 +1603,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   NoShow: {
     tabla: 'no_shows',
+    sucursal: { porPadre: { columna: 'cita_id', tabla: 'citas' } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     // La estilista ve SUS faltas, no las del salón (auditoría de la 2.4).
     soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
@@ -1592,6 +1644,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   ExpedienteBelleza: {
     tabla: 'expedientes_belleza',
+    sucursal: DEL_NEGOCIO.clientes,
     // Lo ve quien atiende, que es quien tiene las manos en la cabeza de alguien. Y la
     // estilista, sólo el de SUS clientas: el comando (`exigirClientaPropia`) ya lo exigía
     // y el puente servía cualquiera, alergias incluidas (cierre de la 2.4).
@@ -1637,6 +1690,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   FormulaAplicada: {
     tabla: 'formulas_aplicadas',
+    sucursal: DEL_NEGOCIO.clientes,
     // Las fórmulas de SUS clientas —también las que mezcló otra—, como el expediente.
     soloDeQuienEntra: { roles: ['mesero'], columna: 'cliente_id', porClientaPropia: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
@@ -1669,6 +1723,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   ReglaComision: {
     tabla: 'reglas_comision',
+    sucursal: DEL_NEGOCIO.reglas,
     // Las cinco preguntas del trato de cada quien. Sólo la DIRECCIÓN.
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
@@ -1701,6 +1756,9 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   ComisionCausada: {
     tabla: 'comisiones_causadas',
+    sucursal: {
+      porPadre: { columna: 'profesional_id', tabla: 'profesionales', nulaEsDelNegocio: true },
+    },
     soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     // Cada quien ve lo suyo por el filtro de la consulta; la dirección lo ve
     // todo. Lo que NO se puede es esconderlo: una comisión que la estilista no
@@ -1729,6 +1787,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Liquidacion: {
     tabla: 'liquidaciones',
+    sucursal: DE_SU_SUCURSAL,
     soloDeQuienEntra: { roles: ['mesero'], columna: 'profesional_id' },
     rolesLectura: [...DIRECCION, 'mesero'],
     escritura: 'comando',
@@ -1750,6 +1809,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Obra: {
     tabla: 'obras',
+    sucursal: DEL_NEGOCIO.clientes,
     // F-639 · La obra se CIERRA, nunca se borra: sus remisiones se consultan
     // años después, y el contratista las pide para su contabilidad de obra.
     rolesLectura: [...VE_FIADO],
@@ -1769,6 +1829,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   AutorizadoCuenta: {
     tabla: 'autorizados_cuenta',
+    sucursal: DEL_NEGOCIO.clientes,
     // El mostrador TIENE que poder leerla: el aviso de «no está en la lista»
     // sirve antes de despachar, o no sirve.
     rolesLectura: [...VE_FIADO],
@@ -1801,6 +1862,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Remision: {
     tabla: 'remisiones',
+    sucursal: { porPadre: { columna: 'orden_id', tabla: 'ordenes' } },
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-entregada_en',
@@ -1848,6 +1910,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Ubicacion: {
     tabla: 'ubicaciones',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     // La lee quien vende: la ubicación existe para encontrar la pieza, sesenta
     // veces al día. Esconderla del cajero la deja sin usuario.
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -1866,6 +1929,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   ProductoAtributo: {
     tabla: 'producto_atributos',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     ordenPorOmision: 'clave',
@@ -1900,6 +1964,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   MaterialContinuo: {
     tabla: 'materiales_continuos',
+    sucursal: DEL_NEGOCIO.existencias,
     // Corta quien despacha y quien está en el almacén; el precio de remate lo
     // decide quien ve márgenes, y eso se filtra por campo más abajo.
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -1939,6 +2004,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PiezaDeMaterial: {
     tabla: 'piezas_de_material',
+    sucursal: DEL_NEGOCIO.existencias,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     // La más chica primero: el objetivo es CERRAR piezas, no abrirlas.
@@ -1978,6 +2044,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   NotaDeCaja: {
     tabla: 'notas_de_caja',
+    sucursal: DE_SU_SUCURSAL,
     // El cajero cobra y el mostradorista pregunta «¿ya pagaron la mía?». Los dos.
     rolesLectura: [...CAJA, 'mesero'],
     escritura: 'comando',
@@ -2050,6 +2117,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   MaterialMostrador: {
     tabla: 'materiales_mostrador',
+    sucursal: DEL_NEGOCIO.existencias,
     // La lee quien vende en el pasillo y quien cotiza. Es el catálogo con su
     // ubicación: esconderlo del cajero lo deja sin usuario (igual que `Ubicacion`).
     rolesLectura: [...TODOS_LOS_ROLES],
@@ -2092,6 +2160,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   PiezaAbierta: {
     tabla: 'piezas_abiertas',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     ordenPorOmision: 'medida_restante_base',
@@ -2118,6 +2187,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Redondeo: {
     tabla: 'redondeos',
+    sucursal: { porPadre: { columna: 'orden_id', tabla: 'ordenes' } },
     // Lo lee quien cuadra el cajón: es la explicación de por qué el arqueo no
     // da exactamente lo que dice la venta.
     rolesLectura: [...CAJA],
@@ -2142,6 +2212,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Presentacion: {
     tabla: 'producto_presentaciones',
+    sucursal: DEL_NEGOCIO.catalogo,
     // El precio de una presentación es público en el mostrador: el six tiene su
     // etiqueta en el anaquel. Esconderlo del cajero sería esconderle lo que va a
     // cobrar.
@@ -2173,6 +2244,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   ZonaAnaquel: {
     tabla: 'zonas_anaquel',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...INVENTARIO, 'cajero'],
     escritura: 'comando',
     // Por el recorrido físico de la tienda: contar saltando de la reja al
@@ -2207,6 +2279,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   Modificador: {
     tabla: 'opciones_de_bebida',
+    sucursal: DEL_NEGOCIO.catalogo,
     // El precio de una opción es público en la barra: está en el menú.
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
@@ -2268,6 +2341,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   CarteraPorObra: {
     tabla: 'cartera_por_obra',
+    sucursal: DEL_NEGOCIO.clientes,
     rolesLectura: [...VE_FIADO],
     escritura: 'lectura',
     // Lo más viejo primero: es el renglón que decide si se le sigue fiando.
@@ -2299,6 +2373,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   CarteraFiado: {
     tabla: 'cartera_por_obra',
+    sucursal: DEL_NEGOCIO.clientes,
     rolesLectura: [...VE_FIADO],
     escritura: 'lectura',
     ordenPorOmision: '-saldo_centavos',
@@ -2329,6 +2404,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PagoCredito: {
     tabla: 'pagos_credito',
+    sucursal: { columna: 'sucursal_id', nulaEsDelNegocio: true },
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-created_at',
@@ -2356,6 +2432,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   ExistenciaMaterial: {
     tabla: 'existencias_de_material',
+    sucursal: DEL_NEGOCIO.existencias,
     rolesLectura: [...INVENTARIO, 'cajero'],
     escritura: 'lectura',
     ordenPorOmision: 'nombre',
@@ -2399,6 +2476,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PiezaFerreteria: {
     tabla: 'piezas_de_ferreteria',
+    sucursal: DEL_NEGOCIO.existencias,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'lectura',
     ordenPorOmision: 'nombre',
@@ -2452,6 +2530,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   ListaDeTrabajo: {
     tabla: 'listas_de_trabajo',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...CAJA],
     escritura: 'lectura',
     // La última capturada primero: es la que el albañil acaba de dictar.
@@ -2483,6 +2562,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   Equivalencia: {
     tabla: 'equivalencias',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'comando',
     ordenPorOmision: '-declarado_en',
@@ -2530,6 +2610,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   ConteoDeZona: {
     tabla: 'conteo_de_zona',
+    sucursal: DEL_NEGOCIO.existencias,
     // Cuenta quien está: en una tiendita es el cajero quien conoce el anaquel, y
     // exigir al encargado es cómo el conteo cíclico vuelve a ser una toma anual.
     rolesLectura: [...INVENTARIO, 'cajero'],
@@ -2583,6 +2664,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   Comisionista: {
     tabla: 'comisionistas',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: 'nombre',
@@ -2602,6 +2684,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   /** El número que se mira a las nueve de la noche: «¿cuánto saldo me queda?». */
   SaldoComisionista: {
     tabla: 'saldos_comisionista',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...VE_FIADO],
     escritura: 'lectura',
     ordenPorOmision: '-actualizado_en',
@@ -2627,6 +2710,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   /** Cada recarga y cada pago de servicio, con sus importes SEPARADOS. */
   OperacionComision: {
     tabla: 'operaciones_comision',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...VE_FIADO],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -2662,6 +2746,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoAnticipado: {
     tabla: 'pedidos_anticipados',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'hora_prometida',
@@ -2702,6 +2787,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Conteo: {
     tabla: 'tomas_inventario',
+    sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
     rolesLectura: [...INVENTARIO],
     escritura: 'comando',
     ordenPorOmision: '-iniciada_en',
@@ -2716,33 +2802,9 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
-  ConteoLinea: {
-    tabla: 'toma_conteos',
-    rolesLectura: [...INVENTARIO],
-    escritura: 'comando',
-    ordenPorOmision: '-contado_en',
-    campos: {
-      ...soloAutomaticos(['id']),
-      conteo_id: { columna: 'toma_id', conversion: 'texto', escribible: false },
-      insumo_id: { columna: 'insumo_id', conversion: 'texto', escribible: false },
-      esperado: { columna: 'esperado', conversion: 'decimal', escribible: false },
-      contado: { columna: 'contado', conversion: 'decimal', escribible: false },
-      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
-      // El crudo de lo que tecleó la persona. Se expone porque la discusión
-      // «yo conté nueve cajas» se tiene mirando la pantalla, no el log.
-      capturas: { columna: 'capturas', conversion: 'json', escribible: false },
-      movimiento_ajuste_id: {
-        columna: 'movimiento_ajuste_id',
-        conversion: 'texto',
-        escribible: false,
-      },
-      contado_en: { columna: 'contado_en', conversion: 'fecha', escribible: false },
-      empleado_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
-    },
-  },
-
   EsquemaPropina: {
     tabla: 'esquemas_propina',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
     ordenPorOmision: '-vigente_desde',
@@ -2755,25 +2817,9 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
     },
   },
 
-  BeneficiarioPropina: {
-    tabla: 'liquidacion_propina_beneficiarios',
-    // Sólo dueño y administrador: un mesero no ve lo que se le liquidó a otro,
-    // y ése es el pleito que F-242 viene a cerrar, no a alimentar.
-    rolesLectura: ['dueno', 'administrador'],
-    escritura: 'comando',
-    ordenPorOmision: '-monto_centavos',
-    campos: {
-      ...soloAutomaticos(['id']),
-      liquidacion_id: { columna: 'liquidacion_id', conversion: 'texto', escribible: false },
-      usuario_id: { columna: 'empleado_id', conversion: 'texto', escribible: false },
-      puesto: { columna: 'puesto', conversion: 'texto', escribible: false },
-      puntos: { columna: 'puntos', conversion: 'decimal', escribible: false },
-      monto_centavos: { columna: 'monto_centavos', conversion: 'dinero', escribible: false },
-    },
-  },
-
   TiempoPreparacion: {
     tabla: 'tiempos_preparacion',
+    sucursal: DE_SU_SUCURSAL,
     // Cocina SÍ lee esto: es su propio desempeño, no el margen del negocio.
     rolesLectura: [...PREPARACION],
     escritura: 'lectura',
@@ -2794,6 +2840,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   EsperaMesa: {
     tabla: 'lista_espera',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'creada_en',
@@ -2827,6 +2874,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Mesa: {
     tabla: 'mesas',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'directa',
     // `mesas.sucursal_id` es `not null`: la pone el servidor desde la sesión.
@@ -2903,6 +2951,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   EstacionPreparacion: {
     tabla: 'estaciones_preparacion',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...PREPARACION],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -2934,6 +2983,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacion: {
     tabla: 'comandas',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -3028,6 +3078,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   PedidoPreparacionItem: {
     tabla: 'comanda_items',
+    sucursal: { porPadre: { columna: 'comanda_id', tabla: 'comandas' } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: 'orden_visual',
@@ -3056,6 +3107,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   // ── Restaurante: portal QR ───────────────────────────────────────────────
   SolicitudQR: {
     tabla: 'solicitudes_qr',
+    sucursal: { porPadre: { columna: 'mesa_id', tabla: 'mesas' } },
     rolesLectura: [...OPERACION_RESTAURANTE],
     // Crear una solicitud, atenderla y resolverla mueven mesa y venta. Y el
     // anti-duplicado de `PortalCliente.jsx:524-532` es un TOCTOU (D-17) que
@@ -3143,6 +3195,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   MenuQRSeccion: {
     tabla: 'menu_qr_secciones',
+    sucursal: DEL_NEGOCIO.catalogo,
     rolesLectura: [...TODOS_LOS_ROLES],
     escritura: 'directa',
     ordenPorOmision: 'orden',
@@ -3173,6 +3226,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   CompraInsumo: {
     tabla: 'compras',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...COMPRAS],
     escritura: 'comando',
     ordenPorOmision: '-fecha',
@@ -3201,6 +3255,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   /** Su nombre es `DetalleCompra`, no `CompraLinea`. */
   DetalleCompra: {
     tabla: 'compra_lineas',
+    sucursal: { porPadre: { columna: 'compra_id', tabla: 'compras' } },
     rolesLectura: [...COMPRAS],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
@@ -3241,6 +3296,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   Proveedor: {
     tabla: 'proveedores',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...COMPRAS],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -3270,6 +3326,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   GastoOperativo: {
     tabla: 'gastos',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...CAJA],
     escritura: 'comando',
     ordenPorOmision: '-fecha',
@@ -3303,6 +3360,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   PlantillaGasto: {
     tabla: 'plantillas_gasto',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...DIRECCION],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -3325,6 +3383,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
 
   PlantillaCompra: {
     tabla: 'plantillas_compra',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...COMPRAS],
     escritura: 'directa',
     ordenPorOmision: 'nombre',
@@ -3352,6 +3411,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   LiquidacionPropina: {
     tabla: 'liquidaciones_propina',
+    sucursal: DE_SU_SUCURSAL,
     rolesLectura: [...DIRECCION],
     escritura: 'comando',
     // El orden se declara con SU nombre de campo, no con el de la columna: es
@@ -3399,6 +3459,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   IntegrationSyncLog: {
     tabla: 'bitacora_sincronizacion',
+    sucursal: DEL_NEGOCIO.reglas,
     rolesLectura: [...DIRECCION],
     escritura: 'lectura',
     ordenPorOmision: '-created_date',
@@ -3427,6 +3488,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
  */
 const DESCUENTO_INVENTARIO_VENTA: MapaEntidad = {
   tabla: 'movimientos_stock',
+  sucursal: { porPadre: { columna: 'almacen_id', tabla: 'almacenes' } },
   rolesLectura: [...INVENTARIO],
   escritura: 'lectura',
   ordenPorOmision: '-created_date',

@@ -185,6 +185,32 @@ export type PoliticaDeEscritura =
   /** No se escribe nunca: es una vista o un derivado. */
   | 'lectura';
 
+/**
+ * DE QUÉ SUCURSAL ES UNA FILA, o por qué es de todo el negocio.
+ *
+ * · `columna`: la de esta tabla (o vista). Con `nulaEsDelNegocio`, una fila sin sucursal
+ *   es de todas —la profesional que atiende en cualquiera, el pago que llegó por banco
+ *   sin caja— y la ve cualquier sucursal; sin él, una fila sin sucursal no la ve nadie que
+ *   no consolide.
+ * · `porPadre`: la fila cuelga de otra que sí tiene sucursal —la línea de su venta, el
+ *   movimiento de su caja, el renglón de su compra—: `columna` de esta tabla apunta al
+ *   `id` de `tabla`, y la sucursal se lee ahí (`columnaSucursal`, `sucursal_id` por
+ *   omisión).
+ * · `delNegocio`: es de toda la organización —el catálogo, las clientas, los proveedores—
+ *   y se dice por qué.
+ */
+export type FronteraDeSucursal =
+  | { readonly columna: string; readonly nulaEsDelNegocio?: boolean }
+  | {
+      readonly porPadre: {
+        readonly columna: string;
+        readonly tabla: string;
+        readonly columnaSucursal?: string;
+        readonly nulaEsDelNegocio?: boolean;
+      };
+    }
+  | { readonly delNegocio: string };
+
 export interface MapaEntidad {
   /** La tabla destino en el esquema nuevo. */
   readonly tabla: string;
@@ -258,6 +284,12 @@ export interface MapaEntidad {
    * que revienta la creación de la primera mesa del negocio.
    */
   readonly conSucursal?: boolean;
+  /**
+   * LA FRONTERA POR SUCURSAL de lo que se LEE (cierre de la 2.4, D-36). Obligatoria, como
+   * `rolesLectura`: una entidad nueva no puede quedar sin decidir si es de una sucursal.
+   * Quien no consolida (`ROLES_CONSOLIDADOS`) sólo lee lo de la sucursal de su sesión.
+   */
+  readonly sucursal: FronteraDeSucursal;
   /** Orden por omisión cuando él no pide ninguno. */
   readonly ordenPorOmision?: string;
   /**
