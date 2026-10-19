@@ -328,3 +328,44 @@ pantallas más adelante. Dicho al construir el cliente, se lee una vez.
 `FALLOS_QUE_SON_UNA_DECISION` llevaba `503 /api/reportes/exportar` con su condición de borrado
 escrita: «el día que el bucket exista, la prueba vuelve a exigirlo». Ese día es hoy, y la
 declaración se fue.
+
+---
+
+## 9 · El preview de una rama que no es `fase-2` · nadie puede entrar (19-10-2026)
+
+El `APP_URL` de **Preview** es el alias de la rama `fase-2` (§1), y no hay `APP_URL_ALTERNAS` para
+otras ramas. La frontera de escritura (R-17, §7) compara el `Origin` contra esos dos valores, así
+que en el preview de cualquier otra rama **toda escritura contesta 403, empezando por el PIN**.
+Medido desde fuera contra el preview de `claude/morphiq-pos-stabilization-u5qfo1` @ `748265c`,
+con el enlace compartido y sin sesión (la frontera va antes que la sesión: 401 es «permitido»):
+
+```
+origin: https://morphiqpos-git-fase-2-mh-astral-systems.vercel.app                         → 401
+origin: https://morphiqpos-git-claude-morphiq-pos-stab-033a30-mh-astral-systems.vercel.app → 403
+origin: https://morphiqpos-3i7br6fx8-mh-astral-systems.vercel.app (el despliegue)          → 403
+origin: https://no-es-de-aqui.example                                                      → 403
+```
+
+La frontera hace lo correcto; lo que falta es configuración. La sesión de desarrollo no tiene permiso
+para crear variables del proyecto (la API de Vercel contesta 403), así que lo hace Miguel:
+
+```bash
+vercel env add APP_URL_ALTERNAS preview claude/morphiq-pos-stabilization-u5qfo1
+# valor: https://morphiqpos-git-claude-morphiq-pos-stab-033a30-mh-astral-systems.vercel.app
+```
+
+Sólo vale para los previews de ESA rama, y entra con el siguiente despliegue (un empujón a la rama).
+Después, desde fuera y sin tocar nada más que sesiones y la bitácora de intentos denegados:
+
+```bash
+MORPHIQPOS_URL_DESPLIEGUE=https://morphiqpos-git-claude-morphiq-pos-stab-033a30-mh-astral-systems.vercel.app \
+MORPHIQPOS_ESTADO_VERCEL=<estado con la cookie del enlace compartido, FUERA del repositorio> \
+MORPHIQPOS_DEMOS_MATRIZ=demo-acople-tienda,demo-acople-cafeteria,demo-acople-restaurante,demo-acople-ferreteria,demo-acople-estetica \
+pnpm test:e2e pruebas/e2e/matriz-de-permisos.spec.ts --project=escritorio --workers=1 --retries=0
+```
+
+La matriz manda el cuerpo inerte (D-41): con la base compartida detrás, no ejecuta ningún comando.
+Al fusionar la rama, la variable se borra. Lo que SÍ se pudo comprobar sin entrar está en el reporte
+020 (§ preview): las cinco demos servidas y los cuatro negocios reales en 404 igual que uno que no
+existe, sin hash ni PIN en la entrada, las cabeceras de seguridad, 403 sin sesión y 403 de un origen
+ajeno.
