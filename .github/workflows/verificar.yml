@@ -534,6 +534,15 @@ jobs:
         if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
         run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
 
+      # LA DEMO, COMO NUEVA, PARA SU SUITE. El rastreo toca cada botón —manda notas a la
+      # caja, abre y cierra turnos— y deja lo que tocó. La suite del modelo cierra su turno, y
+      # el muro del cierre (`caja/sesion.ts`, 0178217) se niega con razón ante una nota que el
+      # rastreo mandó y nadie cobró: la ferretería caía ahí. Cada suite empieza de un estado
+      # conocido; es la misma siembra que la galería pide, por la misma razón.
+      - name: La demostración, como nueva para su suite
+        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
+        run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+
       - name: La suite de su modelo
         if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
         env:
