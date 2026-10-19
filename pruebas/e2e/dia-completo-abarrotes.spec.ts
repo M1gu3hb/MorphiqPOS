@@ -11,16 +11,19 @@ import {
   sesionDeLaCaja,
   type LecturasDelGiro,
 } from './ayudantes/conciliacion.ts';
-import { exigirElPdfDelCorte } from './ayudantes/corte.ts';
+import { enPalabras, exigirElCorteEnElTelefono, exigirElPdfDelCorte } from './ayudantes/corte.ts';
 import { Equipo } from './ayudantes/roles.ts';
 import {
   cabecerasDeEscrituraDePrueba,
+  centavosDeVenta,
+  consultarPuente,
   exigirCobroAceptado,
   exigirDemostracion,
   exigirVentaCobrada,
   irPorElMenu,
   soltarLaCaja,
   totalEnPantalla,
+  type VentaDelServidor,
   ventasDeAntes,
   vigilarFallos,
 } from './ayudantes/sesion.ts';
@@ -269,6 +272,51 @@ test.describe('el día completo de la tienda', () => {
           sesionCajaId: sesion,
           ventaCentavos: total,
           pagos: { transferencia: total },
+        });
+      });
+
+      // ── 09:40 · SE VA EL INTERNET JUSTO DESPUÉS DE COBRAR ───────────────────
+      // El servidor cobra y la respuesta no llega. La pantalla tiene que decir que pudo
+      // haberse hecho, la cajera vuelve a tocar CONFIRMAR, y el reintento —con la misma
+      // clave— devuelve la venta que ya existía: UNA venta, UN pago, y el cambio de un
+      // billete de $200 dicho bien.
+      await test.step('la respuesta del cobro se pierde: vuelve a tocar y se cobra UNA vez', async () => {
+        const antes = await ventasDeAntes(jesica);
+        await agregar(jesica, PRODUCTO.frijol);
+        const total = await totalEnPantalla(jesica);
+        expect(total, 'El frijol tiene que costar menos que el billete.').toBeLessThan(20_000);
+        await jesica.getByRole('button', { name: /^COBRAR/ }).click();
+        // `<Dinero>` se lee por su `aria-label`: el importe va partido en tres para la vista.
+        await jesica.getByRole('button', { name: enPalabras(20_000), exact: true }).click();
+        await expect(jesica.getByLabel(enPalabras(20_000 - total), { exact: true })).toBeVisible();
+
+        let llegaronAlServidor = 0;
+        await jesica.route(
+          '**/api/venta/cobrar-mostrador',
+          async (ruta) => {
+            await ruta.fetch();
+            llegaronAlServidor += 1;
+            await ruta.abort('connectionreset');
+          },
+          { times: 1 },
+        );
+        await jesica.getByRole('button', { name: 'CONFIRMAR' }).click();
+        await expect(jesica.getByText(/puede que sí se haya hecho/)).toBeVisible({
+          timeout: 30_000,
+        });
+        expect(llegaronAlServidor).toBe(1);
+
+        cobros['reintento'] = await confirmarYExigir(jesica, total, antes);
+        const nuevas = (await consultarPuente<VentaDelServidor>(jesica, 'Venta', { limite: 20 }))
+          .filter((v) => !antes.has(v.id ?? ''))
+          .filter((v) => centavosDeVenta(v) > 0);
+        expect(nuevas, 'El reintento cobró OTRA vez: dos ventas por la misma.').toHaveLength(1);
+        libro.cobro({
+          referencia: 'frijol con billete de $200, cobrado una vez tras perder la respuesta',
+          ventaId: cobros['reintento'].ventaId,
+          sesionCajaId: sesion,
+          ventaCentavos: total,
+          pagos: { efectivo: total },
         });
       });
 
@@ -557,9 +605,11 @@ test.describe('el día completo de la tienda', () => {
       });
 
       // ── 22:30 · EL CIERRE A CIEGAS, CON SOBRANTE, Y SU PDF ──────────────────
+      let contadoDeLaura = 0;
       await test.step('Laura cierra la caja a ciegas: sobran $20', async () => {
         const esperado = await esperadoDelCajon(laura);
         const contado = esperado + 2_000;
+        contadoDeLaura = contado;
         await laura.goto('/');
         await irPorElMenu(laura, 'Cortes', /Cuenta el cajón/);
         await laura.locator('#sueltos').fill(pesos(contado));
@@ -583,9 +633,14 @@ test.describe('el día completo de la tienda', () => {
 
       // ── 22:45 · EL DUEÑO LEE EL CORTE, Y EL DINERO CUADRA ───────────────────
       await test.step('el dueño lee el corte en su teléfono', async () => {
-        await dueno.goto('/');
-        await irPorElMenu(dueno, 'Cortes', /Cortes anteriores|No hay turno abierto/);
-        await expect(dueno.getByText(/Cortes anteriores/)).toBeVisible();
+        const telefono = await equipo.paginaEnSuTelefono(info, 'dueno');
+        fallos.push(vigilarFallos(telefono));
+        await telefono.goto('/');
+        await irPorElMenu(telefono, 'Cortes', /Cortes anteriores|No hay turno abierto/);
+        await exigirElCorteEnElTelefono(telefono, {
+          contadoCentavos: contadoDeLaura,
+          diferenciaCentavos: 2_000,
+        });
       });
 
       await test.step('el dinero del día cuadra al centavo, y un centavo de más NO cuadra', async () => {

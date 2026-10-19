@@ -11,7 +11,7 @@ import {
   sesionDeLaCaja,
   type LecturasDelGiro,
 } from './ayudantes/conciliacion.ts';
-import { exigirElPdfDelCorte } from './ayudantes/corte.ts';
+import { exigirElCorteEnElTelefono, exigirElPdfDelCorte } from './ayudantes/corte.ts';
 import { Equipo, personaDe } from './ayudantes/roles.ts';
 import {
   cabecerasDeEscrituraDePrueba,
@@ -1043,9 +1043,11 @@ test.describe('el día completo de la ferretería', () => {
       });
 
       // ── 20:00 · EL CIERRE A CIEGAS, CON SOBRANTE, Y SU PDF ──────────────────
+      let contadoDeElena = 0;
       await test.step('Elena cierra la caja a ciegas: sobran $20', async () => {
         const esperado = await esperadoDelCajon(elena);
         const contado = esperado + 2_000;
+        contadoDeElena = contado;
         await elena.goto('/');
         await irPorElMenu(elena, 'Cortes', /Cuenta el cajón/);
         await elena.locator('#sueltos').fill(pesos(contado));
@@ -1071,9 +1073,14 @@ test.describe('el día completo de la ferretería', () => {
 
       // ── 20:15 · EL DUEÑO LEE EL CORTE, Y EL DINERO CUADRA ───────────────────
       await test.step('el dueño lee el corte en su teléfono', async () => {
-        await dueno.goto('/');
-        await irPorElMenu(dueno, 'Cortes', /Cortes anteriores|No hay turno abierto/);
-        await expect(dueno.getByText(/Cortes anteriores/)).toBeVisible();
+        const telefono = await equipo.paginaEnSuTelefono(info, 'dueno');
+        fallos.push(vigilarFallos(telefono));
+        await telefono.goto('/');
+        await irPorElMenu(telefono, 'Cortes', /Cortes anteriores|No hay turno abierto/);
+        await exigirElCorteEnElTelefono(telefono, {
+          contadoCentavos: contadoDeElena,
+          diferenciaCentavos: 2_000,
+        });
       });
 
       await test.step('el dinero del día cuadra al centavo, y un centavo de más NO cuadra', async () => {

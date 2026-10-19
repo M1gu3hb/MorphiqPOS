@@ -1,13 +1,14 @@
 import { existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 
-import type {
-  APIRequestContext,
-  Browser,
-  BrowserContext,
-  BrowserContextOptions,
-  Page,
-  TestInfo,
+import {
+  devices,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+  type BrowserContextOptions,
+  type Page,
+  type TestInfo,
 } from '@playwright/test';
 
 import {
@@ -101,6 +102,25 @@ function opcionesDelProyecto(info: TestInfo): BrowserContextOptions {
   return opciones;
 }
 
+/**
+ * EL TELÉFONO DE QUIEN LO USA (D.6 de la 2.4): un Pixel 7, sea cual sea el proyecto de la
+ * corrida. El dueño no cobra desde el teléfono —el mostrador es la PC o la tableta— pero sí
+ * lee ahí el corte de la noche, y eso se prueba en un teléfono de verdad y no en el ancho
+ * de la PC con el nombre de un paso que dice «teléfono».
+ */
+const TELEFONO = devices['Pixel 7'];
+
+function opcionesDelTelefono(info: TestInfo): BrowserContextOptions {
+  return {
+    ...opcionesDelProyecto(info),
+    viewport: TELEFONO.viewport,
+    userAgent: TELEFONO.userAgent,
+    deviceScaleFactor: TELEFONO.deviceScaleFactor,
+    isMobile: TELEFONO.isMobile,
+    hasTouch: TELEFONO.hasTouch,
+  };
+}
+
 function archivoDe(persona: PersonaDeDemo): string {
   // Sin acentos ni espacios en el nombre del archivo: «Toño» y «Rubén» también entran.
   const limpio = persona.nombre
@@ -132,9 +152,10 @@ export async function contextoDe(
   persona: PersonaDeDemo,
   archivo: string = archivoDe(persona),
   dispositivo?: StorageState,
+  enSuTelefono = false,
 ): Promise<BrowserContext> {
   mkdirSync(CARPETA, { recursive: true });
-  const base = opcionesDelProyecto(info);
+  const base = enSuTelefono ? opcionesDelTelefono(info) : opcionesDelProyecto(info);
 
   if (existsSync(archivo)) {
     const guardado = await browser.newContext({ ...base, storageState: archivo });
@@ -236,6 +257,23 @@ export class Equipo {
       };
       const archivo = archivoDe(persona).replace(/\.json$/, `-en-${anfitrion.rol}.json`);
       contexto = await contextoDe(this.browser, info, persona, archivo, aparato);
+      this.#abiertos.set(clave, contexto);
+    }
+    const abiertas = contexto.pages();
+    return abiertas[0] ?? (await contexto.newPage());
+  }
+
+  /**
+   * La pestaña de esa persona EN SU TELÉFONO: otro navegador, otro aparato —sin terminal,
+   * así que no es una caja— y su propia entrada con PIN.
+   */
+  async paginaEnSuTelefono(info: TestInfo, rol: RolDePrueba, nombre?: string): Promise<Page> {
+    const persona = personaDe(this.slug, rol, nombre);
+    const clave = `${persona.rol}:${persona.nombre}@telefono`;
+    let contexto = this.#abiertos.get(clave);
+    if (contexto === undefined) {
+      const archivo = archivoDe(persona).replace(/\.json$/, '-telefono.json');
+      contexto = await contextoDe(this.browser, info, persona, archivo, undefined, true);
       this.#abiertos.set(clave, contexto);
     }
     const abiertas = contexto.pages();

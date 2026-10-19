@@ -61,6 +61,44 @@ export async function exigirElPdfDelCorte(
   }
 }
 
+/**
+ * EL CORTE, LEÍDO EN EL TELÉFONO DEL DUEÑO (D.6 de la 2.4): en «Cortes anteriores» hay una
+ * TARJETA —en el teléfono la tabla no cabe y no se pinta— con lo que se contó y lo que sobró
+ * o faltó, al centavo. Se busca por la diferencia, que es lo que el dueño busca con la vista.
+ */
+export async function exigirElCorteEnElTelefono(
+  telefono: Page,
+  corte: { readonly contadoCentavos: number; readonly diferenciaCentavos: number },
+): Promise<void> {
+  const historico = telefono.locator('section[aria-labelledby="cortes-anteriores"]');
+  await expect(historico, 'El teléfono no enseñó los cortes anteriores.').toBeVisible({
+    timeout: 30_000,
+  });
+  await expect(
+    historico.getByRole('table'),
+    'En el teléfono el histórico va en tarjetas: una tabla de cinco columnas no cabe.',
+  ).toHaveCount(0);
+  const palabra =
+    corte.diferenciaCentavos === 0 ? 'Cuadra' : corte.diferenciaCentavos > 0 ? 'Sobra' : 'Falta';
+  const tarjeta = historico
+    .getByRole('listitem')
+    .filter({ hasText: palabra })
+    .filter({ hasText: enPesos(Math.abs(corte.diferenciaCentavos)) })
+    .first();
+  await expect(tarjeta, `No hay una tarjeta que diga «${palabra}».`).toBeVisible();
+  await expect(tarjeta).toContainText(enPesos(corte.contadoCentavos));
+}
+
+/**
+ * Pesos como los LEE `<Dinero>` —su `aria-label`—: «1,500 pesos con 00 centavos». Es como
+ * se encuentra un importe en pantalla, porque a la vista va partido en tres `<span>`.
+ */
+export function enPalabras(centavos: number): string {
+  const pesos = Math.trunc(Math.abs(centavos) / 100).toLocaleString('es-MX');
+  const resto = String(Math.abs(centavos) % 100).padStart(2, '0');
+  return `${pesos} pesos con ${resto} centavos`;
+}
+
 /** Pesos como los pinta la hoja: `$1,500.00`. */
 export function enPesos(centavos: number): string {
   return new Intl.NumberFormat('es-MX', { style: 'currency', currency: 'MXN' }).format(

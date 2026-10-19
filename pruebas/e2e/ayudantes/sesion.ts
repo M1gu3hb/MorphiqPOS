@@ -1395,7 +1395,7 @@ export interface VentaDelServidor {
 }
 
 /** Los centavos de una venta que el puente sirvió en pesos. */
-function centavosDeVenta(venta: VentaDelServidor): number {
+export function centavosDeVenta(venta: VentaDelServidor): number {
   return Math.round((venta.total ?? 0) * 100);
 }
 

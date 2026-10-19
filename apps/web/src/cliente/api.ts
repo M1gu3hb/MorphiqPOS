@@ -33,6 +33,27 @@ export class ErrorApi extends Error {
   }
 }
 
+/**
+ * LA RESPUESTA QUE NO LLEGÓ: `fetch` lanzó —el módem, el wifi del local— y no se sabe si
+ * el servidor alcanzó a hacerlo.
+ *
+ * La pantalla enseñaba el mensaje del navegador, «Failed to fetch», en inglés y sin decir
+ * lo único que importa en ese momento: que pudo haberse hecho y que tocar OTRA VEZ el
+ * mismo botón es seguro, porque el reintento lleva la misma clave
+ * (`claves-de-intento.ts`) y el servidor devuelve lo que ya hizo en vez de repetirlo.
+ * «No se cobró nada», que es lo que decía la caja de la tienda, era justo lo que no se
+ * sabía.
+ */
+export class ErrorSinRespuesta extends Error {
+  constructor() {
+    super(
+      'No llegó la respuesta del servidor y puede que sí se haya hecho. Vuelve a tocar el ' +
+        'mismo botón: si ya estaba hecho, no se repite.',
+    );
+    this.name = 'ErrorSinRespuesta';
+  }
+}
+
 export interface OpcionesComando {
   readonly idempotencyKey?: string;
   readonly signal?: AbortSignal;
@@ -66,17 +87,24 @@ export async function invocarComando<T>(
   const clave = opciones.idempotencyKey ?? INTENTOS.claveDe(firma, Date.now());
   // Si `fetch` lanza —sin red, abortado— la clave se QUEDA: no se sabe si llegó, y el
   // reintento tiene que poder recibir el resultado guardado en vez de repetirlo.
-  const respuesta = await fetch(ruta, {
-    method: 'POST',
-    headers: {
-      'content-type': 'application/json',
-      'idempotency-key': clave,
-      [CABECERA_PETICION_PROPIA]: '1',
-    },
-    body: cuerpo,
-    credentials: 'same-origin',
-    ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
-  });
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(ruta, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'idempotency-key': clave,
+        [CABECERA_PETICION_PROPIA]: '1',
+      },
+      body: cuerpo,
+      credentials: 'same-origin',
+      ...(opciones.signal === undefined ? {} : { signal: opciones.signal }),
+    });
+  } catch (fallo) {
+    // Abortar lo pidió quien llama —se fue de la pantalla—: se le devuelve tal cual.
+    if (opciones.signal?.aborted === true) throw fallo;
+    throw new ErrorSinRespuesta();
+  }
   if (opciones.idempotencyKey === undefined) INTENTOS.respondio(firma, respuesta.status);
   return leerResultado<T>(respuesta);
 }
