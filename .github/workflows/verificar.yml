@@ -208,10 +208,12 @@ jobs:
   adopcion:
     name: Adopción del sistema de diseño
     runs-on: ubuntu-latest
-    # Trabajo PROPIO y no un paso de otro: mientras las pantallas se recomponen esta
-    # puerta está en rojo a propósito —es el marcador de la etapa—, y como paso de
-    # «Formato · lint · tipos» cortaría el trabajo y dejaría sin correr los tipos,
-    # las pruebas y el build de cada empujón. Roja sola, y todo lo demás a la vista.
+    # Trabajo PROPIO y no un paso de otro: mientras las pantallas se recomponían esta
+    # puerta estuvo en rojo a propósito —era el marcador de la etapa—, y como paso de
+    # «Formato · lint · tipos» habría cortado los tipos, las pruebas y el build de cada
+    # empujón. Desde el cierre de la 2.4 está en VERDE (las piezas que pinta una pantalla
+    # se distinguen de las pantallas, con su razón), y sigue aparte por lo mismo: si se
+    # pone roja, que se vea sola y todo lo demás siga a la vista.
     timeout-minutes: 10
 
     steps:
@@ -573,6 +575,260 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: rastreo-${{ matrix.modelo }}-${{ matrix.estilo }}
+          path: |
+            pruebas/e2e/.resultados
+            playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # LA JORNADA COMPLETA DE CADA MODELO, conciliada al centavo contra el servidor (cierre de
+  # la 2.4).
+  #
+  # Cada modelo vive su día por las pantallas de cada rol —apertura con fondo, cobros por
+  # método, mixtos y cambio, descuentos con el PIN del supervisor, cancelaciones,
+  # devoluciones totales y parciales, compras, conteos y mermas, gastos y retiros, cortes
+  # de turno y el cierre a ciegas con su PDF, y lo propio de cada uno: la remisión a crédito
+  # de la ferretería, las dos cajas de la cafetería, la mesa y la cocina del restaurante,
+  # la cita y la cabina del salón— y al final el libro de la prueba se concilia con lo que
+  # el servidor guardó: ventas, pagos, cajón, devoluciones, saldos, pasivos e inventario. Y
+  # con UN centavo de más, NO cuadra: la conciliación no da verde por defecto.
+  #
+  # Hasta este cierre las cinco existían y no corrían en ninguna parte. Un generador al
+  # día no sustituye ejecutar las pruebas.
+  #
+  # ── Los aparatos ─────────────────────────────────────────────────────────
+  # Los de quien opera cada modelo (`04-INTERFAZ` de cada uno): el mostrador de la tienda,
+  # la cafetería y la ferretería en la PC y en la tableta; el restaurante y el salón en la
+  # tableta. El TELÉFONO va DENTRO de cada día, donde el negocio lo usa: el dueño lee el
+  # corte en el suyo (un Pixel 7 aparte que entra con su PIN), y la estilista ve su día.
+  # Correr el día entero en un teléfono probaría algo que el producto declara que no hace:
+  # «el dueño no cobra desde el teléfono» (abarrotes, `00-FICHA-Y-EJES`).
+  #
+  # Los tres aparatos se emulan sobre Chromium (`playwright.config.ts`). WebKit y Firefox
+  # no corren aquí, y está dicho: el iPad real entra con su pantalla de mesero; hasta
+  # entonces la diferencia que se prueba es de ancho, tacto y agente, no de motor.
+  #
+  # ── Sin reintentos ───────────────────────────────────────────────────────
+  # `--retries=0`: un día que sólo cuadra al segundo intento no cuadró —el primero dejó
+  # ventas, cajas y existencias—, y un reintento escondería justo la clase de fallo que esta
+  # puerta existe para ver. `--workers=1`: los dos aparatos viven el MISMO negocio, uno
+  # después del otro, cada uno desde su propio reseteo.
+  jornada:
+    name: Jornada completa · ${{ matrix.modelo }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - modelo: tienda
+            suite: dia-completo-abarrotes
+            aparatos: --project=escritorio --project=tablet
+          - modelo: cafeteria
+            suite: dia-completo-cafeteria
+            aparatos: --project=escritorio --project=tablet
+          - modelo: ferreteria
+            suite: dia-completo-ferreteria
+            aparatos: --project=escritorio --project=tablet
+          - modelo: restaurante
+            suite: dia-completo-restaurante
+            aparatos: --project=tablet
+          - modelo: estetica
+            suite: dia-completo-estetica
+            aparatos: --project=tablet
+
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: morphiqpos
+          POSTGRES_PASSWORD: morphiqpos_ci
+          POSTGRES_DB: morphiqpos_e2e
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U morphiqpos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_e2e
+      APP_URL: http://localhost:3200
+      ORGANIZACION: demo-acople-${{ matrix.modelo }}
+      # Sin almacén de archivos en CI, como en el rastreo: el contrato del entorno exige las
+      # cuatro y la aplicación lo traduce a un 503 legible.
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_BUCKET: morphiqpos
+      STORAGE_ACCESS_KEY: e2e-sin-almacen
+      STORAGE_SECRET_KEY: e2e-sin-almacen
+      # De usar y tirar, de este trabajo y de nadie más: la base nace y muere con él.
+      SESSION_SECRET: e2e_de_ci_firma_de_sesion_efimera_2026_x
+      PIN_PEPPER: e2e_de_ci_pimienta_de_pin_efimera_2026_xx
+      NODE_ENV: production
+      TZ: America/Mexico_City
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: El navegador de Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: El rol de la aplicación en la base
+        env:
+          PGPASSWORD: morphiqpos_ci
+        run: |
+          CONEXION="-h localhost -p 5433 -U morphiqpos -d morphiqpos_e2e"
+          if [ -z "$(psql $CONEXION -tAc "select 1 from pg_roles where rolname = 'morphiqpos_app'")" ]; then
+            psql $CONEXION -v ON_ERROR_STOP=1 -c "create role morphiqpos_app with login bypassrls"
+          fi
+
+      - name: Migraciones
+        run: pnpm --filter @morphiqpos/data migrate
+
+      # El negocio, su sucursal y su dueño por las MISMAS órdenes del alta de un negocio de
+      # verdad; el catálogo, el equipo con sus roles y el inventario, por el mismo reseteo
+      # que corre en el despliegue. La prueba vuelve a resetear al empezar cada aparato.
+      - name: La demostración del modelo
+        run: |
+          pnpm db:alta-negocio \
+            --slug "demo-acople-${{ matrix.modelo }}" \
+            --nombre "Demo del acople · ${{ matrix.modelo }}" \
+            --giro "${{ matrix.modelo }}" \
+            --paquete "${{ matrix.modelo }}"
+          pnpm db:bootstrap --org "demo-acople-${{ matrix.modelo }}" --persona "Demo" --pin 1234
+          node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+
+      # Playwright construye y levanta el servidor él mismo (`webServer`), con este entorno.
+      - name: El día completo, en los aparatos de quien lo opera
+        run: pnpm test:e2e pruebas/e2e/${{ matrix.suite }}.spec.ts ${{ matrix.aparatos }} --workers=1 --retries=0
+
+      - name: Las trazas del día
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: jornada-${{ matrix.modelo }}
+          path: |
+            pruebas/e2e/.resultados
+            playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # PERMISOS POR ROL Y AISLAMIENTO ENTRE NEGOCIOS, contra el servidor (D.3 y D.4 de la 2.4).
+  #
+  # Con las cinco demos en una sola base, como en un despliegue de varios negocios:
+  #   · la MATRIZ: cada persona de cada demo toca cada ruta de comando; el rol que no está
+  #     en el comando recibe 403 `SIN_PERMISO` y nada más, el que está recibe cualquier cosa
+  #     menos eso. Más la cocina sin costos y el almacén sin caja.
+  #   · el AISLAMIENTO: el dueño de una demo pide por su id los recursos de otra, por el
+  #     puente y por cada ruta que recibe ids, y la respuesta es indistinguible de la de un
+  #     id que no existe.
+  # El aislamiento entre dos SUCURSALES de un mismo negocio (D-36) no está aquí porque ningún
+  # alta de producto crea una segunda sucursal: lo prueban contra Postgres
+  # `frontera-de-sucursal.integracion.test.ts` (el puente) y
+  # `frontera-de-comandos.integracion.test.ts` (los comandos), en «Formato · lint · tipos ·
+  # pruebas · build».
+  permisos:
+    name: Permisos por rol y aislamiento entre negocios
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: morphiqpos
+          POSTGRES_PASSWORD: morphiqpos_ci
+          POSTGRES_DB: morphiqpos_e2e
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U morphiqpos"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_e2e
+      APP_URL: http://localhost:3200
+      ORGANIZACION: demo-acople-tienda,demo-acople-cafeteria,demo-acople-restaurante,demo-acople-ferreteria,demo-acople-estetica
+      # Sin almacén de archivos en CI, como en el rastreo: el contrato del entorno exige las
+      # cuatro y la aplicación lo traduce a un 503 legible.
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_BUCKET: morphiqpos
+      STORAGE_ACCESS_KEY: e2e-sin-almacen
+      STORAGE_SECRET_KEY: e2e-sin-almacen
+      # De usar y tirar, de este trabajo y de nadie más: la base nace y muere con él.
+      SESSION_SECRET: e2e_de_ci_firma_de_sesion_efimera_2026_x
+      PIN_PEPPER: e2e_de_ci_pimienta_de_pin_efimera_2026_xx
+      NODE_ENV: production
+      TZ: America/Mexico_City
+      MORPHIQPOS_DEMOS_MATRIZ: demo-acople-tienda,demo-acople-cafeteria,demo-acople-restaurante,demo-acople-ferreteria,demo-acople-estetica
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: El navegador de Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: El rol de la aplicación en la base
+        env:
+          PGPASSWORD: morphiqpos_ci
+        run: |
+          CONEXION="-h localhost -p 5433 -U morphiqpos -d morphiqpos_e2e"
+          if [ -z "$(psql $CONEXION -tAc "select 1 from pg_roles where rolname = 'morphiqpos_app'")" ]; then
+            psql $CONEXION -v ON_ERROR_STOP=1 -c "create role morphiqpos_app with login bypassrls"
+          fi
+
+      - name: Migraciones
+        run: pnpm --filter @morphiqpos/data migrate
+
+      - name: Las cinco demostraciones
+        run: |
+          for giro in tienda cafeteria restaurante ferreteria estetica; do
+            pnpm db:alta-negocio --slug "demo-acople-$giro" --nombre "Demo del acople · $giro" --giro "$giro" --paquete "$giro"
+            pnpm db:bootstrap --org "demo-acople-$giro" --persona "Demo" --pin 1234
+          done
+          node --conditions=react-server scripts/sembrar-demos.mjs
+
+      - name: Cada rol contra cada ruta de comando
+        run: pnpm test:e2e pruebas/e2e/matriz-de-permisos.spec.ts --project=escritorio --retries=0
+
+      - name: Ningún negocio ve lo de otro
+        run: pnpm test:e2e pruebas/e2e/aislamiento.spec.ts --project=escritorio --retries=0
+
+      - name: Las trazas
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: permisos-y-aislamiento
           path: |
             pruebas/e2e/.resultados
             playwright-report

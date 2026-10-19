@@ -153,6 +153,16 @@ interface CuentaDeRutas {
   saltadas: number;
 }
 
+/** El id de cada tabla: el que se conoce, o uno al azar que se repite dentro del cuerpo. */
+function unoPorTabla(conocido: (tabla: string) => string | undefined): (tabla: string) => string {
+  const alAzar = new Map<string, string>();
+  return (tabla) => {
+    const id = conocido(tabla) ?? alAzar.get(tabla) ?? randomUUID();
+    alAzar.set(tabla, id);
+    return id;
+  };
+}
+
 /** Cada ruta de comando, con los ids de la otra demo y con ids que no existen. */
 async function revisarLasRutas(
   propia: Page,
@@ -175,15 +185,26 @@ async function revisarLasRutas(
     }
     cuenta.probadas += 1;
     if (ruta.ids.some((i) => i.tabla !== null && ids.has(i.tabla))) cuenta.conIdAjeno += 1;
+    // UN id por tabla en cada cuerpo, en las dos peticiones. Con el id ajeno, dos campos de
+    // la misma tabla llevan el MISMO id —el relevo de turno pide quién sale y quién entra,
+    // los dos `empleos`—; con ids al azar distintos, el comando contestaba otra regla
+    // («no está activo» en vez de «nadie se releva a sí mismo») y la diferencia era de la
+    // prueba, no una fuga: la regla compara la entrada antes de leer la base.
     const conAjeno = await pedir(
       propia,
       ruta.ruta,
-      llenar(ruta.cuerpo, (tabla) => ids.get(tabla) ?? randomUUID()),
+      llenar(
+        ruta.cuerpo,
+        unoPorTabla((tabla) => ids.get(tabla)),
+      ),
     );
     const conNinguno = await pedir(
       propia,
       ruta.ruta,
-      llenar(ruta.cuerpo, () => randomUUID()),
+      llenar(
+        ruta.cuerpo,
+        unoPorTabla(() => undefined),
+      ),
     );
     if (!conNinguno.startsWith('400 ')) cuenta.pasaronZod += 1;
     if (conAjeno !== conNinguno) {
