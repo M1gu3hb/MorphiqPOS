@@ -163,8 +163,10 @@ describe('D-29 · devolver todo', () => {
     expect(base.filas('devoluciones')[1]).toMatchObject({
       metodo: 'tarjeta',
       sesion_caja_id: SESION_CAJA,
-      documento_credito_id: null,
     });
+    // Y NO nombra la columna de la 182: una devolución así funciona también sobre una base
+    // que todavía no la tiene (el preview contra la base compartida mientras se aplica).
+    expect(base.filas('devoluciones')[1]).not.toHaveProperty('documento_credito_id');
   });
 
   it('una venta ya devuelta entera no se devuelve otra vez', async () => {

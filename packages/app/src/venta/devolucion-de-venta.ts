@@ -494,7 +494,11 @@ export const devolverVenta = definirComando<
           monto_centavos: monto,
           motivo: entrada.motivo,
           regresa_al_inventario: entrada.regresaAlInventario,
-          documento_credito_id: documento?.id ?? null,
+          // Sólo la devolución a cuenta nombra la columna de la 182. Así una devolución en
+          // efectivo, tarjeta o transferencia funciona también sobre una base que todavía no
+          // tiene la 182 —el preview contra la base compartida mientras se aplica—, y la que
+          // sí la necesita falla con el `check` de métodos, que es lo que debe pasar.
+          ...(documento === null ? {} : { documento_credito_id: documento.id }),
           created_at: ctx.ahora,
         })
         .returning('id')
