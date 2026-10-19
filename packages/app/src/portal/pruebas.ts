@@ -83,6 +83,15 @@ class ConsultaFalsa {
     return this;
   }
 
+  /**
+   * `select … for update` devuelve las MISMAS filas: lo que agrega es un candado, y esta base
+   * no tiene concurrencia que cerrar. Lo que el candado protege —dos teléfonos de la misma
+   * mesa pidiendo a la vez— se prueba contra Postgres (`carrera.integracion.test.ts`).
+   */
+  forUpdate(): this {
+    return this;
+  }
+
   returning(): this {
     return this;
   }

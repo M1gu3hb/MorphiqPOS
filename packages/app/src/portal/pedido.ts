@@ -186,6 +186,11 @@ interface OrdenAbierta {
 }
 
 async function ordenAbiertaDeLaMesa(ctx: ContextoPortal): Promise<OrdenAbierta> {
+  // CON CANDADO, como la lee el cobro de la caja. Sin él, dos teléfonos de la misma mesa
+  // pedían a la vez, cada uno recalculaba el total sin ver los renglones del otro, y el
+  // último en confirmar dejaba un total al que le faltaba lo del primero; y un pedido que
+  // cruzaba con «pedir la cuenta» devolvía la orden a `confirmada` DESPUÉS de la cuenta. Con
+  // él, el segundo espera al primero, ve lo que dejó y —si ya se pidió la cuenta— se le dice.
   const orden = await ctx.tx
     .selectFrom('ordenes')
     .select([
@@ -199,6 +204,7 @@ async function ordenAbiertaDeLaMesa(ctx: ContextoPortal): Promise<OrdenAbierta> 
     .where('organizacion_id', '=', ctx.ambito.organizacionId)
     .where('mesa_id', '=', ctx.ambito.mesaId)
     .where('estado', 'in', ESTADOS_ACTIVOS)
+    .forUpdate()
     .executeTakeFirst();
 
   if (orden === undefined) {
