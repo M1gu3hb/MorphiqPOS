@@ -280,6 +280,8 @@ export async function exigirDemostracion(
   const delEntorno = slug === undefined;
   const SLUG = slug ?? SLUG_DEMO;
   const EMPLEADOS = empleadosDe(SLUG);
+  const yaComprobada = `${String(info.project.use.baseURL)} · ${SLUG}`;
+  if (DEMOSTRACIONES_COMPROBADAS.has(yaComprobada)) return;
   if (SLUG === '') {
     throw new Error(
       [
@@ -445,10 +447,22 @@ export async function exigirDemostracion(
         ].join('\n'),
       );
     }
+    DEMOSTRACIONES_COMPROBADAS.add(yaComprobada);
   } finally {
     await contexto.dispose();
   }
 }
+
+/**
+ * Las demos que ya pasaron la precondición en ESTE proceso, por despliegue.
+ *
+ * Lo que comprueba es del despliegue —que sirve a la demo, sólo a ella y con gente dada
+ * de alta— y no cambia en una corrida. Preguntarlo antes de cada prueba gastaba la cuota
+ * de `/api/auth/empleados` (60 por red en cinco minutos, `LIMITES.empleados`): la matriz y
+ * el aislamiento juntos llegaban a 65 y el aislamiento caía con 429 en CI. Se pregunta una
+ * vez por demo; si falla, no se guarda y la siguiente prueba vuelve a preguntar.
+ */
+const DEMOSTRACIONES_COMPROBADAS = new Set<string>();
 
 /**
  * Entra con PIN y deja la sesión abierta en el navegador.
@@ -478,7 +492,20 @@ export async function entrar(page: Page, quien?: QuienEntra): Promise<string> {
   const SLUG = quien?.slug ?? SLUG_DEMO;
   const PERSONA = quien?.nombre ?? PERSONA_DEMO;
   const PIN = quien?.pin ?? PIN_DEMO;
-  const respuesta = await page.request.get(empleadosDe(SLUG));
+  /**
+   * LA LISTA QUE CARGÓ LA PANTALLA, no otra pedida aparte.
+   *
+   * Esto la pedía por su cuenta y luego abría la pantalla, que la pedía otra vez: dos
+   * llamadas a `/api/auth/empleados` por entrada, cuando una persona de verdad gasta una.
+   * Con 25 personas de cinco demos, la matriz sola gastaba 53 de las 60 que la red tiene en
+   * cinco minutos (`LIMITES.empleados`). Leer la respuesta de la pantalla es además lo más
+   * fiel: se elige a la persona de entre las tarjetas que la pantalla recibió.
+   */
+  const listaDeLaPantalla = page.waitForResponse(
+    (r) => new URL(r.url()).pathname === '/api/auth/empleados' && r.request().method() === 'GET',
+  );
+  await page.goto(entradaDe(SLUG));
+  const respuesta = await listaDeLaPantalla;
   const cuerpo = (await respuesta.json()) as RespuestaDeEmpleados;
 
   /**
@@ -532,8 +559,6 @@ export async function entrar(page: Page, quien?: QuienEntra): Promise<string> {
       ].join('\n'),
     );
   }
-
-  await page.goto(entradaDe(SLUG));
 
   /**
    * LA TARJETA DE ESTA PERSONA, EN ESTE NEGOCIO.
