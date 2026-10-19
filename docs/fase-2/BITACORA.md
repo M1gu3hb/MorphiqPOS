@@ -6635,7 +6635,21 @@ rojo, con su causa y no con su síntoma:
   cliente, la obra y el material tal como llegaban, y un id que no existe lo paraba la llave
   foránea con un 500. Ahora se comprueban antes de escribir (`ferreteria/cliente-y-obra.ts`),
   con prueba contra Postgres vista roja sin el cambio (`ERROR_INTERNO` en los cuatro casos). Y
-  el aislamiento lo exige de TODAS las rutas: con ids que no existen, ninguna contesta 5xx.
+  el aislamiento lo exige de TODAS las rutas: con ids que no existen, ninguna contesta 5xx
+  (mutación de punta a punta: sin la comprobación, las cinco pruebas del aislamiento caen en
+  `lista_trabajo.capturar` → 500, y en ninguna otra ruta).
+- *Dos teléfonos en la misma mesa* (lo vio el subagente del restaurante, fuera de su zona): el
+  portal leía la orden sin candado. Dos pedidos a la vez dejaban un total al que le faltaba lo
+  del primero (45.00 en vez de 80.00), y un pedido que cruzaba con «pedir la cuenta» devolvía
+  la orden a `confirmada` después de la cuenta. Ahora `FOR UPDATE`, como el cobro de la caja;
+  `portal/carrera.integracion.test.ts` corre las dos carreras en paralelo de verdad: rojas sin
+  el cambio, verdes tres veces seguidas con él.
+- *El preview de esta rama, desde fuera:* con el enlace compartido de Vercel, las cinco demos
+  servidas y los cuatro negocios reales en 404 igual que uno que no existe; sin hash ni PIN en
+  la entrada; cabeceras de seguridad; 403 sin sesión y 403 de un origen ajeno. Lo que NO se pudo:
+  entrar. El `APP_URL` de Preview es el alias de `fase-2`, y crear la variable para esta rama
+  necesita un permiso del proyecto de Vercel que esta sesión no tiene (`VERCEL-ENTORNO.md` §9,
+  con el comando).
 
 **En qué voy:** integrar lo de los dos subagentes cuando entreguen; el PR contra `main`; el CI
 sobre el SHA del PR; el preview; `07-ESTADO.md` y el reporte 020.
