@@ -3,6 +3,7 @@ import { join } from 'node:path';
 
 import { expect, type Page, test } from '@playwright/test';
 
+import { CUERPO_INERTE } from '../../packages/app/src/pruebas/cuerpo-inerte.ts';
 import { equipoDeDemo } from '../../packages/contracts/src/negocios/equipo-demo.ts';
 
 import { Equipo, giroDeLaDemo, type RolDePrueba } from './ayudantes/roles.ts';
@@ -13,11 +14,18 @@ import { cabecerasDeEscrituraDePrueba, exigirDemostracion } from './ayudantes/se
  *
  * `matriz-de-permisos.json` sale del código (`scripts/generar-matriz-de-permisos.mjs`): cada
  * ruta de comando con los roles que su comando declara. Aquí, con la sesión de CADA persona
- * de CADA demo, se le manda a cada ruta un cuerpo vacío:
+ * de CADA demo, se le manda a cada ruta el CUERPO INERTE —un texto que no es la entrada de
+ * ningún comando (`packages/app/src/pruebas/cuerpo-inerte.ts`)—:
  *
  *   · si el rol NO está en el comando → 403 `SIN_PERMISO`, y nada más;
- *   · si el rol SÍ está → cualquier cosa MENOS `SIN_PERMISO` (normalmente 400 de zod: el
- *     cuerpo vacío no llega a escribir nada, así que esto es seguro contra cualquier base).
+ *   · si el rol SÍ está → cualquier cosa MENOS `SIN_PERMISO`: un 400 de zod, porque el rol se
+ *     comprueba antes que la entrada y la entrada no pasa. Nada se ejecuta.
+ *
+ * Era `{}`, y cinco comandos que escriben lo aceptan (todos sus campos tienen valor por
+ * omisión): con el rol que sí podía, la matriz abría órdenes y vaciaba solicitudes. El
+ * contrato `validacion/cuerpo-inerte.contrato.test.ts` comprueba que ningún comando del
+ * registro acepte el inerte, y por eso esto SÍ es seguro contra cualquier base —el preview
+ * incluido—.
  *
  * Y dos reglas que el dueño dice en voz alta y que se comprueban aparte:
  *   · la cocina nunca ve costos —ni en el puente, ni en el menú—;
@@ -61,7 +69,7 @@ interface Contestacion {
 async function tocar(page: Page, ruta: string): Promise<Contestacion> {
   const respuesta = await page.request.post(ruta, {
     headers: cabecerasDeEscrituraDePrueba(),
-    data: {},
+    data: JSON.stringify(CUERPO_INERTE),
   });
   let codigo = '';
   try {

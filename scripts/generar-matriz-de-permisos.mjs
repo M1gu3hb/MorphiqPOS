@@ -12,8 +12,9 @@
  * tubería estándar —`manejadorDeComando(x)` o `manejadorDeComandoConParametro(x, …)`—
  * nombra su comando, y el comando declara sus `roles` y `paquetes` (`definirComando`).
  * `pruebas/e2e/matriz-de-permisos.spec.ts` la recorre contra el servidor: con cada rol de
- * cada demo, un cuerpo vacío tiene que dar 403 `SIN_PERMISO` donde el rol no está, y NUNCA
- * `SIN_PERMISO` donde sí está (le contesta zod: el cuerpo vacío no escribe nada).
+ * cada demo, un cuerpo inerte —que ningún comando acepta— tiene que dar 403 `SIN_PERMISO`
+ * donde el rol no está, y NUNCA `SIN_PERMISO` donde sí está (le contesta zod: no se ejecuta
+ * nada).
  *
  * Las rutas que NO pasan por esa tubería —públicas, de sesión, las que validan su cuerpo
  * antes del comando o encadenan varios— quedan fuera con su razón en `excluidas`: un 400
