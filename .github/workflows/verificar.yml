@@ -68,7 +68,7 @@ jobs:
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U morphiqpos"
+          --health-cmd "pg_isready -U morphiqpos -d morphiqpos_pruebas"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -396,7 +396,7 @@ jobs:
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U morphiqpos"
+          --health-cmd "pg_isready -U morphiqpos -d morphiqpos_rastreo"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -648,7 +648,7 @@ jobs:
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U morphiqpos"
+          --health-cmd "pg_isready -U morphiqpos -d morphiqpos_e2e"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
@@ -757,7 +757,7 @@ jobs:
         ports:
           - 5433:5432
         options: >-
-          --health-cmd "pg_isready -U morphiqpos"
+          --health-cmd "pg_isready -U morphiqpos -d morphiqpos_e2e"
           --health-interval 5s
           --health-timeout 5s
           --health-retries 20
