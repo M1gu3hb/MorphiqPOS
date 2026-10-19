@@ -104,6 +104,14 @@ interface ConsultaLibre {
  */
 const BASE = 'b';
 
+/** El campo si este rol lo puede ver; si no, como si no estuviera en el mapa. */
+function vistoPor<C extends { readonly rolesLectura?: readonly string[] }>(
+  campo: C | undefined,
+  puedeVer: (c: C) => boolean,
+): C | undefined {
+  return campo !== undefined && puedeVer(campo) ? campo : undefined;
+}
+
 /** El alias del grupo de derivados número `n`. Dos campos que hacen exactamente
  * el mismo `join` comparten alias; si cambia una de las columnas de enlace,
  * necesitan filas distintas. */
@@ -235,18 +243,27 @@ async function consultarUnaVez(
       .select('id' as never)
       .where('organizacion_id' as never, '=', ambito.organizacionId as never)
       .where('empleo_id' as never, '=', empleoId as never);
-    consulta =
-      recorte.porServicio === true
-        ? consulta.where(
-            `${BASE}.id`,
-            'in',
-            libre
-              .selectFrom('cita_servicios')
-              .select('cita_id' as never)
-              .where('organizacion_id' as never, '=', ambito.organizacionId as never)
-              .where('profesional_id' as never, 'in', suyas),
-          )
-        : consulta.where(`${BASE}.${recorte.columna}`, 'in', suyas);
+    const citasSuyas = libre
+      .selectFrom('cita_servicios')
+      .select('cita_id' as never)
+      .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+      .where('profesional_id' as never, 'in', suyas);
+    if (recorte.porClientaPropia === true) {
+      consulta = consulta.where(
+        `${BASE}.${recorte.columna}`,
+        'in',
+        libre
+          .selectFrom('citas')
+          .select('cliente_id' as never)
+          .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+          .where('id' as never, 'in', citasSuyas),
+      );
+    } else {
+      consulta =
+        recorte.porServicio === true
+          ? consulta.where(`${BASE}.id`, 'in', citasSuyas)
+          : consulta.where(`${BASE}.${recorte.columna}`, 'in', suyas);
+    }
   }
 
   // 2 · El filtro fijo de la entidad (p. ej. categorias.tipo = 'producto').
@@ -266,7 +283,10 @@ async function consultarUnaVez(
   //     clave que no está en el mapa se RECHAZA en vez de ignorarse: ignorarla
   //     devolvería más filas de las que la pantalla pidió, en silencio.
   for (const [clave, valor] of Object.entries(peticion.filtro ?? {})) {
-    const campo = mapa.campos[clave];
+    // Un campo que este rol no puede VER tampoco puede usarlo para filtrar: filtrar es
+    // preguntar por su valor fila por fila («¿alguien tiene este teléfono?»), y la
+    // respuesta llega aunque la columna no salga. Se contesta como si no existiera.
+    const campo = vistoPor(mapa.campos[clave], puedeVer);
     if (campo === undefined) {
       // Un derivado no se puede filtrar: filtrar por el nombre del mesero
       // parecería funcionar y devolvería lo que dijera el `join`, no lo que la
@@ -313,7 +333,7 @@ async function consultarUnaVez(
   //      vez de devolver algo que parezca una respuesta.
   if (peticion.rango !== undefined) {
     const { campo: clave, desde, hasta } = peticion.rango;
-    const campo = mapa.campos[clave];
+    const campo = vistoPor(mapa.campos[clave], puedeVer);
     if (campo === undefined) {
       throw new ErrorDominio(
         'PUENTE_CAMPO_INVALIDO',
@@ -351,7 +371,10 @@ async function consultarUnaVez(
   if (orden !== undefined && orden !== '') {
     const descendente = orden.startsWith('-');
     const clave = descendente ? orden.slice(1) : orden;
-    const campo = mapa.campos[clave];
+    // El orden por omisión lo decide el MAPA, no quien pide: ordenar por un campo que este
+    // rol no ve no le revela nada que él haya preguntado. El que pide la pantalla, sí.
+    const campo =
+      peticion.orden === undefined ? mapa.campos[clave] : vistoPor(mapa.campos[clave], puedeVer);
     if (campo === undefined) {
       throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', `No se puede ordenar por «${clave}».`);
     }

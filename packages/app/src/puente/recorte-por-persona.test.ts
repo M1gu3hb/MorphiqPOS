@@ -113,3 +113,103 @@ describe('el recorte por persona del puente', () => {
     }
   });
 });
+
+/**
+ * SUS CLIENTAS, Y SÓLO LAS SUYAS (cierre de la 2.4).
+ *
+ * La cabina de la estilista no podía leer a la clienta que tenía sentada —el puente le
+ * negaba `Cliente`— y, en cambio, le servía el expediente y las fórmulas de CUALQUIER
+ * clienta del salón. Ahora las tres entidades se recortan igual: a las clientas con una cita
+ * que lleva un servicio de la profesional de su empleo.
+ */
+describe('el recorte por clienta propia', () => {
+  it.each([
+    ['Cliente', '"b"."id" in'],
+    ['ExpedienteBelleza', '"b"."cliente_id" in'],
+    ['FormulaAplicada', '"b"."cliente_id" in'],
+  ])('la estilista sólo lee %s de las clientas que atiende', async (entidad, columna) => {
+    await consultar(
+      { organizacionId: SALON, rol: 'mesero', empleoId: KARLA },
+      { entidad, operacion: 'list' },
+    );
+    const sql = consultas[0]?.sql ?? '';
+    expect(sql).toContain(columna);
+    expect(sql).toMatch(/select "cliente_id" from "citas"/);
+    expect(sql).toMatch(/from "cita_servicios"/);
+    expect(sql).toMatch(/from "profesionales"/);
+    expect(consultas[0]?.parameters).toContain(KARLA);
+  });
+
+  it('a la estilista no le llegan ni el contacto, ni lo fiscal, ni el crédito', async () => {
+    await consultar(
+      { organizacionId: SALON, rol: 'mesero', empleoId: KARLA },
+      { entidad: 'Cliente', operacion: 'list' },
+    );
+    const sql = consultas[0]?.sql ?? '';
+    expect(sql).toContain('as "nombre"');
+    for (const oculto of [
+      'telefono',
+      'correo',
+      'rfc',
+      'saldo_pendiente_centavos',
+      'limite_credito_centavos',
+    ]) {
+      expect(sql, oculto).not.toContain(`as "${oculto}"`);
+    }
+  });
+
+  it('la recepción sigue leyendo a todas las clientas, con su teléfono', async () => {
+    await consultar(
+      { organizacionId: SALON, rol: 'cajero', empleoId: KARLA },
+      { entidad: 'Cliente', operacion: 'list' },
+    );
+    const sql = consultas[0]?.sql ?? '';
+    expect(sql).not.toMatch(/from "cita_servicios"/);
+    expect(sql).toContain('as "telefono"');
+  });
+
+  it('el mesero de un restaurante no tiene profesional: cero clientas, no todas', async () => {
+    await consultar(
+      { organizacionId: SALON, rol: 'mesero', empleoId: KARLA },
+      { entidad: 'Cliente', operacion: 'list' },
+    );
+    // La subconsulta va por el empleo: sin profesional ligada, no empareja ninguna fila.
+    expect(consultas[0]?.sql).toMatch(/"empleo_id" = \$\d+/);
+  });
+});
+
+/**
+ * UN CAMPO QUE NO SE VE TAMPOCO SE PREGUNTA (cierre de la 2.4).
+ *
+ * El puente quitaba del `select` lo que un rol no podía ver, pero aceptaba FILTRAR y
+ * ORDENAR por ello: «¿hay una clienta con este teléfono?» contestaba con una fila aunque el
+ * teléfono no saliera. Ahora se contesta como si el campo no existiera.
+ */
+describe('filtrar u ordenar por lo que no se ve', () => {
+  it('la estilista no puede filtrar clientas por teléfono', async () => {
+    await expect(
+      consultar(
+        { organizacionId: SALON, rol: 'mesero', empleoId: KARLA },
+        { entidad: 'Cliente', operacion: 'filter', filtro: { telefono: '5512345678' } },
+      ),
+    ).rejects.toThrow(/no es un campo de Cliente/);
+    expect(consultas).toHaveLength(0);
+  });
+
+  it('ni ordenarlas por su saldo', async () => {
+    await expect(
+      consultar(
+        { organizacionId: SALON, rol: 'mesero', empleoId: KARLA },
+        { entidad: 'Cliente', operacion: 'list', orden: '-saldo_pendiente_centavos' },
+      ),
+    ).rejects.toThrow(/No se puede ordenar por/);
+  });
+
+  it('quien sí lo ve, filtra por él', async () => {
+    await consultar(
+      { organizacionId: SALON, rol: 'cajero', empleoId: KARLA },
+      { entidad: 'Cliente', operacion: 'filter', filtro: { telefono: '5512345678' } },
+    );
+    expect(consultas[0]?.parameters).toContain('5512345678');
+  });
+});

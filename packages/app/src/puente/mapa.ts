@@ -1314,7 +1314,14 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
     // NUNCA estuvo declarada aquí: no había pantalla, ni comandos, ni nada. El
     // fiado de F-254 escribe contra ella, así que sin esta entrada el tendero
     // podía abonar y no podía ver a quién.
-    rolesLectura: [...VE_FIADO],
+    //
+    // La ESTILISTA (rol `mesero` del salón) lee a SUS clientas y a ninguna otra: la cabina
+    // tiene que saber a quién atiende —su nombre, para su historial y su fórmula— y no lo
+    // sabía: el puente le contestaba «Tu rol no puede leer esa información», la cita salía
+    // «Sin registrar» y la fórmula no se podía guardar (día completo de la estética, cierre
+    // de la 2.4). Su contacto, sus datos fiscales y su crédito siguen siendo de caja.
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'id', porClientaPropia: true },
+    rolesLectura: [...VE_FIADO, 'mesero'],
     escritura: 'comando',
     ordenPorOmision: 'nombre',
     derivados: {
@@ -1350,25 +1357,41 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
        * de un cliente que sí tenía RFC. Son columnas opcionales del esquema —la
        * migración las añade— y aquí van como texto tal cual.
        */
-      rfc: { columna: 'rfc', conversion: 'texto' },
-      regimen_fiscal: { columna: 'regimen_fiscal', conversion: 'texto' },
-      uso_cfdi: { columna: 'uso_cfdi', conversion: 'texto' },
-      codigo_postal: { columna: 'codigo_postal', conversion: 'texto' },
+      rfc: { columna: 'rfc', conversion: 'texto', rolesLectura: [...VE_FIADO] },
+      regimen_fiscal: {
+        columna: 'regimen_fiscal',
+        conversion: 'texto',
+        rolesLectura: [...VE_FIADO],
+      },
+      uso_cfdi: { columna: 'uso_cfdi', conversion: 'texto', rolesLectura: [...VE_FIADO] },
+      codigo_postal: { columna: 'codigo_postal', conversion: 'texto', rolesLectura: [...VE_FIADO] },
       ...soloAutomaticos(['id']),
       nombre: { columna: 'nombre', conversion: 'texto', escribible: false },
-      telefono: { columna: 'telefono', conversion: 'texto', escribible: false },
-      correo: { columna: 'correo', conversion: 'texto', escribible: false },
+      telefono: {
+        columna: 'telefono',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...VE_FIADO],
+      },
+      correo: {
+        columna: 'correo',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...VE_FIADO],
+      },
       total_visitas: { columna: 'total_visitas', conversion: 'entero', escribible: false },
       ultima_visita: { columna: 'ultima_visita', conversion: 'fecha', escribible: false },
       saldo_pendiente_centavos: {
         columna: 'saldo_pendiente_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...VE_FIADO],
       },
       limite_credito_centavos: {
         columna: 'limite_credito_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...VE_FIADO],
       },
       activo: { columna: 'activo', conversion: 'booleano', escribible: false },
     },
@@ -1569,7 +1592,10 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   ExpedienteBelleza: {
     tabla: 'expedientes_belleza',
-    // Lo ve quien atiende, que es quien tiene las manos en la cabeza de alguien.
+    // Lo ve quien atiende, que es quien tiene las manos en la cabeza de alguien. Y la
+    // estilista, sólo el de SUS clientas: el comando (`exigirClientaPropia`) ya lo exigía
+    // y el puente servía cualquiera, alergias incluidas (cierre de la 2.4).
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'cliente_id', porClientaPropia: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     ordenPorOmision: '-abierto_en',
@@ -1611,6 +1637,8 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
    */
   FormulaAplicada: {
     tabla: 'formulas_aplicadas',
+    // Las fórmulas de SUS clientas —también las que mezcló otra—, como el expediente.
+    soloDeQuienEntra: { roles: ['mesero'], columna: 'cliente_id', porClientaPropia: true },
     rolesLectura: [...OPERACION_RESTAURANTE],
     escritura: 'comando',
     // Por el NOMBRE del campo, no por el de la columna: es lo que el contrato

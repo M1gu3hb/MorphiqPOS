@@ -240,6 +240,14 @@ export interface MapaEntidad {
     readonly roles: readonly string[];
     readonly columna: string;
     readonly porServicio?: boolean;
+    /**
+     * `columna` es una CLIENTA, y se ven las que esta profesional atiende: las que tienen
+     * una cita con un servicio suyo, pasado o por venir. Es la misma regla que
+     * `exigirClientaPropia` aplica a los comandos del expediente (cierre de la 2.4): sin
+     * ella el puente servía el expediente, las alergias y las fórmulas de cualquier
+     * clienta del salón a quien entraba como estilista.
+     */
+    readonly porClientaPropia?: boolean;
   };
   /**
    * `true` cuando la tabla tiene `sucursal_id not null`.
