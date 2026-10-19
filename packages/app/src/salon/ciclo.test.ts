@@ -403,7 +403,7 @@ describe('venta.cobrar_cita', () => {
     // El 50 % de los $862.07 SIN IVA, no de los $1,000 al público: la regla dice
     // `sobre_iva = false` y el documento del giro lo pide así (§7.2, pregunta 2).
     // Aquí decía 50 000: se comisionaba el IVA, $68.97 de más por servicio. Y son
-    // $431.035: con el redondeo único del sistema (D-36) la mitad sube, $431.04.
+    // $431.035: con el redondeo único del sistema (`dinero/redondeo.ts`) la mitad sube, $431.04.
     expect(base.campo('comisiones_causadas', 'monto_centavos')).toBe(43_104n);
     expect(salida.comisiones).toHaveLength(1);
   });

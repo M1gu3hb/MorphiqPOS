@@ -149,7 +149,7 @@ describe('calcularComision · pregunta 5 · rehacer', () => {
   });
 });
 
-describe('calcularComision · el centavo (D-36)', () => {
+describe('calcularComision · el centavo (el redondeo único, `dinero/redondeo.ts`)', () => {
   it('SE REDONDEA COMO TODO EL SISTEMA: la mitad se aleja del cero', () => {
     // Un tinte de raíz de $650: $560.34 sin IVA, al 40 % son $224.136. Truncar daba
     // $224.13 y la conciliación del día, $224.14: un centavo de pleito por servicio.

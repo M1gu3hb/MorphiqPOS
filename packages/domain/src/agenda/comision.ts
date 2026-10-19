@@ -112,7 +112,7 @@ export function calcularComision(regla: ReglaComision, linea: LineaComisionable)
   const base = baseDeCalculo(regla, linea);
   const tasaBp = tasaDe(regla, linea);
 
-  // D-36 · Con el redondeo ÚNICO del sistema: la mitad se aleja del cero. La
+  // Con el redondeo ÚNICO del sistema (`dinero/redondeo.ts`): la mitad se aleja del cero. La
   // división entera truncaba, y el mismo servicio daba un centavo menos aquí que
   // en la liquidación y en la conciliación del día. Y con la misma regla, la
   // contrapartida de una devolución cancela exactamente lo causado.

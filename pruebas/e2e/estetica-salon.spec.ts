@@ -893,7 +893,10 @@ test.describe('estética · su vocabulario, sus pantallas y su dashboard', () =>
       `La comisión se calculó sobre ${String(laComision?.base_centavos ?? 0)} pesos: la base es ` +
         `el precio SIN IVA, ${String(baseSinIva)} centavos.`,
     ).toBe(baseSinIva);
-    const esperadaCentavos = Math.floor((baseSinIva * (laComision?.tasa_bp ?? 0)) / 100);
+    // Con el redondeo ÚNICO del sistema (`dinero/redondeo.ts`): la mitad se aleja del cero,
+    // en enteros. Truncaba: con un servicio de $1,800 (base $1,551.72 al 40 %, $620.688) la
+    // prueba esperaba $620.68 y el sistema —bien— causaba $620.69.
+    const esperadaCentavos = Math.floor((baseSinIva * (laComision?.tasa_bp ?? 0) + 50) / 100);
     expect(
       Math.round((laComision?.monto_centavos ?? 0) * 100),
       `La comisión no cuadra con su propia tasa: ${String(laComision?.tasa_bp ?? 0)} % sobre ` +
