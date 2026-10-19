@@ -21,10 +21,27 @@ import { readFileSync, readdirSync, statSync, existsSync } from 'node:fs';
 import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { analizarPantalla } from './lib/adopcion.mjs';
+import { analizarPantalla, pintaConEnvoltorios } from './lib/adopcion.mjs';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const PANTALLAS = join(RAIZ, 'apps', 'web', 'src');
+
+/**
+ * El texto del módulo de un envoltorio local, visto desde la pantalla que lo importa:
+ * relativo a ella, o `~/` desde `apps/web/src` (el alias de `tsconfig`). `null` si no
+ * existe: un envoltorio que no se puede leer no cuenta.
+ */
+function lectorDesde(ruta) {
+  return (modulo) => {
+    const base = modulo.startsWith('~/')
+      ? join(PANTALLAS, modulo.slice(2))
+      : join(dirname(ruta), modulo);
+    for (const candidato of [`${base}.tsx`, `${base}.ts`, join(base, 'index.tsx')]) {
+      if (existsSync(candidato)) return readFileSync(candidato, 'utf8');
+    }
+    return null;
+  };
+}
 
 /**
  * LOS ESTADOS QUE UNA PANTALLA NO TIENE, declarados y no escondidos.
@@ -505,6 +522,100 @@ export const SIN_ESTADO = [
     razon:
       'Un campo no decide si lo tecleado está mal: lo decide `aCentavos` en el formulario que lo monta, y ése pinta su Aviso (la caja de la tienda, el retiro).',
   },
+  // ── Las piezas del restaurante que salieron de Cobro, Caja, CierreDiario y MesaActiva
+  //    cuando pasaban de las 800 líneas (día completo del restaurante, 2.4). Ninguna lee:
+  //    lo que pintan llega por props, y la espera y el fallo de la lectura los pinta la
+  //    pantalla que las monta.
+  {
+    pantalla: 'restaurante/AjustesDeLaCuenta',
+    estado: 'vacio',
+    razon:
+      'Dos diálogos del cobro —el descuento de la cuenta y su cancelación con motivo— que ESCRIBEN y no listan: no hay nada de la red que pueda llegar vacío.',
+  },
+  {
+    pantalla: 'restaurante/AjustesDeLaCuenta',
+    estado: 'cargando',
+    razon:
+      'No lee nada antes de pintarse: la cuenta llega por props desde Cobro. Lo único asíncrono es el comando, y mientras corre su botón pasa a `cargando`.',
+  },
+  {
+    pantalla: 'restaurante/MovimientosDeCaja',
+    estado: 'vacio',
+    razon:
+      'Composición de cuatro formularios de `venta/` (corte de turno, retiro, gasto y devolución), cada uno con sus estados. No lista nada él mismo.',
+  },
+  {
+    pantalla: 'restaurante/MovimientosDeCaja',
+    estado: 'cargando',
+    razon:
+      'Composición sin lectura propia: el turno lo lee la Caja, que pinta su Esqueleto; cada formulario pone su botón en `cargando` mientras escribe.',
+  },
+  {
+    pantalla: 'restaurante/MovimientosDeCaja',
+    estado: 'error',
+    razon:
+      'Composición sin operación propia: el fallo de un retiro, un gasto, una devolución o un corte lo pinta ese formulario en su Aviso.',
+  },
+  {
+    pantalla: 'restaurante/ParedDePropina',
+    estado: 'vacio',
+    razon:
+      'Los porcentajes sugeridos son constantes del giro (§4.3) y la venta llega por props: no hay lista de la red que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'restaurante/ParedDePropina',
+    estado: 'cargando',
+    razon:
+      'Pieza del cobro sin lectura ni escritura: elegir la propina sólo la devuelve a Cobro, que la manda con el cobro y pinta su espera.',
+  },
+  {
+    pantalla: 'restaurante/comanda-de-la-mesa',
+    estado: 'vacio',
+    razon:
+      'Módulo de piezas de MesaActiva —columnas de lo enviado y del borrador, importes y su esqueleto—: la cuenta vacía la dice MesaActiva con su Vacio.',
+  },
+  {
+    pantalla: 'restaurante/comanda-de-la-mesa',
+    estado: 'error',
+    razon:
+      'Sus columnas y su esqueleto no tienen operación que falle; la relectura de lo enviado la llama MesaActiva, que pinta su ErrorDePantalla con «Reintentar».',
+  },
+  {
+    pantalla: 'restaurante/piezas-del-cobro',
+    estado: 'vacio',
+    razon:
+      'Funciones puras del cobro (importe de la línea, qué impide cobrar) y las columnas del desglose que Cobro pinta en su Tabla, con el Vacio de Cobro.',
+  },
+  {
+    pantalla: 'restaurante/piezas-del-cobro',
+    estado: 'cargando',
+    razon:
+      'Son columnas y funciones, no una pantalla: no leen nada; el esqueleto de la cuenta lo pinta Cobro mientras la lee.',
+  },
+  {
+    pantalla: 'restaurante/piezas-del-cobro',
+    estado: 'error',
+    razon:
+      'Sin operación propia que falle: el rechazo del cobro o de la lectura lo dice Cobro en su Aviso, con lo capturado en su sitio.',
+  },
+  {
+    pantalla: 'restaurante/semaforo-del-arqueo',
+    estado: 'vacio',
+    razon:
+      'Traduce una diferencia del arqueo a palabra, forma y tinte («Cuadra exacto», «Falta poco»): no lista nada que pueda llegar vacío.',
+  },
+  {
+    pantalla: 'restaurante/semaforo-del-arqueo',
+    estado: 'cargando',
+    razon:
+      'Pieza del cierre sin lectura: la diferencia llega por props DESPUÉS de contar a ciegas; la espera del cierre la pinta CierreDiario.',
+  },
+  {
+    pantalla: 'restaurante/semaforo-del-arqueo',
+    estado: 'error',
+    razon:
+      'No tiene operación que falle: si el cierre lo rechaza el servidor, CierreDiario lo pinta en su Aviso de peligro.',
+  },
 ];
 
 const argumentos = process.argv.slice(2);
@@ -535,7 +646,9 @@ for (const ruta of archivos(PANTALLAS).sort()) {
     .join('/')
     .replace(/\.tsx$/, '');
   if (solo !== null && pantalla !== solo && !pantalla.startsWith(`${solo}/`)) continue;
-  const { interfaz, hallazgos, pinta } = analizarPantalla(readFileSync(ruta, 'utf8'), ruta);
+  const analisis = analizarPantalla(readFileSync(ruta, 'utf8'), ruta);
+  const { interfaz, hallazgos } = analisis;
+  const pinta = pintaConEnvoltorios(analisis.pinta, analisis.envoltorios, lectorDesde(ruta));
   if (!interfaz) {
     filas.push({ pantalla, interfaz, hallazgos: [] });
     continue;

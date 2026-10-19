@@ -66,7 +66,10 @@ export async function POST(peticion: Request): Promise<Response> {
     const validada = Entrada.safeParse(cuerpo);
     if (!validada.success) {
       return Response.json(
-        { ok: false, error: { codigo: 'ENTRADA_INVALIDA', mensaje: 'Falta quién autoriza o su PIN.' } },
+        {
+          ok: false,
+          error: { codigo: 'ENTRADA_INVALIDA', mensaje: 'Falta quién autoriza o su PIN.' },
+        },
         { status: 400, headers: { 'cache-control': 'no-store' } },
       );
     }

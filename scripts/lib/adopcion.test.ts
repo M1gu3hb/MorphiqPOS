@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import { analizarPantalla } from './adopcion.mjs';
+import { analizarPantalla, estadosPorComponente, pintaConEnvoltorios } from './adopcion.mjs';
 
 /**
  * La puerta de adopción, vista en ROJO y en VERDE a voluntad.
@@ -186,5 +186,79 @@ describe('verify:adopcion · el analizador', () => {
       '<ul>{filas.map((f) => (<li key={f.id}><Superficie><span>{f.n}</span><Dinero centavos={f.c} /></Superficie></li>))}</ul><p>Total',
     );
     expect(hallazgos(fila).map((h) => h.condicion)).toContain('1.2');
+  });
+});
+
+/**
+ * EL ENVOLTORIO LOCAL DE UN ESTADO (verify:adopcion, cierre de la 2.4).
+ *
+ * `MesaActiva` pinta su espera con `EsqueletoDeLaComanda`, que arma tres `Esqueleto` del
+ * sistema con la forma de la comanda; la puerta sólo reconocía el nombre base y la daba en
+ * rojo por «no pinta Esqueleto». El nombre propone; el MÓDULO decide: cuenta sólo si la
+ * función de ese nombre pinta la pieza del sistema.
+ */
+describe('verify:adopcion · los envoltorios locales de un estado', () => {
+  const PANTALLA = `
+import { ErrorDePantalla, Vacio } from '@morphiqpos/ui/sistema';
+import { EsqueletoDeLaComanda } from './comanda';
+export function Mesa({ estado }) {
+  if (estado === 'cargando') return <EsqueletoDeLaComanda etiqueta="Cargando la mesa" />;
+  if (estado === 'error') return <ErrorDePantalla titulo="No se pudo leer" queHacer="Reintenta" />;
+  return <Vacio titulo="Sin platillos" />;
+}`;
+
+  const PINTA = `
+import { Esqueleto } from '@morphiqpos/ui/sistema';
+export function EsqueletoDeLaComanda({ etiqueta }) {
+  return <div aria-label={etiqueta}><Esqueleto className="h-8" /></div>;
+}
+export const otra = () => <p>nada</p>;`;
+
+  const NO_PINTA = `
+export function EsqueletoDeLaComanda() {
+  return <div className="h-8" />;
+}`;
+
+  it('el analizador NOMBRA el envoltorio, sin darlo por bueno', () => {
+    const analisis = analizarPantalla(PANTALLA);
+    expect(analisis.envoltorios).toEqual([
+      { nombre: 'EsqueletoDeLaComanda', modulo: './comanda', estado: 'cargando' },
+    ]);
+    expect(analisis.pinta.cargando).toBe(false);
+  });
+
+  it('cuenta si la función de ese nombre pinta el Esqueleto del sistema', () => {
+    const { pinta, envoltorios } = analizarPantalla(PANTALLA);
+    expect(pintaConEnvoltorios(pinta, envoltorios, () => PINTA)).toEqual({
+      vacio: true,
+      cargando: true,
+      error: true,
+    });
+  });
+
+  it('un envoltorio que sólo se LLAMA así, y pinta un <div>, no cuenta', () => {
+    const { pinta, envoltorios } = analizarPantalla(PANTALLA);
+    expect(pintaConEnvoltorios(pinta, envoltorios, () => NO_PINTA).cargando).toBe(false);
+  });
+
+  it('un módulo que no se puede leer no cuenta', () => {
+    const { pinta, envoltorios } = analizarPantalla(PANTALLA);
+    expect(pintaConEnvoltorios(pinta, envoltorios, () => null).cargando).toBe(false);
+  });
+
+  it('un Esqueleto que no viene del sistema tampoco hace bueno al envoltorio', () => {
+    const ajeno = PINTA.replace("'@morphiqpos/ui/sistema'", "'./mio'");
+    expect(estadosPorComponente(ajeno).get('EsqueletoDeLaComanda')?.cargando).toBe(false);
+  });
+
+  it('lee cada componente del módulo por separado', () => {
+    const estados = estadosPorComponente(PINTA);
+    expect(estados.get('EsqueletoDeLaComanda')?.cargando).toBe(true);
+    expect(estados.get('otra')).toEqual({ vacio: false, cargando: false, error: false });
+  });
+
+  it('un componente de biblioteca con ese prefijo no es un envoltorio local', () => {
+    const deFuera = PANTALLA.replace("'./comanda'", "'otra-biblioteca'");
+    expect(analizarPantalla(deFuera).envoltorios).toEqual([]);
   });
 });

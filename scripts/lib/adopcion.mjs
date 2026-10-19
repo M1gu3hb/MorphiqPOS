@@ -48,6 +48,102 @@ import {
 /** Las funciones del sistema que dan un importe como TEXTO: para atributos, no para pintar. */
 const IMPORTE_EN_TEXTO = new Set(['dineroEnTexto', 'textoParaCampo']);
 
+/** Qué estado pinta cada pieza del sistema. */
+const ESTADO_DEL_SISTEMA = {
+  Vacio: 'vacio',
+  Esqueleto: 'cargando',
+  EsqueletoDeLista: 'cargando',
+  ErrorDePantalla: 'error',
+  Aviso: 'error',
+};
+
+/**
+ * EL ENVOLTORIO LOCAL DE UN ESTADO: `EsqueletoDeLaComanda`, `VacioDeLaAgenda`,
+ * `ErrorDeLaCaja`. Una pantalla que pinta su espera con el esqueleto armado de SU forma
+ * —el de la comanda tiene la barra, las teselas y la columna de la cuenta— no la pinta a
+ * mano: la pinta con el sistema un nivel más abajo. El NOMBRE sólo lo propone; cuenta si
+ * la función de ese nombre, en su módulo, pinta de verdad la pieza del sistema
+ * (`pintaConEnvoltorios`). Un `EsqueletoX` que pinta un `<div>` no cuenta.
+ */
+const PREFIJOS_DE_ENVOLTORIO = [
+  ['Esqueleto', 'cargando'],
+  ['Vacio', 'vacio'],
+  ['ErrorDe', 'error'],
+];
+
+/** `true` si el módulo es del propio código (relativo o `~/`), no una biblioteca. */
+const esModuloLocal = (modulo) => modulo.startsWith('.') || modulo.startsWith('~/');
+
+/**
+ * Los estados del sistema que pinta CADA componente de un módulo: `function X() {…}` y
+ * `const X = () => …` del nivel superior, con lo que pintan dentro de su cuerpo. Es lo
+ * que se le pregunta al módulo de un envoltorio.
+ */
+export function estadosPorComponente(texto, nombre = 'modulo.tsx') {
+  const fuente = ts.createSourceFile(
+    nombre,
+    texto,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TSX,
+  );
+  const delSistema = new Set();
+  for (const s of fuente.statements) {
+    if (!ts.isImportDeclaration(s) || s.importClause === undefined) continue;
+    if (s.moduleSpecifier.text !== SISTEMA) continue;
+    const nombres = s.importClause.namedBindings;
+    if (nombres === undefined || !ts.isNamedImports(nombres)) continue;
+    for (const e of nombres.elements) delSistema.add(e.name.text);
+  }
+  const estadosDe = (cuerpo) => {
+    const estados = { vacio: false, cargando: false, error: false };
+    for (const a of aperturasEn(cuerpo)) {
+      const tag = nombreDeEtiqueta(a);
+      const estado = ESTADO_DEL_SISTEMA[tag];
+      if (estado !== undefined && delSistema.has(tag)) estados[estado] = true;
+    }
+    return estados;
+  };
+  const componentes = new Map();
+  for (const s of fuente.statements) {
+    if (ts.isFunctionDeclaration(s) && s.name !== undefined && s.body !== undefined) {
+      componentes.set(s.name.text, estadosDe(s.body));
+    }
+    if (ts.isVariableStatement(s)) {
+      for (const d of s.declarationList.declarations) {
+        const valor = d.initializer;
+        if (
+          ts.isIdentifier(d.name) &&
+          valor !== undefined &&
+          (ts.isArrowFunction(valor) || ts.isFunctionExpression(valor))
+        ) {
+          componentes.set(d.name.text, estadosDe(valor.body));
+        }
+      }
+    }
+  }
+  return componentes;
+}
+
+/**
+ * Los estados de una pantalla CONTANDO sus envoltorios locales. `leerModulo(modulo)`
+ * devuelve el texto del módulo de donde viene cada envoltorio (o `null` si no se puede
+ * leer); un envoltorio cuenta sólo si la función de ese nombre pinta el estado del
+ * sistema que su nombre dice. Puro, para poder probarlo sin disco.
+ */
+export function pintaConEnvoltorios(pinta, envoltorios, leerModulo) {
+  const resultado = { ...pinta };
+  for (const { nombre, modulo, estado } of envoltorios) {
+    if (resultado[estado]) continue;
+    const texto = leerModulo(modulo);
+    if (texto === null) continue;
+    if (estadosPorComponente(texto, modulo).get(nombre)?.[estado] === true) {
+      resultado[estado] = true;
+    }
+  }
+  return resultado;
+}
+
 /**
  * Analiza una pantalla. Devuelve `{ interfaz, hallazgos, pinta }`:
  * `hallazgos` es una lista de `{ condicion, motivo, linea }` y `pinta` dice qué
@@ -127,6 +223,16 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
     if (n === 'Vacio') pinta.vacio = true;
     if (n === 'Esqueleto' || n === 'EsqueletoDeLista') pinta.cargando = true;
     if (n === 'ErrorDePantalla' || n === 'Aviso') pinta.error = true;
+  }
+
+  // Los envoltorios locales que se pintan aquí. El analizador sólo los NOMBRA: decidir si
+  // cuentan exige leer su módulo, y eso lo hace quien tiene el disco (`pintaConEnvoltorios`).
+  const envoltorios = [];
+  for (const n of new Set(componentes)) {
+    const modulo = importados.get(n);
+    if (modulo === undefined || modulo === SISTEMA || !esModuloLocal(modulo)) continue;
+    const prefijo = PREFIJOS_DE_ENVOLTORIO.find(([p]) => n.startsWith(p) && n !== p);
+    if (prefijo !== undefined) envoltorios.push({ nombre: n, modulo, estado: prefijo[1] });
   }
 
   // Los identificadores que llevan dinero ya hecho texto, para seguirlos hasta el JSX.
@@ -271,5 +377,5 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
   };
   buscarMapas(fuente);
 
-  return { interfaz, hallazgos, pinta };
+  return { interfaz, hallazgos, pinta, envoltorios };
 }
