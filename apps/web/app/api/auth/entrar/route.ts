@@ -1,5 +1,11 @@
 import { validarEntorno } from '@morphiqpos/contracts';
-import { cuerpoDentroDelLimite, cookieDeSesion, leerCookie, permitir } from '@morphiqpos/app/http';
+import {
+  cuerpoDentroDelLimite,
+  cookieDeSesion,
+  devolver,
+  leerCookie,
+  permitir,
+} from '@morphiqpos/app/http';
 import { entrarConPin, organizacionDeQuienEntra } from '@morphiqpos/app/identidad';
 import { elegirNegocioDeLaEntrada, negociosDelDespliegue } from '@morphiqpos/app/negocio';
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
@@ -165,6 +171,10 @@ export async function POST(peticion: Request): Promise<Response> {
     }
     return json(401, { ok: false, error: fallo('Empleado o PIN incorrectos.') });
   }
+
+  // El PIN era correcto: su intento se devuelve. La cuota de la red cuenta los que FALLAN
+  // (`LIMITES.entrar`), y la tableta que pasa de mesero en mesero no la gasta entrando bien.
+  await devolver('entrar', peticion.headers, entorno.PIN_PEPPER);
 
   // Sin HTTPS el navegador descarta una cookie `Secure`, y en la red local de
   // una demostración eso significaría no poder entrar nunca.

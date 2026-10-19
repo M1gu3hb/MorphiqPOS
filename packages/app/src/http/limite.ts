@@ -33,7 +33,10 @@ import { correlationIdDe, registrar } from '../observabilidad.ts';
  * decenas de miles de intentos— y deja trabajar a quien está instalando.
  *
  * El de entrada no se toca: veinte PIN fallidos en cinco minutos desde la misma
- * red ya no es un cajero con prisa.
+ * red ya no es un cajero con prisa. FALLIDOS: la entrada correcta devuelve su
+ * intento (`devolver`). Contaba todas, y una tableta que pasa de mesero en mesero
+ * —con todas las cajas del negocio detrás de la misma IP— gastaba la cuota entrando
+ * bien y dejaba al restaurante entero sin entrar a media comida.
  */
 export const LIMITES = {
   entrar: { intentos: 20, ventanaSegundos: 300 },
@@ -89,10 +92,8 @@ export async function permitir(
   cabeceras: { get(nombre: string): string | null },
   pimienta: string,
 ): Promise<Permiso> {
-  const origen = origenDe(cabeceras) ?? 'origen_global';
-
   const { intentos: maximo, ventanaSegundos } = LIMITES[accion];
-  const clave = createHmac('sha256', pimienta).update(`${accion}:${origen}`, 'utf8').digest('hex');
+  const clave = claveDelOrigen(accion, cabeceras, pimienta);
 
   try {
     const { intentos, esperaSegundos } = await repoLimite.contarIntento(clave, ventanaSegundos);
@@ -108,6 +109,46 @@ export async function permitir(
       mensaje: `No se pudo contar el intento de ${accion}.`,
     });
     return { ok: true, esperaSegundos: 0 };
+  }
+}
+
+/** El cubo de la acción para el origen de la petición: el MISMO al contar y al devolver. */
+function claveDelOrigen(
+  accion: AccionLimitada,
+  cabeceras: { get(nombre: string): string | null },
+  pimienta: string,
+): string {
+  const origen = origenDe(cabeceras) ?? 'origen_global';
+  return createHmac('sha256', pimienta).update(`${accion}:${origen}`, 'utf8').digest('hex');
+}
+
+/**
+ * Devuelve el intento de una entrada con el PIN correcto (ver `LIMITES.entrar`).
+ *
+ * Se cuenta ANTES de verificar, con la sentencia atómica del repositorio, y se devuelve
+ * DESPUÉS sólo si salió bien: mientras se verifica, cada petición ocupa su lugar, así que
+ * un barrido en paralelo sigue topando en veinte.
+ *
+ * Si la base falla aquí se registra y se sigue: el peor caso es un contador más alto que
+ * lo justo —más estricto, nunca más abierto— y la persona ya entró.
+ */
+export async function devolver(
+  accion: 'entrar',
+  cabeceras: { get(nombre: string): string | null },
+  pimienta: string,
+): Promise<void> {
+  try {
+    await repoLimite.devolverIntento(claveDelOrigen(accion, cabeceras, pimienta));
+  } catch {
+    registrar({
+      nivel: 'alerta',
+      modulo: 'limite_tasa',
+      correlationId: correlationIdDe(
+        cabeceras.get('x-correlation-id') ?? cabeceras.get('x-morphiqpos-correlacion'),
+      ),
+      organizacionId: null,
+      mensaje: `No se pudo devolver el intento de ${accion}.`,
+    });
   }
 }
 
