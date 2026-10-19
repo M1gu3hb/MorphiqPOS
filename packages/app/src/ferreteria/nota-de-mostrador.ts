@@ -9,6 +9,7 @@ import { ejecutarAgregarLinea } from '../venta/carrito.ts';
 import { cotizar } from '../venta/cotizar.ts';
 import { descontarLaOrden } from '../venta/descuento-de-mostrador.ts';
 import { valorarLinea } from '../venta/valorar.ts';
+import { exigirClienteYObra } from './cliente-y-obra.ts';
 
 /**
  * `ferreteria.crear_nota_mostrador` — la nota que el pasillo manda a la caja.
@@ -140,6 +141,8 @@ export async function abrirNotaDeMostrador(
       'Para armar una nota hace falta una sucursal dada de alta.',
     );
   }
+
+  await exigirClienteYObra(ctx, datos.clienteId, datos.obraId);
 
   const ordenId = await ctx.paso('crear_orden_de_nota', () =>
     repoOrdenes.crearNotaDeMostrador(ctx.tx, {

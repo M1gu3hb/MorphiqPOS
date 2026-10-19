@@ -207,6 +207,14 @@ async function revisarLasRutas(
       ),
     );
     if (!conNinguno.startsWith('400 ')) cuenta.pasaronZod += 1;
+    // Un id que no existe se CONTESTA: «no lo encontré», no un 500. La lista de trabajo y la
+    // nota de mostrador guardaban el cliente y el material tal como llegaban, y la llave
+    // foránea los paraba con un error interno; aquí se ve, porque es lo único que les llega.
+    if (conNinguno.startsWith('5')) {
+      cuenta.fallas.push(
+        `${ruta.ruta} (${ruta.comando}): revienta con ids que no existen: ${conNinguno}`,
+      );
+    }
     if (conAjeno !== conNinguno) {
       cuenta.fallas.push(`${ruta.ruta} (${ruta.comando}): ${conAjeno} ≠ ${conNinguno}`);
     }

@@ -6,6 +6,7 @@ import { repoFolios } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando, type ContextoComando } from '../definicion.ts';
+import { exigirClienteYObra, exigirMateriales } from './cliente-y-obra.ts';
 
 /**
  * F-153 · La lista de trabajo: el papel del albañil.
@@ -125,6 +126,11 @@ export const capturarListaTrabajo = definirComando<
         'Captura la lista desde una sucursal: su folio es consecutivo por sucursal.',
       );
     }
+    await exigirClienteYObra(ctx, entrada.clienteId, entrada.obraId);
+    await exigirMateriales(
+      ctx,
+      entrada.renglones.flatMap((r) => (r.productoId === null ? [] : [r.productoId])),
+    );
     const tomado = await ctx.paso('tomar_folio', () =>
       repoFolios.tomarFolio(ctx.tx, organizacionId, sucursalId, 'LT'),
     );
