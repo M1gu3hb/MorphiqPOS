@@ -436,7 +436,14 @@ test.describe('el día completo de la cafetería', () => {
         await expect(conteo.getByText('Inventario ajustado a lo contado.')).toBeVisible({
           timeout: 30_000,
         });
-        await conteo.getByRole('button', { name: 'Cerrar', exact: true }).click();
+        // Al pie, el «Cerrar» del conteo; en la esquina, la X del diálogo, que también se
+        // anuncia «Cerrar» (`packages/ui/src/primitivas/dialog.tsx`) y hace lo mismo. Sergio
+        // toca el del pie, y el conteo se va.
+        await conteo
+          .getByRole('button', { name: 'Cerrar', exact: true })
+          .and(conteo.locator(':not([data-slot="dialog-close"])'))
+          .click();
+        await expect(conteo).toBeHidden();
       });
 
       // ── ANTES DEL CIERRE · LA BARRA QUEDA LIMPIA ───────────────────────────

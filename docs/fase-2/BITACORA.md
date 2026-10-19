@@ -6663,6 +6663,16 @@ rojo, con su causa y no con su síntoma:
   entrar. El `APP_URL` de Preview es el alias de `fase-2`, y crear la variable para esta rama
   necesita un permiso del proyecto de Vercel que esta sesión no tiene (`VERCEL-ENTORNO.md` §9,
   con el comando).
+- *El tercer CI* (`2178203`, corrida 39327794001): la tienda y la ferretería, el día entero en
+  PC y tableta, en verde; permisos, aislamiento, contratos y el rastreo de los cinco, en verde.
+  La cafetería cayó por un defecto MÍO: `1628250` tradujo la X de los diálogos a «Cerrar», y el
+  conteo de leche tiene su propio «Cerrar» al pie; la prueba lo buscaba exacto y encontró dos.
+  En local había pasado porque mi servidor corría una construcción anterior a ese cambio —la
+  lección: reconstruir antes de dar por buena una prueba de pantalla—. Reproducido en local con
+  la construcción nueva (la misma violación de modo estricto), y la prueba toca ahora el «Cerrar»
+  del pie y comprueba que el conteo se va: verde en PC y tableta (3.5 min). La X conserva
+  «Cerrar», que es lo que dicen las demás X de la aplicación (`aria-label="Cerrar"`): dos botones
+  que hacen lo mismo pueden llamarse igual.
 
 **En qué voy:** integrar lo de los dos subagentes cuando entreguen; el PR contra `main`; el CI
 sobre el SHA del PR; el preview; `07-ESTADO.md` y el reporte 020.
