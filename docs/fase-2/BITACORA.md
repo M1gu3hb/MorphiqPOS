@@ -6644,6 +6644,19 @@ rojo, con su causa y no con su síntoma:
   la orden a `confirmada` después de la cuenta. Ahora `FOR UPDATE`, como el cobro de la caja;
   `portal/carrera.integracion.test.ts` corre las dos carreras en paralelo de verdad: rojas sin
   el cambio, verdes tres veces seguidas con él.
+- *El segundo CI* (`89f0130`, corrida 39323347137) ya pasó el rastreo en los cinco modelos y la
+  matriz de permisos, y destapó cuatro cosas más, todas de las pruebas y de su orden, ninguna
+  del producto: (1) el aislamiento caía con 429 en `/api/auth/empleados` —medido con el contador
+  vacío: la matriz gastaba 53 de 60 y las dos juntas 65, porque `entrar()` pedía la lista por su
+  cuenta además de la pantalla y la precondición se repetía antes de cada prueba; ahora 29 y
+  44—; (2) la suite del salón truncaba la comisión esperada y el sistema la redondea bien
+  ($620.688 → $620.69), y tres comentarios llamaban «D-36» a esa regla, un número que nunca se
+  escribió y que hoy es la frontera: citan `dinero/redondeo.ts`; (3) la suite de la ferretería
+  cerraba el turno con la nota del corte de material sin cobrar, y el muro del cierre de
+  `0178217` lo impide con razón: ahora la cobra; (4) las suites de modelo corrían sobre lo que
+  el rastreo dejó: CI vuelve a sembrar la demo antes. La galería (seis a diez por ciento de
+  píxeles en el cobro y las mesas) es el menú de D-34, el «Mixto» de C.5 y el «Casco» que la
+  2.4 agregó sin regenerar los retratos: se regeneran por CI con las integraciones.
 - *El preview de esta rama, desde fuera:* con el enlace compartido de Vercel, las cinco demos
   servidas y los cuatro negocios reales en 404 igual que uno que no existe; sin hash ni PIN en
   la entrada; cabeceras de seguridad; 403 sin sesión y 403 de un origen ajeno. Lo que NO se pudo:
