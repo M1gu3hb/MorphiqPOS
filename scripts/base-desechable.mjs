@@ -6,6 +6,12 @@
  *   node --conditions=react-server scripts/base-desechable.mjs entorno   # las variables del servidor
  *   node --conditions=react-server scripts/base-desechable.mjs bajar     # la apaga y la BORRA
  *
+ * Con `MORPHIQPOS_BASE_DESECHABLE_IMAGEN=postgres:17.6-alpine` el clúster es un contenedor de
+ * Docker con la versión de producción (y de CI) en vez de un directorio con los binarios
+ * locales: sirve donde `initdb` no corre —como root— o donde la versión instalada es otra.
+ * `MORPHIQPOS_BASE_DESECHABLE_PUERTO` (5435) y `MORPHIQPOS_PUERTO_E2E` (3200, el servidor
+ * que la usa) permiten dos corridas a la vez en la misma máquina, cada una con su base.
+ *
  * ── Por qué existe ───────────────────────────────────────────────────────────
  * La 2.4 separa lo que se prueba según lo que toca: lo que ESCRIBE un día de ventas
  * corre sobre las cinco demos; lo DESTRUCTIVO por naturaleza —dar de baja a alguien,
@@ -37,6 +43,17 @@ import { join } from 'node:path';
 const PUERTO = Number(process.env['MORPHIQPOS_BASE_DESECHABLE_PUERTO'] ?? '5435');
 const DIRECTORIO =
   process.env['MORPHIQPOS_BASE_DESECHABLE_DIR'] ?? join(tmpdir(), 'morphiqpos-base-desechable');
+/**
+ * Con una IMAGEN, el clúster es un contenedor y no un directorio: `postgres:17.6-alpine` es
+ * la versión que corre producción y la que usa CI. Sirve donde `initdb` no puede correr
+ * —como root, o sin los binarios— y donde la versión instalada no es la de producción. El
+ * contenedor se publica sólo en `127.0.0.1` y `bajar` lo borra con sus datos.
+ */
+const IMAGEN = process.env['MORPHIQPOS_BASE_DESECHABLE_IMAGEN'] ?? '';
+/** Uno por puerto: dos corridas en la misma máquina no comparten base. */
+const CONTENEDOR = `morphiqpos-base-desechable-${String(PUERTO)}`;
+/** El servidor de pruebas que habla con ESTA base (`MORPHIQPOS_PUERTO_E2E` de Playwright). */
+const PUERTO_DEL_SERVIDOR = process.env['MORPHIQPOS_PUERTO_E2E'] ?? '3200';
 const USUARIO = 'morphiqpos';
 const BASE = 'morphiqpos_desechable';
 const URL_DESECHABLE = `postgres://${USUARIO}@localhost:${String(PUERTO)}/${BASE}`;
@@ -46,7 +63,14 @@ export const ENTORNO_DESECHABLE = {
   DATABASE_URL: URL_DESECHABLE,
   ORGANIZACION:
     'demo-acople-tienda,demo-acople-cafeteria,demo-acople-restaurante,demo-acople-ferreteria,demo-acople-estetica',
-  APP_URL: 'http://localhost:3200',
+  APP_URL: `http://localhost:${PUERTO_DEL_SERVIDOR}`,
+  // Sin almacén de archivos, como el rastreo de CI: el contrato del entorno exige las cuatro
+  // para arrancar, y sin ellas la siembra moría con `ErrorDeEntorno` en cuanto no había un
+  // `.env` que las pusiera. Subir una foto contesta el 503 legible de `ErrorDeAlmacen`.
+  STORAGE_ENDPOINT: 'http://localhost:9000',
+  STORAGE_BUCKET: 'morphiqpos',
+  STORAGE_ACCESS_KEY: 'base-desechable-sin-almacen',
+  STORAGE_SECRET_KEY: 'base-desechable-sin-almacen',
   SESSION_SECRET: 'base_desechable_local_firma_de_sesion_2026',
   PIN_PEPPER: 'base_desechable_local_pimienta_de_pin_2026',
   MORPHIQPOS_SUPABASE_PROJECT_REF: '',
@@ -176,7 +200,49 @@ async function darDeAltaLasDemos() {
   console.log('  las cinco demos, sembradas');
 }
 
+/** El clúster en un contenedor: lo arranca si no está corriendo y espera a que acepte. */
+function subirElContenedor() {
+  const docker = (argumentos) => spawnSync('docker', argumentos, { encoding: 'utf8' });
+  const estado = docker(['inspect', '-f', '{{.State.Running}}', CONTENEDOR]);
+  if (estado.status !== 0) {
+    exigir(
+      docker([
+        'run',
+        '-d',
+        '--name',
+        CONTENEDOR,
+        '-p',
+        `127.0.0.1:${String(PUERTO)}:5432`,
+        '-e',
+        `POSTGRES_USER=${USUARIO}`,
+        '-e',
+        'POSTGRES_HOST_AUTH_METHOD=trust',
+        '-e',
+        'POSTGRES_DB=postgres',
+        IMAGEN,
+      ]),
+      `docker run ${IMAGEN}`,
+    );
+  } else if (estado.stdout.trim() !== 'true') {
+    exigir(docker(['start', CONTENEDOR]), 'docker start');
+  }
+  for (let intento = 0; intento < 60; intento += 1) {
+    const listo = docker(['exec', CONTENEDOR, 'pg_isready', '-U', USUARIO, '-d', 'postgres']);
+    if (listo.status === 0) return;
+    spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 1000)']);
+  }
+  throw new Error(`El contenedor ${CONTENEDOR} no aceptó conexiones en 60 s.`);
+}
+
 async function subir() {
+  if (IMAGEN !== '') {
+    subirElContenedor();
+    await crearBaseYRol();
+    await migrar();
+    await darDeAltaLasDemos();
+    console.log(`✓ Base desechable en ${URL_DESECHABLE} (contenedor ${CONTENEDOR}, ${IMAGEN})`);
+    return;
+  }
   if (!existsSync(join(DIRECTORIO, 'PG_VERSION'))) {
     exigir(
       correr('initdb', [
@@ -216,6 +282,11 @@ async function subir() {
 }
 
 function bajar() {
+  if (IMAGEN !== '') {
+    spawnSync('docker', ['rm', '-f', '-v', CONTENEDOR], { encoding: 'utf8' });
+    console.log(`✓ Base desechable apagada y borrada (contenedor ${CONTENEDOR}).`);
+    return;
+  }
   if (existsSync(join(DIRECTORIO, 'PG_VERSION'))) {
     correr('pg_ctl', ['-D', DIRECTORIO, '-m', 'fast', 'stop']);
   }
