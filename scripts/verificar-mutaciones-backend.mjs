@@ -452,8 +452,8 @@ comprobarMutacion({
   prueba: PRUEBA_AUTORIZACION_PUENTE,
   transformar: (codigo) =>
     codigo.replace(
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    rolesLectura: [...CAJA]",
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    rolesLectura: [...TODOS_LOS_ROLES]",
+      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...CAJA]",
+      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...TODOS_LOS_ROLES]",
     ),
 });
 comprobarMutacion({
@@ -1041,10 +1041,7 @@ comprobarMutacion({
   variable: 'MORPHIQPOS_URL_VALIDATOR_SOURCE_PATH',
   prueba: PRUEBA_URL_PUBLICA,
   transformar: (codigo) =>
-    codigo.replace(
-      "protocolo === 'https:' || protocolo === 'http:'",
-      "protocolo !== 'javascript:'",
-    ),
+    codigo.replace('protocol: /^https?$/', 'protocol: /^(?!javascript$)[a-z][a-z0-9+.-]*$/'),
 });
 comprobarMutacion({
   nombre: 'host TLS comparado sin parsear la URL',
