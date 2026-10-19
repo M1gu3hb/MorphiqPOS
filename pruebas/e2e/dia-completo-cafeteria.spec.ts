@@ -446,6 +446,17 @@ test.describe('el día completo de la cafetería', () => {
         await aSuCasa(emilio, /\/cafeteria\/barra/);
         const listos = emilio.getByRole('button', { name: /^Marcar listo y llamar a / });
         const entregas = emilio.getByRole('button', { name: /^Marcar entregado el pedido de / });
+        // Contar ANTES de que la fila llegue da cero, el ciclo sale en la primera vuelta y
+        // los siete pedidos aparecen después (así cayó esta prueba en la máquina limpia: el
+        // servidor tardó más que el `count()`). Se espera a que la fila ESTÉ: vacía, o con
+        // sus columnas (escritorio) o sus pestañas (teléfono). La ausencia del esqueleto no
+        // basta: antes de la primera pintura tampoco está.
+        await expect(
+          emilio
+            .getByText('La fila está vacía.')
+            .or(emilio.locator('section[aria-labelledby^="columna-"], [role="tablist"]'))
+            .first(),
+        ).toBeVisible({ timeout: 30_000 });
         for (let vuelta = 0; vuelta < 40; vuelta += 1) {
           const porLlamar = await listos.count();
           const porEntregar = await entregas.count();
