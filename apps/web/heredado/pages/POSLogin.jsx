@@ -209,11 +209,13 @@ export default function POSLogin() {
       {/* Hidden input */}
       <input
         ref={hiddenInputRef}
-        type="text"
+        type="password"
         inputMode="numeric"
         autoFocus
-        value=""
-        onChange={() => {}}
+        value={pin}
+        onChange={(e) => {
+          if (!loading) setPin(e.target.value.replace(/\D/g, '').slice(0, 4));
+        }}
         className="sr-only"
         aria-label="PIN"
       />

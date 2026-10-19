@@ -19,6 +19,9 @@ estaba en `167f9eb`, incluyendo las etapas de diseño y estabilización todavía
 - Se conserva el mapa original con posiciones libres en escritorio, lista móvil y colores
   semánticos por estado. El editor existente sigue en Configuración → Mesas.
 - Salir revoca la sesión del servidor, su acceso de presentación y limpia el árbol del cliente.
+- En la comprobación visual se encontró otro defecto del PIN: el campo real tenía
+  `value=""` y un `onChange` vacío. Pegar o autocompletar no hacía nada. Ahora es un campo
+  password controlado por el PIN y acepta los cuatro dígitos completos, además del teclado.
 
 ## Dueño general y presentación
 
