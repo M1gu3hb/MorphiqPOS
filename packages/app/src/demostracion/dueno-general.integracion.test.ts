@@ -4,10 +4,12 @@ import { DEMOS } from '@morphiqpos/contracts/negocios';
 import { conTransaccion, obtenerDb } from '@morphiqpos/data';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 
+import { entrarConPin } from '../identidad/entrar.ts';
 import { hashearPin, verificarPin } from '../identidad/pin.ts';
 import { comando } from '../produccion.ts';
 import { ambitoDe, clave, exigirOk, type NegocioReal } from '../pruebas/negocio-real.ts';
 import { resetearDemo } from './resetear.ts';
+import { autorizaPresentacion, destinosDePresentacion } from '../sesion/permisos-presentacion.ts';
 
 /**
  * EL RESETEO DE LA DEMO NO TOCA AL DUEÑO GENERAL (D-42, 20-10-2026) · contra Postgres.
@@ -185,5 +187,45 @@ describe('configuracion.resetear_demo · el dueño general', () => {
 
     // Y la prueba no es vacía: al dueño que no es el general se le repuso el PIN publicado.
     expect(await hashDe(quienResetea.identidadId)).toBeDefined();
+  });
+
+  it('después del reseteo VUELVE A ENTRAR con su PIN, y su concesión sigue abriendo los destinos', async () => {
+    // Lo que importa en la presentación: Miguel resetea la demo y vuelve a entrar. Con el
+    // defecto, su PIN dejaba de servirle y el publicado de la demo le abría una cuenta sin
+    // concesión. Aquí se entra por la función REAL de inicio de sesión, después del reseteo
+    // de la prueba anterior y de uno más.
+    exigirOk(
+      await comando(resetearDemo, {
+        entrada: { confirmacion: 'RESETEAR' },
+        ambito: ambitoDe(quienResetea, sucursalId, null),
+        idempotencyKey: clave(),
+      }),
+      'El segundo reseteo de la demo',
+    );
+    const entrar = (pin: string) =>
+      entrarConPin({
+        empleoId: general,
+        organizacionId: quienResetea.organizacionId,
+        pin,
+        deviceToken: '',
+        pimienta: PIMIENTA,
+        secretoSesion: 'secreto_de_sesion_de_la_prueba_del_dueno_general',
+      });
+
+    // El PIN publicado de la demo NO abre la cuenta general.
+    expect((await entrar('1234')).ok).toBe(false);
+    // El suyo, sí.
+    const dentro = await entrar(PIN_DEL_GENERAL);
+    expect(dentro.ok).toBe(true);
+
+    const dueno = {
+      rol: 'dueno' as const,
+      organizacionId: quienResetea.organizacionId,
+      empleoId: general,
+    };
+    expect(await destinosDePresentacion(dueno)).toEqual(destinos);
+    const primero = destinos[0];
+    if (primero === undefined) throw new Error('Sin destinos sembrados.');
+    expect(await autorizaPresentacion(dueno, { rol: 'dueno', ...primero })).toBe(true);
   });
 });
