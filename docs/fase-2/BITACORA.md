@@ -6832,3 +6832,31 @@ servidor local); se retomó desde el árbol cada vez, sin perder commits.
   enseñando: «eliminada» e «inactiva» son el mismo campo. Borrarla de verdad arrastraría su
   bitácora (`eventos_mesa` en cascada). Opciones: una columna `eliminada_en` con su migración, o
   que el editor distinga las inactivas. Decisión de Miguel.
+
+## 20-10-2026 (noche) · Cierre del restaurante para el 21-10 · EN CURSO (punto de control)
+
+Encargo: cerrar y PUBLICAR el restaurante (Miguel autorizó integrar a `main` y desplegar cuando
+cumpla los criterios técnicos). Estado revalidado al empezar: `main` = producción = `5a5bf6f`; PR #13
+en `5e6e0b4` con CI 16/16 (corrida 39441062022); 181/182 en el ledger de producción (aplicadas por el
+conector de Supabase, `apply_migration` del 19-10 22:36 UTC, con la tanda del migrador); 183 sin
+registrar. Las otras ramas remotas ya están en `main` o son ajenas y viejas (`carril-b`).
+
+Hecho y en la rama:
+- `a3a2407` · la cuenta con tarjeta y la propina SÓLO en efectivo (184 `pago_solo_de_propina`,
+  `repartirPagos`, tope de la propina contra la cuenta, «La propina se pagó con» en la pantalla nueva
+  con cualquier método, la caja heredada ya no se come la propina). Integración contra Postgres; con
+  el `check` anterior cae con 23514.
+- `de72d19` · el dueño general vuelve a entrar después de dos reseteos (su PIN sí, el publicado no,
+  su concesión autoriza los destinos). Mutación: reponerle el PIN lo pone en rojo.
+- `c098b59` · un preview de Vercel acepta escrituras desde sus hostnames EXACTOS (`VERCEL_URL`,
+  `VERCEL_BRANCH_URL`, sólo con `VERCEL_ENV=preview`).
+- Jornada: mesas 4 (tarjeta + propina en billete, mixto heredado) y 5 (transferencia) — sin commit
+  hasta verla en verde en local.
+
+Pendiente, en orden: auditoría de rutas y permisos por puesto (`/pos` fuera del control de
+`NAV_ITEMS`), cruces que faltan en la jornada (cambiar/unir/dividir, descuento con supervisor,
+anulación/cancelación/devolución, portal QR con mesa reutilizada, concurrencia, persistencia),
+diseño en tres aparatos y ocho estilos, 183+184 en producción por el proceso (ensayo local, ensayo
+con `rollback` en producción, respaldo de `pagos`/`mesas` DENTRO de la base, aplicación con la
+tanda de `migrar.mjs --emitir`, verificación), fusión a `main`, despliegue, comprobación del SHA y
+ensayo no destructivo en producción.
