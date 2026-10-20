@@ -24,7 +24,10 @@ import { useRouteCleanup } from '@/lib/useRouteCleanup';
  */
 export default function AppLayout({ marco = 'interno' }) {
   const deModelo = marco === 'modelo';
-  const [collapsed, setCollapsed] = useState(false);
+  // Plegada en las pantallas de modelo, como dice arriba. La fusión c1ada17 la dejó abierta
+  // (`useState(false)`): con 240 px de barra, la nota de entrada de la tienda no cabía en la
+  // tableta y su «Agregar canje» quedaba debajo de otros elementos.
+  const [collapsed, setCollapsed] = useState(deModelo);
   const { posUser, isLoading } = usePOSAuth();
   const navigate = useNavigate();
   // Libera body locks (overflow/pointer-events) si quedó algún portal pegado al cambiar de ruta.
