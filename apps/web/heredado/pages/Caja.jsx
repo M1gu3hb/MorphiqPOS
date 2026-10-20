@@ -159,7 +159,14 @@ export default function Caja() {
   const [showPropinaCaja, setShowPropinaCaja] = useState(false);
 
   // Caja abierta global (fuente única de verdad)
-  const { cajaAbierta, hayCaja, fondoEsperado } = useCajaAbierta({ deEstaTerminal: true });
+  // Mientras carga, `hayCaja` es falso: el aviso amarillo de «No hay caja abierta» y «Abrir
+  // caja» habilitado aparecían medio segundo con la caja ya abierta (el día del restaurante).
+  const {
+    cajaAbierta,
+    hayCaja,
+    fondoEsperado,
+    isLoading: cargandoCaja,
+  } = useCajaAbierta({ deEstaTerminal: true });
 
   // Clave de idempotencia del cobro: se genera al ABRIR el diálogo de cobro y
   // se reusa mientras siga abierto (F1-02 §8, trampa T5). Es lo que impide que
@@ -1084,7 +1091,7 @@ export default function Caja() {
           <Button
             size="sm"
             onClick={() => setShowAbrirCaja(true)}
-            disabled={hayCaja}
+            disabled={hayCaja || cargandoCaja}
             variant={hayCaja ? 'outline' : 'default'}
             title={hayCaja ? 'Ya hay una caja abierta' : 'Abrir caja para comenzar operación'}
             className="px-2"
@@ -1127,7 +1134,7 @@ export default function Caja() {
       </div>
 
       {/* Aviso si NO hay caja abierta */}
-      {!hayCaja && (
+      {!hayCaja && !cargandoCaja && (
         <div className="px-4 py-3 rounded-xl bg-advertencia/10 border-2 border-advertencia/30 text-sm text-advertencia flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-advertencia" />
           <div className="flex-1">
