@@ -1,4 +1,6 @@
 import { CitaEnCurso } from '~/estetica-salon/CitaEnCurso';
+import { quienVeElCosto } from '~/servidor/costo-de-la-cita';
+import { sesionDelServidor } from '~/servidor/http';
 
 /**
  * La cita abierta, con la fórmula de la visita anterior a un toque.
@@ -9,6 +11,9 @@ import { CitaEnCurso } from '~/estetica-salon/CitaEnCurso';
  */
 export const dynamic = 'force-dynamic';
 
-export default function Pagina() {
-  return <CitaEnCurso />;
+export default async function Pagina() {
+  // Qué parte del costo de la cita puede leer quien entra, decidido aquí en el servidor: la
+  // estilista no lee ni la receta ni la cotización, así que ni se le piden.
+  const sesion = await sesionDelServidor();
+  return <CitaEnCurso costos={quienVeElCosto(sesion?.rol ?? '')} />;
 }

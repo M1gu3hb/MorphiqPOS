@@ -319,6 +319,12 @@ export interface AgendaDelDiaProps {
   readonly bloquesIniciales?: readonly BloqueDeAgenda[];
   /** Falso dibuja el vacío del salón NUEVO, que tiene que enseñar otra cosa. */
   readonly hayEquipo?: boolean;
+  /**
+   * Si quien entra lee la lista de espera (`veLaListaDeEspera`, en el servidor). Se OBLIGA a
+   * pasarlo: «nada» por omisión escondía la lista a la recepción y «todo» llenaba de 403 a la
+   * estilista, que abre la agenda pero no lee la lista.
+   */
+  readonly veLaEspera: boolean;
   readonly onAgendar?: () => void;
 }
 
@@ -982,6 +988,8 @@ interface PanelDePendientesProps {
   readonly huecosLeidos: boolean;
   readonly valor: number;
   readonly alTocar: (b: BloqueDeAgenda) => () => void;
+  /** Falso si el puesto no lee la lista de espera: pedirla sería un 403 en cada apertura. */
+  readonly veLaEspera: boolean;
 }
 
 /**
@@ -996,6 +1004,7 @@ function ContenidoDePendientes({
   huecosLeidos,
   valor,
   alTocar,
+  veLaEspera,
 }: PanelDePendientesProps) {
   const voc = useVocabulario();
   return (
@@ -1049,7 +1058,7 @@ function ContenidoDePendientes({
           }
         />
       </section>
-      <ListaDeEspera />
+      {veLaEspera ? <ListaDeEspera /> : null}
     </>
   );
 }
@@ -1094,7 +1103,12 @@ function BarraDeAgendar({ alAgendar }: { readonly alAgendar: () => void }) {
   );
 }
 
-export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: AgendaDelDiaProps) {
+export function AgendaDelDia({
+  bloquesIniciales,
+  hayEquipo = true,
+  veLaEspera,
+  onAgendar,
+}: AgendaDelDiaProps) {
   const voc = useVocabulario();
   const enrutador = useRouter();
   const [bloques, setBloques] = useState<readonly BloqueDeAgenda[] | null>(
@@ -1423,6 +1437,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
     huecosLeidos,
     valor: resumen.valor,
     alTocar,
+    veLaEspera,
   };
 
   const encabezado = (
@@ -1547,7 +1562,7 @@ export function AgendaDelDia({ bloquesIniciales, hayEquipo = true, onAgendar }: 
         {/* La LISTA DE ESPERA también en el día vacío (lo cazó CI a las 23:00): con la
             agenda en blanco se escondía con el panel de pendientes, y un día sin citas es
             justo cuando a quien espera hay que llamarle. */}
-        {hayEquipo ? (
+        {hayEquipo && veLaEspera ? (
           <Superficie relleno={4} radio="md">
             <ListaDeEspera />
           </Superficie>

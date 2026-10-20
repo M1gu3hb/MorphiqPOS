@@ -11,6 +11,18 @@ import { centavosDe } from '~/cliente/dinero-del-puente';
  * la dueña quiere saber de la cita que está en la silla.
  */
 
+/**
+ * Qué parte de «lo que le cuesta al salón» puede leer quien entra. Lo calcula la PÁGINA, en el
+ * servidor, con los permisos de lo que se va a pedir (`~/servidor/costo-de-la-cita`): la
+ * pantalla sólo pide lo que su puesto lee, y no se hace una pregunta que se sabe negada.
+ */
+export interface QuienVeElCosto {
+  /** Puede leer la receta del servicio Y el costo de cada línea: el material tiene precio. */
+  readonly material: boolean;
+  /** Puede cotizar la cita y, con ello, saber la comisión que va a causar. */
+  readonly comision: boolean;
+}
+
 export interface LineaDeCabina {
   /** EN PESOS; no llega a quien no ve costos de insumo. */
   readonly costo_linea_calculado?: number | null;
