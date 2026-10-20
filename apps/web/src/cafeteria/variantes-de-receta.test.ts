@@ -168,11 +168,21 @@ describe('la tabla de variantes de la receta', () => {
   });
 
   it('los grupos de la bebida salen una vez cada uno, en el orden del menú', () => {
-    expect(gruposDeLaBebida(OPCIONES)).toEqual([
+    const esperado = [
       { grupoId: 'g-leche', nombre: 'Leche' },
       { grupoId: 'g-tamano', nombre: 'Tamaño' },
       { grupoId: 'g-temp', nombre: 'Temperatura' },
-    ]);
+    ];
+    expect(gruposDeLaBebida(OPCIONES)).toEqual(esperado);
+    // Lleguen como lleguen: el puente no las entrega en el orden del menú.
+    expect(gruposDeLaBebida([...OPCIONES].reverse())).toEqual(esperado);
+  });
+
+  it('las variantes van grupo por grupo en el orden del menú, lleguen como lleguen', () => {
+    const grupos = new Set(
+      variantesDeLaReceta(LINEAS, [...OPCIONES].reverse(), INSUMOS, PRECIO).map((v) => v.grupo),
+    );
+    expect([...grupos]).toEqual(['Leche', 'Tamaño']);
   });
 });
 

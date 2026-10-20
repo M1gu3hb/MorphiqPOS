@@ -20,6 +20,25 @@ import { centavosDe } from '~/cliente/dinero-del-puente';
 /** La jerarquía la fija el documento: 1 Leche · 2 Tamaño · 3 Temperatura · 4 Extras. */
 const ORDEN_GRUPOS = ['Leche', 'Tamaño', 'Temperatura', 'Extras'] as const;
 
+/**
+ * Dos grupos en el orden del menú: la jerarquía del documento y, entre los que no
+ * nombra, el alfabeto.
+ *
+ * El puente NO los entrega en ese orden: ordena por el `orden` de la opción DENTRO de
+ * su grupo, así que la primera opción de cada grupo empata con las de los demás y el
+ * empate lo decide el plan de la vista, que pasa por los ids —aleatorios en cada
+ * siembra—. La tabla de Productos lo listaba «en el orden en que llega» y la galería
+ * sacó un «Extras · Temperatura · Tamaño» distinto en cada resiembra. Quien liste
+ * grupos los ordena con esto.
+ */
+export function compararGrupos(a: string, b: string): number {
+  const posicion = (nombre: string): number => {
+    const indice = ORDEN_GRUPOS.findIndex((g) => g === nombre);
+    return indice === -1 ? ORDEN_GRUPOS.length : indice;
+  };
+  return posicion(a) - posicion(b) || a.localeCompare(b, 'es');
+}
+
 export interface OpcionDeBebida {
   readonly id: string;
   readonly grupo: string;
@@ -45,13 +64,9 @@ export function agrupar(filas: readonly OpcionDeBebida[]): readonly GrupoDeOpcio
     if (lista === undefined) porNombre.set(fila.grupo, [fila]);
     else lista.push(fila);
   }
-  const posicion = (nombre: string): number => {
-    const indice = ORDEN_GRUPOS.findIndex((g) => g === nombre);
-    return indice === -1 ? ORDEN_GRUPOS.length : indice;
-  };
   return [...porNombre.entries()]
     .map(([nombre, opciones]) => ({ nombre, varias: opciones.some((o) => o.varias), opciones }))
-    .sort((a, b) => posicion(a.nombre) - posicion(b.nombre));
+    .sort((a, b) => compararGrupos(a.nombre, b.nombre));
 }
 
 /** La marcada, salvo que se haya agotado; si nadie marcó, la primera que haya. */

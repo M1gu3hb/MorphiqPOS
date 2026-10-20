@@ -53,6 +53,16 @@ describe('F-027 · el agrupado', () => {
     expect(grupos.map((g) => g.nombre)).toEqual(['Leche', 'Jarabes']);
   });
 
+  it('entre los que el documento no nombra decide el alfabeto, no el orden de llegada', () => {
+    const grupos = agrupar([
+      opcion({ id: 'z', grupo: 'Toppings' }),
+      opcion({ id: 'y', grupo: 'Extras' }),
+      opcion({ id: 'x', grupo: 'Jarabes' }),
+    ]);
+
+    expect(grupos.map((g) => g.nombre)).toEqual(['Extras', 'Jarabes', 'Toppings']);
+  });
+
   it('el grupo hereda «varias» de cualquiera de sus filas', () => {
     // El puente entrega filas planas: la bandera viaja por fila y el grupo la
     // tiene que recomponer, o los extras dejarían de poder acumularse.

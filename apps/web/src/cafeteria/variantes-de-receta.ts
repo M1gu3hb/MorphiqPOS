@@ -3,6 +3,7 @@ import { recetaConOpciones, type EfectoDeOpcion } from '@morphiqpos/domain/inven
 
 import { centavosDe } from '~/cliente/dinero-del-puente';
 
+import { compararGrupos } from './opciones-de-bebida.ts';
 import {
   entraEnCanal,
   margenDe,
@@ -52,7 +53,7 @@ export interface GrupoDeLaBebida {
   readonly nombre: string;
 }
 
-/** Los grupos de la bebida, sin repetir, en el orden del menú. */
+/** Los grupos de la bebida, sin repetir, en el orden del menú (`compararGrupos`). */
 export function gruposDeLaBebida(opciones: readonly OpcionDeLaBebida[]): GrupoDeLaBebida[] {
   const vistos = new Map<string, string>();
   for (const opcion of opciones) {
@@ -60,7 +61,9 @@ export function gruposDeLaBebida(opciones: readonly OpcionDeLaBebida[]): GrupoDe
     if (id === null || vistos.has(id)) continue;
     vistos.set(id, opcion.grupo ?? 'Opciones');
   }
-  return [...vistos].map(([grupoId, nombre]) => ({ grupoId, nombre }));
+  return [...vistos]
+    .map(([grupoId, nombre]) => ({ grupoId, nombre }))
+    .sort((a, b) => compararGrupos(a.nombre, b.nombre));
 }
 
 export interface CostoDeVariante {
@@ -249,7 +252,11 @@ export function variantesDeLaReceta(
     porGrupo.set(id, [...(porGrupo.get(id) ?? []), opcion]);
   }
   const salida: VarianteDeReceta[] = [];
-  for (const delGrupo of porGrupo.values()) {
+  // Grupo por grupo en el orden del menú, no en el que llegaron las filas.
+  const enOrden = [...porGrupo.values()].sort((a, b) =>
+    compararGrupos(a[0]?.grupo ?? 'Opciones', b[0]?.grupo ?? 'Opciones'),
+  );
+  for (const delGrupo of enOrden) {
     if (!grupoCambiaLaReceta(delGrupo, lineas)) continue;
     for (const opcion of delGrupo) {
       const precio =
