@@ -3,6 +3,8 @@ import 'server-only';
 import { ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
+import { cerrarAvisosDeLaMesa } from './avisos-de-la-mesa.ts';
+
 /**
  * Las escrituras que mueven una cuenta POR EL SALÓN: F-302 y F-303.
  *
@@ -148,6 +150,35 @@ export async function cambiarDeMesa(
 ): Promise<CambioDeMesaEscrito> {
   const { origen, destino } = datos;
 
+  // PRIMERO SE SUELTA LA MESA VIEJA, y sólo después se toma la nueva. La base no admite dos mesas
+  // apuntando a la MISMA cuenta ni un instante —`mesas_una_orden_activa`, único sobre
+  // `(organizacion_id, orden_activa_id)`—, así que tomar el destino con el origen todavía sentado
+  // sobre la cuenta era un 23505 en cada cambio de mesa: el mesero leía «Algo falló de nuestro lado»
+  // y la cuenta se quedaba donde estaba. Lo encontró la prueba contra Postgres de los avisos del
+  // comensal; la base falsa de las pruebas unitarias no tiene el índice, y por eso nadie lo vio.
+  //
+  // Es seguro porque todo va en UNA transacción: si el destino ya no está libre, lo de abajo lanza
+  // y la mesa vieja vuelve a quedar como estaba.
+  await tx
+    .updateTable('mesas')
+    .set({
+      estado: 'libre',
+      orden_activa_id: null,
+      personas_actuales: 0,
+      ocupada_desde: null,
+      cliente_temporal: null,
+      notas_alergias: null,
+      celebracion_especial: false,
+      tipo_celebracion: null,
+      empleado_atiende_id: null,
+    })
+    .where('organizacion_id', '=', datos.organizacionId)
+    .where('id', '=', origen.id)
+    .execute();
+
+  // La mesa vieja vuelve al servicio: los avisos que el grupo dejó en su QR se cierran.
+  await cerrarAvisosDeLaMesa(tx, datos.organizacionId, origen.id, datos.ahora);
+
   // El destino tiene que estar REALMENTE libre. El `where` no es decoración:
   // es lo que hace que dos meseros que mueven cuentas distintas a la misma
   // terraza no acaben con dos cuentas vivas en una mesa. El segundo actualiza
@@ -199,23 +230,6 @@ export async function cambiarDeMesa(
     .where('organizacion_id', '=', datos.organizacionId)
     .where('orden_id', '=', datos.ordenId)
     .executeTakeFirst();
-
-  await tx
-    .updateTable('mesas')
-    .set({
-      estado: 'libre',
-      orden_activa_id: null,
-      personas_actuales: 0,
-      ocupada_desde: null,
-      cliente_temporal: null,
-      notas_alergias: null,
-      celebracion_especial: false,
-      tipo_celebracion: null,
-      empleado_atiende_id: null,
-    })
-    .where('organizacion_id', '=', datos.organizacionId)
-    .where('id', '=', origen.id)
-    .execute();
 
   await registrarEventoMesa(tx, {
     organizacionId: datos.organizacionId,
@@ -516,6 +530,8 @@ export async function separarMesas(
       .where('organizacion_id', '=', datos.organizacionId)
       .where('id', '=', miembro.mesa_id)
       .execute();
+
+    await cerrarAvisosDeLaMesa(tx, datos.organizacionId, miembro.mesa_id, datos.ahora);
 
     await registrarEventoMesa(tx, {
       organizacionId: datos.organizacionId,

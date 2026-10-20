@@ -4,6 +4,7 @@ import { ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 import type { z } from 'zod';
 
+import { cerrarAvisosDeLaMesa } from './avisos-de-la-mesa.ts';
 import { esViolacionDeUnicidad } from './datos.ts';
 import type { entradaAbrirMesa } from './esquemas.ts';
 import { sellarTransicionDeMesa } from './sala-escrituras.ts';
@@ -21,6 +22,33 @@ const INDICES_DE_MESA_OCUPADA = ['ordenes_una_activa_por_mesa', 'mesas_una_orden
 
 /** Los estados de orden desde los que la cuenta ya no se debe (F1-04 §6.6). */
 export const ORDEN_YA_CERRADA = ['pagada', 'cancelada'] as const;
+
+/**
+ * Los estados de una PARTE de una cuenta dividida que ya no esperan cobro: cobrada —aunque
+ * después se haya devuelto— o cancelada. Cualquier otro la deja viva, y mientras haya una
+ * viva la mesa sigue ocupada.
+ */
+const PARTE_SALDADA = ['pagada', 'parcialmente_reembolsada', 'reembolsada', 'cancelada'] as const;
+
+/**
+ * Cuántas partes de una cuenta dividida siguen sin cobrar. `excepto` deja fuera la que se
+ * está cobrando ahora mismo: la transacción del cobro todavía no la ha marcado pagada.
+ */
+export async function partesSinSaldar(
+  tx: Transaccion,
+  organizacionId: string,
+  madreId: string,
+  excepto?: string,
+): Promise<number> {
+  const vivas = await tx
+    .selectFrom('ordenes')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('orden_padre_id', '=', madreId)
+    .where('estado', 'not in', [...PARTE_SALDADA])
+    .execute();
+  return vivas.filter((parte) => parte.id !== excepto).length;
+}
 
 interface DatosDeApertura {
   readonly organizacionId: string;
@@ -254,6 +282,9 @@ export async function limpiarMesa(
     .where('id', '=', mesaId)
     .execute();
 
+  // Los avisos del comensal que se fue se van con él: ver `avisos-de-la-mesa.ts`.
+  await cerrarAvisosDeLaMesa(tx, organizacionId, mesaId, sello.ahora);
+
   await sellarTransicionDeMesa(tx, {
     organizacionId,
     sucursalId: sello.sucursalId,
@@ -292,6 +323,14 @@ export async function limpiarMesa(
  * `orden_activa_id` NO se borra: es lo que deja saber de qué cuenta viene la mesa
  * mientras se recoge, y es lo que `liberar_mesa` lee para no cancelar nada.
  *
+ * ── Una cuenta DIVIDIDA recoge su mesa con la ÚLTIMA parte ────────────────
+ * Cada parte se cobra por separado y ninguna es la cuenta activa de la mesa —lo es la madre,
+ * que quedó `dividida`—. Sin esto la mesa de una cuenta dividida se quedaba ocupada para
+ * siempre aunque todas sus partes estuvieran cobradas, y quien la liberaba a mano cancelaba
+ * la madre como «mesa liberada sin consumo» (ver `liberarMesa`). La mesa pasa a limpieza
+ * cuando se cobra la última parte viva, y ninguna antes: mientras quede una, hay gente
+ * sentada esperando su cuenta.
+ *
  * Devuelve la mesa que cambió, o `null` cuando la orden no era de ninguna mesa
  * —una venta de mostrador, que es la mayoría—.
  */
@@ -301,13 +340,9 @@ export async function pasarMesaCobradaALimpieza(
   ordenId: string,
   quien: { readonly empleoId: string; readonly ahora: Date },
 ): Promise<{ readonly mesaId: string; readonly numero: number } | null> {
-  const mesa = await tx
-    .selectFrom('mesas')
-    .select(['id', 'numero', 'estado', 'sucursal_id as sucursalId'])
-    .where('organizacion_id', '=', organizacionId)
-    .where('orden_activa_id', '=', ordenId)
-    .executeTakeFirst();
-  if (mesa === undefined) return null;
+  const encontrada = await mesaDeLaCuenta(tx, organizacionId, ordenId);
+  if (encontrada === undefined) return null;
+  const { mesa, cuentaDeLaMesa } = encontrada;
   // Ya está: cobrar dos veces la misma cuenta no puede pasar, pero un reintento
   // idempotente sí, y el segundo no es un error ni una transición nueva.
   if (mesa.estado === 'limpieza' || mesa.estado === 'libre') {
@@ -327,7 +362,9 @@ export async function pasarMesaCobradaALimpieza(
     organizacionId,
     sucursalId: mesa.sucursalId,
     mesaId: mesa.id,
-    ordenId,
+    // La cuenta de la MESA —en una división, la madre—, que es la que el ledger de la mesa
+    // conoce desde que se abrió.
+    ordenId: cuentaDeLaMesa,
     estadoAnterior: mesa.estado,
     estadoNuevo: 'limpieza',
     empleadoId: quien.empleoId,
@@ -335,6 +372,59 @@ export async function pasarMesaCobradaALimpieza(
   });
 
   return { mesaId: mesa.id, numero: mesa.numero };
+}
+
+interface MesaDeUnaCuenta {
+  readonly mesa: {
+    readonly id: string;
+    readonly numero: number;
+    readonly estado: string;
+    readonly sucursalId: string;
+  };
+  /** La cuenta que la mesa tiene por activa: la misma que se cobró, o la madre de la parte. */
+  readonly cuentaDeLaMesa: string;
+}
+
+/**
+ * La mesa a la que pertenece una cuenta que se acaba de cobrar, si la recoge este cobro.
+ *
+ * Es la que la tiene por `orden_activa_id`. Una parte de una cuenta dividida no lo es de
+ * ninguna mesa —las hijas nacen sin ella—: su mesa es la de su madre, y sólo se recoge si no
+ * queda otra parte por cobrar (la que se está cobrando no cuenta: su transacción todavía no
+ * la ha marcado pagada).
+ */
+async function mesaDeLaCuenta(
+  tx: Transaccion,
+  organizacionId: string,
+  ordenId: string,
+): Promise<MesaDeUnaCuenta | undefined> {
+  const columnas = ['id', 'numero', 'estado', 'sucursal_id as sucursalId'] as const;
+
+  const propia = await tx
+    .selectFrom('mesas')
+    .select(columnas)
+    .where('organizacion_id', '=', organizacionId)
+    .where('orden_activa_id', '=', ordenId)
+    .executeTakeFirst();
+  if (propia !== undefined) return { mesa: propia, cuentaDeLaMesa: ordenId };
+
+  const cuenta = await tx
+    .selectFrom('ordenes')
+    .select('orden_padre_id as madreId')
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', ordenId)
+    .executeTakeFirst();
+  const madreId = cuenta?.madreId ?? null;
+  if (madreId === null) return undefined;
+  if ((await partesSinSaldar(tx, organizacionId, madreId, ordenId)) > 0) return undefined;
+
+  const deLaMadre = await tx
+    .selectFrom('mesas')
+    .select(columnas)
+    .where('organizacion_id', '=', organizacionId)
+    .where('orden_activa_id', '=', madreId)
+    .executeTakeFirst();
+  return deLaMadre === undefined ? undefined : { mesa: deLaMadre, cuentaDeLaMesa: madreId };
 }
 
 /** El frontend manda cadenas vacías donde la base quiere `null` (F1-04 §0.1). */

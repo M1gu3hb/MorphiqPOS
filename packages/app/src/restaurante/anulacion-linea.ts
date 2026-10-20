@@ -94,6 +94,9 @@ export const anularLineaComando = definirComando<
         .select(['id', 'estado', 'mesa_id', 'sucursal_id', 'version'])
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.ordenId)
+        // El candado de la cuenta: anular recalcula el total sobre las líneas que quedan, y
+        // un pedido que entra a la vez no puede pisar ese total (`datos.ts`, `ordenDeMesa`).
+        .forUpdate()
         .executeTakeFirst(),
     );
 

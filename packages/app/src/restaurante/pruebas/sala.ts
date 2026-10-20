@@ -160,6 +160,13 @@ export function linea(cambios: Fila = {}): Fila {
     estado_preparacion: 'pendiente',
     // Nula como en la base: sólo una presentación (F-147) la lleva.
     cantidad_base_consumo: null,
+    // Las columnas que la base siempre trae y que partir una línea reparte (F-321): el costo
+    // del renglón queda en la utilidad, y las cantidades de lo vendido a medida o por porción
+    // son nulas en un platillo de precio fijo.
+    utilidad_centavos: 6_000n,
+    material_centavos: 0n,
+    cantidad_variable: null,
+    cantidad_porciones: null,
     ...cambios,
   };
 }

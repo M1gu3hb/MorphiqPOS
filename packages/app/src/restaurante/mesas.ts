@@ -11,6 +11,7 @@ import {
   cancelarOrdenVacia,
   crearOrdenDeMesa,
   limpiarMesa,
+  partesSinSaldar,
   tieneLineas,
   ORDEN_YA_CERRADA,
 } from './mesas-escrituras.ts';
@@ -167,7 +168,24 @@ export const liberarMesa = definirComando<
         ordenDeMesa(ctx.tx, organizacionId, ordenActivaId),
       );
 
-      if (!(ORDEN_YA_CERRADA as readonly string[]).includes(orden.estado)) {
+      if (orden.estado === 'dividida') {
+        // La cuenta se repartió en partes y las líneas viven en ellas: la madre ya no tiene
+        // consumo propio, y tratarla como «apertura sin consumo» la CANCELABA —una venta de
+        // la que las partes cobraron cada peso aparecía como cancelada, «mesa liberada sin
+        // consumo», en el corte—. Lo que decide si la mesa se libera es si ya se cobraron
+        // TODAS las partes.
+        const sinCobrar = await ctx.paso('mirar_partes', () =>
+          partesSinSaldar(ctx.tx, organizacionId, ordenActivaId),
+        );
+        if (sinCobrar > 0) {
+          throw new ErrorDominio(
+            'MESA_NO_LIBERABLE',
+            `La mesa ${mesa.numero} tiene ${sinCobrar === 1 ? 'una cuenta' : `${String(sinCobrar)} cuentas`} ` +
+              'sin cobrar. Cóbralas o cancélalas en Caja antes de liberarla.',
+            { ordenId: ordenActivaId, estado: orden.estado, partesSinCobrar: sinCobrar },
+          );
+        }
+      } else if (!(ORDEN_YA_CERRADA as readonly string[]).includes(orden.estado)) {
         // Va envuelta en `ctx.paso` porque es la LECTURA QUE DECIDE: de ella
         // sale MESA_NO_LIBERABLE o la cancelación de la orden vacía. Sin nombre
         // de paso, el arnés de inyección de fallos no la puede interrumpir, y

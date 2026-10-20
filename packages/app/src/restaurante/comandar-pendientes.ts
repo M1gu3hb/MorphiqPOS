@@ -149,12 +149,20 @@ export async function comandarLineasPendientes(
 /**
  * Las líneas de la orden que ningún `comanda_items` referencia.
  *
- * Tres consultas pequeñas en vez de un `not exists`, y es una decisión: el
- * `not exists` es más bonito en SQL, pero `comanda_items` no lleva `orden_id`
- * —cuelga de `comandas`— así que igualmente hacía falta el salto, y en tres
- * sentencias simples la lógica se puede probar contra la base en memoria en
- * vez de contra una reimplementación del planificador. Las tres van dentro de
- * la transacción del cobro, así que nadie puede colar una comanda en medio.
+ * Dos consultas pequeñas en vez de un `not exists`, y es una decisión: en
+ * sentencias simples la lógica se puede probar contra la base en memoria en vez
+ * de contra una reimplementación del planificador. Las dos van dentro de la
+ * transacción del cobro, así que nadie puede colar una comanda en medio.
+ *
+ * ── Los items se buscan por LÍNEA, no por las comandas de la orden ─────────
+ * Antes se buscaban las comandas de la orden y, de ahí, sus items. Una cuenta
+ * DIVIDIDA rompe ese camino: sus líneas se mudan a las hijas y sus comandas se
+ * quedan colgadas de la madre, así que la hija no encontraba ninguna comanda y
+ * daba por «sin comanda» TODAS sus líneas. Cobrar cada parte de una mesa dividida
+ * mandaba otra vez a la plancha lo que la mesa ya se había comido: el cocinero
+ * recibía de nuevo el pedido entero, cobrado y entregado. El vínculo que de verdad
+ * dice «esta línea ya salió» es `comanda_items.orden_linea_id`, y es el que se
+ * consulta.
  */
 async function lineasSinComanda(
   tx: Transaccion,
@@ -182,23 +190,14 @@ async function lineasSinComanda(
 
   if (lineas.length === 0) return [];
 
-  const comandas = await tx
-    .selectFrom('comandas')
-    .select(['id'])
-    .where('organizacion_id', '=', organizacionId)
-    .where('orden_id', '=', ordenId)
-    .execute();
-
-  if (comandas.length === 0) return lineas;
-
   const items = await tx
     .selectFrom('comanda_items')
     .select(['orden_linea_id as ordenLineaId'])
     .where('organizacion_id', '=', organizacionId)
     .where(
-      'comanda_id',
+      'orden_linea_id',
       'in',
-      comandas.map((c) => c.id),
+      lineas.map((l) => l.id),
     )
     .execute();
 

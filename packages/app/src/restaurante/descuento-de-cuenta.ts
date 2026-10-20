@@ -97,6 +97,9 @@ export const descontarCuenta = definirComando<
         // El filtro por organización SIEMPRE: conocer un id ajeno no abre su cuenta.
         .where('organizacion_id', '=', organizacionId)
         .where('id', '=', entrada.ordenId)
+        // El candado de la cuenta: el descuento recalcula el total, y un pedido que entra a la
+        // vez no puede pisarlo (`datos.ts`, `ordenDeMesa`).
+        .forUpdate()
         .executeTakeFirst(),
     );
     if (orden === undefined) {

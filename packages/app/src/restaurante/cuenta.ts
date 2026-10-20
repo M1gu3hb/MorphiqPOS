@@ -206,7 +206,7 @@ async function marcarCuentaSolicitada(tx: Transaccion, datos: DatosDeCuenta): Pr
   return fila.codigo_caja;
 }
 
-async function pedirCuentaEnMesa(
+export async function pedirCuentaEnMesa(
   tx: Transaccion,
   organizacionId: string,
   mesaId: string,
@@ -251,14 +251,14 @@ async function pedirCuentaEnMesa(
  * cajero teclea para encontrar la cuenta, y por eso conserva la forma que
  * Miguel ya imprime en la precuenta.
  */
-function generarCodigoCaja(mesaNumero: number): string {
+export function generarCodigoCaja(mesaNumero: number): string {
   const azar = crypto.getRandomValues(new Uint16Array(1))[0] ?? 0;
   const sufijo = 1000 + (azar % 9000);
   return `M${String(mesaNumero).padStart(2, '0')}-${sufijo}`;
 }
 
 /** `estrategia_captura` → `ordenes.propina_origen` (`check` de la migración 045). */
-function origenDePropina(estrategiaCaptura: string): string {
+export function origenDePropina(estrategiaCaptura: string): string {
   if (estrategiaCaptura === 'qr') return 'portal_qr';
   if (estrategiaCaptura === 'mesa') return 'mesero';
   return 'caja';
