@@ -1261,8 +1261,11 @@
       "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
       "idRequerido": false,
-      "cuerpo": { "almacenCabinaId": "⟨?⟩", "consumoEsperado": [] },
-      "ids": [{ "camino": "almacenCabinaId", "tabla": null }]
+      "cuerpo": { "almacenCabinaId": "⟨?⟩", "consumoEsperado": [], "servicioId": "⟨?⟩" },
+      "ids": [
+        { "camino": "almacenCabinaId", "tabla": null },
+        { "camino": "servicioId", "tabla": null }
+      ]
     },
     {
       "ruta": "/api/inventario/caducidad/consumir",

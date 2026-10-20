@@ -1772,6 +1772,10 @@
       "ruta": "/api/mantenimiento/vaciar-mesas",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
+    {
+      "ruta": "/api/presentacion",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
     { "ruta": "/api/productos/[id]/abrir", "razon": "lleva un segmento dinámico en la dirección" },
     {
       "ruta": "/api/productos/[id]/ficha-de-cabina",
