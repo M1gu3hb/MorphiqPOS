@@ -28669,6 +28669,17 @@
       "diferidaInicialmente": false
     },
     {
+      "clave": "public.pagos.pago_con_venta_o_propina",
+      "esquema": "public",
+      "tabla": "pagos",
+      "nombre": "pago_con_venta_o_propina",
+      "tipo": "check",
+      "definicion": "CHECK (monto_centavos > 0 OR propina_centavos > 0)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
       "clave": "public.pagos.pago_efectivo_recibido_suficiente",
       "esquema": "public",
       "tabla": "pagos",
@@ -28718,7 +28729,7 @@
       "tabla": "pagos",
       "nombre": "pagos_monto_centavos_check",
       "tipo": "check",
-      "definicion": "CHECK (monto_centavos > 0)",
+      "definicion": "CHECK (monto_centavos >= 0)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false

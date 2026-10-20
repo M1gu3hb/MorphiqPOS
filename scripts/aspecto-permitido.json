@@ -532,6 +532,18 @@
         "+ clase:text-sidebar-foreground",
         "+ clase:text-sidebar-foreground"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Caja.jsx",
+      "porque": "Cierre del restaurante (2.4): en el pago MIXTO los tres importes son la VENTA por método, sin la propina, y nada lo decía. Quien cobraba la mesa con tarjeta tecleaba la tarjeta con la propina dentro y el servidor contestaba «El pago excede el total»; y la cuenta con tarjeta más la propina sólo en billete —el caso más normal— perdía la propina, porque el renglón de efectivo sin venta se descartaba. Ahora el renglón sólo de propina viaja (184) y una línea bajo los tres importes dice si la venta queda cubierta, cuánto falta o cuánto sobra. No quita nada de lo que Miguel veía: agrega una línea de ayuda con las clases del indicador de propina que ya estaba debajo.",
+      "testigos": [
+        "+ clase:text-muted-foreground",
+        "+ clase:text-exito",
+        "+ clase:font-semibold",
+        "+ clase:font-semibold",
+        "+ clase:text-[11px]",
+        "+ clase:text-[11px]"
+      ]
     }
   ]
 }

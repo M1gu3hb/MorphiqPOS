@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import {
+  aCubrirEnEfectivo,
   problemaDeLaPropina,
   propinaDelComensal,
   propinaPorConfirmar,
@@ -25,18 +26,53 @@ describe('los renglones del cobro del restaurante', () => {
     ]);
   });
 
-  it('nunca viaja un renglón de importe cero (el servidor lo rechazaba)', () => {
+  it('nunca viaja un renglón vacío: o lleva venta o lleva propina', () => {
     const renglones = renglonesDePago('mixto', PARTES, 20_000, 5_000, null, 'tarjeta');
-    expect(renglones.every((r) => r.montoCentavos > 0)).toBe(true);
+    expect(renglones.every((r) => r.montoCentavos > 0 || r.propinaCentavos > 0)).toBe(true);
     // La suma de lo cobrado es la venta y la de las propinas, la propina: exacto.
     expect(renglones.reduce((s, r) => s + r.montoCentavos, 0)).toBe(20_000);
     expect(renglones.reduce((s, r) => s + r.propinaCentavos, 0)).toBe(5_000);
   });
 
-  it('si el método de la propina no la cubre con algo de cuenta, se dice antes', () => {
-    expect(problemaDeLaPropina(PARTES, 5_000, 'efectivo')).toContain('efectivo');
+  it('si lo que entra por el método de la propina no alcanza para ella, se dice antes', () => {
+    expect(problemaDeLaPropina(PARTES, 6_000, 'efectivo')).toContain('efectivo');
     expect(problemaDeLaPropina(PARTES, 5_000, 'tarjeta')).toBeNull();
     expect(problemaDeLaPropina(PARTES, 0, 'transferencia')).toBeNull();
+  });
+
+  it('LA CUENTA CON TARJETA Y LA PROPINA SÓLO EN EFECTIVO: el efectivo es sólo propina', () => {
+    // El caso que la pantalla rechazaba: $200 con tarjeta y $30 en billete. El renglón de
+    // efectivo no lleva venta —no se le inventa un centavo— y lleva la propina entera.
+    const partes = { efectivo: 3_000, tarjeta: 20_000, transferencia: null };
+    expect(problemaDeLaPropina(partes, 3_000, 'efectivo')).toBeNull();
+    expect(renglonesDePago('mixto', partes, 20_000, 3_000, null, 'efectivo')).toEqual([
+      { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 3_000 },
+      { metodo: 'tarjeta', montoCentavos: 20_000, propinaCentavos: 0 },
+    ]);
+  });
+
+  it('con un solo método, la propina puede irse por otro sin pasar por «Mixto»', () => {
+    // Tarjeta por la cuenta y la propina en efectivo: dos renglones, el de la propina sin venta.
+    expect(renglonesDePago('tarjeta', PARTES, 20_000, 3_000, null, 'efectivo')).toEqual([
+      { metodo: 'tarjeta', montoCentavos: 20_000, propinaCentavos: 0 },
+      { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 3_000 },
+    ]);
+    // Efectivo por la cuenta, con lo recibido, y la propina con tarjeta: el billete sólo
+    // tiene que cubrir la venta.
+    expect(renglonesDePago('efectivo', PARTES, 20_000, 3_000, 25_000, 'tarjeta')).toEqual([
+      { metodo: 'efectivo', montoCentavos: 20_000, propinaCentavos: 0, recibidoCentavos: 25_000 },
+      { metodo: 'tarjeta', montoCentavos: 0, propinaCentavos: 3_000 },
+    ]);
+    // Sin propina, el método de la propina no agrega nada.
+    expect(renglonesDePago('tarjeta', PARTES, 20_000, 0, null, 'efectivo')).toEqual([
+      { metodo: 'tarjeta', montoCentavos: 20_000, propinaCentavos: 0 },
+    ]);
+  });
+
+  it('lo que el billete tiene que cubrir: la venta, y la propina sólo si va en efectivo', () => {
+    expect(aCubrirEnEfectivo('efectivo', 20_000, 3_000, 'efectivo')).toBe(23_000);
+    expect(aCubrirEnEfectivo('efectivo', 20_000, 3_000, 'tarjeta')).toBe(20_000);
+    expect(aCubrirEnEfectivo('tarjeta', 20_000, 3_000, 'efectivo')).toBe(0);
   });
 
   it('un solo método: venta y propina en un renglón, con lo recibido si es efectivo', () => {

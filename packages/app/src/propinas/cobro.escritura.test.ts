@@ -160,6 +160,37 @@ describe('el importe de propina que llega del cliente', () => {
     ).toBe(false);
   });
 
+  it('la propina en un renglón SÓLO de propina se mide contra la cuenta, no contra cero', async () => {
+    // Mesa de $6,000 pagada con tarjeta y $1,200 (20 %) en billete. El renglón de efectivo
+    // no lleva venta: medir su propina contra su venta (cero) la daría por desproporcionada
+    // en cuanto pasa del piso de $1,000, y la mesa grande no podría dejar su propina.
+    //
+    // Mutación que la hace fallar: volver a medir cada renglón sólo contra su `montoCentavos`.
+    const salida = entradaCobrarOrdenConPropina.safeParse({
+      ordenId: ORDEN,
+      pagos: [
+        { metodo: 'tarjeta', montoCentavos: 600_000 },
+        { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 120_000 },
+      ],
+    });
+
+    expect(salida.success).toBe(true);
+  });
+
+  it('un renglón sólo de propina sigue sin poder disfrazar una cifra imposible', async () => {
+    // $50 de cuenta con tarjeta y $9,999 «de propina» en billete: ni la cuenta ni el piso
+    // la sostienen.
+    const salida = entradaCobrarOrdenConPropina.safeParse({
+      ordenId: ORDEN,
+      pagos: [
+        { metodo: 'tarjeta', montoCentavos: 5_000 },
+        { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 999_900 },
+      ],
+    });
+
+    expect(salida.success).toBe(false);
+  });
+
   it('el cobro completo hereda el tope: no hay puerta trasera por `pagos`', async () => {
     // Mutación que la hace fallar: aplicar el tope sólo al esquema suelto y no
     // al que usa el comando de cobro.

@@ -8,7 +8,13 @@
  * de efectivo con importe CERO y el servidor rechazaba el cobro.
  *
  * Ahora quien cobra dice CON QUÉ se pagó la propina, y la propina sale de ese método.
- * Si ese método no alcanza a cubrir la propina y algo de la venta, se dice antes de mandar.
+ * Si lo que entra por ese método no alcanza ni para la propina, se dice antes de mandar.
+ *
+ * Y la operación más normal de un restaurante —la cuenta entera con tarjeta y la propina
+ * SÓLO en billete— se rechazaba aquí: se exigía que el efectivo cubriera «la propina y
+ * algo de la cuenta». Ahora ese renglón viaja como lo que es, sólo propina, sin inventarle
+ * un centavo de venta; el servidor y la base lo admiten desde la 184. Con un solo método,
+ * la propina también puede irse por otro sin pasar por «Mixto».
  */
 
 import { aplicarPorcentaje, centavos } from '@morphiqpos/domain/dinero';
@@ -33,10 +39,21 @@ export function problemaDeLaPropina(
 ): string | null {
   if (propina <= 0) return null;
   const importe = partes[metodoDePropina] ?? 0;
-  if (importe <= propina) {
-    return `La propina va con ${metodoDePropina}: ese importe tiene que cubrir la propina y algo de la cuenta.`;
+  if (importe < propina) {
+    return `La propina se pagó con ${metodoDePropina}, y lo que entra por ${metodoDePropina} no alcanza para ella.`;
   }
   return null;
+}
+
+/** Lo que el billete de «Recibido» tiene que cubrir: la venta, más la propina si va en efectivo. */
+export function aCubrirEnEfectivo(
+  metodo: Metodo,
+  venta: number,
+  propina: number,
+  metodoDePropina: MetodoBase,
+): number {
+  if (metodo !== 'efectivo') return 0;
+  return venta + (metodoDePropina === 'efectivo' ? propina : 0);
 }
 
 export function renglonesDePago(
@@ -52,7 +69,14 @@ export function renglonesDePago(
       metodo === 'efectivo' && recibido !== null && recibido > 0
         ? { recibidoCentavos: recibido }
         : {};
-    return [{ metodo, montoCentavos: venta, propinaCentavos: propina, ...enMano }];
+    if (propina <= 0 || metodoDePropina === metodo) {
+      return [{ metodo, montoCentavos: venta, propinaCentavos: propina, ...enMano }];
+    }
+    // La cuenta por un método y la propina por otro: el renglón de la propina no lleva venta.
+    return [
+      { metodo, montoCentavos: venta, propinaCentavos: 0, ...enMano },
+      { metodo: metodoDePropina, montoCentavos: 0, propinaCentavos: propina },
+    ];
   }
   return BASES.map((base) => {
     const importe = partes[base] ?? 0;

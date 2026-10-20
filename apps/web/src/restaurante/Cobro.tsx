@@ -37,6 +37,7 @@ import { DividirLaCuenta } from './DividirLaCuenta';
 import { lineasQueSigueCobrando, soloLasVivas } from './lineas-vivas.ts';
 import { ParedDePropina } from './ParedDePropina';
 import {
+  aCubrirEnEfectivo,
   BASES,
   problemaDeLaPropina,
   propinaDelComensal,
@@ -195,7 +196,10 @@ export function Cobro({
   const [partes, setPartes] = useState<Readonly<Record<MetodoBase, number | null>>>(SIN_PARTES);
   const [ilegibles, setIlegibles] = useState<Ilegibles>(NADA_ILEGIBLE);
   const [propina, setPropina] = useState<number | null>(null);
-  /** En el mixto, CON QUÉ se pagó la propina: sale de ese método, no «del efectivo». */
+  /**
+   * CON QUÉ se pagó la propina: sale de ese método, no «del efectivo». Con un solo método
+   * va por el mismo salvo que se elija otro —la cuenta con tarjeta y la propina en billete—.
+   */
   const [metodoDePropina, setMetodoDePropina] = useState<MetodoBase>('efectivo');
   const [enviando, setEnviando] = useState(false);
   const [cambio, setCambio] = useState<number | null>(null);
@@ -222,6 +226,7 @@ export function Cobro({
   if (cuenta?.id !== deQuienEsLoTecleado) {
     setDeQuienEsLoTecleado(cuenta?.id);
     setMetodo('efectivo');
+    setMetodoDePropina('efectivo');
     setRecibido(null);
     setPartes(SIN_PARTES);
     setIlegibles(NADA_ILEGIBLE);
@@ -323,8 +328,9 @@ export function Cobro({
   const total = venta + suPropina;
   const pendiente = propina === null && propinaPorConfirmar(deLaCuenta);
   const suma = BASES.reduce((suman, base) => suman + (partes[base] ?? 0), 0);
+  const enEfectivo = aCubrirEnEfectivo(metodo, venta, suPropina, metodoDePropina);
   const bloqueo =
-    bloqueoDe(pendiente, total, metodo, recibido, suma, ilegibles, voc) ??
+    bloqueoDe(pendiente, total, metodo, recibido, suma, ilegibles, voc, enEfectivo) ??
     (metodo === 'mixto' ? problemaDeLaPropina(partes, suPropina, metodoDePropina) : null);
 
   async function cobrar(id: string): Promise<void> {
@@ -618,6 +624,8 @@ export function Cobro({
                 onClick={() => {
                   if (opcion === metodo) return;
                   setMetodo(opcion);
+                  // Con un solo método, la propina va por ese mismo hasta que se diga otra cosa.
+                  if (opcion !== 'mixto') setMetodoDePropina(opcion);
                   // Los campos del método anterior se desmontan y, al volver, se
                   // pintan de lo que quedó en centavos: lo ilegible vuelve vacío.
                   setIlegibles(NADA_ILEGIBLE);
@@ -654,7 +662,7 @@ export function Cobro({
                 el cajero saca del cajón, y se equivoca si lo tiene que buscar. */}
             <p className="flex items-baseline justify-between">
               <span className="text-sm text-texto-sutil">Cambio</span>
-              <Dinero centavos={Math.max((recibido ?? 0) - total, 0)} tamano="lg" />
+              <Dinero centavos={Math.max((recibido ?? 0) - enEfectivo, 0)} tamano="lg" />
             </p>
           </div>
         ) : null}
@@ -678,29 +686,39 @@ export function Cobro({
                 />
               </div>
             ))}
-            {suPropina > 0 ? (
-              <div
-                role="radiogroup"
-                aria-label="Con qué se pagó la propina"
-                className="flex flex-wrap items-center gap-(--espacio-2) sm:col-span-3"
+          </div>
+        ) : null}
+
+        {/* CON QUÉ se pagó la propina, con cualquier método: lo normal en una mesa es la
+            cuenta con tarjeta y la propina en billete, y eso no obliga a pasar por «Mixto». */}
+        {suPropina > 0 ? (
+          <div
+            role="radiogroup"
+            aria-label="Con qué se pagó la propina"
+            className="flex flex-wrap items-center gap-(--espacio-2)"
+          >
+            <span className="text-sm text-texto-sutil">La propina se pagó con</span>
+            {BASES.map((base) => (
+              <Button
+                key={base}
+                type="button"
+                size="sm"
+                role="radio"
+                aria-checked={metodoDePropina === base}
+                variant={metodoDePropina === base ? 'default' : 'outline'}
+                onClick={() => {
+                  setMetodoDePropina(base);
+                }}
               >
-                <span className="text-sm text-texto-sutil">La propina se pagó con</span>
-                {BASES.map((base) => (
-                  <Button
-                    key={base}
-                    type="button"
-                    size="sm"
-                    role="radio"
-                    aria-checked={metodoDePropina === base}
-                    variant={metodoDePropina === base ? 'default' : 'outline'}
-                    onClick={() => {
-                      setMetodoDePropina(base);
-                    }}
-                  >
-                    {METODO[base].etiqueta}
-                  </Button>
-                ))}
-              </div>
+                {METODO[base].etiqueta}
+              </Button>
+            ))}
+            {metodo !== 'mixto' && metodoDePropina !== metodo ? (
+              <p className="w-full text-sm">
+                {METODO[metodo].etiqueta}: <Dinero centavos={venta} tamano="sm" /> · propina en{' '}
+                {METODO[metodoDePropina].etiqueta.toLowerCase()}:{' '}
+                <Dinero centavos={suPropina} tamano="sm" />
+              </p>
             ) : null}
           </div>
         ) : null}
