@@ -271,6 +271,15 @@ function Mesero() {
     count: (mesas || []).filter((m) => (m?.zona || 'Interior') === z).length,
   })).filter((z) => z.count > 0);
 
+  // La zona vigente sale de las zonas que esta persona SÍ tiene (cierre del 21-10): con la
+  // asignación encendida, una mesera con sus mesas sólo en «Barra» abría en «Interior» —sin
+  // pestañas, porque hay una sola zona— y leía que no había mesas, sin forma de llegar a la suya.
+  const primeraZonaConMesas = zonasConCount[0]?.zona;
+  const zonaSinMesas = !zonasConCount.some((z) => z.zona === zonaActiva);
+  useEffect(() => {
+    if (primeraZonaConMesas && zonaSinMesas) setZonaActiva(primeraZonaConMesas);
+  }, [primeraZonaConMesas, zonaSinMesas]);
+
   // — Click on mesa
   const onMesaClick = async (mesa) => {
     if (!mesa || !mesa.id) {

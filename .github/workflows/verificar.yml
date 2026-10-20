@@ -721,6 +721,15 @@ jobs:
       - name: El día completo, en los aparatos de quien lo opera
         run: pnpm test:e2e pruebas/e2e/${{ matrix.suite }}.spec.ts ${{ matrix.aparatos }} --workers=1 --retries=0
 
+      # LO QUE EL DÍA FELIZ NO RECORRE, en el restaurante (cierre del 21-10): el portal del
+      # comensal con dos grupos en la misma mesa —el segundo no hereda los avisos del primero—,
+      # y lo que se repite, se duplica o se pierde: doble clic al enviar y al cobrar, la
+      # respuesta perdida y su aviso, dos tabletas sobre una cuenta y el cajón cuadrado al final.
+      # Cada una resetea la demo al empezar; van después del día, en el mismo servidor.
+      - name: El portal del comensal y la concurrencia
+        if: matrix.modelo == 'restaurante'
+        run: pnpm test:e2e pruebas/e2e/restaurante-concurrencia.spec.ts pruebas/e2e/restaurante-portal-qr.spec.ts --project=escritorio --workers=1 --retries=0
+
       - name: Las trazas del día
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
