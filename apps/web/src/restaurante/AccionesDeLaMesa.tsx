@@ -11,11 +11,12 @@ import {
 } from '@morphiqpos/ui/primitivas/dialog';
 import { Aviso, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
 import { ArrowRightLeft, Combine, ReceiptText } from 'lucide-react';
-import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import { PedirLaCuentaDialog } from './PedirLaCuentaDialog';
 
 /**
  * LO QUE EL MESERO HACE CON LA MESA ENTERA, no con un platillo (día completo del
@@ -31,11 +32,13 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * mandaba a «pedir la precuenta desde el mapa», donde no había con qué. La caja sólo lista
  * las mesas que pidieron la cuenta, así que lo comandado aquí no llegaba a cobrarse.
  *
- * ── Pedir la cuenta: la propina se decide en caja ────────────────────────
- * Es el momento «diferido» de `02-DINERO-Y-CAJA` §4.3 —el mesero pide la cuenta sin
- * preguntar— y por eso viaja `decidir_en_caja`: la caja pone el muro de la propina y
- * «Sin propina» pesa lo mismo que los porcentajes. Después se abre la precuenta DE ESA
- * cuenta, que es la hoja que el mesero lleva a la mesa.
+ * ── Pedir la cuenta: el mesero PREGUNTA la propina ───────────────────────
+ * Es el primer momento de `02-DINERO-Y-CAJA` §4.3 —el mesero, en la mesa, preguntándole al
+ * comensal—: «Pedir la cuenta» abre las opciones (10 %, 12.5 %, 15 %, sin propina, o «la
+ * decide la caja» para quien no preguntó), `PedirLaCuentaDialog`. Esta pantalla pedía la
+ * cuenta siempre con `decidir_en_caja`, sin preguntar, y la mesa que decía «déjale el diez
+ * por ciento» llegaba a caja sin su propina. Después se abre la precuenta DE ESA cuenta, que
+ * es la hoja que el mesero lleva a la mesa.
  *
  * ── Las tres son de sala ─────────────────────────────────────────────────
  * Ninguna mueve dinero fuera del negocio —el consumo es el mismo, cambia de sitio o de
@@ -82,6 +85,8 @@ export interface AccionesDeLaMesaProps {
   readonly ordenId: string;
   /** Sin nada enviado no hay cuenta que pedir: `solicitar_cuenta` la rechaza. */
   readonly hayEnviado: boolean;
+  /** Lo ya enviado, en centavos, para decirle a la mesa cuánto sería su propina; `null` si no se sabe. */
+  readonly totalCentavos: number | null;
   /** La cuenta se fue a otra mesa: la pantalla abre ésa. */
   readonly alCambiarDeMesa: (mesaDestinoId: string) => void;
   /** Llegaron las líneas de las mesas unidas: la pantalla relee lo enviado. */
@@ -90,25 +95,8 @@ export interface AccionesDeLaMesaProps {
 
 export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
   const voc = useVocabulario();
-  const router = useRouter();
   const [modo, setModo] = useState<Modo | null>(null);
-  const [pidiendo, setPidiendo] = useState(false);
-  const [fallo, setFallo] = useState<string | null>(null);
-
-  async function pedirLaCuenta(): Promise<void> {
-    setPidiendo(true);
-    setFallo(null);
-    try {
-      await invocarComando('/api/restaurante/solicitar-cuenta', {
-        ordenId: props.ordenId,
-        propinaTipo: 'decidir_en_caja',
-      });
-      router.push(`/restaurante/precuenta?cuenta=${encodeURIComponent(props.ordenId)}`);
-    } catch (error: unknown) {
-      setFallo(mensajeDe(error, `No se pudo pedir ${voc.enFrase('orden')}.`));
-      setPidiendo(false);
-    }
-  }
+  const [preguntandoLaPropina, setPreguntandoLaPropina] = useState(false);
 
   return (
     <div className="flex flex-col gap-(--espacio-2)">
@@ -120,10 +108,9 @@ export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
         <Button
           size="sm"
           variant="outline"
-          disabled={!props.hayEnviado || pidiendo}
-          cargando={pidiendo}
+          disabled={!props.hayEnviado}
           onClick={() => {
-            void pedirLaCuenta();
+            setPreguntandoLaPropina(true);
           }}
         >
           <ReceiptText aria-hidden="true" />
@@ -150,11 +137,15 @@ export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
           Unir {voc.plural('unidad_servicio')}
         </Button>
       </div>
-      {fallo === null ? null : (
-        <Aviso tono="peligro" titulo={fallo}>
-          No se pidió nada: {voc.enFrase('orden')} sigue abierta.
-        </Aviso>
-      )}
+      {preguntandoLaPropina ? (
+        <PedirLaCuentaDialog
+          ordenId={props.ordenId}
+          totalCentavos={props.totalCentavos}
+          alCerrar={() => {
+            setPreguntandoLaPropina(false);
+          }}
+        />
+      ) : null}
       {modo === null ? null : (
         <ElegirMesasDialog
           key={modo}

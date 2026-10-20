@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 
 import {
   problemaDeLaPropina,
+  propinaDelComensal,
   propinaPorConfirmar,
   propinaPrevista,
   renglonesDePago,
@@ -85,5 +86,51 @@ describe('la propina que llega del mesero', () => {
   it('una propina ya pagada manda sobre el porcentaje', () => {
     const pagada = { ...nada, tipo: 'porcentaje', porcentaje: 10, pagadaCentavos: 2_000 };
     expect(propinaPrevista(17_400, pagada)).toBe(2_000);
+  });
+});
+
+/**
+ * Día completo del restaurante (2.4) · LO QUE EL COMENSAL ESCRIBIÓ EN SU TELÉFONO. El muro de la
+ * caja se ponía a ciegas: la cajera no veía el monto que el comensal había escrito en el portal.
+ */
+describe('la propina que el comensal escribió en su teléfono', () => {
+  const delPortal = {
+    tipo: 'monto_manual',
+    origen: 'portal_qr',
+    porcentaje: 28.12,
+    pagadaCentavos: null,
+  };
+
+  it('se dice, aproximada, sobre la venta y en centavos', () => {
+    // $123.45 escritos sobre una cuenta de $439.00: el portal guardó 2812 puntos base.
+    expect(propinaDelComensal(43_900, delPortal)).toBe(12_345);
+    // Un porcentaje redondo vuelve exacto.
+    expect(propinaDelComensal(43_900, { ...delPortal, porcentaje: 10 })).toBe(4_390);
+  });
+
+  it('es una cifra APROXIMADA: los puntos base enteros pierden unos centavos', () => {
+    // $50.00 sobre $1,210.00 son 413.2 puntos base: el portal guarda 413 y vuelve $49.97.
+    expect(propinaDelComensal(121_000, { ...delPortal, porcentaje: 4.13 })).toBe(4_997);
+  });
+
+  it('sólo es del comensal si lo escribió en el portal', () => {
+    expect(propinaDelComensal(43_900, { ...delPortal, origen: 'mesero' })).toBeNull();
+    // Ya confirmada en caja no se vuelve a preguntar.
+    expect(propinaDelComensal(43_900, { ...delPortal, origen: 'caja' })).toBeNull();
+    expect(propinaDelComensal(43_900, { ...delPortal, tipo: 'porcentaje' })).toBeNull();
+    expect(propinaDelComensal(43_900, { ...delPortal, tipo: 'decidir_en_caja' })).toBeNull();
+  });
+
+  it('sin puntos base, o con el tope de 100 %, no hay una cifra fiable que decir', () => {
+    expect(propinaDelComensal(43_900, { ...delPortal, porcentaje: 0 })).toBeNull();
+    expect(propinaDelComensal(43_900, { ...delPortal, porcentaje: null })).toBeNull();
+    // El portal recorta a 100 % la propina que supera la cuenta: ese 100 % no es lo que escribió.
+    expect(propinaDelComensal(43_900, { ...delPortal, porcentaje: 100 })).toBeNull();
+    expect(propinaDelComensal(0, delPortal)).toBeNull();
+  });
+
+  it('el muro se pone igual: decir lo que escribió no sustituye a confirmarlo', () => {
+    expect(propinaPorConfirmar(delPortal)).toBe(true);
+    expect(propinaPrevista(43_900, delPortal)).toBe(0);
   });
 });

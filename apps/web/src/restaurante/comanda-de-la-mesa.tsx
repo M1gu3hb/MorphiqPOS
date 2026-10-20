@@ -6,6 +6,8 @@ import { consultarPuente } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import type { useVocabulario } from '~/cliente/vocabulario';
 
+import { lineasQueSigueCobrando, soloLasVivas } from './lineas-vivas.ts';
+
 /**
  * LAS PIEZAS SIN ESTADO DE LA MESA ACTIVA: sus tipos, sus columnas y su lectura.
  *
@@ -83,23 +85,51 @@ export async function leerLoEnviado(
   opciones: { readonly signal?: AbortSignal } = {},
 ): Promise<LecturaDeLoEnviado> {
   try {
-    const filtro = { venta_id: ordenId };
-    const lineas = await consultarPuente<LineaEnviada>('DetalleVenta', {
-      filtro,
-      limite: 120,
-      ...opciones,
-    });
-    return { leidas: true, lineas };
+    // Sin las líneas anuladas: la cuenta enseña lo que SIGUE cobrándose (`lineas-vivas.ts`).
+    const [filas, vivas] = await Promise.all([
+      consultarPuente<LineaEnviada>('DetalleVenta', {
+        filtro: { venta_id: ordenId },
+        limite: 120,
+        ...opciones,
+      }),
+      lineasQueSigueCobrando(ordenId, opciones.signal),
+    ]);
+    return { leidas: true, lineas: soloLasVivas(filas, vivas) };
   } catch (fallo: unknown) {
     return { leidas: false, fallo };
   }
 }
 
-/** Lo ya enviado: se lee, y se ANULA con motivo. Nunca se edita. */
+/**
+ * Lo ya enviado: se lee, y se ANULA con motivo. Nunca se edita. La columna de anular sólo se
+ * pinta para quien puede: `restaurante.anular_linea` es de caja y de dirección, y al mesero
+ * le ofrecía un botón que el servidor le niega (`ajustes-de-la-cuenta-por-rol.ts`).
+ */
 export function columnasDeLoEnviado(
   voc: Vocabulario,
   anular: (linea: LineaEnviada) => () => void,
+  puedeAnular: boolean,
 ): readonly ColumnaDeTabla<LineaEnviada>[] {
+  const columnaDeAnular: readonly ColumnaDeTabla<LineaEnviada>[] = puedeAnular
+    ? [
+        {
+          clave: 'anular',
+          titulo: '',
+          celda: (l) => (
+            <span className="flex justify-end">
+              <Button
+                size="sm"
+                variant="ghost"
+                aria-label={`Anular ${l.producto_nombre}`}
+                onClick={anular(l)}
+              >
+                Anular
+              </Button>
+            </span>
+          ),
+        },
+      ]
+    : [];
   return [
     {
       clave: 'platillo',
@@ -117,22 +147,7 @@ export function columnasDeLoEnviado(
       numerica: true,
       celda: (l) => <Dinero centavos={importeDe(l)} tamano="sm" />,
     },
-    {
-      clave: 'anular',
-      titulo: '',
-      celda: (l) => (
-        <span className="flex justify-end">
-          <Button
-            size="sm"
-            variant="ghost"
-            aria-label={`Anular ${l.producto_nombre}`}
-            onClick={anular(l)}
-          >
-            Anular
-          </Button>
-        </span>
-      ),
-    },
+    ...columnaDeAnular,
   ];
 }
 

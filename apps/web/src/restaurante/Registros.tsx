@@ -25,6 +25,17 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  aCentavos,
+  diferenciaDelCorte,
+  folioConSerie,
+  PALABRA_DE_LA_DIFERENCIA,
+  type DiferenciaDelCorte,
+  type SentidoDeLaDiferencia,
+} from './corte-del-registro.ts';
+import { IconoDelTono, type TonoDelArqueo } from './semaforo-del-arqueo';
+import { esVentaCobrada } from './ventas-del-registro.ts';
+
 /**
  * PANTALLA · restaurante · registros
  *
@@ -84,7 +95,21 @@ interface Columna {
    */
   readonly voz?:
     'unidad_servicio' | 'orden' | 'linea_orden' | 'responsable' | 'cliente' | 'producto';
-  readonly tipo: 'texto' | 'dinero' | 'fecha';
+  /**
+   * `diferencia` es lo que un corte sobró o faltó: se dice con palabra —«Sobra $20.00»— y no con
+   * el importe y su signo, que es lo que el dueño busca con la vista.
+   */
+  readonly tipo: 'texto' | 'dinero' | 'fecha' | 'diferencia';
+  /** El campo de la SERIE, cuando el folio se lee con ella: `CC-1`, como lo dice el PDF. */
+  readonly serie?: string;
+  /** A cuántas cifras se rellena el consecutivo de un folio con serie: `LIQ-000001`. */
+  readonly cifras?: number;
+  /**
+   * Lo que se lee cuando el campo viene vacío, en lugar de la raya. La raya dice «aquí falta un
+   * dato»; a veces el vacío ES la respuesta: una liquidación sin mesero no le falta nadie, es de
+   * todos los meseros del periodo.
+   */
+  readonly vacio?: string;
   /** En PC es una columna más; en tableta y teléfono sale al abrir la fila. */
   readonly secundaria?: boolean;
 }
@@ -94,6 +119,12 @@ interface Pestana {
   readonly rotulo: string;
   readonly entidad: string;
   readonly campoFecha: string;
+  /**
+   * Qué filas de la entidad son de ESTA pestaña, cuando no son todas. Ventas lee `Venta`, que
+   * son las cuentas de todo tipo —abiertas, canceladas, madres de una división—, y sólo las
+   * cobradas son ventas: sin esto el resumen del periodo suma dinero que nunca entró.
+   */
+  readonly incluye?: (fila: Registro) => boolean;
   readonly columnas: readonly Columna[];
 }
 
@@ -126,10 +157,12 @@ const PESTANAS = [
     entidad: 'CorteCaja',
     campoFecha: 'fecha_cierre',
     columnas: [
-      { campo: 'folio', rotulo: 'Folio', tipo: 'texto' },
+      { campo: 'folio', serie: 'serie', rotulo: 'Folio', tipo: 'texto' },
       { campo: 'fecha_cierre', rotulo: 'Cerrado', tipo: 'fecha' },
       { campo: 'usuario_cajero_nombre', rotulo: 'Cajero', tipo: 'texto' },
       { campo: 'efectivo_contado', rotulo: 'Contado', tipo: 'dinero' },
+      // Lo que el dueño busca: sobró, faltó o cuadró. También en el teléfono.
+      { campo: 'diferencia_al_cerrar', rotulo: 'Diferencia', tipo: 'diferencia' },
       { campo: 'efectivo_inicial_contado', rotulo: 'Fondo', tipo: 'dinero', secundaria: true },
     ],
   },
@@ -138,6 +171,7 @@ const PESTANAS = [
     rotulo: 'Ventas',
     entidad: 'Venta',
     campoFecha: 'fecha_cierre',
+    incluye: esVentaCobrada,
     columnas: [
       { campo: 'folio', rotulo: 'Folio', tipo: 'texto' },
       { campo: 'fecha_cierre', rotulo: 'Cobrada', tipo: 'fecha' },
@@ -158,9 +192,16 @@ const PESTANAS = [
     entidad: 'LiquidacionPropina',
     campoFecha: 'fecha_liquidacion',
     columnas: [
-      { campo: 'folio', rotulo: 'Folio', tipo: 'texto' },
+      { campo: 'folio', serie: 'serie', cifras: 6, rotulo: 'Folio', tipo: 'texto' },
       { campo: 'fecha_liquidacion', rotulo: 'Liquidada', tipo: 'fecha' },
-      { campo: 'mesero_nombre', rotulo: 'Mesero', voz: 'responsable', tipo: 'texto' },
+      // El diálogo de liquidar propone «todos los meseros»: sin mesero la liquidación es de todos.
+      {
+        campo: 'mesero_nombre',
+        rotulo: 'Mesero',
+        voz: 'responsable',
+        tipo: 'texto',
+        vacio: 'Todos',
+      },
       { campo: 'total_liquidado', rotulo: 'Liquidado', tipo: 'dinero' },
       { campo: 'usuario_liquido_nombre', rotulo: 'Autorizó', tipo: 'texto', secundaria: true },
     ],
@@ -270,18 +311,6 @@ function comoTexto(valor: unknown): string | null {
 }
 
 /**
- * El puente trae los importes en PESOS; la pantalla trabaja en centavos enteros.
- * Se cuentan dígitos y no se multiplica: `58.995 * 100` pierde medio centavo.
- */
-function aCentavos(valor: unknown): number | null {
-  if (valor === null || valor === undefined || valor === '') return null;
-  const importe = Number(valor);
-  if (!Number.isFinite(importe)) return null;
-  const [entero = '0', decimal = '00'] = Math.abs(importe).toFixed(2).split('.');
-  return (importe < 0 ? -1 : 1) * (Number(entero) * 100 + Number(decimal));
-}
-
-/**
  * La celda como TEXTO: lo que se lee en una columna de texto o de fecha, y lo que
  * el buscador compara. Nunca en blanco: un hueco no dice si falta o es cero. El
  * importe sale aquí sólo para que «1,250» encuentre su fila; en pantalla un
@@ -289,10 +318,23 @@ function aCentavos(valor: unknown): number | null {
  */
 export function celda(fila: Registro, columna: Columna): string {
   const valor = fila[columna.campo];
-  if (valor === null || valor === undefined || valor === '') return '—';
+  if (columna.tipo === 'diferencia') {
+    const diferencia = diferenciaDelCorte(valor);
+    // Un corte cerrado antes de que se guardara la diferencia: se dice, no se inventa un «cuadra».
+    if (diferencia === null) return 'No se guardó';
+    const palabra = PALABRA_DE_LA_DIFERENCIA[diferencia.sentido];
+    return diferencia.sentido === 'cuadra'
+      ? palabra
+      : `${palabra} ${dineroEnTexto(diferencia.centavos)}`;
+  }
+  if (valor === null || valor === undefined || valor === '') return columna.vacio ?? '—';
   if (columna.tipo === 'dinero') {
     const centavos = aCentavos(valor);
     return centavos === null ? '—' : dineroEnTexto(centavos);
+  }
+  // El folio con su serie, como lo dice el PDF del corte y el aviso de la liquidación.
+  if (columna.serie !== undefined) {
+    return folioConSerie(fila[columna.serie], valor, columna.cifras) ?? '—';
   }
   const texto = comoTexto(valor);
   // Ni «[object Object]» ni una cadena vacía: la raya dice «aquí no hay nada
@@ -305,8 +347,36 @@ export function celda(fila: Registro, columna: Columna): string {
   return texto;
 }
 
+/** El tono de cada sentido: sobra y falta avisan, cuadra tranquiliza. La palabra siempre va. */
+const TONO_DE_LA_DIFERENCIA: Readonly<Record<SentidoDeLaDiferencia, TonoDelArqueo>> = {
+  cuadra: 'exito',
+  sobra: 'atencion',
+  falta: 'peligro',
+};
+
+/** La diferencia de un corte: la forma, la palabra y el importe sin signo. */
+function DiferenciaDelCorteEnCelda({ diferencia }: { readonly diferencia: DiferenciaDelCorte }) {
+  return (
+    <span className="inline-flex items-center gap-(--espacio-1)">
+      <IconoDelTono tono={TONO_DE_LA_DIFERENCIA[diferencia.sentido]} />
+      <span className="text-xs font-medium">{PALABRA_DE_LA_DIFERENCIA[diferencia.sentido]}</span>
+      {diferencia.sentido === 'cuadra' ? null : (
+        <>
+          {/* El espacio va en el texto: copiada o buscada, la celda dice «Sobra $20.00». */}{' '}
+          <Dinero centavos={diferencia.centavos} tamano="sm" />
+        </>
+      )}
+    </span>
+  );
+}
+
 /** La celda en pantalla: el importe con `<Dinero>`, la fecha en cifras que no bailan. */
 function pintarCelda(fila: Registro, columna: Columna): ReactNode {
+  if (columna.tipo === 'diferencia') {
+    const diferencia = diferenciaDelCorte(fila[columna.campo]);
+    if (diferencia === null) return <span className="text-texto-sutil">No se guardó</span>;
+    return <DiferenciaDelCorteEnCelda diferencia={diferencia} />;
+  }
   if (columna.tipo === 'dinero') {
     const centavos = aCentavos(fila[columna.campo]);
     return centavos === null ? '—' : <Dinero centavos={centavos} tamano="sm" />;
@@ -322,6 +392,8 @@ function pintarCelda(fila: Registro, columna: Columna): ReactNode {
 /** Con qué se ordena una columna: el importe en centavos, la fecha en su instante. */
 function ordenDe(fila: Registro, columna: Columna): number {
   if (columna.tipo === 'dinero') return aCentavos(fila[columna.campo]) ?? 0;
+  // Por cuánto se desvió, sobre o falte: el que más se fue, primero.
+  if (columna.tipo === 'diferencia') return diferenciaDelCorte(fila[columna.campo])?.centavos ?? -1;
   const instante = Date.parse(comoTexto(fila[columna.campo]) ?? '');
   return Number.isNaN(instante) ? 0 : instante;
 }
@@ -466,6 +538,7 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
   const [desdeElPeriodo, hastaElPeriodo] = rangoDe(periodo, desde, hasta);
   const aguja = busqueda.trim().toLowerCase();
   const visibles = (filas ?? []).filter((fila) => {
+    if (actual.incluye !== undefined && !actual.incluye(fila)) return false;
     const instante = Date.parse(comoTexto(fila[actual.campoFecha]) ?? '');
     if (!Number.isNaN(instante) && (instante < desdeElPeriodo || instante > hastaElPeriodo))
       return false;
@@ -658,6 +731,9 @@ export function Registros({ filasIniciales, pestanaInicial }: RegistrosProps) {
         etiqueta={`${actual.rotulo} del periodo`}
         desde="md"
         principal={importe?.campo ?? actual.campoFecha}
+        // En el teléfono cada par ocupa el ancho de la tarjeta: en media tarjeta la fecha y la
+        // hora no caben y la hora se salía de la pantalla.
+        columnasDeTarjeta="adaptable"
         columnas={columnas}
         filas={filasVisibles}
         claveDe={(fila) => fila.clave}

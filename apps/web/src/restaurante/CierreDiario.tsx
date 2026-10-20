@@ -82,6 +82,11 @@ import { CorteEnPdf } from '~/corte/CorteEnPdf';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  mesasQueBloquean,
+  type MesaParaElCierre,
+  type MesaQueBloquea,
+} from './cuentas-que-bloquean.ts';
 import { IconoDelTono, TINTE_DEL_TONO, semaforoDe } from './semaforo-del-arqueo';
 import { resumirDia, type Canal, type GastoDelDia, type VentaDelDia } from './resumen-del-dia.ts';
 
@@ -102,21 +107,10 @@ const NOMBRE_DEL_CANAL: Readonly<Record<Canal, string>> = {
   transferencia: 'Transferencia',
 };
 
-/**
- * La venta del día tal como la nombra el puente. Los importes van en PESOS, y se leen
- * sólo por `centavosDe`: la unidad la decide la conversión del campo, no quien lo lee.
- */
-export interface MesaViva {
-  readonly id: string;
-  readonly numero: number | null;
-  readonly venta_activa_id: string | null;
-  readonly mesero_asignado_nombre: string | null;
-}
-
 export interface DatosDelDia {
   readonly ventas: readonly VentaDelDia[];
   readonly gastos: readonly GastoDelDia[];
-  readonly mesas: readonly MesaViva[];
+  readonly mesas: readonly MesaParaElCierre[];
   /** Lo que se contó al abrir: la primera pieza del efectivo esperado. */
   readonly fondoInicial: number;
   readonly cajaAbierta: boolean;
@@ -149,14 +143,6 @@ export interface ResultadoDelCierre {
   readonly numeroVentas: number;
 }
 
-export interface MesaQueBloquea {
-  readonly id: string;
-  readonly rotulo: string;
-  readonly mesero: string;
-  readonly total: number;
-  readonly abierta: string;
-}
-
 export interface CierreDiarioProps {
   /** Cuando llegan, la pantalla no consulta: es lo que usan las pruebas. */
   readonly datosIniciales?: DatosDelDia;
@@ -173,37 +159,11 @@ export function mensajeDe(fallo: unknown, porOmision: string): string {
   return fallo instanceof Error ? fallo.message : porOmision;
 }
 
-/** Cuánto lleva abierta, en palabras: el dato se lee, nunca se infiere. */
-function desdeHace(iso: string | null, ahora: number): string {
-  if (iso === null) return 'sin dato';
-  const minutos = Math.floor((ahora - Date.parse(iso)) / 60_000);
-  if (!Number.isFinite(minutos) || minutos < 1) return 'recién';
-  if (minutos < 60) return `${minutos} min`;
-  return `${Math.floor(minutos / 60)} h ${minutos % 60} min`;
-}
-
-/** Las mesas con cuenta viva, con las cuatro columnas que pide el documento. */
-export function mesasQueBloquean(datos: DatosDelDia, ahora: number): readonly MesaQueBloquea[] {
-  const porId = new Map(datos.ventas.map((venta) => [venta.id, venta]));
-  return datos.mesas
-    .filter((mesa) => mesa.venta_activa_id !== null)
-    .map((mesa) => {
-      const viva = mesa.venta_activa_id === null ? undefined : porId.get(mesa.venta_activa_id);
-      return {
-        id: mesa.id,
-        rotulo: mesa.numero === null ? 'Sin número' : `Mesa ${mesa.numero}`,
-        mesero: viva?.usuario_mesero_nombre ?? mesa.mesero_asignado_nombre ?? 'sin mesero',
-        total: centavosDe('Venta', 'total', viva?.total) ?? 0,
-        abierta: desdeHace(viva?.fecha_apertura ?? null, ahora),
-      };
-    });
-}
-
 async function leerElDia(signal: AbortSignal): Promise<DatosDelDia> {
   const [ventas, gastos, mesas, sesion, estado] = await Promise.all([
     consultarPuente<VentaDelDia>('Venta', { limite: 500, signal }),
     consultarPuente<GastoDelDia>('GastoOperativo', { limite: 200, signal }),
-    consultarPuente<MesaViva>('Mesa', { limite: 200, signal }),
+    consultarPuente<MesaParaElCierre>('Mesa', { limite: 200, signal }),
     // La caja de ESTA terminal, no la última que se abrió en el negocio.
     cajaDeEstaTerminal(signal),
     invocarComando<EsperadoDeLaCaja>(
@@ -487,7 +447,7 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
     try {
       const frescos = await leerElDia(new AbortController().signal);
       setDatos(frescos);
-      const abiertas = mesasQueBloquean(frescos, Date.now());
+      const abiertas = mesasQueBloquean(frescos.ventas, frescos.mesas, Date.now());
       const paso = abiertas.length === 0 ? 'confirmar' : 'bloqueo';
       setDialogo(
         paso === 'confirmar' ? { tipo: 'confirmar' } : { tipo: 'bloqueo', mesas: abiertas },
@@ -509,7 +469,7 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
     try {
       const frescos = await leerElDia(new AbortController().signal);
       setDatos(frescos);
-      const abiertas = mesasQueBloquean(frescos, Date.now());
+      const abiertas = mesasQueBloquean(frescos.ventas, frescos.mesas, Date.now());
       if (abiertas.length > 0) {
         setDialogo({ tipo: 'bloqueo', mesas: abiertas });
         return;

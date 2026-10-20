@@ -18,7 +18,6 @@ import {
 } from '@morphiqpos/ui/sistema';
 import {
   ArrowLeft,
-  ConciergeBell,
   Minus,
   Plus,
   Search,
@@ -34,6 +33,7 @@ import { ViewTransition, useEffect, useRef, useState, type ChangeEvent } from 'r
 import { consultarPuente, invocarComando, nuevaClave } from '~/cliente/api';
 import { valorDelPuente } from '~/cliente/dinero-del-puente';
 import { AccionesDeLaMesa } from './AccionesDeLaMesa';
+import { puedeAjustarLaCuenta } from './ajustes-de-la-cuenta-por-rol.ts';
 import { AnularLineaDialog } from './AnularLineaDialog';
 import {
   ESTADOS_DE_MESA,
@@ -51,6 +51,8 @@ import {
 } from './comanda-de-la-mesa';
 import { DividirCuentaDialog } from './DividirCuentaDialog';
 import { lineasDelEnvio } from './envio-a-cocina';
+import { ListosParaRecoger, useListosDeLaCuenta } from './ListosParaRecoger';
+import { useRolDeLaSesion } from './rol-de-la-sesion';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -73,8 +75,15 @@ import { useVocabulario } from '~/cliente/vocabulario';
  *
  * ── «Listos para recoger» va arriba de todo ──────────────────────────────
  * Es información que CADUCA, y el catálogo no. Lleva el acento, el tinte con el
- * que el mapa pinta la mesa con la comida lista; fuera del panel viaja de
- * insignia en el encabezado.
+ * que el mapa pinta la mesa con la comida lista. La pantalla LEE las comandas de su
+ * cuenta cada pocos segundos —cocina marca desde otra pantalla— y ofrece entregarlas
+ * (`ListosParaRecoger`); antes lo recibía por props que ninguna página pasaba, y el
+ * bloque no se pintaba nunca. En tableta es una franja sobre el catálogo, sin abrir
+ * la hoja; en PC, lo primero del panel.
+ *
+ * ── Lo que quita dinero no se le ofrece al mesero ───────────────────────
+ * «Anular» y «Dividir» son de caja y de dirección: al mesero se las enseñaba y el
+ * servidor las negaba. Ahora sólo las ve quien puede (`puedeAjustarLaCuenta`).
  *
  * ── En tablet el pedido es una HOJA, no un panel lateral ─────────────────
  * El mesero sostiene la tablet con la izquierda y opera con el pulgar derecho:
@@ -136,6 +145,7 @@ export function MesaActiva(props: MesaActivaProps) {
   /** Para cuántas personas se abre. Dos es la mesa más común de un comedor. */
   const [personasAlAbrir, setPersonasAlAbrir] = useState(2);
   const [abriendo, setAbriendo] = useState(false);
+  const [liberando, setLiberando] = useState(false);
   /** F-324 · La línea que se anula: una línea, no un «está abierto» compartido. */
   const [anulando, setAnulando] = useState<LineaEnviada | null>(null);
   /** F-321 · Dividir la cuenta. Sólo se ofrece cuando hay algo que repartir. */
@@ -150,7 +160,23 @@ export function MesaActiva(props: MesaActivaProps) {
   const [intento, setIntento] = useState(0);
   const claveEnvio = useRef(nuevaClave());
   const refBusqueda = useRef<HTMLInputElement>(null);
-  const listos = props.listosIniciales ?? [];
+  // Lo que cocina dejó en la ventana: se LEE de las comandas de la cuenta. Cuando la prueba
+  // de la pantalla pasa `listosIniciales` no hay red: lo suyo se respeta tal cual.
+  const delaCocina = useListosDeLaCuenta(
+    mesa?.venta_activa_id ?? null,
+    props.listosIniciales !== undefined,
+  );
+  const listos = props.listosIniciales ?? delaCocina.listos.map((platillo) => platillo.nombre);
+  const platillosListos =
+    props.listosIniciales === undefined
+      ? delaCocina.listos
+      : props.listosIniciales.map((nombre) => ({ nombre, cantidad: 1 }));
+  const hayAlgoQueDecirDeLaVentana =
+    platillosListos.length > 0 ||
+    delaCocina.falloDeEntrega !== null ||
+    delaCocina.falloDeLectura !== null;
+  const rol = useRolDeLaSesion();
+  const puedeAjustar = puedeAjustarLaCuenta(rol);
 
   useEffect(() => {
     if (mesaInicial !== undefined) return;
@@ -201,7 +227,9 @@ export function MesaActiva(props: MesaActivaProps) {
   }, [mesaInicial, voc, idDeLaDireccion, intento]);
 
   const mesaLibre = mesa !== null && mesa.venta_activa_id === null;
-  const comandaVisible = productos !== null && !mesaLibre;
+  // Cobrada y sin recoger: no hay comanda que levantar ni cuenta que pedir, sólo limpiarla.
+  const porLimpiar = mesa !== null && mesa.estado === 'limpieza';
+  const comandaVisible = productos !== null && !mesaLibre && !porLimpiar;
 
   useEffect(() => {
     // Sólo con teclado físico (en la tablet el teclado en pantalla taparía el
@@ -262,6 +290,32 @@ export function MesaActiva(props: MesaActivaProps) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo abrir la mesa.');
     } finally {
       setAbriendo(false);
+    }
+  }
+
+  /**
+   * «MESA LIMPIA»: la mesa cobrada vuelve al servicio. El cobro la deja en limpieza a propósito
+   * —hay platos encima— y el paso a libre es de quien la limpia (`restaurante.liberar_mesa`).
+   * Las pantallas del modelo no lo ofrecían: el mesero tenía que irse a la pantalla heredada de
+   * «Meseros», y mientras tanto la mesa no se podía volver a abrir.
+   */
+  async function liberarLaMesa(): Promise<void> {
+    if (mesa === null) return;
+    setLiberando(true);
+    setError(null);
+    try {
+      await invocarComando('/api/restaurante/liberar-mesa', { mesaId: mesa.id });
+      // Se vuelve a leer la mesa en vez de suponer su estado: queda libre y sin cuenta.
+      const frescas = await consultarPuente<MesaAbierta>('Mesa', {
+        filtro: { id: mesa.id },
+        limite: 1,
+      });
+      setMesa(frescas[0] ?? mesa);
+      setEnviadas([]);
+    } catch (fallo) {
+      setError(fallo instanceof Error ? fallo.message : 'No se pudo liberar la mesa.');
+    } finally {
+      setLiberando(false);
     }
   }
 
@@ -405,12 +459,6 @@ export function MesaActiva(props: MesaActivaProps) {
             Alergias: {alergias}
           </Badge>
         )}
-        {listos.length > 0 && (
-          <Badge className="ml-auto xl:hidden">
-            <ConciergeBell aria-hidden="true" />
-            {listos.length} listos
-          </Badge>
-        )}
       </header>
     </BarraFija>
   );
@@ -424,27 +472,22 @@ export function MesaActiva(props: MesaActivaProps) {
       </ViewTransition>
     );
 
+  /* «Listos para recoger»: una sola vez a la vista. En PC es lo primero del panel; en tableta
+     y teléfono, una franja sobre el catálogo —el panel vive en una hoja cerrada—. */
+  const bloqueDeListos = (
+    <ListosParaRecoger
+      listos={platillosListos}
+      entregando={delaCocina.entregando}
+      falloDeEntrega={delaCocina.falloDeEntrega}
+      falloDeLectura={delaCocina.falloDeLectura}
+      alEntregar={delaCocina.entregar}
+    />
+  );
+
   /* ── El panel de la cuenta: a la derecha en PC, en la hoja en tableta. ──── */
-  const panel = (
+  const panel = (conListos: boolean) => (
     <div className="flex flex-col gap-(--espacio-4)">
-      {listos.length > 0 && (
-        <Superficie
-          como="section"
-          nivel={0}
-          radio="md"
-          relleno={3}
-          aria-label="Listos para recoger"
-          className="border-acento bg-acento-suave text-acento-suave-texto"
-        >
-          {/* El texto va en `acento-suave-texto`, el par del tinte: `text-acento` sobre
-              `bg-acento-suave` no llega a 4.5:1 en `noche` ni en `bloque`. */}
-          <h2 className="flex items-center gap-(--espacio-2) text-xs font-bold uppercase">
-            <ConciergeBell aria-hidden="true" className="size-4" />
-            Listos para recoger ({listos.length})
-          </h2>
-          <p className="mt-(--espacio-1) text-sm font-medium">{listos.join(' · ')}</p>
-        </Superficie>
-      )}
+      {conListos ? bloqueDeListos : null}
       {/* «Pedido» es de la CAFETERÍA: aquí lo que se manda es la cuenta. */}
       <section
         aria-label={`${voc.titulo('orden')} actual, ya enviad${voc.terminacion('orden')} a ${voc.enFrase('preparacion')}`}
@@ -457,7 +500,7 @@ export function MesaActiva(props: MesaActivaProps) {
           <>
             <Tabla
               etiqueta={`${voc.titulo('orden')} actual`}
-              columnas={columnasDeLoEnviado(voc, abrirAnular)}
+              columnas={columnasDeLoEnviado(voc, abrirAnular, puedeAjustar)}
               filas={enviadas}
               claveDe={(l) => l.id}
               alto="max-h-none"
@@ -469,7 +512,7 @@ export function MesaActiva(props: MesaActivaProps) {
                 />
               }
             />
-            {enviadas.length > 0 && (
+            {enviadas.length > 0 && puedeAjustar && (
               <Button
                 size="sm"
                 variant="outline"
@@ -596,6 +639,38 @@ export function MesaActiva(props: MesaActivaProps) {
       </Superficie>
     );
 
+  /* ── MESA POR LIMPIAR · cobrada: lo único que se hace aquí es dejarla lista. ── */
+  const limpiar =
+    mesa === null ? null : (
+      <Superficie
+        como="section"
+        nivel={2}
+        relleno={6}
+        aria-label={`${voc.titulo('unidad_servicio')} por limpiar`}
+        className="mx-auto mt-(--espacio-6) flex max-w-md flex-col items-center gap-(--espacio-4) text-center"
+      >
+        <p className="text-xl font-semibold">
+          {voc.titulo('unidad_servicio')} {mesa.numero} está por limpiar
+        </p>
+        <p className="text-sm text-texto-sutil">
+          {voc.conArticulo('orden')} ya se cobró. Cuando esté recogid
+          {voc.terminacion('unidad_servicio')} y limpi{voc.terminacion('unidad_servicio')}, vuelve a
+          quedar libre para quien sigue.
+        </p>
+        <Button
+          size="lg"
+          className="min-h-[calc(var(--altura-control)*1.6)] w-full text-lg font-bold"
+          disabled={liberando}
+          cargando={liberando}
+          onClick={() => {
+            void liberarLaMesa();
+          }}
+        >
+          {voc.titulo('unidad_servicio')} limpi{voc.terminacion('unidad_servicio')}
+        </Button>
+      </Superficie>
+    );
+
   /* El vacío enseña: dice qué falta y lleva a donde se resuelve. */
   const vacioDelCatalogo = (
     <Vacio
@@ -684,7 +759,7 @@ export function MesaActiva(props: MesaActivaProps) {
         aria-label={`Pedido de ${voc.enFrase('unidad_servicio')}`}
         className="sticky top-20 hidden max-h-[calc(100dvh-6rem)] overflow-y-auto xl:block"
       >
-        {panel}
+        {panel(true)}
       </Superficie>
     </div>
   );
@@ -706,6 +781,7 @@ export function MesaActiva(props: MesaActivaProps) {
         </div>
       );
     }
+    if (porLimpiar) return limpiar;
     return mesaLibre ? abrir : comanda;
   })();
 
@@ -723,10 +799,16 @@ export function MesaActiva(props: MesaActivaProps) {
             mesaId={mesa.id}
             ordenId={mesa.venta_activa_id}
             hayEnviado={enviadas.length > 0}
+            totalCentavos={
+              falloLineas === null ? enviadas.reduce((s, l) => s + importeDe(l), 0) : null
+            }
             alCambiarDeMesa={alCambiarDeMesa}
             alUnir={releerLoEnviado}
           />
         </div>
+      ) : null}
+      {comandaVisible && hayAlgoQueDecirDeLaVentana ? (
+        <div className="px-(--espacio-3) pt-(--espacio-3) xl:hidden">{bloqueDeListos}</div>
       ) : null}
       {contenido}
       {comandaVisible && (
@@ -749,7 +831,7 @@ export function MesaActiva(props: MesaActivaProps) {
       <Sheet open={hoja} onOpenChange={setHoja}>
         <SheetContent side="bottom" className="max-h-[70dvh] overflow-y-auto p-(--espacio-4)">
           <SheetTitle>Pedido de la mesa {mesa?.numero ?? ''}</SheetTitle>
-          {panel}
+          {panel(false)}
         </SheetContent>
       </Sheet>
       <Dialog open={falloEnvio} onOpenChange={setFalloEnvio}>
@@ -764,19 +846,22 @@ export function MesaActiva(props: MesaActivaProps) {
           </Button>
         </DialogContent>
       </Dialog>
-      {anulando !== null && mesa?.venta_activa_id != null && (
+      {puedeAjustar && anulando !== null && mesa?.venta_activa_id != null && (
         <AnularLineaDialog
           abierto
           ordenId={mesa.venta_activa_id}
           lineaId={anulando.id}
           nombreDelPlatillo={anulando.producto_nombre}
           /* «Ya se preparó» = cocina lo dejó en la ventana: el insumo ya se gastó. */
-          yaSePreparo={listos.includes(anulando.producto_nombre)}
+          yaSePreparo={
+            delaCocina.yaSalieron.has(anulando.producto_nombre) ||
+            listos.includes(anulando.producto_nombre)
+          }
           onCerrar={cerrarAnular}
           onAnulada={traslaAnulacion}
         />
       )}
-      {mesa?.venta_activa_id != null && (
+      {puedeAjustar && mesa?.venta_activa_id != null && (
         <DividirCuentaDialog
           key={aperturaDeDividir}
           abierto={dividiendo}

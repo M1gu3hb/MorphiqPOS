@@ -33,10 +33,13 @@ import { AvisoSinConexion, useEnLinea } from '~/cliente/en-linea';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import { CancelarLaCuenta, DescuentoDeLaCuenta } from './AjustesDeLaCuenta';
+import { DividirLaCuenta } from './DividirLaCuenta';
+import { lineasQueSigueCobrando, soloLasVivas } from './lineas-vivas.ts';
 import { ParedDePropina } from './ParedDePropina';
 import {
   BASES,
   problemaDeLaPropina,
+  propinaDelComensal,
   propinaPorConfirmar,
   propinaPrevista,
   renglonesDePago,
@@ -261,12 +264,16 @@ export function Cobro({
     if (cuentaInicial !== undefined || lineasIniciales !== undefined) return;
     if (idDeLaCuenta === undefined) return;
     const control = new AbortController();
-    consultarPuente<LineaDeCuenta>('DetalleVenta', {
-      filtro: { venta_id: idDeLaCuenta },
-      signal: control.signal,
-    })
-      .then((suyas) => {
-        if (!control.signal.aborted) setLineas(suyas);
+    // Sin las líneas anuladas: lo que se enseña suma lo que se cobra (`lineas-vivas.ts`).
+    Promise.all([
+      consultarPuente<LineaDeCuenta>('DetalleVenta', {
+        filtro: { venta_id: idDeLaCuenta },
+        signal: control.signal,
+      }),
+      lineasQueSigueCobrando(idDeLaCuenta, control.signal),
+    ])
+      .then(([filas, vivas]) => {
+        if (!control.signal.aborted) setLineas(soloLasVivas(filas, vivas));
       })
       .catch((fallo: unknown) => {
         if (control.signal.aborted) return;
@@ -581,7 +588,14 @@ export function Cobro({
 
         {/* EL MURO de la propina: antes de los métodos, porque sin decidirla no se
             cobra. «Sin propina» pesa lo mismo que los porcentajes: es voluntaria. */}
-        {pendiente ? <ParedDePropina key={cuenta.id} venta={venta} alElegir={setPropina} /> : null}
+        {pendiente ? (
+          <ParedDePropina
+            key={cuenta.id}
+            venta={venta}
+            delComensal={propinaDelComensal(venta, deLaCuenta)}
+            alElegir={setPropina}
+          />
+        ) : null}
 
         <div
           role="group"
@@ -708,6 +722,7 @@ export function Cobro({
         <div className="grid grid-cols-2 gap-(--espacio-2)">
           <DescuentoDeLaCuenta ordenId={cuenta.id} base={venta} alAplicar={alDescontar} />
           <CancelarLaCuenta ordenId={cuenta.id} alCancelar={setCancelada} />
+          <DividirLaCuenta ordenId={cuenta.id} lineas={lineas} className="col-span-2" />
         </div>
       </section>
 

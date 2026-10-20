@@ -37,6 +37,13 @@ import { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } fr
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 
+import { MOTIVO_DEL_CONTEO, motivoVigente, ordenDelAjuste } from './ajuste-de-inventario.ts';
+import {
+  QuePasoConLoQuitado,
+  useMotivosDeMerma,
+  type LecturaDeMotivos,
+} from './QuePasoConLoQuitado';
+
 /**
  * PANTALLA · restaurante · inventario
  *
@@ -88,12 +95,18 @@ import { centavosDe } from '~/cliente/dinero-del-puente';
  * pantalla: el puente recorta el campo y llega `null`. Por eso el valor se
  * pinta «—» sin disculparse y sin preguntarle el rol a nadie.
  *
- * ── Lo que hoy no se puede hacer, y por qué ──────────────────────────────
- * La escritura es `/api/inventario/ajustar` —la convención `/api/<dominio>/
- * <verbo>`, y la ruta real del comando `inventario.ajustar_stock`— y pide el
- * almacén, pero el puente todavía no expone la entidad `Almacen`: la pantalla
- * no puede resolverlo sola, así que llega por la prop `almacenId`. Sin ella el
- * `+`/`−` sigue contando y lo dice en su sitio, en vez de fallar al confirmar.
+ * ── Qué se guarda, y a dónde va (día completo del restaurante, 2.4) ──────
+ * Quitar puede ser un CONTEO —lo que había de menos— o una PÉRDIDA —se cayó,
+ * caducó—, y el dueño necesita verlas por separado: la primera va a
+ * `/api/inventario/ajustar` y la segunda a `/api/inventario/merma`, con un
+ * motivo de la tabla (`ajuste-de-inventario.ts`). Subir es siempre un conteo.
+ *
+ * Los dos piden el almacén, y el puente no expone `Almacen`: se resuelve del
+ * último movimiento del ledger (o llega por la prop `almacenId`). Hasta la 2.4
+ * no se resolvía NUNCA: «Guardar ajuste» nacía apagado y ni la merma ni el
+ * conteo de la alacena de un restaurante se podían registrar. Si de verdad no
+ * se puede —un rol que no lee el ledger—, el `+`/`−` sigue contando y lo dice
+ * en su sitio, en vez de fallar al confirmar.
  * Fuera de alcance por tamaño: el kardex y el filtro por categoría.
  */
 
@@ -141,8 +154,6 @@ const TONO_DE_FILA: Partial<Readonly<Record<Nivel, TonoDeFila>>> = {
   critico: 'advertencia',
 };
 
-const RUTA_AJUSTE = '/api/inventario/ajustar';
-
 /** Desde este ancho la lista es tabla densa: el `xl` del sistema. */
 const CONSULTA_PC = '(min-width: 1280px)';
 
@@ -171,6 +182,8 @@ interface AjusteEnCurso {
   readonly id: string;
   readonly delta: number;
   readonly motivo: string;
+  /** Qué pasó con lo que se quita: `ajuste_conteo` o la clave de un motivo de merma. */
+  readonly clave: string;
 }
 
 /** Los cinco niveles, con los dos umbrales que el negocio ya usaba. */
@@ -374,7 +387,10 @@ interface MotivoProps {
   readonly guardando: boolean;
   readonly hayAlmacen: boolean;
   readonly error: string | null;
+  /** Los motivos de merma del negocio, para elegir qué pasó cuando lo que se hace es quitar. */
+  readonly motivos: LecturaDeMotivos;
   readonly onMotivo: (texto: string) => void;
+  readonly onClave: (clave: string) => void;
   readonly onGuardar: () => void;
   readonly onCancelar: () => void;
 }
@@ -387,6 +403,8 @@ interface MotivoProps {
 function Motivo(props: MotivoProps) {
   const { fila, ajuste, grande, guardando, hayAlmacen, error } = props;
   const despues = (fila.stock_actual ?? 0) + ajuste.delta;
+  const clave = motivoVigente(ajuste.delta, ajuste.clave, props.motivos.motivos);
+  const esMerma = ajuste.delta < 0 && clave !== MOTIVO_DEL_CONTEO;
   return (
     <span className="flex flex-col gap-(--espacio-2) border-t border-borde pt-(--espacio-2) text-base font-normal">
       <span className="flex items-baseline justify-between gap-(--espacio-2) text-sm">
@@ -398,6 +416,17 @@ function Motivo(props: MotivoProps) {
           className={despues < 0 ? 'font-semibold text-peligro' : 'font-semibold'}
         />
       </span>
+      {/* Una baja puede ser un conteo o algo que se perdió: merma, con su motivo de la tabla.
+          Una alta sólo corrige el conteo, así que no pregunta. */}
+      {ajuste.delta < 0 ? (
+        <QuePasoConLoQuitado
+          id={`clave-${fila.id}`}
+          nombre={fila.nombre}
+          elegido={clave}
+          lectura={props.motivos}
+          onElegir={props.onClave}
+        />
+      ) : null}
       <Label htmlFor={`motivo-${fila.id}`} className="text-xs">
         Motivo del ajuste
       </Label>
@@ -430,7 +459,7 @@ function Motivo(props: MotivoProps) {
             props.onGuardar();
           }}
         >
-          Guardar ajuste
+          {esMerma ? 'Registrar merma' : 'Guardar ajuste'}
         </Button>
         <Button
           type="button"
@@ -632,6 +661,13 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
   const [ajuste, setAjuste] = useState<AjusteEnCurso | null>(null);
   const [guardando, setGuardando] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  /**
+   * EL ALMACÉN SOBRE EL QUE SE AJUSTA. La página no lo pasaba y el puente no expone `Almacen`,
+   * así que «Guardar ajuste» nacía apagado y la alacena del restaurante no podía registrar ni
+   * un ajuste ni una merma. Se resuelve como en la cafetería: del último movimiento del
+   * ledger, que dice en qué almacén vive lo que se mueve.
+   */
+  const [almacen, setAlmacen] = useState<string | null>(almacenId ?? null);
 
   useEffect(() => {
     if (filasIniciales !== undefined) return;
@@ -661,6 +697,29 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
     };
   }, [filasIniciales, intento]);
 
+  useEffect(() => {
+    // Con el almacén dado (o ya resuelto) no se pregunta.
+    if (filasIniciales !== undefined || almacenId !== undefined) return;
+    const control = new AbortController();
+    consultarPuente<{ readonly almacen_id: string | null }>('MovimientoInventario', {
+      limite: 1,
+      signal: control.signal,
+    })
+      .then((movimientos) => {
+        if (!control.signal.aborted) setAlmacen(movimientos[0]?.almacen_id ?? null);
+      })
+      .catch(() => {
+        // Quien lee la alacena sin leer el ledger —la cocina— no ajusta: la pantalla sigue
+        // contando y dice que le falta el almacén, que es la verdad, en vez de caerse.
+        if (!control.signal.aborted) setAlmacen(null);
+      });
+    return () => {
+      control.abort();
+    };
+  }, [filasIniciales, almacenId]);
+
+  const motivosDeMerma = useMotivosDeMerma(ajuste !== null && ajuste.delta < 0);
+
   const ordenadas = useMemo(() => porUrgencia(filas ?? []), [filas]);
   const aguja = normalizar(busqueda.trim());
   const visibles =
@@ -669,7 +728,7 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
     const nivel = nivelDe(f);
     return nivel === 'agotado' || nivel === 'critico';
   });
-  const hayAlmacen = almacenId !== undefined;
+  const hayAlmacen = almacen !== null;
 
   const paso = (fila: IngredienteDeInventario, signo: number): void => {
     const salto = pasoDe(fila.unidad_base) * signo;
@@ -678,11 +737,14 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
     setAjuste((actual) =>
       actual !== null && actual.id === fila.id
         ? { ...actual, delta: actual.delta + salto }
-        : { id: fila.id, delta: salto, motivo: '' },
+        : { id: fila.id, delta: salto, motivo: '', clave: MOTIVO_DEL_CONTEO },
     );
   };
   const escribirMotivo = (texto: string): void => {
     setAjuste((actual) => (actual === null ? null : { ...actual, motivo: texto }));
+  };
+  const elegirClave = (clave: string): void => {
+    setAjuste((actual) => (actual === null ? null : { ...actual, clave }));
   };
   const cancelar = (): void => {
     setAjuste(null);
@@ -690,27 +752,26 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
   };
 
   async function guardarAjuste(): Promise<void> {
-    if (ajuste === null || almacenId === undefined) return;
+    if (ajuste === null || almacen === null) return;
     const enCurso = ajuste;
+    const fila = (filas ?? []).find((f) => f.id === enCurso.id);
     setGuardando(true);
     setError(null);
     try {
-      await invocarComando(RUTA_AJUSTE, {
-        almacenId,
+      // Un conteo va a `inventario.ajustar` y una pérdida a `inventario.registrar_merma`,
+      // cada uno con la forma que pide (`ajuste-de-inventario.ts`): la cantidad como TEXTO
+      // —`numeric(14,4)` no cabe en un `number` sin perder el cuarto decimal, y ese decimal
+      // es la merma del mes—, el motivo como CLAVE de `motivos_merma` y lo que la persona
+      // escribió en `nota`, que es su sitio.
+      const orden = ordenDelAjuste({
+        almacenId: almacen,
         insumoId: enCurso.id,
-        // La cantidad viaja como TEXTO: `numeric(14,4)` no cabe en un `number`
-        // sin perder el cuarto decimal, y ese decimal es la merma del mes.
-        //
-        // Y se llama `cantidad`, no `delta`: así lo pide `entradaAjustarStock`. Con
-        // `delta` faltaba un campo obligatorio y sobraba uno desconocido, así que
-        // TODO ajuste de esta pantalla contestaba `ENTRADA_INVALIDA`.
-        cantidad: String(enCurso.delta),
-        // `motivo` es una CLAVE de `motivos_merma` y desde la 062
-        // `movimientos_stock.motivo` apunta a esa tabla: lo que el operador escribe
-        // —y esta pantalla EXIGE que escriba algo— va en `nota`, que es su sitio.
-        motivo: 'ajuste_conteo',
-        nota: enCurso.motivo.trim(),
+        unidad: fila?.unidad_base ?? null,
+        delta: enCurso.delta,
+        motivoClave: motivoVigente(enCurso.delta, enCurso.clave, motivosDeMerma.motivos),
+        nota: enCurso.motivo,
       });
+      await invocarComando(orden.ruta, orden.cuerpo);
       // Lo ajustado se refleja al vuelo; el valor definitivo llega con la
       // siguiente lectura. Pintar el número viejo haría dudar de si se guardó.
       setFilas((actuales) =>
@@ -806,7 +867,9 @@ export function Inventario({ filasIniciales, almacenId }: InventarioProps) {
           guardando={guardando}
           hayAlmacen={hayAlmacen}
           error={error}
+          motivos={motivosDeMerma}
           onMotivo={escribirMotivo}
+          onClave={elegirClave}
           onGuardar={guardar}
           onCancelar={cancelar}
         />

@@ -19,6 +19,19 @@ import { consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { lineasQueSigueCobrando, soloLasVivas } from './lineas-vivas.ts';
+import {
+  almacenDeLaPestana,
+  leerPrecuentaGuardada,
+  type PrecuentaDeLaMesa,
+} from './precuenta-de-la-mesa.ts';
+import {
+  hojaDeLaRespuesta,
+  totalesDeLaHoja,
+  type HojaImpresa,
+  type TotalesDeLaHoja,
+} from './hoja-de-la-precuenta.ts';
+
 /**
  * PANTALLA · restaurante · precuenta
  *
@@ -45,11 +58,18 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * en pantalla y el aviso dice la salida que dicta el documento: enseñar esta
  * hoja y llevar al comensal a caja con el código.
  *
+ * ── De dónde salen los números (día completo del restaurante, 2.4) ───────
+ * El total de una venta es de rol CAJA, y la hoja lo leía sólo de ahí: la que el mesero
+ * lleva a la mesa salía «Subtotal —, IVA —, TOTAL —», sin folio y con «Imprimir» apagado.
+ * Ahora manda, por orden, lo que el servidor IMPRIMIÓ, lo que la caja puede leer del puente
+ * y lo que el servidor contestó al pedir la cuenta (`precuenta-de-la-mesa.ts`), y la
+ * propina que la mesa eligió se dice en la hoja: «Propina 10 %» y el TOTAL que la mesa paga.
+ *
  * ── Lo que no hace ───────────────────────────────────────────────────────
- * No cobra ni fija propina: el mesero no cobra, y eso es control interno. Si
- * el puente recorta el dinero —es de rol caja— la hoja dice «a definir en
- * caja»; si falta el TOTAL el botón se apaga y dice por qué. Fuera de alcance:
- * el rollo de 58 mm comparte maqueta con el de 80.
+ * No cobra ni fija propina: el mesero no cobra, y eso es control interno. Sin ningún total
+ * a la vista —otra tableta, otra pestaña— «Imprimir» sigue encendido: la hoja que sale la
+ * calcula el servidor, y se completa con lo que él contesta. Fuera de alcance: el rollo de
+ * 58 mm comparte maqueta con el de 80.
  */
 
 export interface LineaPrecuenta {
@@ -141,6 +161,10 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
    * mesa que siguió consumiendo, y el número es lo que le hace mirar el total.
    */
   const [copia, setCopia] = useState<number | null>(null);
+  /** Lo que el servidor contestó al pedir la cuenta, si esta pestaña la pidió. */
+  const [guardada, setGuardada] = useState<PrecuentaDeLaMesa | null>(null);
+  /** Lo que el servidor imprimió: manda sobre todo lo demás. */
+  const [impresa, setImpresa] = useState<HojaImpresa | null>(null);
   // Cada intento de lectura es un número: reintentar lo sube y el efecto lee otra
   // vez. El estado se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
@@ -149,6 +173,15 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     if (cuentaInicial !== undefined) return;
     const id = ordenId ?? idDeLaUrl();
     let vivo = true;
+    // Lo que el servidor contestó al pedir ESTA cuenta, si la pidió esta pestaña.
+    const delServidor = id === null ? null : leerPrecuentaGuardada(id, almacenDeLaPestana());
+    if (delServidor !== null) {
+      // Se escribe en el siguiente tick y no aquí: un setState en el cuerpo del efecto
+      // encadena un render extra en cada montaje.
+      setTimeout(() => {
+        if (vivo) setGuardada(delServidor);
+      });
+    }
     if (id === null) {
       // «No hay cuenta» se escribe en el siguiente tick y no aquí: un setState
       // en el cuerpo del efecto encadena un render extra en cada montaje.
@@ -161,17 +194,20 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     }
     // `orden_visual` es el orden en que el mesero capturó, que es el que el
     // comensal reconoce al repasar la hoja con el dedo.
+    // Las líneas, SIN las anuladas: la hoja que entrega el mesero suma lo que dice el total
+    // (`lineas-vivas.ts`). El puente las listaba todas y la sopa quitada seguía en el papel.
     Promise.all([
       consultarPuente<CuentaPrecuenta>('Venta', { filtro: { id }, limite: 1 }),
       consultarPuente<LineaPrecuenta>('DetalleVenta', {
         filtro: { venta_id: id },
         orden: 'orden_visual',
       }),
+      lineasQueSigueCobrando(id),
     ])
-      .then(([cuentas, filas]) => {
+      .then(([cuentas, filas, vivas]) => {
         if (!vivo) return;
         setCuenta(cuentas[0] ?? null);
-        setLineas(filas);
+        setLineas(soloLasVivas(filas, vivas));
       })
       .catch((fallo: unknown) => {
         if (!vivo) return;
@@ -198,11 +234,15 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
     try {
       // El documento no nombra ruta: se usa /api/<dominio>/<verbo>, la misma
       // convención de `imprimir-comanda` (05-DATOS §6).
-      const hoja = await invocarComando<{ readonly copia: number }>(
-        '/api/restaurante/imprimir-precuenta',
-        { ordenId: cuenta.id, anchoMm },
-      );
-      setCopia(hoja.copia);
+      const hoja = await invocarComando<unknown>('/api/restaurante/imprimir-precuenta', {
+        ordenId: cuenta.id,
+        anchoMm,
+      });
+      // La hoja que SALIÓ la dice el servidor, con los números del cobro: manda sobre lo demás.
+      const leida = hojaDeLaRespuesta(hoja);
+      if (leida === null) throw new Error('El servidor no devolvió la hoja impresa.');
+      setImpresa(leida);
+      setCopia(leida.copia);
     } catch {
       // El error no se traga: tiene salida alterna, y es la que dicta el documento.
       setFalloImpresion(true);
@@ -212,8 +252,16 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
   }
 
   const hayHoja = error === null && cuenta != null && lineas.length > 0;
-  const sinTotal = centavosDe('Venta', 'total', cuenta?.total) === null;
-  const codigo = cuenta?.codigo_caja ?? cuenta?.folio ?? '';
+  const totales = totalesDeLaHoja(
+    {
+      subtotal: centavosDe('Venta', 'subtotal', cuenta?.subtotal),
+      impuestos: centavosDe('Venta', 'impuestos', cuenta?.impuestos),
+      total: centavosDe('Venta', 'total', cuenta?.total),
+    },
+    guardada,
+    impresa,
+  );
+  const codigo = totales.codigo ?? cuenta?.codigo_caja ?? cuenta?.folio ?? '';
   // Milímetros de verdad; el tope del 100 % evita el desborde a 320 px.
   const estilo = { width: `${anchoMm}mm`, maxWidth: '100%' };
 
@@ -280,7 +328,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
         </Superficie>
       );
     }
-    return <Hoja cuenta={cuenta} lineas={lineas} estilo={estilo} copia={copia} />;
+    return <Hoja cuenta={cuenta} lineas={lineas} estilo={estilo} copia={copia} totales={totales} />;
   }
 
   return (
@@ -312,7 +360,7 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
               type="button"
               size="lg"
               className="min-h-[calc(var(--altura-control)*1.5)] w-full text-lg"
-              disabled={imprimiendo || sinTotal}
+              disabled={imprimiendo}
               onClick={() => {
                 void imprimir();
               }}
@@ -322,8 +370,8 @@ export function Precuenta({ ordenId, cuentaInicial, filasIniciales, ancho }: Pre
             </Button>
             {/* Un botón apagado sin motivo es peor que uno que falla. */}
             <p className="text-xs text-texto-sutil">
-              {sinTotal
-                ? `El total de ${voc.enFraseCon('este', 'orden')} no llegó a esta pantalla. Pídela desde caja.`
+              {totales.total === null
+                ? `El total de ${voc.enFraseCon('este', 'orden')} lo calcula el servidor al imprimir: la hoja se completa con él.`
                 : `Se ve a tamaño real: papel de ${anchoMm} mm.`}
             </p>
             {copia === null || falloImpresion ? null : (
@@ -348,13 +396,16 @@ interface HojaProps {
   readonly estilo: { readonly width: string; readonly maxWidth: string };
   /** Cuál hoja es ésta. `null` antes de imprimir; de 2 en adelante, va marcada. */
   readonly copia: number | null;
+  /** Los números de la hoja y de dónde salen: el servidor manda sobre lo demás. */
+  readonly totales: TotalesDeLaHoja;
 }
 
 /** La hoja térmica. Lo que se ve aquí es lo que sale del rollo. */
-function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
+function Hoja({ cuenta, lineas, estilo, copia, totales }: HojaProps) {
   const voc = useVocabulario();
   const mesa = cuenta.mesa_numero === null ? '—' : String(cuenta.mesa_numero);
-  const propina = centavosDe('Venta', 'propina_monto', cuenta.propina_monto);
+  const { propina } = totales;
+  const conFolio = cuenta.folio !== '';
 
   const columnas: readonly ColumnaDeTabla<LineaPrecuenta>[] = [
     {
@@ -391,7 +442,7 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
       nivel={2}
       radio="sm"
       relleno={3}
-      aria-label={`Precuenta de la mesa ${mesa}, folio ${cuenta.folio}`}
+      aria-label={`Precuenta de la mesa ${mesa}${conFolio ? `, folio ${cuenta.folio}` : ''}`}
       className="mx-auto flex flex-col gap-(--espacio-2) font-mono text-xs leading-snug text-texto"
       style={estilo}
     >
@@ -405,7 +456,7 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
         )}
       </header>
       <p className="text-center">
-        Folio {cuenta.folio} · Mesa {mesa} · {cuenta.personas ?? '—'} personas
+        {conFolio ? `Folio ${cuenta.folio} · ` : ''}Mesa {mesa} · {cuenta.personas ?? '—'} personas
       </p>
 
       <Tabla
@@ -423,24 +474,37 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
       <dl className="grid grid-cols-[1fr_auto] gap-x-(--espacio-2) gap-y-(--espacio-1)">
         <dt>Subtotal</dt>
         <dd className="text-right">
-          <Importe centavos={centavosDe('Venta', 'subtotal', cuenta.subtotal)} />
+          <Importe centavos={totales.subtotal} />
         </dd>
         <dt>IVA</dt>
         <dd className="text-right">
-          <Importe centavos={centavosDe('Venta', 'impuestos', cuenta.impuestos)} />
+          <Importe centavos={totales.impuestos} />
         </dd>
-        <dt>Propina</dt>
-        <dd className="text-right">
-          {/* La propina no decidida se DICE: el hueco lo rellena el comensal en su cabeza. */}
-          {propina === null ? 'a definir en caja' : <Importe centavos={propina} />}
-        </dd>
+        {/* Con propina decidida, lo que se CONSUMIÓ y lo que se PAGA son dos renglones: la
+            propina no es consumo, y sumarla en silencio al total de la cuenta la volvería venta. */}
+        {propina.tipo === 'porcentaje' ? (
+          <>
+            <dt>Consumo</dt>
+            <dd className="text-right">
+              <Importe centavos={totales.total} />
+            </dd>
+            <dt>Propina {String(propina.puntosBase / 100)} %</dt>
+            <dd className="text-right">
+              <Importe centavos={propina.importeCentavos} />
+            </dd>
+          </>
+        ) : (
+          <>
+            <dt>Propina</dt>
+            <dd className="text-right">
+              {/* La propina no decidida se DICE: el hueco lo rellena el comensal en su cabeza. */}
+              {propina.tipo === 'sin_propina' ? 'sin propina' : 'a definir en caja'}
+            </dd>
+          </>
+        )}
         <dt className="mt-(--espacio-1) self-baseline text-lg font-bold">TOTAL</dt>
         <dd className="mt-(--espacio-1) self-baseline text-right text-lg">
-          <Importe
-            centavos={centavosDe('Venta', 'total', cuenta.total)}
-            tamano="xl"
-            className="font-bold"
-          />
+          <Importe centavos={totales.aPagar} tamano="xl" className="font-bold" />
         </dd>
       </dl>
 
@@ -452,7 +516,7 @@ function Hoja({ cuenta, lineas, estilo, copia }: HojaProps) {
       <section className="text-center" aria-label="Código para caja">
         <p className="text-texto-sutil">CÓDIGO PARA CAJA</p>
         <p className="mt-(--espacio-1) border border-dashed border-borde-fuerte px-(--espacio-2) py-(--espacio-2) text-xl font-bold tracking-widest">
-          {cuenta.codigo_caja ?? cuenta.folio}
+          {totales.codigo ?? cuenta.codigo_caja ?? cuenta.folio}
         </p>
       </section>
       <p className="text-center text-texto-sutil">Pasa a caja con este código.</p>

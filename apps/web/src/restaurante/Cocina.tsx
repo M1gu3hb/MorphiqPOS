@@ -16,6 +16,8 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { platillosPorPreparar, tieneQuePreparar } from './platillos-de-cocina.ts';
+
 /**
  * PANTALLA · restaurante · cocina
  *
@@ -37,6 +39,16 @@ import { useVocabulario } from '~/cliente/vocabulario';
  * fecha de creación ASCENDENTE: lo nuevo se añade al final y nada salta de
  * sitio. El toque pinta primero y confirma después, y mientras viaja no se
  * relee: una respuesta vieja devolvería la tarjeta a su columna anterior.
+ *
+ * ── Una comanda, un toque a la vez ───────────────────────────────────────
+ * Mientras el servidor no contesta el toque de una comanda, su botón queda en
+ * «guardando» y no admite otro. «Iniciar» y en seguida «Marcar listo» —la
+ * cerveza que se sirve en cuanto se tira— salían como DOS pedidos a la vez: el
+ * segundo leía la comanda todavía «nueva», esperaba la fila que el primero tenía
+ * bloqueada y volvía con «cambió de estado desde otra pantalla»; la tarjeta
+ * regresaba a «En prep.» y el plato listo nunca llegaba al mesero. Un toque
+ * tampoco se pierde en silencio: si el primero falla, la tarjeta vuelve y la
+ * pantalla lo dice.
  *
  * ── Cada columna se desplaza sola ────────────────────────────────────────
  * Desde la tableta de la pared hacia arriba, el tablero ocupa el alto exacto de
@@ -130,6 +142,8 @@ export interface ItemDeComanda {
   readonly producto_nombre: string | null;
   readonly cantidad: number | null;
   readonly notas: string | null;
+  /** `cancelado`: se anuló en la mesa y no se prepara (`platillos-de-cocina.ts`). */
+  readonly estado?: string | null;
 }
 
 /**
@@ -153,10 +167,13 @@ export function haceCuanto(desde: string | null, ahora: number): string {
   return minutos === 1 ? 'hace 1 minuto' : `hace ${minutos} minutos`;
 }
 
-/** Las de una columna, siempre de la más vieja a la más nueva. */
+/**
+ * Las de una columna, siempre de la más vieja a la más nueva. Una comanda cuyos platillos se
+ * anularon TODOS en la mesa no tiene qué preparar y no se enseña.
+ */
 function deLaColumna(todas: readonly ComandaDeCocina[], estado: string) {
   return todas
-    .filter((c) => c.estado === estado)
+    .filter((c) => c.estado === estado && tieneQuePreparar(c.items))
     .sort((a, b) => (a.created_date ?? '').localeCompare(b.created_date ?? ''));
 }
 
@@ -191,6 +208,13 @@ export function Cocina({ filasIniciales }: CocinaProps) {
   // error se limpia EN EL CLIC, no dentro del efecto.
   const [intento, setIntento] = useState(0);
   const enVuelo = useRef(0);
+  // Las comandas con un toque todavía en camino: el estado pinta su botón, el ref lo
+  // decide sin esperar al siguiente render (dos toques en el mismo cuadro).
+  const [ocupadas, setOcupadas] = useState<ReadonlySet<string>>(() => new Set());
+  const ocupadasAhora = useRef<Set<string>>(new Set());
+  // Cuántos toques van. Una lectura que EMPEZÓ antes del último no sabe de él: si llega
+  // después, se descarta en vez de devolver la tarjeta a la columna de la que ya salió.
+  const toques = useRef(0);
   const esTelefono = useEsTelefono();
 
   // `ahora` nace en 0 y no en Date.now(): un reloj sembrado en el servidor es un
@@ -200,9 +224,10 @@ export function Cocina({ filasIniciales }: CocinaProps) {
     const refrescar = (): void => {
       setAhora(Date.now());
       if (filasIniciales !== undefined || enVuelo.current > 0) return;
+      const toquesAlLeer = toques.current;
       consultarPuente<ComandaDeCocina>('PedidoPreparacion', { limite: 120 })
         .then((filas) => {
-          if (!vivo) return;
+          if (!vivo || toquesAlLeer !== toques.current) return;
           setComandas(filas);
           setError(null);
         })
@@ -231,6 +256,12 @@ export function Cocina({ filasIniciales }: CocinaProps) {
   );
 
   const avanzar = useCallback(async (comanda: ComandaDeCocina, destino: EstadoDestino) => {
+    // Un toque a la vez por comanda: el botón ya está en «guardando», y esto cubre
+    // dos toques que caen antes de que React lo pinte.
+    if (ocupadasAhora.current.has(comanda.id)) return;
+    ocupadasAhora.current.add(comanda.id);
+    setOcupadas(new Set(ocupadasAhora.current));
+    toques.current += 1;
     // Pinta primero: un toque que tarda medio segundo en verse se repite, y un
     // toque repetido en cocina es un plato que sale dos veces.
     const mover = (estado: string) => (previas: readonly ComandaDeCocina[] | null) =>
@@ -246,6 +277,8 @@ export function Cocina({ filasIniciales }: CocinaProps) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo mover la comanda.');
     } finally {
       enVuelo.current -= 1;
+      ocupadasAhora.current.delete(comanda.id);
+      setOcupadas(new Set(ocupadasAhora.current));
     }
   }, []);
 
@@ -273,7 +306,14 @@ export function Cocina({ filasIniciales }: CocinaProps) {
   }
 
   const columnas = grupos.map(({ col, filas }) => (
-    <Columna key={col.estado} col={col} filas={filas} ahora={ahora} onAvanzar={avanzar} />
+    <Columna
+      key={col.estado}
+      col={col}
+      filas={filas}
+      ahora={ahora}
+      ocupadas={ocupadas}
+      onAvanzar={avanzar}
+    />
   ));
 
   return (
@@ -356,10 +396,12 @@ interface ColumnaProps {
   readonly col: Col;
   readonly filas: readonly ComandaDeCocina[];
   readonly ahora: number;
+  /** Las comandas con un toque todavía en camino: su botón no admite otro. */
+  readonly ocupadas: ReadonlySet<string>;
   readonly onAvanzar: (comanda: ComandaDeCocina, destino: EstadoDestino) => Promise<void>;
 }
 
-function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
+function Columna({ col, filas, ahora, ocupadas, onAvanzar }: ColumnaProps) {
   return (
     <Superficie
       como="section"
@@ -384,6 +426,7 @@ function Columna({ col, filas, ahora, onAvanzar }: ColumnaProps) {
             col={col}
             comanda={comanda}
             ahora={ahora}
+            ocupada={ocupadas.has(comanda.id)}
             onAvanzar={onAvanzar}
           />
         ))}
@@ -396,6 +439,7 @@ interface TarjetaProps {
   readonly col: Col;
   readonly comanda: ComandaDeCocina;
   readonly ahora: number;
+  readonly ocupada: boolean;
   readonly onAvanzar: ColumnaProps['onAvanzar'];
 }
 
@@ -404,7 +448,7 @@ interface TarjetaProps {
  * alineada en su propia columna —se cuentan platos, no se leen frases—, la
  * alergia en rojo y el botón que la mueve, a todo lo ancho.
  */
-function Tarjeta({ col, comanda, ahora, onAvanzar }: TarjetaProps) {
+function Tarjeta({ col, comanda, ahora, ocupada, onAvanzar }: TarjetaProps) {
   const mesa = comanda.mesa_numero === null ? 'Para llevar' : `Mesa ${comanda.mesa_numero}`;
   const titulo = `comanda-${comanda.id}`;
   return (
@@ -425,7 +469,7 @@ function Tarjeta({ col, comanda, ahora, onAvanzar }: TarjetaProps) {
         </span>
       </div>
       <ul className="flex flex-col gap-(--espacio-1) text-base xl:text-lg">
-        {comanda.items.map((item) => (
+        {platillosPorPreparar(comanda.items).map((item) => (
           <li key={item.id} className="grid grid-cols-[3ch_minmax(0,1fr)] gap-x-(--espacio-2)">
             <span className="text-right font-numeros font-bold tabular-nums">
               {item.cantidad ?? 1}
@@ -459,6 +503,7 @@ function Tarjeta({ col, comanda, ahora, onAvanzar }: TarjetaProps) {
         className="mt-(--espacio-1) w-full"
         variant={col.destino === 'entregado' ? 'outline' : 'default'}
         aria-label={`${col.accion} — ${mesa}`}
+        cargando={ocupada}
         onClick={() => {
           void onAvanzar(comanda, col.destino);
         }}
