@@ -5,6 +5,7 @@ import {
   navegacionDePlantilla,
   PLANTILLAS,
 } from '@morphiqpos/contracts';
+import { NAV_ITEMS } from './permissions';
 
 // Helper central para el sistema de paquetes de MH Astral Systems POS.
 // No oculta módulos por sí mismo: solo provee constantes y funciones puras
@@ -398,7 +399,24 @@ export { INICIO_POR_PLANTILLA, navegacionDePlantilla, PLANTILLAS };
  * responden en ese orden.
  */
 export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
-  const entradas = navegacionDePlantilla(normalizarPlantilla(paqueteModo));
+  const plantilla = normalizarPlantilla(paqueteModo);
+  let entradas = navegacionDePlantilla(plantilla);
+  // El restaurante conserva el recorrido completo que ya usaba el negocio.
+  // Las pantallas nuevas siguen disponibles, después de las de operación.
+  if (plantilla === 'restaurante') {
+    const anteriores = NAV_ITEMS.filter((item) => isRouteAllowed(item.path, plantilla)).map((item) => ({
+      ruta: item.path,
+      etiqueta: item.path === '/mesero' ? 'Mesas y pedidos' : item.label,
+      icono: item.icon,
+      permiso: item.permission,
+      modulo: ROUTE_TO_MODULE[item.path],
+      entidad: ['/mesero', '/cocina'].includes(item.path) ? undefined : item.entidad,
+    }));
+    const vistas = new Set(anteriores.map((item) => item.ruta));
+    entradas = ['dueno', 'administrador'].includes(rol)
+      ? [...anteriores, ...entradas.filter((item) => !vistas.has(item.ruta))]
+      : anteriores;
+  }
   if (typeof tienePermiso !== 'function') return entradas;
   return entradas.filter((entrada) => tienePermiso(rol, entrada.permiso));
 }
@@ -413,13 +431,14 @@ export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
  * pantalla que abre cuarenta veces al día.
  *
  * Se abre en la PRIMERA entrada del menú que esta persona puede tocar, y el
- * orden del menú es el del día de trabajo de su giro. Así el dueño de un
- * restaurante cae en el mapa de mesas, su cocinero en la cocina y su cajero en
- * el cobro, sin una segunda tabla que se quede atrás.
+ * orden del menú es el del día de trabajo de su giro. El dueño abre su dashboard cuando está permitido; el
+ * mesero abre mesas, el cocinero cocina y el cajero cobro. El menú sigue siendo
+ * la fuente de las rutas de operación, sin una segunda tabla que diverja.
  */
 export function inicioDeLaSesion(rol, paqueteModo, tienePermiso) {
   const plantilla = normalizarPlantilla(paqueteModo);
   const suyas = navegacionParaRolYPlantilla(rol, plantilla, tienePermiso);
+  if (suyas.some((entrada) => entrada.ruta === '/' && entrada.permiso === 'ver_dashboard')) return '/';
   return suyas[0]?.ruta ?? INICIO_POR_PLANTILLA[plantilla] ?? '/';
 }
 

@@ -15,3 +15,4 @@ export {
 } from './resolver.ts';
 
 export { cerrarSesion } from './cerrar.ts';
+export { destinosDePresentacion } from './permisos-presentacion.ts';

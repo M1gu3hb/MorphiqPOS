@@ -471,6 +471,57 @@
       "archivo": "apps/web/heredado/lib/PageNotFound.jsx",
       "borrado": true,
       "porque": "Bloque D de la 2.4 · era el 404 de la plataforma anterior, en ingles (\"Page Not Found\", \"Go Home\") y con una \"Admin Note\" que decia que \"la IA todavia no implemento esta pagina\" y que se pidiera \"en el chat\". Lo sustituye apps/web/app/not-found.tsx, en espanol, con el sistema de diseno y un 404 de verdad sin indexar. Miguel no lo vera menos: nunca debio verlo."
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Solicitud explícita de Miguel del 19 de octubre de 2026: los ocho estilos deben poder cambiarse desde una pestaña visible de Apariencia, sin quedar escondidos tras el candado de presentación. Se conserva toda la configuración anterior.",
+      "testigos": ["+ texto:Apariencia"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/POSLogin.jsx",
+      "porque": "A-52 / D-42: Miguel pidió acceso central del Master POS. Se agrega un selector visible de equipo general y puestos de demostración, conservando el teclado y las tarjetas originales. La URL por negocio deja de ser obligatoria. Son únicamente los testigos deliberados del selector, no una exención de toda la pantalla. El aviso pide seleccionar la cuenta antes del PIN; la única cuenta general se preselecciona sin cambiar la autenticación en servidor.",
+      "testigos": [
+        "+ clase:flex",
+        "+ clase:flex-col",
+        "+ clase:mb-4",
+        "+ clase:text-primario-texto",
+        "+ clase:text-primario-texto/60",
+        "+ clase:text-sm",
+        "+ clase:border",
+        "+ clase:text-xs",
+        "+ clase:gap-2",
+        "+ clase:rounded-lg",
+        "+ clase:border-primario-texto/20",
+        "+ clase:bg-sidebar",
+        "+ clase:text-sidebar-foreground",
+        "+ clase:p-3",
+        "+ texto:Elige tu acceso",
+        "+ texto:Equipo Morphiq · dueño general",
+        "+ texto:Entra como dueño general para recorrer todos los modelos, o elige una demostración para probar sus puestos.",
+        "- texto:Toca tu nombre o escribe directamente tu PIN · Enter para entrar",
+        "+ texto:Selecciona tu nombre e ingresa tu PIN"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/common/Sidebar.jsx",
+      "porque": "Recuperación de UX solicitada por Miguel: las pantallas adicionales del restaurante permanecen accesibles mediante un control desplegable en vez de duplicar todos los destinos principales en el menú. El dueño general mantiene su acceso a Modelos de negocio en todos los giros. Se conserva cada ruta autorizada y la navegación de los empleados.",
+      "testigos": [
+        "+ clase:flex",
+        "+ clase:items-center",
+        "+ clase:gap-3",
+        "+ clase:px-3",
+        "+ clase:shrink-0",
+        "+ clase:w-5",
+        "+ clase:h-5",
+        "+ clase:text-sm",
+        "+ clase:hover:text-sidebar-foreground",
+        "+ clase:hover:bg-sidebar-accent",
+        "+ clase:py-2.5",
+        "+ clase:rounded-lg",
+        "+ clase:text-sidebar-foreground/70",
+        "+ label:Vistas adicionales de restaurante",
+        "+ aria-label:Vistas adicionales de restaurante"
+      ]
     }
   ]
 }

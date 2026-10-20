@@ -40,7 +40,9 @@ import {
 } from 'lucide-react';
 import IntegracionesRespaldos from '@/components/configuracion/IntegracionesRespaldos';
 import DatosSection from '@/components/datos/DatosSection';
-import ModoPresentacion from '@/components/configuracion/ModoPresentacion';
+import { PresentacionDelDueno } from '~/configuracion/PresentacionDelDueno';
+import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
+import { useLocation } from '@/enrutado';
 import { canAccessModule } from '@/lib/packageConfig';
 import ReiniciarSistemaSection from '@/components/configuracion/ReiniciarSistemaSection';
 import CategoriasProductoSection from '@/components/configuracion/CategoriasProductoSection';
@@ -71,6 +73,7 @@ const useIsMobile = () => {
 };
 
 export default function Configuracion() {
+  const location = useLocation();
   const queryClient = useQueryClient();
   const { posUser } = usePOSAuth();
   const { paquete_modo } = useConfig();
@@ -443,12 +446,13 @@ export default function Configuracion() {
     <div className="space-y-6">
       <PageHeader title="Configuración" description="Ajustes del sistema MH Astral Systems" />
 
-      <Tabs defaultValue="identidad">
+      <Tabs defaultValue={new URLSearchParams(location.search).get('tab') || 'identidad'}>
         <TabsList className="mb-4 flex-wrap h-auto">
           <TabsTrigger value="identidad">
             <Palette className="w-3 h-3 mr-1" />
             Identidad
           </TabsTrigger>
+          <TabsTrigger value="apariencia">Apariencia</TabsTrigger>
           <TabsTrigger value="negocio">
             <Settings className="w-3 h-3 mr-1" />
             Operación
@@ -491,6 +495,10 @@ export default function Configuracion() {
 
         <TabsContent value="identidad">
           <IdentidadNegocio cfg={cfg} />
+        </TabsContent>
+
+        <TabsContent value="apariencia">
+          <SelectorDeApariencia />
         </TabsContent>
 
         <TabsContent value="negocio">
@@ -890,7 +898,7 @@ export default function Configuracion() {
 
         {posUser?.rol === 'administrador' && (
           <TabsContent value="presentacion">
-            <ModoPresentacion cfg={cfg} />
+            <PresentacionDelDueno cfg={cfg} />
           </TabsContent>
         )}
 

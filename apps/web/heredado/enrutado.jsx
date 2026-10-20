@@ -26,7 +26,7 @@ import {
   useRouter,
   useSearchParams,
 } from 'next/navigation';
-import { useEffect, useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 export { useParamsNext as useParams };
 
@@ -60,7 +60,7 @@ export function useLocation() {
  */
 export function useNavigate() {
   const router = useRouter();
-  return (destino, opciones) => {
+  return useCallback((destino, opciones) => {
     if (typeof destino === 'number') {
       if (destino < 0) router.back();
       else router.forward();
@@ -68,7 +68,7 @@ export function useNavigate() {
     }
     if (opciones && opciones.replace) router.replace(destino);
     else router.push(destino);
-  };
+  }, [router]);
 }
 
 /**

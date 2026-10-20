@@ -5,6 +5,15 @@ cambiar de aplicación —una tiendita de abarrotes, una cafetería de barra, un
 mesas, una ferretería que corta por medida y una estética con agenda— cada uno con su propio
 vocabulario, sus pantallas y su tablero.
 
+> **Actualización de Miguel · 19/20 de octubre de 2026 — A-52 / D-42.**
+> Morphiq POS es el sistema maestro interno de Miguel y su equipo: demostración
+> operativa completa y base reutilizable para proyectos independientes de clientes.
+> Acceso central por PIN, dueño general con recorrido entre modelos y usuarios de
+> demostración por puesto. Se permite extraer, copiar y adaptar módulos a otro
+> repositorio, incluyendo funciones de otros modelos y sus dependencias necesarias.
+> La antigua prohibición de fork/copia queda **superada**, no es una restricción vigente.
+> Ver [`docs/MASTER-POS-VIGENTE.md`](docs/MASTER-POS-VIGENTE.md).
+
 > **La planeación vive aquí también, desde el 8 de septiembre de 2026** (decisión A-46).
 > Código y documentación comparten repositorio: tenerlos separados era justo la causa del
 > problema de contexto que motivó el cambio.
@@ -45,9 +54,9 @@ pnpm db:up                      # Postgres 17 + almacenamiento, en contenedores
 pnpm dev                        # http://localhost:3000
 ```
 
-La aplicación abre en **`/estilos`**: el sistema de diseño en vivo. Cambia de estilo, de
-modo y de densidad desde ahí y verás la interfaz entera cambiar. En F1.1 la raíz pasa a
-ser el panel del negocio.
+La raíz abre el dashboard con sesión o el acceso central **`/login-pos`**. El dueño general
+recorre los giros desde **Modelos de negocio**; cada puesto ve su operación autorizada.
+El sistema de diseño sigue disponible en `/estilos`.
 
 ### Genera tus secretos
 
@@ -158,14 +167,9 @@ nuestra. `pnpm verify:primitivas` lo rechaza si te lo saltas.
 
 ---
 
-## Qué falta en este corte
+## Estado verificable
 
-Escrito para que nadie lo descubra a la mala:
-
-- **`pnpm db:migrate` y `db:seed` fallan a propósito**: necesitan `packages/data`, que
-  llega en F1.1. No hay ninguna migración todavía.
-- **El workflow de CI no se ha ejecutado nunca.** Este repositorio no tiene remoto
-  (decisión A-35). Cada paso invoca el mismo script que corre en local, y esos sí están
-  verificados.
-- **Las pruebas E2E emulan la tablet sobre Chromium.** El iPad real (WebKit) entra en
-  F1.4, con la pantalla de mesero.
+Las antiguas notas de F1.0 sobre ausencia de base de datos, migraciones y CI quedaron
+superadas. El estado de estabilización vive en `docs/fase-2/07-ESTADO.md`; la intervención
+de acceso y navegación y sus límites están en `docs/reports/rescate-restaurante-2026-10-19.md`.
+No se declara el restaurante certificado de punta a punta hasta completar su jornada real.

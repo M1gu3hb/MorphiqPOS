@@ -3,6 +3,8 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 
 import { api, ErrorPuente } from '@/api/cliente';
 
+/** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, paquete?: string, organizacionId?: string}} UsuarioDePOS */
+/** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
 const POSAuthContext = createContext(null);
 
 const CLAVE = 'posUser';
@@ -41,7 +43,7 @@ function leerGuardado() {
  * no mirar los que sí importan. Lo guardado de una sesión anterior se borra, como con ese 401.
  */
 export function POSAuthProvider({ children, conSesion = true }) {
-  const [posUser, setPosUser] = useState(null);
+  const [posUser, setPosUser] = useState(/** @type {UsuarioDePOS | null} */ (null));
   const [isLoading, setIsLoading] = useState(true);
   const version = useRef(0);
 
@@ -76,7 +78,7 @@ export function POSAuthProvider({ children, conSesion = true }) {
       })
       .catch((fallo) => {
         if (!vigente || version.current !== alPreguntar) return;
-        if (fallo instanceof ErrorPuente && fallo.estado === 401) {
+        if (fallo instanceof ErrorPuente && (fallo.estado === 401 || fallo.estado === 403)) {
           setPosUser(null);
           try {
             sessionStorage.removeItem(CLAVE);
@@ -104,7 +106,8 @@ export function POSAuthProvider({ children, conSesion = true }) {
     }
   };
 
-  const logout = () => {
+  const logout = async () => {
+    await api.auth.salir();
     version.current += 1;
     setPosUser(null);
     try {
@@ -112,6 +115,7 @@ export function POSAuthProvider({ children, conSesion = true }) {
     } catch {
       // Nada que borrar.
     }
+    window.location.replace('/login-pos');
   };
 
   return (

@@ -1,6 +1,7 @@
 import { ROLES } from '@morphiqpos/contracts';
 import { terminosDeLaOrganizacion } from '@morphiqpos/app/configuracion';
 import { etiquetaDeRol, etiquetaDeRolEnElGiro, rolMH } from '@morphiqpos/app/puente';
+import { destinosDePresentacion } from '@morphiqpos/app/sesion';
 
 import { responderConsulta } from '../../../../src/servidor/http';
 
@@ -29,12 +30,15 @@ export function GET(): Promise<Response> {
     async (sesion) => {
       // Es un rótulo: si la configuración no se puede leer, el genérico.
       const terminos = await terminosDeLaOrganizacion(sesion.organizacionId).catch(() => null);
+      const esDuenoGeneral =
+        sesion.presentador !== undefined || (await destinosDePresentacion(sesion)).length > 0;
       return {
         id: sesion.empleoId,
         nombre: sesion.nombrePersona,
         rol: rolMH(sesion.rol) ?? sesion.rol,
-        etiqueta:
-          terminos === null
+        etiqueta: esDuenoGeneral
+          ? 'Dueño general'
+          : terminos === null
             ? etiquetaDeRol(sesion.rol)
             : etiquetaDeRolEnElGiro(sesion.rol, terminos.giro, terminos.personalizado),
         activo: true,
@@ -43,6 +47,7 @@ export function GET(): Promise<Response> {
         nombreNegocio: sesion.nombreNegocio,
         nombreSucursal: sesion.nombreSucursal,
         tieneTerminal: sesion.terminalId !== null,
+        esDuenoGeneral,
       };
     },
     { roles: ROLES },

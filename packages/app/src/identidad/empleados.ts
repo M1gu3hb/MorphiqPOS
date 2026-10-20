@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { FORMA_PIN, hashearPin } from './pin.ts';
+import { protegerDuenoGeneral } from './proteger-dueno-general.ts';
 
 /**
  * `identidad.guardar_empleado` — dar de alta y editar a la plantilla.
@@ -156,6 +157,8 @@ export const guardarEmpleado = definirComando<
   },
   entrada: entradaGuardarEmpleado,
   async ejecutar(ctx, entrada) {
+    if (entrada.empleado !== undefined)
+      await protegerDuenoGeneral(ctx.tx, ctx.ambito, entrada.empleado);
     const { organizacionId, sucursalId, rol: rolDeQuienManda, empleoId: yo } = ctx.ambito;
 
     const rolPedido = DESDE_SU_VOCABULARIO[entrada.puesto.toLowerCase()];

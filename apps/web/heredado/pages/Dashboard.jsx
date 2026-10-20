@@ -36,6 +36,7 @@ import PropinasDashboardSection from '@/components/propinas/PropinasDashboardSec
 import { tipsEnabled } from '@/utils/tipsUtils';
 import LoadingState from '@/components/common/LoadingState';
 import PrimerosPasosCard from '@/components/dashboard/PrimerosPasosCard';
+import { AccesosDelDueno } from '~/restaurante/AccesosDelDueno';
 
 /**
  * Un negocio de mostrador: cobra en Caja, sin mesas de por medio.
@@ -272,6 +273,8 @@ export default function Dashboard() {
           </div>
         }
       />
+
+      <AccesosDelDueno />
 
       {/* Card informativa de Primeros pasos — solo aparece si quedan pasos
           pendientes, el admin no la ha ocultado y los queries terminaron su

@@ -12,8 +12,11 @@ El valor de Morphiq es entregar algo que parezca construido específicamente par
 **R2 — Personalizar debe ser barato para nosotros.**
 Toda petición se resuelve en el nivel más bajo posible: configuración → composición → extensión → núcleo. Si el Nivel 4 se usa seguido, el modelo de capacidades está mal diseñado.
 
-**R3 — El fork está prohibido.**
-Un proyecto de cliente **declara dependencias, nunca copia código**. La primera vez que se forkee, MorphiqPOS deja de existir y vuelven a ser N sistemas sueltos.
+**R3 — El Master POS sirve de base para proyectos independientes (A-52).**
+Se permite extraer, copiar y adaptar capacidades a un repositorio nuevo por cliente, con
+sus contratos, migraciones, permisos y pruebas. Se pueden combinar piezas de otros modelos.
+No se copian credenciales ni datos de otros clientes. La prohibición anterior queda superada;
+los paquetes versionados son una opción técnica, no una limitante comercial.
 
 **R4 — Cada corte debe agregar un capítulo al guion de demostración**, o ser cimentación obligatoria de algo que sí lo hace.
 

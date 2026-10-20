@@ -169,7 +169,7 @@ interface TerminalDeLaSesion {
  * puede ver gestión desde su teléfono y no puede abrir caja. Esa distinción es
  * la que hace que el arqueo signifique algo, y no se toca.
  */
-async function resolverTerminal(
+export async function resolverTerminal(
   peticion: PeticionEntrar,
   sucursalId: string | null,
   ahora: Date,

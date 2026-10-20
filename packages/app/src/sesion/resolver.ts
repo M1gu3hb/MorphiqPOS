@@ -4,6 +4,7 @@ import { esRol, plantillaDeOrganizacion, type Ambito, type Paquete } from '@morp
 import { obtenerDb, repoSesion } from '@morphiqpos/data';
 
 import { verificarSesion, type Verificacion } from './token.ts';
+import { autorizaPresentacion } from './permisos-presentacion.ts';
 
 /**
  * De una cookie a un `Ambito` — el puente que faltaba (F1.1-X-01).
@@ -73,6 +74,22 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
   // El rol es `text` con `check` en la base, así que el tipo generado dice
   // `string`. Se estrecha en vez de aseverar: un rol desconocido no autoriza.
   if (!esRol(fila.rol)) return { ok: false, motivo: 'revocada' };
+  // Un contexto de demo depende de la sesión Y del permiso del dueño original.
+  // Revocar cualquiera de los dos cierra también los contextos que abrió.
+  const origen = verificado.carga.presentador;
+  let duenoGeneral = null;
+  if (origen !== undefined) {
+    if (!(await repoSesion.sesionActiva(db, origen.sid, origen.empleoId)))
+      return { ok: false, motivo: 'revocada' };
+    duenoGeneral = await repoSesion.resolverAmbito(db, origen.identidadId, origen.empleoId);
+    if (duenoGeneral === null || !(await autorizaPresentacion(duenoGeneral, fila)))
+      return { ok: false, motivo: 'revocada' };
+    if (
+      origen.terminalId !== null &&
+      (await repoSesion.terminalActiva(db, origen.terminalId, duenoGeneral.organizacionId)) === null
+    )
+      return { ok: false, motivo: 'revocada' };
+  }
 
   // El paquete NO se estrecha: se NORMALIZA.
   //
@@ -109,6 +126,9 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
     identidadId: fila.identidadId,
     empleoId: fila.empleoId,
     rol: fila.rol,
+    ...(origen === undefined
+      ? {}
+      : { presentador: { empleoId: origen.empleoId, identidadId: origen.identidadId } }),
   };
 
   return {
@@ -117,7 +137,7 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
     sesion: {
       ...ambito,
       paquete,
-      nombrePersona: fila.nombrePersona,
+      nombrePersona: duenoGeneral?.nombrePersona ?? fila.nombrePersona,
       nombreNegocio: fila.nombreNegocio,
       nombreSucursal: fila.nombreSucursal,
     },

@@ -201,6 +201,11 @@ export function paquetePermitidoParaGiro(paquete: Paquete, giro: Giro): boolean 
  * hace que no pueda operar caja: abrir una sesión de caja exige terminal.
  */
 export interface Ambito {
+  /** Actor original cuando opera una demostración autorizada en otro negocio. */
+  readonly presentador?: {
+    readonly empleoId: string;
+    readonly identidadId: string;
+  };
   readonly organizacionId: string;
   readonly sucursalId: string | null;
   readonly terminalId: string | null;

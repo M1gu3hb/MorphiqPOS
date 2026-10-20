@@ -5,7 +5,7 @@ import { slugDeLaRutaDeEntrada, slugValido } from '@morphiqpos/app/entrada';
  *
  * `/n/<slug>/login-pos` es la entrada de UN negocio; las pantallas de PIN de los
  * modelos aceptan además `?negocio=<slug>`. Sin ninguna de las dos no se nombra
- * negocio y decide el servidor —el único que sirve, o el que esta caja recuerda—.
+ * negocio: el servidor ofrece el acceso central del maestro (A-52 / D-42).
  *
  * Es una PISTA, no una autorización: el servidor vuelve a comprobar que el despliegue
  * sirve ese negocio, y si no, contesta 404 igual que si no existiera.

@@ -103,7 +103,12 @@ export const PUBLICOS = [
  * `presentacion_password` se compara en el servidor contra un hash (E10-3). Que
  * hoy viaje en texto plano al navegador es el defecto D-19.
  */
-const NUNCA_SALEN = new Set(['presentacion_password', 'presentacion_password_hash']);
+const NUNCA_SALEN = new Set([
+  'presentacion_password',
+  'presentacion_password_hash',
+  'presentacion_dueno_empleo',
+  'presentacion_destinos',
+]);
 
 /**
  * Campos que NO se escriben por el camino genérico, aunque salgan al leer.

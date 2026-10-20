@@ -45,7 +45,7 @@ export const PERMISSIONS = {
 
 export function hasPermission(role, permission) {
   if (!role || !PERMISSIONS[permission]) return false;
-  return PERMISSIONS[permission].includes(role);
+  return PERMISSIONS[permission].includes(role === 'dueno' ? ROLES.ADMIN : role);
 }
 
 /**

@@ -1,16 +1,8 @@
 import { beforeAll, beforeEach, describe, expect, it, vi } from 'vitest';
 
-/**
- * LA ENTRADA ES DE UN NEGOCIO (bloque A de la 2.4), probada sobre la RUTA de verdad.
- *
- * Producción servía a Restaurante MH y a las cinco demos en el mismo despliegue, y
- * `/api/auth/empleados` —sin sesión— devolvía a la gente de los seis mezclada. Esto
- * llama al `GET` de la ruta con la base sustituida y afirma lo que ve quien abre la
- * dirección: sin negocio, nadie; con uno, sólo su gente; con uno que no se sirve, la
- * misma 404 que con uno que no existe.
- *
- * Se vio en ROJO contra la ruta de `main` (la que mezclaba): el primer caso recibe 200
- * con las personas de los dos negocios.
+/** Contrato del acceso central del Master POS y de sus enlaces acotados opcionales.
+ * D-42 supera la obligación de entrar por negocio. Los contextos siguen viniendo
+ * de la lista del servidor; un enlace explícito nunca amplía esa lista.
  */
 
 const MH = {
@@ -69,6 +61,11 @@ vi.mock('@morphiqpos/app/identidad', async (original) => ({
   organizacionDelDispositivo: () => Promise.resolve(terminalDe),
 }));
 
+vi.mock('@morphiqpos/app/sesion', () => ({
+  destinosDePresentacion: (dueno: { empleoId: string }) =>
+    Promise.resolve(dueno.empleoId === 'e-ti-1' ? [{ empleoId: 'otro' }] : []),
+}));
+
 vi.mock('@morphiqpos/app/configuracion', async (original) => ({
   ...(await original<typeof import('@morphiqpos/app/configuracion')>()),
   terminosDeLaOrganizacion: (organizacionId: string) =>
@@ -85,6 +82,7 @@ interface Cuerpo {
     readonly usuarios?: readonly {
       readonly nombre: string;
       readonly etiqueta: string;
+      readonly esDuenoGeneral?: boolean;
       readonly negocioSlug?: string;
     }[];
   };
@@ -127,11 +125,20 @@ beforeEach(() => {
 });
 
 describe('/api/auth/empleados en un despliegue de varios negocios', () => {
-  it('sin negocio no enseña a NADIE: 404 y ni un nombre en la respuesta', async () => {
-    const { estado, texto } = await pedir();
-    expect(estado).toBe(404);
-    for (const nombre of ['Lupita', 'Demo', 'Karla', 'Restaurante MH', 'mh-restaurante']) {
-      expect(texto).not.toContain(nombre);
+  it('el acceso central ofrece los modelos servidos y reconoce al dueño general', async () => {
+    const { estado, cuerpo, texto } = await pedir();
+    expect(estado).toBe(200);
+    expect(cuerpo.datos?.negocios?.map((n) => n.slug)).toEqual([
+      MH.slug,
+      TIENDA.slug,
+      ESTETICA.slug,
+    ]);
+    expect(cuerpo.datos?.usuarios?.map((u) => u.nombre)).toEqual(['Lupita', 'Demo', 'Karla']);
+    const general = cuerpo.datos?.usuarios?.find((u) => u.esDuenoGeneral);
+    expect(general?.nombre).toBe('Demo');
+    expect(general?.etiqueta).toBe('Dueño general');
+    for (const secreto of ['pin_hash', 'presentacion_destinos', 'presentacion_dueno_empleo']) {
+      expect(texto).not.toContain(secreto);
     }
   });
 
@@ -160,19 +167,23 @@ describe('/api/auth/empleados en un despliegue de varios negocios', () => {
     expect((await pedir('?negocio=demo-acople-estetica')).estado).toBe(404);
   });
 
-  it('recuerda la entrada con una cookie, y la cookie sola vuelve a abrir SÓLO esa', async () => {
+  it('una cookie recordada no encierra el acceso central en el último modelo', async () => {
     const primera = await pedir('?negocio=demo-acople-estetica');
     expect(primera.cookies.join(';')).toContain('morphiqpos_entrada=demo-acople-estetica');
     const vuelta = await pedir('', 'morphiqpos_entrada=demo-acople-estetica');
     expect(vuelta.estado).toBe(200);
-    expect(vuelta.cuerpo.datos?.usuarios?.map((u) => u.nombre)).toEqual(['Karla']);
+    expect(vuelta.cuerpo.datos?.usuarios?.map((u) => u.nombre)).toEqual([
+      'Lupita',
+      'Demo',
+      'Karla',
+    ]);
   });
 
-  it('la caja de un negocio (su terminal) abre la entrada de ese negocio y de ninguno más', async () => {
+  it('la terminal anterior tampoco oculta los otros modelos en la entrada central', async () => {
     terminalDe = MH.organizacionId;
     const { estado, cuerpo } = await pedir('', 'morphiqpos_dispositivo=token-de-la-caja');
     expect(estado).toBe(200);
-    expect(cuerpo.datos?.usuarios?.map((u) => u.nombre)).toEqual(['Lupita']);
+    expect(cuerpo.datos?.usuarios?.map((u) => u.nombre)).toEqual(['Lupita', 'Demo', 'Karla']);
   });
 
   it('rotula el rol con el vocabulario del giro: la estilista no es «Mesero» (A.8)', async () => {

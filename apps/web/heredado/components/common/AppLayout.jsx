@@ -21,7 +21,7 @@ import { useRouteCleanup } from '@/lib/useRouteCleanup';
  */
 export default function AppLayout({ marco = 'interno' }) {
   const deModelo = marco === 'modelo';
-  const [collapsed, setCollapsed] = useState(deModelo);
+  const [collapsed, setCollapsed] = useState(false);
   const { posUser, isLoading } = usePOSAuth();
   const navigate = useNavigate();
   // Libera body locks (overflow/pointer-events) si quedó algún portal pegado al cambiar de ruta.
@@ -29,7 +29,7 @@ export default function AppLayout({ marco = 'interno' }) {
 
   React.useEffect(() => {
     if (!isLoading && !posUser) {
-      navigate('/login-pos');
+      navigate('/login-pos', { replace: true });
     }
   }, [posUser, isLoading, navigate]);
 

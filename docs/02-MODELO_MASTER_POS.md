@@ -1,3 +1,8 @@
+> **Revisión vigente: A-52 / D-42 (20-oct-2026).** Este documento conserva
+> planeación histórica. Cualquier prohibición de copiar/forkear módulos queda superada:
+> Miguel autorizó proyectos independientes por cliente mediante extracción y adaptación
+> del maestro. El login del equipo es central. Ver [objetivo vigente](MASTER-POS-VIGENTE.md).
+
 # Modelo de producto — Master POS, núcleo, módulos y proyectos de cliente
 
 ---

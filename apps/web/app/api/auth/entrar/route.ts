@@ -16,6 +16,7 @@ import { z } from 'zod';
 import { cookieDeDispositivo, NOMBRE_COOKIE_DISPOSITIVO } from '~/servidor/dispositivo';
 import { cookieDeEntrada } from '~/servidor/entrada';
 import { peticionDeEscrituraValida } from '~/servidor/seguridad-http';
+import { cookieDePresentacion } from '~/servidor/cookie-presentacion';
 
 /**
  * Entrada con PIN (F1.1-A-03, revisada en T2 del port del restaurante).
@@ -180,6 +181,7 @@ export async function POST(peticion: Request): Promise<Response> {
   // una demostración eso significaría no poder entrar nunca.
   const seguro = entorno.NODE_ENV === 'production';
   const cookies = [
+    cookieDePresentacion('', seguro, 0),
     cookieDeSesion({
       token: resultado.token,
       maxEdadSegundos: resultado.maxEdadSegundos,
