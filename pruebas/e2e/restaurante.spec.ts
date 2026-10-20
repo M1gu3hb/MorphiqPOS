@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { enPesos, exigirElPdfDelCorte } from './ayudantes/corte.ts';
+import { opcionesDelProyecto, personaDe } from './ayudantes/roles.ts';
 
 import {
   abrirCajaPorLaRuta,
@@ -572,5 +573,57 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     await expect(enElEditor(numero)).toBeHidden({ timeout: 30_000 });
 
     exigirSinFallos();
+  });
+
+  /**
+   * CADA PUESTO LLEGA A SU PANTALLA, Y SIN PASAR POR OTRO MODELO (cierre del 21-10).
+   *
+   * En el preview, Toño entró con su PIN y se quedó en `/abarrotes/cobrar`. La pantalla de
+   * acceso recarga la página entera hacia la casa del puesto y, a la vez, un efecto navegaba
+   * con la configuración de la pantalla de acceso —sin sesión es la de omisión, `tienda`—: la
+   * cocina, la caja y la mesera rebotaban entre abarrotes y el mapa de mesas hasta que llegaba
+   * la recarga. En local la recarga gana casi siempre; aquí se le da la red del preview: el
+   * documento de la casa del puesto tarda 2.5 s. Sin el arreglo, los tres pasan por
+   * `/abarrotes/cobrar`.
+   */
+  test('cocina, caja y mesera llegan a su pantalla aunque la recarga tarde, sin pasar por otro modelo', async ({
+    browser,
+  }, info) => {
+    const slug = process.env['MORPHIQPOS_ORG_DEMO'] ?? 'demo-acople-restaurante';
+    for (const [rol, casa] of [
+      ['cocina', '/cocina'],
+      ['cajero', '/caja'],
+      ['mesero', '/mesero'],
+    ] as const) {
+      // Un aparato por persona, como en el restaurante: cada una entra en el suyo.
+      const contexto = await browser.newContext(opcionesDelProyecto(info));
+      const pagina = await contexto.newPage();
+      const visitas: string[] = [];
+      pagina.on('framenavigated', (marco) => {
+        if (marco === pagina.mainFrame()) visitas.push(new URL(marco.url()).pathname);
+      });
+      await pagina.route(
+        (url) => url.pathname === casa,
+        async (ruta) => {
+          if (ruta.request().resourceType() === 'document') {
+            await new Promise((listo) => setTimeout(listo, 2_500));
+          }
+          await ruta.continue();
+        },
+      );
+
+      const persona = personaDe(slug, rol);
+      await entrar(pagina, persona);
+      await expect(pagina, `${persona.nombre} (${rol}) no llegó a ${casa}`).toHaveURL(
+        new RegExp(`${casa}$`),
+        { timeout: 20_000 },
+      );
+      const ajenas = visitas.filter((ruta) => !ruta.endsWith('/login-pos') && ruta !== casa);
+      expect(
+        ajenas,
+        `${persona.nombre} (${rol}) pasó por pantallas ajenas antes de ${casa}`,
+      ).toEqual([]);
+      await contexto.close();
+    }
   });
 });

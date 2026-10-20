@@ -29,8 +29,19 @@ export default function POSLogin() {
   // Cada negocio abre donde le toca: el mapa de mesas en un restaurante, el
   // cobro en una tiendita, la agenda en una estética. Lo decide la plantilla y
   // el rol, no una tabla aparte que no conoce los modelos.
+  //
+  // Esto es para quien llega aquí CON la sesión abierta. Al teclear el PIN manda
+  // `tryLogin`, que recarga la página entera; si este efecto navegaba también, lo hacía
+  // con la configuración de la pantalla de acceso —sin sesión es la de omisión, `tienda`—
+  // y la cocina, la caja y la mesera del restaurante rebotaban entre `/abarrotes/cobrar` y
+  // el mapa de mesas mientras llegaba la recarga; con la red del preview, la cocina se
+  // quedó en abarrotes (cierre del 21-10). La plantilla es la de la sesión, del servidor.
+  const entrandoConPin = useRef(false);
   useEffect(() => {
-    if (posUser) navigate(inicioDeLaSesion(posUser.rol, config?.paquete_modo, hasPermission), { replace: true });
+    if (!posUser || entrandoConPin.current) return;
+    navigate(inicioDeLaSesion(posUser.rol, posUser.paquete ?? config?.paquete_modo, hasPermission), {
+      replace: true,
+    });
   }, [posUser, navigate, config?.paquete_modo]);
 
   // Carga la lista de usuarios activos para el panel inferior.
@@ -103,12 +114,14 @@ export default function POSLogin() {
     try {
       await api.auth.entrar({ id: quien.id, pin: pinToUse });
       const entrado = await api.auth.me();
+      entrandoConPin.current = true;
       login(entrado);
       toast.success(`Bienvenido, ${entrado.nombre}`);
       // Recarga el árbol del servidor con la cookie recién emitida; sus proveedores
       // y su configuración no deben conservar la versión anterior al PIN.
       window.location.replace(inicioDeLaSesion(entrado.rol, entrado.paquete ?? config?.paquete_modo, hasPermission));
     } catch (err) {
+      entrandoConPin.current = false;
       // El servidor ya decidió qué se puede decir: PIN incorrecto, demasiados
       // intentos, o el bloqueo con sus minutos. Aquí no se reinterpreta.
       toast.error(err?.message || 'PIN incorrecto');
