@@ -154,12 +154,13 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
         // `producto` y `linea_orden` al mismo término a propósito: lo que se vende y
         // lo que se apunta en la cuenta son la misma cosa en este giro.
         ['producto', 'Platillos'],
-        // `responsable` → «mesero/meseros». Es la entrada `/mesero`, que sólo existe
-        // porque esta plantilla incluye el módulo.
-        ['responsable', 'Meseros'],
-        // `preparacion` → «cocina/cocinas». En una cafetería la misma entrada dice
-        // «Barras», y en una tienda no existe: está APAGADA en su diccionario.
-        ['preparacion', 'Cocinas'],
+        // `responsable` y `preparacion`: desde D-42 el restaurante nombra su sala con el
+        // recorrido que Miguel presenta —«Mesas y pedidos» y «Cocina»— y no con el plural
+        // del diccionario («Meseros», «Cocinas»). Las dos entradas sólo existen porque esta
+        // plantilla incluye la sala. Otro giro con esta plantilla sí las nombra con el suyo
+        // —Café Jacaranda: «Baristas», «Barras»— (`inicio-del-restaurante.test.ts`).
+        ['responsable', 'Mesas y pedidos'],
+        ['preparacion', 'Cocina'],
       ],
       ajenos: [
         'Materiales',
@@ -178,18 +179,17 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     // nombre. Aquí se afirma lo que NO puede faltarle a esta plantilla y sí les
     // falta a las otras dos, con la ruta a la vista.
     await expect(
-      menu.getByRole('link', { name: 'Meseros', exact: true }),
+      menu.getByRole('link', { name: 'Mesas y pedidos', exact: true }),
       'La plantilla `restaurante` es la única con el bloque de sala de ' +
         '`MODULOS_POR_PLANTILLA`. Sin la entrada de mesero, esta plantilla no se ' +
         'distingue de `cafeteria`.',
     ).toHaveAttribute('href', '/mesero');
-    // «Cocinas» lleva a la pantalla DEL MODELO y no a la heredada `/cocina`. Las
-    // dos existen y las dos gobierna el módulo `cocina`; el menú ofrece una
-    // entrada por módulo y gana la del modelo. La heredada sigue respondiendo en
-    // su ruta, y es la que el menú ofrece en una plantilla que no trae la nueva.
-    await expect(menu.getByRole('link', { name: 'Cocinas', exact: true })).toHaveAttribute(
+    // «Cocina» lleva a la cocina HEREDADA, `/cocina`: desde D-42 el menú del restaurante
+    // es el recorrido que se presenta, primero sus pantallas de siempre. La del modelo,
+    // `/restaurante/cocina`, sigue respondiendo en su ruta (se abre en el punto 4).
+    await expect(menu.getByRole('link', { name: 'Cocina', exact: true })).toHaveAttribute(
       'href',
-      '/restaurante/cocina',
+      '/cocina',
     );
 
     // ── 3 · SU DASHBOARD ─────────────────────────────────────────────────
