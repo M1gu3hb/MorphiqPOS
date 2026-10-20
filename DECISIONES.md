@@ -9,7 +9,7 @@ Formato: cada decisión lleva fecha, alternativas evaluadas, elección y consecu
 
 | ID | Fecha | Decisión | Elegido | Consecuencia principal |
 |---|---|---|---|---|
-| **A-01** | 6-sep-2026 | Modelo de distribución | **Proyecto ensamblado por cliente** (monorepo con paquetes versionados) | Un proyecto de cliente **declara dependencias, nunca copia código**. El generador no se construye hasta que exista el cliente 1 |
+| **A-01** | 6-sep-2026 | Modelo de distribución | **Superada parcialmente por A-52** | Se conserva la entrega independiente por cliente; deja de regir la prohibición de copiar código. El generador sigue diferido hasta una necesidad real. |
 | **A-02** | 7-sep-2026 | Modelo de venta | **Una tabla `ordenes`** con estrategias de captura, cumplimiento y consumo de inventario | Caja, pagos, costos, clientes y reportes se escriben una vez y sirven a todos los giros. Habilita servicios, espacios, producción y e-commerce sin reescribir el núcleo |
 | **A-03** | 6-sep-2026 | Capacidad de ejecución | **Medio tiempo, solo** (~15–20 h/semana ≈ 2.25 jornadas) | Fase 0 ~4–5 semanas; Corte 0 ~8–9 semanas |
 | **A-04** | 6-sep-2026 | Sistema Base44 | **Erradicación total.** No hay nada que congelar ni migrar | Se elimina el entregable de mapa de migración de datos. Repo nuevo = cero residuos por construcción |
@@ -77,7 +77,7 @@ Formato: cada decisión lleva fecha, alternativas evaluadas, elección y consecu
 
 Extraídas de las decisiones anteriores. Si una propuesta las viola, se rechaza.
 
-1. Un proyecto de cliente **declara dependencias, nunca copia código**. El fork está prohibido.
+1. **A-52:** repositorio y proyecto independientes por cliente; se permite extraer, copiar y adaptar piezas del Master POS. No se trasladan credenciales ni datos de otros clientes.
 2. **Cero lógica de negocio** en RLS, Edge Functions o servicios propietarios. El backend debe correr en una PC del cliente.
 3. **Los precios se calculan en el servidor.** Nunca se confía en el total que manda el cliente.
 4. **Cobro, comanda, stock, caja y mesa son transaccionales e idempotentes.** O confirma todo, o no persiste nada.
@@ -103,3 +103,17 @@ Extraídas de las decisiones anteriores. Si una propuesta las viola, se rechaza.
 | 8-sep-2026 | Cowork local | **Reparto en dos carriles.** Codex entra como segundo desarrollador. Decisiones A-45 a A-48. `TEAM.md`, `18-REPARTO-DOS-CARRILES.md`, plantilla de reportes |
 | 8/9-sep-2026 | Claude Code + Codex | **Sesión 2.** Carril A: A-01 (envoltorio `comando()`), 1 de 22. Carril B: B-01 a B-05 + 2 a medias, 5 de 24. Ambos reportes honestos |
 | 9-sep-2026 | Cowork local | **Auditoría de la sesión 2.** Hallazgo central: `apps/web` no importa nada del backend — motor sin cableado. Se revisa y se descarta la mudanza a la tiendita (A-49). Decisiones A-49 a A-51. Prompts de la sesión 3 en `docs/fase-1/19` |
+
+## A-52 · 20-oct-2026 · Master POS interno y extracción por cliente
+
+Miguel aclaró expresamente el objetivo: el mismo POS completo para él y su equipo,
+login central por PIN, dueño general con acceso a todos los modelos y demostraciones
+por puesto. Los clientes reciben proyectos independientes ensamblados con piezas del
+maestro y funciones nuevas cuando hagan falta. Se permite copiar y adaptar código.
+
+Supera la restricción de A-01/R3 y cualquier texto anterior equivalente. Alternativa
+rechazada: exigir paquetes publicados como única entrega o accesos separados por URL.
+Consecuencia: cada extracción debe declarar su origen y llevar dependencias, esquema,
+permisos y pruebas; las mejoras genéricas pueden regresar al maestro mediante revisión.
+No elimina el aislamiento de datos ni los permisos en servidor. Ver D-42 y
+[objetivo vigente](docs/MASTER-POS-VIGENTE.md).

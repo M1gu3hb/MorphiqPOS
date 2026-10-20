@@ -3,8 +3,19 @@
 > **Lee este archivo completo antes de responder cualquier cosa sobre MorphiqPOS.**
 > Es la fuente de verdad del proyecto. No dependas de memoria de conversaciones: todo lo acordado vive aquí y en `DECISIONES.md`.
 
-Última actualización: 8 de septiembre de 2026
-Fase actual: **Fase 1 en ejecución. F1.0 hecha. Corte activo: F1.1 — POS que vende.**
+Última actualización: 20 de octubre de 2026
+Fase actual: **2.4 — estabilización; prioridad inmediata: restaurante, acceso y navegación del dueño.**
+
+> **Actualización de Miguel · 19/20 de octubre de 2026 — A-52 / D-42.**
+> Morphiq POS es el sistema maestro interno de Miguel y su equipo: demostración
+> operativa completa y base reutilizable para proyectos independientes de clientes.
+> Acceso central por PIN, dueño general con recorrido entre modelos y usuarios de
+> demostración por puesto. Se permite extraer, copiar y adaptar módulos a otro
+> repositorio, incluyendo funciones de otros modelos y sus dependencias necesarias.
+> La antigua prohibición de fork/copia queda **superada**, no es una restricción vigente.
+> Ver [`docs/MASTER-POS-VIGENTE.md`](docs/MASTER-POS-VIGENTE.md).
+
+
 
 > **MorphiqPOS ES UN PUNTO DE VENTA.** No una plataforma modular que algún día tendrá un POS. Se abre, se opera como POS, se cobra con él, y se le enseña a un cliente para venderlo. Con todas las funciones activas al mismo tiempo, y un **selector de paquete en configuración** que cambia el tipo de negocio (A-42).
 >
@@ -112,7 +123,7 @@ Se conserva `negocio_id` en todas las tablas. **No para SaaS** — para que Morp
 ### Identidad y permisos
 - La **terminal** se da de alta una vez y queda autorizada.
 - Los **empleados** entran y salen con **PIN de 4–6 dígitos verificado EN SERVIDOR**, con hash lento y límite de intentos. Rápido entre cliente y cliente.
-- El **dueño** entra con correo y contraseña desde su teléfono.
+- El **dueño general** entra por el login central con su cuenta y PIN, también desde su teléfono. Cambia entre modelos sin nuevas direcciones. Cada integrante del equipo tendrá su propia credencial; no se comparte una contraseña entre personas.
 - **Permisos por acción, verificados en servidor**, con pruebas negativas por rol. Ocultar botones no es autorización.
 
 ### Motor de estilos intercambiables
@@ -149,20 +160,13 @@ Sale del núcleo. Se conserva el código de la tiendita como **capacidad opciona
 
 - Monorepo con **paquetes versionados** desde el día uno: `core`, `contracts`, `capabilities/*`, `ui`, `registry`.
 - El **generador de proyectos NO se construye** hasta que exista el primer cliente real. Sin él no hay trabajo desperdiciado.
-- **Regla no negociable:** un proyecto de cliente **declara dependencias, nunca copia código.**
-
-```jsonc
-// proyectos/cliente-x/package.json
-{ "dependencies": {
-    "@morphiqpos/core":       "^1.4.0",
-    "@morphiqpos/catalogo":   "^2.1.0",
-    "@morphiqpos/ventas":     "^3.0.0",
-    "@morphiqpos/caja":       "^2.2.0",
-    "@morphiqpos/inventario": "^1.4.0"
-}}
-```
-
-Si copia archivos, es un fork, y a los dos años son ocho sistemas distintos que nadie entiende. Eso es exactamente el problema que Miguel ya sufre con tres versiones divergentes del POS de restaurante (ZIP / borrador / En vivo).
+- **Regla vigente (A-52):** cada cliente recibe un repositorio y proyecto independientes.
+  Se pueden extraer/copiar los módulos del giro, el núcleo compartido y capacidades útiles
+  de otros modelos, adaptar su interfaz y desarrollar las piezas que falten.
+- Paquetes versionados y dependencias siguen siendo herramientas disponibles, **no una
+  obligación que impida copiar código**. Deben viajar migraciones, permisos, contratos,
+  pruebas y documentación necesarios; nunca credenciales ni datos operativos de otro negocio.
+- La prohibición anterior de fork/copia se conserva en el historial y queda superada por A-52.
 
 ### Los cuatro niveles de personalización
 Toda petición de cliente se clasifica, y siempre se intenta el nivel más bajo:
@@ -173,7 +177,7 @@ Toda petición de cliente se clasifica, y siempre se intenta el nivel más bajo:
 | 2. Composición | Activar capacidades, elegir perfil de giro, layout, tema, flujos declarados | Horas | ~20 % |
 | 3. Extensión | Código del cliente en paquete aislado, sólo por puntos de extensión publicados | Días | ~9 % |
 | 4. Núcleo | La petición revela un hueco genérico; se construye para todos | Semanas | ~1 % |
-| ~~5. Fork~~ | ~~Copiar el repo~~ | — | **Prohibido** |
+| 5. Proyecto independiente | Extraer/copiar las piezas necesarias y adaptar al cliente | Según alcance | **Permitido por A-52** |
 
 Los dos ejemplos que Miguel espera oír de un cliente —"¿movemos este botón?" y "no quiero que un empleado vea esto"— son Nivel 2 y Nivel 1. **Ninguno requiere código.**
 

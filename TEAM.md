@@ -11,7 +11,7 @@
 | Quién | Papel |
 |---|---|
 | **Miguel** (`M1gu3hb`) | Dueño del producto. Dirige, decide lo comercial y lo irreversible —dominio y DNS, contratación de proveedores (PAC/CFDI), promoción a producción— y revisa. Todos los commits van a su nombre. |
-| **ChatGPT** | Conversa con Miguel, prepara los encargos y revisa las entregas junto con él. No escribe en el repositorio. |
+| **ChatGPT** | Conversa con Miguel, prepara los encargos y revisa las entregas junto con él. Normalmente no desarrolla. Miguel autorizó expresamente la intervención de recuperación del 19/20 de octubre mientras Claude Code agotó su uso; ver el reporte de rescate. |
 | **Claude Code** (la sesión de desarrollo) | Hace TODO el desarrollo y toma las decisiones técnicas necesarias para el encargo: arquitectura, código, migraciones por el proceso del repositorio, pruebas, CI, documentación y reporte. Responde por lo que entrega. |
 | Subagentes de Claude Code (Sonnet o Haiku, nunca Opus) | Encargos acotados que la sesión de desarrollo delega, revisa y se integra ella misma. No publican nada. |
 
@@ -87,7 +87,7 @@ git config user.email "118588634+M1gu3hb@users.noreply.github.com"
    sobre una base desechable y con las guardas por ID de `packages/contracts/src/negocios`.
    Que un slug empiece por `demo-` NO lo vuelve de prueba: tres negocios reales lo hacen.
 8. **Dominio y DNS los resuelve Miguel.** No se modifican.
-9. **No se promueve a producción** una versión sin aceptación completa.
+9. **No se promueve a producción** fuera de lo autorizado por Miguel. La intervención de recuperación fue solicitada expresamente; no equivale a certificar completa la fase 2.4.
 
 ---
 

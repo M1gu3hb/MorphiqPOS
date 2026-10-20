@@ -1,3 +1,10 @@
+> **Actualización 20-oct-2026:** el trabajo de la rama de estabilización hasta `167f9eb`
+> se integró a `main` en `c1ada172`; `af40953` corrigió el PIN pegado/autocompletado.
+> A-52 / D-42 aclaran el Master POS interno y la entrega independiente por cliente.
+> El acceso central y el recorrido general se corrigen en esta intervención. No se
+> certifica todavía la jornada completa de restaurante ni se da por verde todo el CI.
+> Ver [objetivo vigente](../MASTER-POS-VIGENTE.md) y [rescate](../reports/rescate-restaurante-2026-10-19.md).
+
 # 07 · ESTADO · qué está hecho y qué falta
 
 **Actualiza este archivo EN EL MISMO TURNO en que termines un modelo.**

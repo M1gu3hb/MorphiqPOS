@@ -13,9 +13,9 @@ import {
 import { NOMBRE_COOKIE_DISPOSITIVO } from './dispositivo';
 
 /**
- * DE QUÉ NEGOCIO ES ESTA ENTRADA (bloque A de la 2.4). Una sola resolución para la
- * lista de empleados, para `/login-pos` y para `/n/<slug>/login-pos`, para que las
- * tres no puedan discrepar.
+ * Resolución de un atajo acotado por negocio. Desde A-52 / D-42 el login central
+ * y su lista NO usan este resolvedor: ofrecen equipo y modelos configurados sin
+ * encerrarse en la cookie o terminal anterior. Se conserva para enlaces específicos.
  *
  * En este orden, y el orden es la regla:
  *
@@ -30,8 +30,8 @@ import { NOMBRE_COOKIE_DISPOSITIVO } from './dispositivo';
  * 4 · LA TERMINAL de este navegador: la cookie del dispositivo la da el servidor tras
  *     un PIN correcto, así que un navegador que la trae es la caja de ese negocio.
  *
- * Sin ninguna: `null`. Un despliegue de varios negocios, sin dirección, no enseña a
- * nadie.
+ * Sin ninguna: `null`. Sólo significa que no se resolvió un atajo; no bloquea
+ * el acceso central del Master POS.
  */
 export interface PeticionDeEntrada {
   readonly host: string | null;

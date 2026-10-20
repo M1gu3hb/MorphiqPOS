@@ -65,3 +65,42 @@ La CI heredada tiene pendientes ajenos a este recorrido: falta el archivo del d�
 de restaurante y hay fallos conocidos en el día completo de estética y en capturas de galería.
 Este rescate no certifica que cada función de cada modelo esté terminada ni que exista paridad
 visual exacta con la aplicación externa de Base44.
+
+## Continuación · 20 de octubre · acceso central del maestro
+
+Miguel aclaró que el enlace central debe servir a su equipo y sus demostraciones, sin
+una dirección obligatoria por negocio. A-52 / D-42 superan esa interpretación de la
+estabilización y la prohibición de extraer/copiar módulos para clientes independientes.
+
+`/login-pos` muestra el teclado y las cuentas. La lista enumera únicamente contextos
+servidos por el despliegue; distingue la concesión general de los roles de demostración.
+La interfaz abre Equipo Morphiq para que la cuenta general no se confunda con los dueños
+de cada modelo; permite escoger otra demo y su puesto sin cambiar de dirección. Cookies
+recordadas y terminal no ocultan el acceso general. Los enlaces por slug se conservan
+como atajos acotados, sin ampliar destinos ni privilegios.
+
+Se agrega `/presentacion` y un enlace del dueño general en el menú de todos los giros.
+El backend de cambio de contexto conserva las comprobaciones anteriores. No hay nuevas
+migraciones, cambios de contraseña ni eliminación/movimiento de cuentas en esta continuación.
+
+La prueba del acceso central se escribió primero: tres casos fallaron contra la ruta
+anterior (entrada inicial 404, encierro por cookie y encierro por terminal). Después de la
+corrección pasaron los ocho casos, incluyendo enlaces acotados y rechazo de slugs no servidos.
+La suite completa volvió a pasar 4,118 pruebas con 3 omisiones preexistentes, y tipos en
+los siete paquetes. Se comprobó visualmente la sesión de Miguel, Apariencia con sus ocho
+estilos y Mesas con mapa por zonas y posiciones guardadas al arrastrar. No se movieron
+mesas ni se modificaron operaciones para esta comprobación de interfaz.
+
+El encargo de continuación para Claude está en
+[CONTINUAR-CLAUDE-2026-10-20.md](CONTINUAR-CLAUDE-2026-10-20.md).
+
+El menú principal conserva «Mesas y pedidos» y «Cocina» en vez de pluralizar puestos.
+Las pantallas nuevas del restaurante se agrupan bajo Vistas adicionales, sin retirar
+rutas. Una prueba que antes recibía «Meseros» acredita la corrección de la etiqueta.
+El primer ESLint completo agotó el heap predeterminado; se ejecutó con 6 GiB de heap y
+pasó sin errores, conservando las mismas reglas.
+
+La verificación final de esta continuación pasó 4,119 pruebas (3 omitidas preexistentes),
+tipos de los siete paquetes, ESLint y la comparación del aspecto con los cambios de UX
+explícitos registrados. La comprobación de enlaces encontró 86 pantallas servidas y
+66 enlaces válidos, sin enlaces interpolados.

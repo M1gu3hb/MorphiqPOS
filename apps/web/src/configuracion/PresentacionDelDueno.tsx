@@ -98,8 +98,8 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
       <CardHeader>
         <CardTitle>Presentación de Morphiq</CardTitle>
         <p className="text-sm text-texto-sutil">
-          Tu acceso de dueño general permite recorrer los modelos. Cada negocio conserva sus propios
-          datos.
+          Tu sistema maestro reúne los modelos de negocio. Cambia de demostración para presentar su
+          operación completa con sus propios datos.
         </p>
       </CardHeader>
       <CardContent className="space-y-4">

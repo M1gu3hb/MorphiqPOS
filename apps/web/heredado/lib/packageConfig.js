@@ -410,7 +410,7 @@ export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
       icono: item.icon,
       permiso: item.permission,
       modulo: ROUTE_TO_MODULE[item.path],
-      entidad: item.entidad,
+      entidad: ['/mesero', '/cocina'].includes(item.path) ? undefined : item.entidad,
     }));
     const vistas = new Set(anteriores.map((item) => item.ruta));
     entradas = ['dueno', 'administrador'].includes(rol)
@@ -431,9 +431,9 @@ export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
  * pantalla que abre cuarenta veces al día.
  *
  * Se abre en la PRIMERA entrada del menú que esta persona puede tocar, y el
- * orden del menú es el del día de trabajo de su giro. Así el dueño de un
- * restaurante cae en el mapa de mesas, su cocinero en la cocina y su cajero en
- * el cobro, sin una segunda tabla que se quede atrás.
+ * orden del menú es el del día de trabajo de su giro. El dueño abre su dashboard cuando está permitido; el
+ * mesero abre mesas, el cocinero cocina y el cajero cobro. El menú sigue siendo
+ * la fuente de las rutas de operación, sin una segunda tabla que diverja.
  */
 export function inicioDeLaSesion(rol, paqueteModo, tienePermiso) {
   const plantilla = normalizarPlantilla(paqueteModo);

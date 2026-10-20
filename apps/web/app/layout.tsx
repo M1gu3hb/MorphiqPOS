@@ -65,8 +65,8 @@ async function aparienciaDelDespliegue(
 }
 
 export const metadata: Metadata = {
-  title: 'MH Astral POS',
-  description: 'Punto de venta de restaurante.',
+  title: 'Morphiq POS',
+  description: 'Sistema maestro de puntos de venta de Morphiq.',
   icons: { icon: '/icono.svg' },
 };
 

@@ -950,3 +950,28 @@ Dejó de ser una decisión pendiente cuando la Fase 2 se partió en etapas: los 
 
 **P-04 · ¿Qué pasa con los clientes que ya operan cuando cambie la plantilla?** — **CERRADA: resuelta por D-12**
 D-12 lo resolvió: el renombre de plantillas se migra POR GIRO, con migración probada y no con un `update` a mano. Y desde la 2.4 ninguna operación de prueba, siembra o reseteo puede tocar un negocio real (`packages/contracts/src/negocios`, D-15).
+
+## D-42 · 20-10-2026 · Entrada central y sistema maestro de Miguel
+
+**Decisión del dueño del producto (A-52).** Morphiq POS es una herramienta interna de
+presentación y una base de desarrollo reutilizable, no un SaaS por cliente. `/login-pos`
+abre siempre el login. Su API ofrece sólo los contextos configurados en el servidor,
+agrupados en la interfaz entre equipo general y puestos de demostración. La cookie del
+último modelo no oculta los demás al salir. Los enlaces por slug siguen como atajos
+compatibles, nunca como requisito. Se conservan PIN en servidor, cuotas y sesiones acotadas.
+
+El dueño general tiene un enlace permanente a Modelos de negocio en todos los giros;
+el cambio usa la concesión explícita y la sesión revocable de presentación. No convierte
+a cualquier administrador de un modelo en dueño general. Las cuentas futuras del equipo
+se aprovisionan individualmente, sin inventar integrantes ni compartir credenciales.
+
+Entrega a clientes: repositorio/proyecto independiente, extracción/copia/adaptación de
+piezas del maestro con sus dependencias. Se supera la prohibición histórica de fork y
+la obligación de depender exclusivamente de paquetes versionados. No se mezclan los
+datos ni se extraen secretos. No se requiere construir ahora un generador de proyectos.
+
+**Alternativas:** conservar la dirección obligatoria rompe el showroom; quitar el ámbito
+de datos mezcla cajas/stock y no es necesario. Se elige una entrada común y contextos
+operativos separados. La mutación de las tres pruebas del acceso central falló contra la
+ruta anterior (404 inicial y encierro por cookie/terminal); los enlaces acotados conservan
+sus pruebas de rechazo para slugs no servidos.

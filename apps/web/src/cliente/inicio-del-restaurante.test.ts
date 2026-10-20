@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { hasPermission } from '../../heredado/lib/permissions.js';
+import { etiquetaDeNavegacion, hasPermission } from '../../heredado/lib/permissions.js';
 import { inicioDeLaSesion, navegacionParaRolYPlantilla } from './package-config.ts';
 
 describe('restaurante: entrada y menú de cada puesto', () => {
@@ -24,6 +24,22 @@ describe('restaurante: entrada y menú de cada puesto', () => {
       expect(new Set(rutas).size).toBe(rutas.length);
     },
   );
+  it('las entradas de operación conservan nombres de pantallas, no plurales de puestos', () => {
+    const menu = navegacionParaRolYPlantilla('administrador', 'restaurante', hasPermission);
+    const vocabulario = {
+      plural: (entidad: string) => (entidad === 'responsable' ? 'meseros' : 'cocinas'),
+    };
+    for (const [ruta, etiqueta] of [
+      ['/mesero', 'Mesas y pedidos'],
+      ['/cocina', 'Cocina'],
+    ]) {
+      const entrada = menu.find((n: { ruta: string }) => n.ruta === ruta);
+      expect(entrada).toBeDefined();
+      expect(
+        etiquetaDeNavegacion({ label: entrada?.etiqueta, entidad: entrada?.entidad }, vocabulario),
+      ).toBe(etiqueta);
+    }
+  });
   it.each([
     ['mesero', '/mesero'],
     ['cocina', '/cocina'],

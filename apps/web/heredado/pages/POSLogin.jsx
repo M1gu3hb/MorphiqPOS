@@ -20,6 +20,7 @@ export default function POSLogin() {
   const [usuariosCargando, setUsuariosCargando] = useState(true);
   const [usuariosError, setUsuariosError] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
+  const [vistaDeAcceso, setVistaDeAcceso] = useState('');
   const { login, posUser } = usePOSAuth();
   const { config } = useConfig();
   const navigate = useNavigate();
@@ -149,28 +150,16 @@ export default function POSLogin() {
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
   const sistema = config.nombre_sistema || 'MH Astral Systems POS';
 
-  // LOS NEGOCIOS QUE ESTE DESPLIEGUE SIRVE, derivados de la gente.
-  //
-  // Cada persona viene con el suyo, así que no hace falta preguntar dos veces ni
-  // añadir un selector de negocio: la lista se deduce de quién puede entrar. Con
-  // un solo negocio —producción— esto da uno y la pantalla es la de siempre.
-  const negociosServidos = [];
-  for (const u of Array.isArray(usuarios) ? usuarios : []) {
-    if (u.negocio && !negociosServidos.includes(u.negocio)) negociosServidos.push(u.negocio);
-  }
+  // Una entrada para el equipo y las demostraciones. El servidor delimita la lista;
+  // elegir un modelo sólo filtra las tarjetas, nunca concede permisos.
+  const negociosServidos = [...new Set(usuarios.map((u) => u.negocioSlug).filter(Boolean))];
   const variosNegocios = negociosServidos.length > 1;
-
-  // Con varios, el título es el del negocio de quien se ha elegido: se toca a
-  // Lupita y la pantalla dice «Restaurante MH», se toca a Diana y dice «Café
-  // Jacarandá». Sin elegir a nadie, el nombre del sistema, porque ninguno de los
-  // negocios es «el» negocio de este despliegue.
-  //
-  // Desde la 2.4 la entrada es de UN negocio —`/api/auth/empleados` sólo devuelve la
-  // gente del de esta dirección—, así que lo normal es uno, y el título es SU nombre:
-  // sin sesión `config` todavía no es de nadie y diría el del sistema.
-  const negocio = variosNegocios
-    ? selectedUser?.negocio || sistema
-    : negociosServidos[0] || config.nombre_negocio || 'MH Astral Systems';
+  const generales = usuarios.filter((u) => u.esDuenoGeneral);
+  const vista = vistaDeAcceso || (generales.length ? 'equipo' : negociosServidos[0] || '');
+  const visibles = !variosNegocios ? usuarios : vista === 'equipo'
+    ? generales : usuarios.filter((u) => u.negocioSlug === vista && !u.esDuenoGeneral);
+  const negocio = variosNegocios ? 'Morphiq POS'
+    : usuarios[0]?.negocio || config.nombre_negocio || 'Morphiq POS';
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#04070f] via-[#0a1428] to-[#0b1d3a] relative overflow-hidden">
@@ -244,7 +233,7 @@ export default function POSLogin() {
         <h1 className="text-3xl sm:text-4xl font-heading font-black text-primario-texto tracking-wide text-center">
           {negocio}
         </h1>
-        <p className="text-primario-texto/60 text-sm mt-1 tracking-wider uppercase">{sistema}</p>
+        <p className="text-primario-texto/60 text-sm mt-1 tracking-wider uppercase">{variosNegocios ? 'Sistema maestro · demostración' : sistema}</p>
 
         {selectedUser && (
           <p
@@ -336,9 +325,30 @@ export default function POSLogin() {
         <div className="max-w-7xl mx-auto px-4 py-4">
           <p className="text-primario-texto/60 text-[10px] uppercase tracking-widest mb-2 text-center sm:text-left">
             {variosNegocios
-              ? `Usuarios disponibles · ${negociosServidos.length} negocios en este despliegue`
+              ? 'Equipo Morphiq y usuarios de demostración'
               : 'Usuarios disponibles'}
           </p>
+          {variosNegocios && (
+            <div className="mb-4 flex flex-col gap-2 text-sm text-primario-texto">
+              <label htmlFor="vista-de-acceso">Elige tu acceso</label>
+              <select
+                id="vista-de-acceso"
+                value={vista}
+                onChange={(e) => {
+                  setVistaDeAcceso(e.target.value);
+                  setSelectedUser(null);
+                  setPin('');
+                }}
+                className="rounded-lg border border-primario-texto/20 bg-sidebar text-sidebar-foreground p-3"
+              >
+                {generales.length > 0 && <option value="equipo">Equipo Morphiq · dueño general</option>}
+                {negociosServidos.map((slug) => (
+                  <option key={slug} value={slug}>{usuarios.find((u) => u.negocioSlug === slug)?.negocio}</option>
+                ))}
+              </select>
+              <p className="text-primario-texto/60 text-xs">Entra como dueño general para recorrer todos los modelos, o elige una demostración para probar sus puestos.</p>
+            </div>
+          )}
           {usuariosCargando ? (
             <div className="flex items-center justify-center gap-2 py-6 text-primario-texto/60 text-sm">
               <div className="w-4 h-4 border-2 border-primario-texto/20 border-t-primario-texto/80 rounded-full animate-spin" />
@@ -361,7 +371,7 @@ export default function POSLogin() {
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8 gap-2.5">
-              {usuarios.map((u) => {
+              {visibles.map((u) => {
                 const active = selectedUser?.id === u.id;
                 return (
                   <button
@@ -404,7 +414,7 @@ export default function POSLogin() {
                       {/* Con varios negocios en un despliegue, el rol no basta:
                           hay un dueño en cada uno. El negocio va en la tarjeta
                           porque es lo que se elige al tocarla. */}
-                      {variosNegocios && u.negocio && (
+                      {variosNegocios && u.negocio && !u.esDuenoGeneral && (
                         <p
                           className="text-[9px] truncate mt-0.5"
                           style={{ color: 'var(--brand-accent, #60a5fa)' }}
