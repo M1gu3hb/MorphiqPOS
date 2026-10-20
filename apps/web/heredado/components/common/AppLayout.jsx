@@ -1,7 +1,10 @@
 'use client';
 import React, { useState } from 'react';
-import { Outlet, useNavigate } from '@/enrutado';
+import { Outlet, useLocation, useNavigate } from '@/enrutado';
 import { usePOSAuth } from '@/lib/POSAuthContext';
+import { useConfig } from '@/lib/ConfigContext';
+import { NAV_ITEMS, hasPermission } from '@/lib/permissions';
+import { inicioDeLaSesion } from '@/lib/packageConfig';
 import Sidebar from './Sidebar';
 import BrandedBackground from './BrandedBackground';
 import BrandColorsApplier from './BrandColorsApplier';
@@ -33,6 +36,29 @@ export default function AppLayout({ marco = 'interno' }) {
     }
   }, [posUser, isLoading, navigate]);
 
+  /**
+   * LA PANTALLA DE OTRO PUESTO NO SE PINTA (restaurante, 20-10-2026).
+   *
+   * El menú sólo enseña lo de cada rol, pero la ruta se podía teclear —o llegar por un
+   * `<Navigate to="/">` como el de Recetas—: la cajera en `/` veía el tablero de la dueña
+   * con sus lecturas en 403 y cifras en cero, y la mesera en `/caja` la pantalla de cobro.
+   * El servidor ya negaba los datos y las escrituras; esto la lleva a SU inicio, el mismo
+   * que abre al entrar con el PIN. Sólo mira las rutas del menú que piden un permiso: las
+   * demás (la venta de mostrador, la presentación) siguen como estaban.
+   */
+  const { pathname } = useLocation();
+  const { paquete_modo } = useConfig();
+  const rutaAjena =
+    !!posUser &&
+    NAV_ITEMS.some(
+      (item) =>
+        item.path === pathname && item.permission && !hasPermission(posUser.rol, item.permission),
+    );
+  React.useEffect(() => {
+    if (!rutaAjena) return;
+    navigate(inicioDeLaSesion(posUser.rol, paquete_modo, hasPermission), { replace: true });
+  }, [rutaAjena, posUser, paquete_modo, navigate]);
+
   if (isLoading) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
@@ -42,6 +68,7 @@ export default function AppLayout({ marco = 'interno' }) {
   }
 
   if (!posUser) return null;
+  if (rutaAjena) return null;
 
   return (
     <div className="flex relative" style={{ minHeight: '100dvh' }}>
