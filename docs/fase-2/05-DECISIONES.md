@@ -975,3 +975,71 @@ de datos mezcla cajas/stock y no es necesario. Se elige una entrada común y con
 operativos separados. La mutación de las tres pruebas del acceso central falló contra la
 ruta anterior (404 inicial y encierro por cookie/terminal); los enlaces acotados conservan
 sus pruebas de rechazo para slugs no servidos.
+
+## D-43 · 20-10-2026 · El restaurante vive su día en los tres aparatos (enmienda D-39)
+
+**Contexto.** D-39 dejó al restaurante en la tableta, y CI llamaba a
+`dia-completo-restaurante`, un archivo que no existía. El recorrido que Miguel presenta es el
+heredado (D-42), desde su teléfono y su PC; el `04-INTERFAZ` del restaurante declara el
+teléfono para la cocina chica, para el dueño que cobra una mesa y para el cierre. Y en el
+teléfono la mesera no tiene el diálogo de la mesa: «Enviar a Cocina» y «Solicitar cuenta»
+viven en su carrito flotante. Es justo donde se escondían los fallos: el botón del menú era
+invisible en 11 de los 16 estilos (contraste 1.0–1.4, entre ellos «noche», el de la demo).
+
+**Decisión.** El restaurante corre su día en PC, tableta y teléfono, uno tras otro sobre el
+mismo negocio y cada uno desde su propio reseteo (`--workers=1`, `--retries=0`). En el
+teléfono el día mide además que el botón del menú se lea (3:1 contra la barra) en los ocho
+estilos, claro y oscuro. Los demás modelos siguen como dice D-39.
+
+**Alternativas.** Sólo la tableta (deja sin probar el carrito flotante, que es lo que usa la
+mesera en su teléfono); una suite aparte para el teléfono (repetiría el día con otra
+receta y se separaría de él).
+
+**Consecuencias.** El trabajo del restaurante tarda unos tres minutos más. La regla de
+abarrotes —«el dueño no cobra desde el teléfono»— sigue en pie para la tienda: el teléfono
+entra al día completo sólo donde el `04-INTERFAZ` del modelo lo declara.
+
+## D-44 · 20-10-2026 · Lo que cada puesto pide lo decide el servidor con los permisos reales
+
+**Contexto.** Recorrer los días por las pantallas de cada rol destapó pantallas que pedían a
+la API lecturas que su rol no tiene, y se tragaban el 403: la mesera pedía el corte para
+saber si había caja (y no podía pedir la cuenta); la cajera en `/` recibía el tablero de la
+dueña; su cierre pedía tres lecturas de costos y el `Promise.all` caía sin PDF; la estilista
+pedía la receta con su costo y la cotización en cada «Cita en curso»; la agenda pedía la lista
+de espera a todos, y «Agendar» leía la receta que la recepción no lee. Un 403 tragado es un
+botón muerto o un aviso que no sale («te faltará oxidante»).
+
+**Decisión.** La pantalla no adivina el rol. La página del servidor calcula qué se puede
+pedir con los mismos permisos que guardan la API —el `rolesLectura` del puente y los `roles`
+del comando— y se lo pasa como prop obligatoria (`quienVeElCosto`, `veLaListaDeEspera`,
+`abreEnLaAgenda`); en lo heredado, `hasPermission(rol, 'ver_costos')` decide si se piden
+costos. Cuando el puesto necesita un dato y no su fuente, el comando responde sólo el dato
+(`cabina.alcanza` con `servicioId`: si alcanza, sin un solo costo), y el corte le dice a la
+mesera si hay caja sin un solo importe. Las jornadas tumban el día ante cualquier 4xx/5xx de la
+API y dicen en qué pantalla llegó (`vigilarFallos`).
+
+**Alternativas.** Callar el 403 en el cliente (escondería los permisos rotos de verdad);
+darle a cada rol las lecturas que pide (abriría costos y listas a quien no debe verlos).
+
+**Consecuencias.** Una pantalla nueva que lea algo con rol necesita su bandera del servidor;
+si no la tiene, el día del modelo cae en la pantalla que la pidió.
+
+## D-45 · 20-10-2026 · El reseteo de la demo del restaurante conserva al dueño general
+
+**Contexto.** La cuenta «Miguel, Dueño general» (D-42) vive en `demo-acople-restaurante`, y su
+concesión —qué negocios abre— en `presentacion_dueno_empleo` y `presentacion_destinos` de la
+configuración de esa demo. El reseteo reescribía la configuración entera y reponía el PIN
+publicado de la demo a todos los dueños: tras un reseteo la cuenta general entraba con el PIN
+que todos conocen y ya no abría los demás modelos.
+
+**Decisión.** Antes de reponer nada, el reseteo lee quién es el dueño general; no le repone el
+PIN ni lo desactiva, y al reescribir la configuración conserva las dos llaves de la concesión
+(`packages/app/src/demostracion/dueno-general.ts`). Todo lo demás de la demo se repone como
+siempre, también el PIN del dueño de la demo.
+
+**Alternativas.** Mover la cuenta general a un negocio propio (es un cambio de datos en
+producción que no hace falta todavía); prohibir el reseteo de esa demo (la demo deja de ser
+reseteable justo donde más se presenta).
+
+**Consecuencias.** `dueno-general.integracion.test.ts` corre el comando real contra Postgres y
+se vio rojo de las dos maneras (reponiéndole el PIN y sin conservar la concesión).
