@@ -17,8 +17,31 @@ import { entradaBuscarCatalogo, entradaEstadoVenta, entradaTicket } from './esqu
  */
 
 const ROLES_DE_MOSTRADOR = ['cajero', 'mesero', 'gerente', 'administrador', 'dueno'] as const;
+
+/**
+ * Quien ve lo que la cuenta le CUESTA al negocio: dirección. La caja y el mesero cobran y
+ * atienden, y con el precio a la vista el costo da el margen de cada platillo (lo mismo
+ * que el puente cierra en `Venta`; el corte lo abre a la caja sólo con su bandera).
+ */
+const VEN_COSTOS: readonly string[] = ['dueno', 'administrador', 'gerente'];
+
+/** La cotización como la recibe quien la pide: sin costo, utilidad ni margen si no los ve. */
+export type CotizacionVisible = Omit<
+  Cotizacion,
+  'costoTotalCentavos' | 'utilidadCentavos' | 'margenBp'
+> & {
+  readonly costoTotalCentavos: string | null;
+  readonly utilidadCentavos: string | null;
+  readonly margenBp: number | null;
+};
+
+export function cotizacionPara(rol: string, cotizacion: Cotizacion): CotizacionVisible {
+  if (VEN_COSTOS.includes(rol)) return cotizacion;
+  return { ...cotizacion, costoTotalCentavos: null, utilidadCentavos: null, margenBp: null };
+}
+
 export interface EstadoVenta {
-  readonly cotizacion: Cotizacion | null;
+  readonly cotizacion: CotizacionVisible | null;
   /** `null` = no hay caja abierta en esta terminal; la pantalla lo dice antes de cobrar. */
   readonly sesionCajaId: string | null;
 }
@@ -53,7 +76,10 @@ export const estadoDeVenta = definirComando<Transaccion, typeof entradaEstadoVen
     const { cotizacion } = await ctx.paso('cotizar', () =>
       cotizar(ctx.tx, organizacionId, ordenId),
     );
-    return { cotizacion, sesionCajaId: caja?.id ?? null };
+    return {
+      cotizacion: cotizacionPara(ctx.ambito.rol, cotizacion),
+      sesionCajaId: caja?.id ?? null,
+    };
   },
 });
 

@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { PUEDE_OTORGAR } from './empleados.ts';
 import { FORMA_PIN, hashearPin } from './pin.ts';
 import { protegerDuenoGeneral } from './proteger-dueno-general.ts';
 
@@ -70,7 +71,11 @@ export const establecerPin = definirComando<
         .selectFrom('empleos')
         .innerJoin('personas', 'personas.id', 'empleos.persona_id')
         .innerJoin('identidades', 'identidades.persona_id', 'personas.id')
-        .select(['identidades.id as identidadId', 'personas.nombre as nombre'])
+        .select([
+          'identidades.id as identidadId',
+          'personas.nombre as nombre',
+          'empleos.rol as rol',
+        ])
         .where('empleos.id', '=', entrada.empleado)
         .where('empleos.organizacion_id', '=', organizacionId)
         .where('empleos.activo', '=', true)
@@ -80,6 +85,19 @@ export const establecerPin = definirComando<
 
     if (objetivo === undefined) {
       throw new ErrorDominio('ACCESO_NO_ENCONTRADO', 'Ese empleado no existe o está dado de baja.');
+    }
+
+    // Ponerle el PIN a alguien es poder entrar como él. Sin esta guarda, un administrador le
+    // ponía su PIN al dueño y entraba con todo lo del dueño: la misma escalada que
+    // `guardar_empleado` cierra con `PUEDE_OTORGAR`, abierta por otra puerta. El PIN propio
+    // sí se cambia.
+    const propio = entrada.empleado === ctx.ambito.empleoId;
+    if (!propio && !(PUEDE_OTORGAR[ctx.ambito.rol] ?? []).includes(objetivo.rol)) {
+      throw new ErrorDominio(
+        'PUESTO_NO_OTORGABLE',
+        `Tu puesto no puede poner el PIN de un ${objetivo.rol}. Pídeselo al dueño.`,
+        { rolObjetivo: objetivo.rol },
+      );
     }
 
     const hash = await hashearPin(entrada.pin, pimienta());

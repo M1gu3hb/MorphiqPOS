@@ -4,6 +4,7 @@ import {
   MODULOS_POR_PLANTILLA,
   navegacionDePlantilla,
   PLANTILLAS,
+  rutaDeModeloSinSesion,
 } from '@morphiqpos/contracts';
 import { NAV_ITEMS } from './permissions';
 
@@ -447,6 +448,35 @@ export function inicioDeLaSesion(rol, paqueteModo, tienePermiso) {
   const suyas = navegacionParaRolYPlantilla(rol, plantilla, tienePermiso);
   if (suyas.some((entrada) => entrada.ruta === '/' && entrada.permiso === 'ver_dashboard')) return '/';
   return suyas[0]?.ruta ?? INICIO_POR_PLANTILLA[plantilla] ?? '/';
+}
+
+/** Rutas con permiso que NO están en el menú: se llega por botón o tecleándolas. */
+const PERMISO_FUERA_DEL_MENU = { '/pos': 'ver_pos', '/mesas': 'ver_mesas' };
+
+/**
+ * ¿Puede ESTA persona abrir esta ruta? (cierre del restaurante, 21-10)
+ *
+ * `AppLayout` sólo miraba las doce rutas de `NAV_ITEMS`: `/pos` y las vistas del modelo
+ * restaurante se abrían tecleándolas desde cualquier puesto —la mesera en el mostrador, la
+ * cocina en el cobro y en las recetas—. El servidor ya negaba las lecturas y las escrituras,
+ * pero la pantalla se pintaba. Se decide con LA MISMA tabla que pinta el menú:
+ *   · una ruta del menú heredado pide su permiso;
+ *   · `/pos` y `/mesas` piden el suyo aunque no estén en el menú;
+ *   · una vista del restaurante (`/restaurante/...`) es de quien la tiene en SU menú —hoy,
+ *     dirección—, salvo las que se abren sin sesión (el PIN y el portal del comensal).
+ * Las rutas internas de los demás modelos siguen con su guarda de plantilla.
+ */
+export function rutaPermitidaParaElPuesto(ruta, rol, paqueteModo, tienePermiso) {
+  const delMenu = NAV_ITEMS.find((item) => item.path === ruta);
+  if (delMenu?.permission) return tienePermiso(rol, delMenu.permission);
+  const fueraDelMenu = PERMISO_FUERA_DEL_MENU[ruta];
+  if (fueraDelMenu) return tienePermiso(rol, fueraDelMenu);
+  if (ruta.startsWith('/restaurante/') && !rutaDeModeloSinSesion(ruta)) {
+    return navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso).some(
+      (entrada) => entrada.ruta === ruta,
+    );
+  }
+  return true;
 }
 
 export function isRouteAllowed(routePath, paqueteModo) {

@@ -465,6 +465,19 @@ test.describe('el día completo del restaurante', () => {
         // La pantalla de otro puesto no se pinta: la mesera que teclea la caja vuelve a sus mesas.
         await lupita.goto('/caja');
         await lupita.waitForURL(/\/mesero$/);
+        // Tampoco las que no están en el menú (cierre del 21-10): el mostrador y las vistas del
+        // restaurante se abrían tecleándolas desde cualquier puesto.
+        for (const [quien, ajena, suya] of [
+          [lupita, '/pos', /\/mesero$/],
+          [lupita, '/restaurante/cobro', /\/mesero$/],
+          [tono, '/restaurante/recetas', /\/cocina$/],
+          [tono, '/pos', /\/cocina$/],
+          [rosa, '/restaurante/inventario', /\/caja$/],
+          [rosa, '/configuracion', /\/caja$/],
+        ] as const) {
+          await quien.goto(ajena);
+          await quien.waitForURL(suya);
+        }
       });
 
       let sesion = '';

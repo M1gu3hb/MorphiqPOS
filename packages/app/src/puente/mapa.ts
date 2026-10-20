@@ -98,6 +98,13 @@ const INVENTARIO = [...DIRECCION, 'almacen'] as const;
 const VE_FIADO = [...DIRECCION, 'cajero'] as const;
 const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
 const PREPARACION = [...DIRECCION, 'cocina'] as const;
+/**
+ * Quien ve los IMPORTES de una cuenta: la sala y la caja. La cocina prepara —ve platillos,
+ * cantidades y notas—, y F1-04 §36.4 le dice «ningún precio, ningún total». Con los importes
+ * de las líneas legibles, la suma por cuenta reconstruía el total que `Venta` le cierra
+ * (cierre del 21-10).
+ */
+const SALA_Y_CAJA = [...DIRECCION, 'cajero', 'mesero'] as const;
 
 /**
  * LA FRONTERA POR SUCURSAL de cada entidad (cierre de la 2.4, D-36). Lo operativo —ventas,
@@ -547,7 +554,15 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'decimal',
         escribible: false,
       },
-      unidad_usada: { columna: 'unidad_capturada', conversion: 'texto', escribible: false },
+      // El gramaje no es de la cocina (F1-04 §36.4: «sin `cantidad`, sin `merma`, sin
+      // `costo_*`»): su ficha enseña los INGREDIENTES por nombre (`CocinaProductoDialog`),
+      // y la cantidad con la unidad era la receta entera a la vista (cierre del 21-10).
+      unidad_usada: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'unidad_capturada',
+        conversion: 'texto',
+        escribible: false,
+      },
       // Lo CONVERTIDO, que es lo que consume el inventario. Que sean dos
       // columnas distintas es lo que cierra el error de 1000×: hoy
       // `RecetaFormDialog.jsx:225` guarda la cantidad sin convertir y la unidad
@@ -556,11 +571,17 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       // hace `guardarReceta` en el servidor, y lanza si las dimensiones no
       // coinciden en vez de dejar pasar el valor.
       cantidad_convertida_unidad_base: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
         columna: 'cantidad',
         conversion: 'decimal',
         escribible: false,
       },
-      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      unidad: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'unidad',
+        conversion: 'texto',
+        escribible: false,
+      },
       merma_porcentaje: {
         rolesLectura: [...VE_COSTOS_DE_INSUMO],
         columna: 'merma_bp',
@@ -930,6 +951,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       // `tipo_venta_snapshot` y cinco `ingrediente_base_id_snapshot`: llamarlos
       // como uno querría dejaría a los quince viendo `undefined`.
       precio_unitario_snapshot: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'precio_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -940,9 +962,24 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         escribible: false,
       },
-      descuento: { columna: 'descuento_centavos', conversion: 'dinero', escribible: false },
-      subtotal: { columna: 'subtotal_centavos', conversion: 'dinero', escribible: false },
-      total: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
+      descuento: {
+        rolesLectura: [...SALA_Y_CAJA],
+        columna: 'descuento_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      subtotal: {
+        rolesLectura: [...SALA_Y_CAJA],
+        columna: 'subtotal_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      total: {
+        rolesLectura: [...SALA_Y_CAJA],
+        columna: 'total_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       utilidad: {
         rolesLectura: [...VE_MARGENES],
         columna: 'utilidad_centavos',
@@ -1003,6 +1040,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       precio_por_unidad_snapshot: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'precio_por_unidad_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -3203,16 +3241,19 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
       subtotal_consumo: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'subtotal_consumo_centavos',
         conversion: 'dinero',
         escribible: false,
       },
       propina_monto_sugerida: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'propina_sugerida_centavos',
         conversion: 'dinero',
         escribible: false,
       },
       propina_porcentaje_sugerido: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'propina_sugerida_bp',
         conversion: 'puntos_base',
         escribible: false,

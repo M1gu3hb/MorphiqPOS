@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_MOSTRADOR } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_TIENDA } from '@morphiqpos/contracts';
 import { repoVentaCatalogo, type Transaccion } from '@morphiqpos/data';
 import { cantidad, cantidadATexto } from '@morphiqpos/domain/catalogo';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
@@ -37,7 +37,11 @@ import { definirComando } from '../definicion.ts';
  * código y tienen que poder escanearse igual.
  */
 
-const MOSTRADOR = ['cajero', 'mesero', 'gerente', 'administrador', 'dueno'] as const;
+/**
+ * Quien da de alta en el mostrador. El mesero no: no vende de mostrador, y un producto con
+ * precio, costo y existencias es catálogo (cierre del 21-10).
+ */
+const MOSTRADOR = ['cajero', 'gerente', 'administrador', 'dueno'] as const;
 
 /**
  * TODO VIAJA COMO TEXTO, y quien convierte es el servidor.
@@ -127,7 +131,7 @@ export const altaRapida = definirComando<
   entidad: 'producto',
   escribe: true,
   roles: [...MOSTRADOR],
-  paquetes: PAQUETES_MOSTRADOR,
+  paquetes: PAQUETES_TIENDA,
   entrada: entradaAltaRapida,
   async ejecutar(ctx, entrada) {
     const { organizacionId, sucursalId } = ctx.ambito;

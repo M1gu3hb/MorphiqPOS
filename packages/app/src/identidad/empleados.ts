@@ -50,7 +50,7 @@ const SOLO_MANDOS = ['dueno', 'administrador'] as const;
  * Que la pantalla no ofrezca ese rol no cuenta — el botón se salta con la
  * consola, que es el defecto que este proyecto entero persigue.
  */
-const PUEDE_OTORGAR: Readonly<Record<string, readonly string[]>> = {
+export const PUEDE_OTORGAR: Readonly<Record<string, readonly string[]>> = {
   dueno: ['dueno', 'administrador', 'gerente', 'cajero', 'mesero', 'cocina', 'almacen'],
   administrador: ['gerente', 'cajero', 'mesero', 'cocina', 'almacen'],
 };

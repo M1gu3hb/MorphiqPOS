@@ -358,8 +358,8 @@
       "ruta": "/api/catalogo/alta-rapida",
       "comando": "catalogo.alta_rapida",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
-      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["tienda"],
       "idRequerido": false,
       "cuerpo": {
         "nombre": "prueba de aislamiento",
@@ -2315,7 +2315,7 @@
       "comando": "venta.devolver",
       "escribe": true,
       "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
-      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "paquetes": ["cafeteria"],
       "idRequerido": true,
       "cuerpo": { "pedidoId": "⟨ordenes⟩" },
       "ids": [{ "camino": "pedidoId", "tabla": "ordenes" }]

@@ -82,6 +82,12 @@ const baseDe = (datos: Partial<TablasFalsas> = {}, opciones: OpcionesBase = {}) 
   });
 
 describe('venta.devolver', () => {
+  it('es de la BARRA de la cafetería: la cocina de un restaurante no reembolsa ventas', () => {
+    // Con todas las plantillas, el rol `cocina` de un restaurante podía devolver una venta
+    // cobrada y sacar el efectivo del cajón (cierre del 21-10).
+    expect(devolverPedido.paquetes).toEqual(['cafeteria']);
+  });
+
   it('EL EFECTIVO SALE DEL CAJÓN con signo negativo, y la venta deja de ser venta', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);

@@ -3,8 +3,8 @@ import React, { useState } from 'react';
 import { Outlet, useLocation, useNavigate } from '@/enrutado';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { NAV_ITEMS, hasPermission } from '@/lib/permissions';
-import { inicioDeLaSesion } from '@/lib/packageConfig';
+import { hasPermission } from '@/lib/permissions';
+import { inicioDeLaSesion, rutaPermitidaParaElPuesto } from '@/lib/packageConfig';
 import Sidebar from './Sidebar';
 import BrandedBackground from './BrandedBackground';
 import BrandColorsApplier from './BrandColorsApplier';
@@ -46,25 +46,26 @@ export default function AppLayout({ marco = 'interno' }) {
    * `<Navigate to="/">` como el de Recetas—: la cajera en `/` veía el tablero de la dueña
    * con sus lecturas en 403 y cifras en cero, y la mesera en `/caja` la pantalla de cobro.
    * El servidor ya negaba los datos y las escrituras; esto la lleva a SU inicio, el mismo
-   * que abre al entrar con el PIN. Sólo mira las rutas del menú que piden un permiso: las
-   * demás (la venta de mostrador, la presentación) siguen como estaban.
+   * que abre al entrar con el PIN. Miraba sólo las rutas del menú, y `/pos` y las vistas del
+   * restaurante se abrían desde cualquier puesto: la regla es ahora
+   * `rutaPermitidaParaElPuesto`, con la misma tabla que pinta el menú (cierre del 21-10).
    */
   const { pathname } = useLocation();
   // Mientras la configuración carga, `paquete_modo` es el de omisión (`tienda`): decidir el
   // inicio con él mandaba a la mesera a la pantalla de mesas de la tienda. Se espera.
   const { paquete_modo, isLoading: cargandoConfig } = useConfig();
+  // Una vista del restaurante se decide con el menú de SU plantilla: mientras carga, se espera.
+  const esperandoPlantilla = cargandoConfig && pathname.startsWith('/restaurante/');
   const rutaAjena =
     !!posUser &&
-    NAV_ITEMS.some(
-      (item) =>
-        item.path === pathname && item.permission && !hasPermission(posUser.rol, item.permission),
-    );
+    !esperandoPlantilla &&
+    !rutaPermitidaParaElPuesto(pathname, posUser.rol, paquete_modo, hasPermission);
   React.useEffect(() => {
     if (!rutaAjena || cargandoConfig) return;
     navigate(inicioDeLaSesion(posUser.rol, paquete_modo, hasPermission), { replace: true });
   }, [rutaAjena, cargandoConfig, posUser, paquete_modo, navigate]);
 
-  if (isLoading) {
+  if (isLoading || esperandoPlantilla) {
     return (
       <div className="fixed inset-0 flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-borde border-t-primary rounded-full animate-spin" />
