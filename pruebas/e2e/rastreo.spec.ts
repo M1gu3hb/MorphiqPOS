@@ -4,6 +4,8 @@ import { fileURLToPath } from 'node:url';
 
 import { expect, test, type ConsoleMessage, type Locator, type Page } from '@playwright/test';
 
+import { reubicar } from '../../packages/testing/src/reubicar.ts';
+
 import {
   abrirCajaPorLaRuta,
   entrar,
@@ -790,6 +792,56 @@ async function esperarAQueSePinte(page: Page): Promise<number> {
 }
 
 /**
+ * LO QUE LA PANTALLA GUARDÓ EN EL NAVEGADOR, para volver a ponerlo (20-10-2026).
+ *
+ * Entre toque y toque el rastreo RECARGA para volver al estado inicial. Pero una recarga
+ * conserva el `localStorage`: si un toque guardó algo ahí, la pantalla ya no vuelve a
+ * empezar igual. En el tablero del restaurante la X de «Primeros pasos» guarda
+ * `mh_primeros_pasos_dismissed`; tocarla —como debe— quitaba la guía, todo lo de abajo
+ * subía un lugar y sus caminos `nth-child` dejaban de existir: 17 piezas «que no
+ * reaparecen», desde los ocho pasos hasta «Ver historial». Ahora, antes de cada recarga,
+ * se repone lo que había al enumerar la pantalla. La sesión vive en cookies y no se toca.
+ */
+interface Guardado {
+  readonly local: readonly (readonly [string, string])[];
+  readonly sesion: readonly (readonly [string, string])[];
+}
+
+async function guardadoDelNavegador(page: Page): Promise<Guardado> {
+  return page.evaluate(() => {
+    const filas = (almacen: Storage): [string, string][] => {
+      const todas: [string, string][] = [];
+      for (let i = 0; i < almacen.length; i += 1) {
+        const clave = almacen.key(i);
+        if (clave !== null) todas.push([clave, almacen.getItem(clave) ?? '']);
+      }
+      return todas;
+    };
+    return { local: filas(localStorage), sesion: filas(sessionStorage) };
+  });
+}
+
+/** Lo repone si cambió, y dice si hizo falta. Sólo en el origen de la aplicación. */
+async function reponerGuardado(page: Page, origen: string, guardado: Guardado): Promise<boolean> {
+  if (new URL(page.url()).origin !== origen) return false;
+  return page.evaluate(({ local, sesion }) => {
+    let cambio = false;
+    for (const [almacen, filas] of [
+      [localStorage, local],
+      [sessionStorage, sesion],
+    ] as const) {
+      const igual =
+        almacen.length === filas.length && filas.every(([c, v]) => almacen.getItem(c) === v);
+      if (igual) continue;
+      cambio = true;
+      almacen.clear();
+      for (const [clave, valor] of filas) almacen.setItem(clave, valor);
+    }
+    return cambio;
+  }, guardado);
+}
+
+/**
  * La huella de la pantalla: lo que un toque tendría que cambiar.
  *
  * Lleva el texto ENTERO —con sus números— porque subir una cantidad de 1 a 2 es un
@@ -1105,6 +1157,10 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
       /** Piezas que SÍ se podían tocar. Es el denominador del umbral de alcance. */
       let elegibles = 0;
       let enCapas = 0;
+      /** Piezas de una capa que un toque corrió de lugar y se volvieron a encontrar. */
+      let reubicadas = 0;
+      /** Recargas en las que hubo que reponer lo que un toque guardó en el navegador. */
+      let guardadoRepuesto = 0;
       let camposSondeados = 0;
       /** Campos de un tipo que la sonda no sabe teclear. Se cuentan, no se callan. */
       let camposSinSonda = 0;
@@ -1345,6 +1401,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
           await page.keyboard.press('Escape').catch(() => undefined);
           return;
         }
+        const firmasAlEnumerar = dentro.map((p) => p.firma);
         bitacora(diario, `   ⤵ capa abierta por «${desde}» · ${String(tocables.length)} pieza(s)`);
 
         for (const pieza of tocables) {
@@ -1357,16 +1414,6 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
           // y lo que queda dentro se verá la próxima vez que se abra.
           if ((await capasAbiertas()) < capasAlAbrir) break;
 
-          const suyo = capa().locator(SELECCION_DE_PIEZAS).nth(pieza.indice);
-          if ((await suyo.count()) !== 1) {
-            inalcanzables.push({
-              ruta,
-              etiqueta: `capa › ${pieza.etiqueta}`,
-              camino: `pieza ${String(pieza.indice)} de la capa`,
-              motivo: 'la capa ya no tiene esa pieza',
-            });
-            continue;
-          }
           /**
            * Y QUE SIGA SIENDO LA MISMA PIEZA: el mismo rótulo Y LA MISMA COSA.
            *
@@ -1378,31 +1425,53 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
            * apuntar a un campo y el rótulo vacío de un botón casa con el de un campo
            * vacío. Ahora se exige que la ETIQUETA HTML sea la misma, que es lo que de
            * verdad lo identifica.
+           *
+           * ── Y SI UN TOQUE LE CAMBIÓ EL CONTENIDO, se la busca (20-10-2026) ──
+           * «Agregar grupo», «Agregar otra línea» o un selector que despliega más campos
+           * meten piezas ANTES de las que faltan, y todas se corrían de lugar: en el
+           * restaurante, 198 «en su sitio hay otra pieza» —«Guardar», «Cancelar» y la X de
+           * cada diálogo de opciones, de contenedor y de compra, las que lo cierran—. Ahora
+           * la capa se vuelve a enumerar y la pieza se busca por la alineación de las firmas
+           * (`reubicar`): la que ya no está se cuenta como siempre, y lo que el toque agregó
+           * no se barre, porque es otro estado y cada «Agregar» agregaría más.
+           *
+           * La firma se vuelve a sacar de `enumerar`, la MISMA función que la dio: aquí
+           * había una segunda copia de la expresión y se había separado —para un enlace,
+           * una ponía su texto y la otra no—.
            */
-          const ahora = await suyo.evaluate((e) => {
-            const html = e as HTMLElement & { innerText?: string; type?: string };
-            const etiquetaHtml = e.tagName.toLowerCase();
-            const rol = e.getAttribute('role') ?? '';
-            // LA MISMA FIRMA que al enumerar, calculada igual. Si las dos expresiones se
-            // separaran, esta comprobación diría que nada es lo que era.
-            return [
-              etiquetaHtml,
-              rol,
-              (html.type ?? '').toLowerCase(),
-              e.getAttribute('name') ?? '',
-              e.getAttribute('placeholder') ?? '',
-              etiquetaHtml === 'button' || rol === 'button'
-                ? (html.innerText ?? '').replace(/\s+/g, ' ').trim().slice(0, 40)
-                : '',
-            ].join('|');
-          });
-          const mismoSitio = ahora === pieza.firma;
-          if (!mismoSitio) {
+          const ahora = (
+            await conTecho(
+              enumerar(page, 'capa'),
+              TECHO_DE_EVALUACION_MS,
+              `volver a enumerar la capa de ${ruta}`,
+            )
+          ).map((p) => p.firma);
+          let posicion = pieza.indice;
+          if (ahora[posicion] !== pieza.firma) {
+            const nueva = reubicar(firmasAlEnumerar, ahora).get(pieza.indice);
+            if (nueva === undefined) {
+              const enSuSitio = ahora[pieza.indice];
+              inalcanzables.push({
+                ruta,
+                etiqueta: `capa › ${pieza.etiqueta}`,
+                camino: `pieza ${String(pieza.indice)} de la capa`,
+                motivo:
+                  enSuSitio === undefined
+                    ? 'la capa ya no tiene esa pieza'
+                    : `en su sitio hay otra pieza (${enSuSitio.slice(0, 70)})`,
+              });
+              continue;
+            }
+            posicion = nueva;
+            reubicadas += 1;
+          }
+          const suyo = capa().locator(SELECCION_DE_PIEZAS).nth(posicion);
+          if ((await suyo.count()) !== 1) {
             inalcanzables.push({
               ruta,
               etiqueta: `capa › ${pieza.etiqueta}`,
               camino: `pieza ${String(pieza.indice)} de la capa`,
-              motivo: `en su sitio hay otra pieza (${ahora.slice(0, 70)})`,
+              motivo: 'la capa ya no tiene esa pieza',
             });
             continue;
           }
@@ -1519,6 +1588,22 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
           TECHO_DE_EVALUACION_MS,
           `enumerar los formularios de ${ruta}`,
         );
+        // Lo que la pantalla tenía guardado al enumerarla: cada recarga vuelve a esto.
+        const origen = new URL(page.url()).origin;
+        const guardadoAlEnumerar = await conTecho(
+          guardadoDelNavegador(page),
+          TECHO_DE_EVALUACION_MS,
+          `leer lo guardado de ${ruta}`,
+        );
+        const volverAlInicio = async (): Promise<void> => {
+          // Si la página está a media navegación no se puede leer: la recarga la deja igual
+          // que antes de este arreglo, y el camino que no reaparezca se cuenta como siempre.
+          const repuesto = await reponerGuardado(page, origen, guardadoAlEnumerar).catch(
+            () => false,
+          );
+          if (repuesto) guardadoRepuesto += 1;
+          await page.goto(ruta, { waitUntil: 'commit' });
+        };
         const porClase = inventario.reduce<Record<string, number>>((cuenta, pieza) => {
           cuenta[pieza.clase] = (cuenta[pieza.clase] ?? 0) + 1;
           return cuenta;
@@ -1550,9 +1635,10 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
           // `commit` y no `load`: lo que hace falta es que la navegación EMPIECE; el
           // localizador de abajo espera por el elemento, que es esperar por una
           // condición en vez de por la carga entera de una página con veinte
-          // consultas. Contra un despliegue real son segundos por toque.
+          // consultas. Contra un despliegue real son segundos por toque. Y con lo que
+          // la pantalla tenía guardado en el navegador (`reponerGuardado`).
           try {
-            await page.goto(ruta, { waitUntil: 'commit' });
+            await volverAlInicio();
           } catch (fallo) {
             muertos.push({
               ruta,
@@ -1618,7 +1704,7 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
         // ── LOS FORMULARIOS · enviar, que es la cuarta cosa ──────────────────
         for (const formulario of formularios) {
           try {
-            await page.goto(ruta, { waitUntil: 'commit' });
+            await volverAlInicio();
           } catch {
             continue;
           }
@@ -1782,7 +1868,9 @@ test.describe('rastreo · se toca cada botón de cada pantalla', () => {
           : inalcanzables.length / (elegibles + inalcanzables.length);
       const resumen =
         `${String(pantallasBarridas)} pantalla(s) · ${String(tocados)} toque(s) ` +
-        `(${String(enCapas)} dentro de capas · ${String(camposSondeados)} campo(s) sondeado(s) · ` +
+        `(${String(enCapas)} dentro de capas, ${String(reubicadas)} reubicada(s) en la suya · ` +
+        `${String(guardadoRepuesto)} recarga(s) con lo guardado repuesto · ` +
+        `${String(camposSondeados)} campo(s) sondeado(s) · ` +
         `${String(camposSinSonda)} de un tipo que la sonda no teclea · ` +
         `${String(formulariosEnviados)} formulario(s) enviado(s)) · ` +
         `${String(inalcanzables.length)} sin alcance (${(fueraDeAlcance * 100).toFixed(1)} %) · ` +
