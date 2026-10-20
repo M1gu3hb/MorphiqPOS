@@ -1,10 +1,10 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { z } from 'zod';
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
-import { Card, CardContent, CardHeader, CardTitle } from '@morphiqpos/ui/primitivas/card';
+import { Aviso, EsqueletoDeLista, ErrorDePantalla, Superficie } from '@morphiqpos/ui/sistema';
 import ModoPresentacion from '@/components/configuracion/ModoPresentacion';
 
 const NegocioSchema = z.object({
@@ -55,6 +55,7 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
   const [error, setError] = useState('');
   const [ocupado, setOcupado] = useState(false);
   const [intento, setIntento] = useState(0);
+  const idTitulo = useId();
   useEffect(() => {
     let vigente = true;
     pedir()
@@ -94,24 +95,26 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
   }
   if (negocios?.length === 0) return <ModoPresentacion cfg={cfg} />;
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle>Presentación de Morphiq</CardTitle>
+    <Superficie
+      como="section"
+      aria-labelledby={idTitulo}
+      className="flex flex-col gap-(--espacio-4) sm:p-(--espacio-6)"
+    >
+      <header className="flex flex-col gap-(--espacio-1)">
+        <h2 id={idTitulo} className="text-lg font-semibold">
+          Presentación de Morphiq
+        </h2>
         <p className="text-sm text-texto-sutil">
           Tu sistema maestro reúne los modelos de negocio. Cambia de demostración para presentar su
           operación completa con sus propios datos.
         </p>
-      </CardHeader>
-      <CardContent className="space-y-4">
-        {error && (
-          <p role="alert" className="text-peligro">
-            {error}
-          </p>
-        )}
-        {negocios === null ? (
-          <>
-            <p>Cargando modelos…</p>
-            {error && (
+      </header>
+      {negocios === null ? (
+        error ? (
+          <ErrorDePantalla
+            titulo={error}
+            queHacer="Revisa la conexión y vuelve a intentarlo."
+            reintentar={
               <Button
                 onClick={() => {
                   setError('');
@@ -120,57 +123,65 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
               >
                 Reintentar
               </Button>
-            )}
-          </>
-        ) : !abierto ? (
-          <form
-            className="max-w-sm space-y-3"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void ejecutar({ accion: 'desbloquear', pin });
-            }}
-          >
-            <label htmlFor="pin-presentacion" className="text-sm font-medium">
-              PIN del dueño general
-            </label>
-            <Input
-              id="pin-presentacion"
-              type="password"
-              inputMode="numeric"
-              autoComplete="off"
-              value={pin}
-              onChange={(e) => {
-                setPin(e.target.value);
-              }}
-              maxLength={8}
-            />
-            <Button type="submit" disabled={ocupado || pin.length < 4}>
-              {ocupado ? 'Comprobando…' : 'Abrir modelos de negocio'}
-            </Button>
-          </form>
+            }
+          />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-            {negocios.map((negocio) => (
-              <button
-                key={negocio.empleoId}
-                type="button"
-                disabled={ocupado}
-                onClick={() => {
-                  void ejecutar({ accion: 'cambiar', empleoId: negocio.empleoId }, true);
+          <EsqueletoDeLista filas={3} />
+        )
+      ) : (
+        <>
+          {error && <Aviso tono="peligro" titulo={error} />}
+          {!abierto ? (
+            <form
+              className="max-w-sm space-y-(--espacio-3)"
+              onSubmit={(e) => {
+                e.preventDefault();
+                void ejecutar({ accion: 'desbloquear', pin });
+              }}
+            >
+              <label htmlFor="pin-presentacion" className="text-sm font-medium">
+                PIN del dueño general
+              </label>
+              <Input
+                id="pin-presentacion"
+                type="password"
+                inputMode="numeric"
+                autoComplete="off"
+                value={pin}
+                onChange={(e) => {
+                  setPin(e.target.value);
                 }}
-                className="rounded-xl border border-borde bg-superficie p-5 text-left transition hover:border-primario focus-visible:outline-2 focus-visible:outline-primario disabled:opacity-50"
-              >
-                <strong className="block text-lg">
-                  {NOMBRES[negocio.paquete] ?? negocio.paquete}
-                </strong>
-                <span className="text-sm text-texto-sutil">
-                  {negocio.slug.startsWith('demo-') ? 'Abrir demostración' : negocio.nombre}
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
-      </CardContent>
-    </Card>
+                maxLength={8}
+              />
+              <Button type="submit" disabled={ocupado || pin.length < 4}>
+                {ocupado ? 'Comprobando…' : 'Abrir modelos de negocio'}
+              </Button>
+            </form>
+          ) : (
+            <div className="grid gap-(--espacio-3) sm:grid-cols-2 lg:grid-cols-3">
+              {negocios.map((negocio) => (
+                <Superficie
+                  key={negocio.empleoId}
+                  como="button"
+                  type="button"
+                  interactiva
+                  disabled={ocupado}
+                  onClick={() => {
+                    void ejecutar({ accion: 'cambiar', empleoId: negocio.empleoId }, true);
+                  }}
+                >
+                  <strong className="block text-lg">
+                    {NOMBRES[negocio.paquete] ?? negocio.paquete}
+                  </strong>
+                  <span className="text-sm text-texto-sutil">
+                    {negocio.slug.startsWith('demo-') ? 'Abrir demostración' : negocio.nombre}
+                  </span>
+                </Superficie>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </Superficie>
   );
 }

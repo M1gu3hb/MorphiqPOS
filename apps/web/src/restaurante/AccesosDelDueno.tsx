@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { Superficie } from '@morphiqpos/ui/sistema';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import {
   ArrowUpRight,
@@ -45,18 +46,15 @@ export function AccesosDelDueno() {
   const { posUser } = usePOSAuth();
   if (!posUser || !['administrador', 'dueno'].includes(posUser.rol)) return null;
   return (
-    <section
-      aria-label="Control del restaurante"
-      className="rounded-2xl border border-borde bg-superficie p-4 md:p-5"
-    >
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-2">
+    <Superficie como="section" aria-label="Control del restaurante" className="md:p-(--espacio-5)">
+      <div className="mb-(--espacio-4) flex flex-wrap items-center justify-between gap-2">
         <div>
           <h2 className="text-lg font-semibold">Control del restaurante</h2>
           <p className="text-sm text-texto-sutil">
             Operación, configuración y presentación desde tu panel.
           </p>
         </div>
-        <span className="rounded-full bg-primario/10 px-3 py-1 text-xs font-medium text-primario">
+        <span className="rounded-full bg-primario/10 px-(--espacio-3) py-1 text-xs font-medium text-primario">
           {posUser.etiqueta ?? 'Dueño'}
         </span>
       </div>
@@ -65,7 +63,7 @@ export function AccesosDelDueno() {
           <Link
             key={href}
             href={href}
-            className="group flex min-h-20 items-center gap-3 rounded-xl border border-borde p-3 transition hover:border-primario focus-visible:outline-2 focus-visible:outline-primario"
+            className="group flex min-h-20 items-center gap-(--espacio-3) rounded-xl border border-borde p-(--espacio-3) transition hover:border-primario focus-visible:outline-2 focus-visible:outline-primario"
           >
             <Icono className="size-5 shrink-0 text-primario" aria-hidden="true" />
             <span className="min-w-0 flex-1">
@@ -76,6 +74,6 @@ export function AccesosDelDueno() {
           </Link>
         ))}
       </div>
-    </section>
+    </Superficie>
   );
 }

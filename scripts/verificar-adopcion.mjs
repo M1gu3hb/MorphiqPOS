@@ -361,18 +361,6 @@ export const SIN_ESTADO = [
       'El aviso lee `navigator.onLine` al montar, de forma síncrona: no hay espera que enseñar. Sin red, el aviso ES el estado.',
   },
   {
-    pantalla: 'entrada/EntradaSinNegocio',
-    estado: 'cargando',
-    razon:
-      'Se pinta en el servidor con el HTML y no lee nada: es la entrada de un despliegue de varios negocios cuando la dirección no nombra ninguno. No hay espera que enseñar.',
-  },
-  {
-    pantalla: 'entrada/EntradaSinNegocio',
-    estado: 'error',
-    razon:
-      'No tiene una operación que pueda fallar: ni lectura ni comando. Es un texto fijo que dice por dónde se entra; si la resolución del negocio falla, `/login-pos` ya cae aquí.',
-  },
-  {
     pantalla: 'ferreteria/AbrirConteo',
     estado: 'vacio',
     razon:
@@ -615,6 +603,90 @@ export const SIN_ESTADO = [
     estado: 'error',
     razon:
       'No tiene operación que falle: si el cierre lo rechaza el servidor, CierreDiario lo pinta en su Aviso de peligro.',
+  },
+  {
+    pantalla: 'configuracion/PresentacionDelDueno',
+    estado: 'vacio',
+    razon:
+      'Sin modelos concedidos no hay una lista vacía que explicar: se pinta ModoPresentacion, el modo de presentación de siempre, que es lo que ve el dueño que no es el general (D-42). Con concesión, la lista trae al menos su propio negocio.',
+  },
+  {
+    pantalla: 'restaurante/AccesosDelDueno',
+    estado: 'vacio',
+    razon:
+      'Seis accesos fijos del giro, escritos en el archivo: no hay lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'restaurante/AccesosDelDueno',
+    estado: 'cargando',
+    razon:
+      'No lee nada: la sesión ya la trae el proveedor de autenticación del tablero, y sin dueño ni administrador la pieza no se pinta.',
+  },
+  {
+    pantalla: 'restaurante/AccesosDelDueno',
+    estado: 'error',
+    razon:
+      'Son enlaces: ni lee ni escribe, así que no hay operación que pueda fallar dentro de la pieza.',
+  },
+  {
+    pantalla: 'restaurante/DividirLaCuenta',
+    estado: 'vacio',
+    razon:
+      'Es un botón con su diálogo: sin líneas, o con menos de dos unidades que repartir, el botón queda deshabilitado; la lista la pinta DividirCuentaDialog.',
+  },
+  {
+    pantalla: 'restaurante/DividirLaCuenta',
+    estado: 'cargando',
+    razon:
+      'Las líneas llegan por props de la pantalla de cobro, que pinta su propia carga; mientras son `null` el botón está deshabilitado.',
+  },
+  {
+    pantalla: 'restaurante/DividirLaCuenta',
+    estado: 'error',
+    razon:
+      'No lee ni escribe por sí misma: dividir lo hace DividirCuentaDialog, que pinta su fallo con un Aviso.',
+  },
+  {
+    pantalla: 'restaurante/ListosParaRecoger',
+    estado: 'vacio',
+    razon:
+      'Sin platillos en la ventana la pieza no se pinta: su lugar es el del catálogo de la mesa, y un «no hay nada listo» permanente sería ruido en la pantalla del mesero.',
+  },
+  {
+    pantalla: 'restaurante/ListosParaRecoger',
+    estado: 'cargando',
+    razon:
+      'Recibe los listos por props y se relee cada pocos segundos: hasta que hay algo listo no se pinta nada, y un esqueleto parpadearía con cada relectura sobre la mesa que ya está en pantalla.',
+  },
+  {
+    pantalla: 'restaurante/PedirLaCuentaDialog',
+    estado: 'vacio',
+    razon:
+      'Diálogo con las opciones de propina fijas del giro (OPCIONES_DE_PROPINA): no hay lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'restaurante/PedirLaCuentaDialog',
+    estado: 'cargando',
+    razon:
+      'No lee nada antes de pintarse: el total llega por props. Lo único asíncrono es pedir la cuenta, y mientras corre las teselas quedan deshabilitadas.',
+  },
+  {
+    pantalla: 'restaurante/QuePasoConLoQuitado',
+    estado: 'vacio',
+    razon:
+      'Un selector donde «Corrección de conteo» siempre está: la lista nunca llega vacía, y sin motivos de merma queda esa opción.',
+  },
+  {
+    pantalla: 'restaurante/QuePasoConLoQuitado',
+    estado: 'cargando',
+    razon:
+      'Los motivos se leen una vez, y mientras llegan el selector ya ofrece «Corrección de conteo»: no hay nada que esperar para corregir.',
+  },
+  {
+    pantalla: 'restaurante/QuePasoConLoQuitado',
+    estado: 'error',
+    razon:
+      'Va dentro del renglón de un ajuste de inventario: si los motivos no se leen lo dice en una línea bajo el selector y deja la corrección de conteo. Un Aviso o un ErrorDePantalla ahí ocuparía el renglón entero.',
   },
 ];
 
