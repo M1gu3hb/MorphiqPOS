@@ -190,7 +190,7 @@ promover a producción y sin abrir giros nuevos.
 | 2d | El portal del comensal | ✅ | Cerrado en la entrega anterior (PR #12) |
 | 2e | Puertas rojas y documentos | ✅ | `verify:mutaciones-backend`, `verify:matriz`, tokens, adopción, cobertura y la suite del restaurante, rojas en `main`, en verde (§5) |
 | 3 | Cinco jornadas conciliadas, negativas, aislamiento | ✅ | Las cinco en CI (corrida 39427748961, `b819b0c`), con la matriz de permisos y el aislamiento |
-| 4 | CI sobre el SHA exacto | 🟨 | En verde menos la galería, que se regenera (§6) |
+| 4 | CI sobre el SHA exacto | 🟨 lo decide la corrida del commit final | Las corridas a mano 39427772118 (`b819b0c`) y 39433226973 (`e5cdd5d`), los ocho estilos de los cinco modelos: 51 de 51 cada una. La del PR sobre `e5cdd5d`, 15 de 16: sólo la galería de la cafetería, en los 8 retratos que trae el commit siguiente. La del PR sobre ese commit es la que vale; su resultado queda en el PR #13 (§6) |
 | 5a | Esquema alineado por migraciones | ✅ alineado; 🟨 183 sin aplicar | Ledger 114 = disco; esquema de producción = las migraciones + `mesas_numero_unico`, que la 183 crea (no-op en producción). §7 |
 | 5b | El preview desde fuera | ✗ bloqueado | Sirve la entrada; entrar contesta 403 por una variable de Preview que esta sesión no puede crear (§9) |
 | 5c | Rama, commits, PR | ✅ | PR #13, commits a nombre de M1gu3hb |
@@ -262,6 +262,10 @@ Enter del conteo de la tienda) y `8082229` (el rastreo del restaurante, §5).
 | `46b3d2b` | test(mutaciones): salir revoca las dos sesiones, y el fondo de la caja se mira en el fuente |
 | `e42cd77` | test(permisos): la matriz y el aislamiento, al día con los comandos |
 | `b819b0c` | test(restaurante): la suite del modelo lee el menú que se presenta (D-42) |
+| `9f2d64a` | docs(2.4): bitácora del 20-10, estado y reporte 020; el parche de estética, guardado sin aplicar |
+| `eece673` | fix(cafeteria): los grupos de opciones, en el orden del menú y no en el que llegan |
+| `e5cdd5d` | test(galeria): los retratos de la 2.4, regenerados en CI y revisados uno a uno |
+| (el que trae este reporte) | test(galeria): los 8 retratos de productos de la cafetería, y los documentos al día |
 
 ## 5. Errores que encontré
 
@@ -307,6 +311,21 @@ Enter del conteo de la tienda) y `8082229` (el rastreo del restaurante, §5).
   como explicación: queda registrado con su traza para mirarlo si vuelve, y una mejora posible es cerrar
   los contextos con un tiempo máximo para que un cuelgue caiga en segundos y no en veinte minutos.
 
+### Error 7 — La columna «Opciones» de la cafetería, en otro orden en cada siembra
+- **Qué pasó:** al revisar la galería regenerada, `cafeteria-productos-*` traía los grupos de cada
+  bebida en otro orden que el retrato del 08-10 («Extras · Temperatura · Tamaño» contra «Temperatura ·
+  Tamaño · Extras» para el mismo americano). Fijar ese retrato habría dejado la galería roja al azar.
+- **Por qué:** la tabla de Productos listaba los grupos «en el orden en que llegan» del puente, y el
+  puente ordena `Modificador` por el `orden` de la opción DENTRO de su grupo: la primera opción de cada
+  grupo empata con las de los demás y el empate lo decide el plan de la vista `opciones_de_bebida`, que
+  ordena por los ids, aleatorios en cada siembra. En la base desechable, cuatro resiembras dieron dos
+  órdenes distintos. Los dos listados de Recetas suponían lo mismo; el diálogo del cobro, no: ya
+  ordenaba por la jerarquía del documento.
+- **Arreglo:** `compararGrupos` (Leche · Tamaño · Temperatura · Extras, y el alfabeto entre los grupos
+  que el documento no nombra), usado por el diálogo, la tabla y Recetas (`eece673`).
+- **Prueba:** cinco casos con las filas en desorden; los cinco fallan sin el arreglo. Los 8 retratos,
+  regenerados sobre ese código (corrida 39433226973).
+
 ## 6. Verificación ejecutada
 
 | Comando | Resultado |
@@ -314,13 +333,19 @@ Enter del conteo de la tienda) y `8082229` (el rastreo del restaurante, §5).
 | `pnpm format:check` | ✅ |
 | `pnpm lint` | ✅ |
 | `pnpm typecheck` | ✅ 7 de 7 |
-| `pnpm test:unit` | ✅ 388 archivos · 4,264 pruebas · 3 omitidas (las de siempre) |
+| `pnpm test:unit` | ✅ 388 archivos · 4,267 pruebas · 3 omitidas (las de siempre), con `eece673` |
 | `pnpm test:integracion` | ✅ 32 archivos · 84 pruebas, en una base nueva con las 183 migraciones |
 | `pnpm verify:mutaciones-backend` | ✅ 106 mutaciones rechazadas |
 | `pnpm verify:matriz` · `verify:limpieza` · `verify:aspecto` · `adopcion` · `primitivas` · `cobertura` | ✅ |
 | `pnpm build` · `verify:cabeceras` | ✅ 244 páginas · 6 cabeceras, nonce por petición |
 | Jornadas en local (base desechable) | Restaurante PC/tableta/teléfono 49.9 s / 50.4 s / 42.1 s; tienda PC/tableta; ferretería y salón en tableta; todas cuadradas |
-| CI, PR #13 | Corrida 39427748961 (`b819b0c`): todo en verde menos la galería, que compara contra retratos de antes del menú de D-34, del «Mixto» y del «Casco»; se regenera con la corrida 39427772118 |
+| CI, PR #13, `b819b0c` | Corrida 39427748961: todo en verde menos la galería, que comparaba contra retratos de antes del menú de D-34, del «Mixto» y del «Casco» |
+| CI a mano, `b819b0c` (`actualizar_galeria`) | Corrida 39427772118: **51 de 51** — el rastreo en los ocho estilos de los cinco modelos, las suites de modelo, las cinco jornadas, permisos y aislamiento, contratos, mutaciones y build; la galería, regenerada |
+| CI, PR #13, `9f2d64a` | Corrida 39429193282: 11 de 16; los cinco rojos, sólo en el paso de la galería (retratos viejos) |
+| CI a mano, `e5cdd5d` (`actualizar_galeria`) | Corrida 39433226973: **51 de 51**; regeneró los 8 retratos de productos de la cafetería con `eece673` |
+| CI, PR #13, `e5cdd5d` | Corrida 39433228870: 15 de 16; el rojo, la galería de la cafetería en `cafeteria-productos-morphiq` (el retrato viejo); las otras cuatro galerías, en verde contra retratos de otra corrida |
+| La galería, entre corridas | 232 retratos regenerados dos veces en corridas independientes: 208 idénticos y 24 con ruido de suavizado (1 o 2 niveles por canal; hasta 23 en «cristal»), que la comparación no cuenta |
+| CI, PR #13, commit final | La corrida que vale para el SHA entregado; su resultado queda en el PR #13 |
 
 **Contra la base real:** sólo lecturas del catálogo y del ledger de `wyqmzhliurwyxuyxznpb` (§7).
 Ninguna escritura, ninguna suite, ningún reseteo.
@@ -349,7 +374,6 @@ Ninguna escritura, ninguna suite, ningún reseteo.
   línea por línea y no entra: queda en `docs/fase-2/pendientes/estetica-subagente-2026-10-20.patch`.
 - **Eliminar una mesa** la apaga (`activa = false`) y el editor la sigue enseñando: decisión de Miguel
   (una columna `eliminada_en` con su migración, o que el editor distinga las inactivas).
-- **La galería:** se regenera por el flujo a mano (`actualizar_galeria`); hasta que sus retratos estén en la rama, su paso queda rojo en el PR.
 
 ## 9. Bloqueos reales
 
@@ -363,7 +387,7 @@ Ninguna escritura, ninguna suite, ningún reseteo.
 
 ## 10. Estado
 
-**No aprobado todavía.** Aprobado en CI: las cinco jornadas, permisos, aislamiento, contratos, mutaciones, rastreo y el build. Falta: la galería regenerada en la rama, el preview desde fuera (bloqueado) y la aceptación de Miguel, que es fusionar el PR #13 (fusionar despliega a producción).
+**No aprobado todavía.** En CI, en verde: las cinco jornadas, permisos, aislamiento, contratos, mutaciones, el rastreo de los cinco modelos en los ocho estilos y el build (corridas a mano 39427772118 y 39433226973, 51 de 51 cada una); de la galería, 232 de 240 retratos en la corrida del PR sobre `e5cdd5d`, y los 8 restantes los decide la corrida del commit final, cuyo resultado queda en el PR #13. Falta: el preview probado desde fuera (bloqueado por la variable de Preview, §9) y la aceptación de Miguel, que es fusionar el PR #13 (fusionar despliega a producción).
 
 ## 11. El recorrido para Miguel
 

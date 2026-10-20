@@ -6774,6 +6774,33 @@ retratos anteriores al menú de D-34, al «Mixto» de C.5 y al «Casco»: se reg
 (`actualizar_galeria`, corrida 39427772118) y se revisan antes de subirlos; queda la corrida del PR
 sobre el SHA que los lleve.
 
+**La galería, revisada y fijada** (`eece673`, `e5cdd5d` y el commit que trae esta entrada). La corrida
+a mano 39427772118 (`b819b0c`) pasó **51 de 51**: el rastreo en los ocho estilos de los cinco modelos,
+las suites, las jornadas, permisos y aislamiento, y la galería regenerada. Cada modelo se tomó de SU
+artefacto y se comparó retrato por retrato contra el anterior: 173 cambian y 32 son nuevos —el riel
+del menú plegado (D-34) en todos; el tablero de D-42 y las cuatro heredadas del menú del restaurante
+(mesero, compras, portal-qr y configuración) en los ocho estilos; el corte de la tienda con «Entregar
+el turno»; el cobro de la cafetería con «Descuento» y «Tarjeta, mixto o propina»; la rejilla de la
+agenda de la estética—. Revisándolos salió un defecto: la columna «Opciones» de los Productos de la
+cafetería listaba los grupos de cada bebida «en el orden en que llegan», y el puente ordena
+`Modificador` por el `orden` de la opción DENTRO de su grupo: el empate entre grupos lo decidía el plan
+de la vista, que ordena por los ids —aleatorios en cada siembra—. En la base desechable, cuatro
+resiembras dieron dos órdenes distintos, y la galería del 08-10 y la de la corrida 39427772118 traían
+órdenes distintos. `eece673` ordena por la jerarquía que el diálogo del cobro ya usaba (Leche · Tamaño ·
+Temperatura · Extras), también en los dos listados de Recetas, con cinco pruebas que fallan sin el
+arreglo. Los otros 232 retratos subieron en `e5cdd5d`; los 8 de productos, regenerados sobre ese código
+por la corrida a mano 39433226973 (`e5cdd5d`, **51 de 51**), en el commit siguiente.
+
+La corrida del PR sobre `9f2d64a` (39429193282) dio 11 de 16, y los cinco rojos fueron sólo el paso de
+la galería, que aún comparaba contra los retratos viejos. La del PR sobre `e5cdd5d` (39433228870), 15 de
+16: las galerías de restaurante, tienda, ferretería y estética compararon en verde contra retratos de
+OTRA corrida, y la de la cafetería pasó cobro, inicio, inventario y barra en los ocho estilos y cayó,
+como debía, en `cafeteria-productos-morphiq`, el retrato viejo. Entre las dos regeneraciones
+independientes, de esos 232 retratos 208 son idénticos y 24 difieren en ruido de suavizado (1 o 2
+niveles por canal; hasta 23 en «cristal», que desenfoca), que la comparación no cuenta. La corrida del
+PR sobre el commit que trae los 8 de productos es la que vale para el SHA entregado; su resultado queda
+en el PR #13.
+
 **La tienda, colgada una vez en la tableta** (corrida 39423569015): a los 109 s, en la entrada de
 Jesica, la página dejó de pintarse con el teclado ya en pantalla —el último cuadro de la traza lo
 enseña— y el «3» no llegó a resolverse. El clic falló a los 20 s; los veinte minutos se fueron en
