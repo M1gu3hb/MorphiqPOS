@@ -26,7 +26,8 @@ import {
  * la cocina a «Cocina» y la cajera a «Caja»—. Cada uno llega a la suya al entrar y trabaja en
  * su aparato, con su terminal: Rosa abre la caja con $1,500, Lupita abre mesas y comanda, Toño
  * prepara lo de la cocina Y lo de la barra, Lupita entrega y pide la cuenta con la propina que
- * acordó la mesa, y Rosa cobra en efectivo con cambio, con tarjeta y mixto. Al final, el corte
+ * acordó la mesa, y Rosa cobra en efectivo con cambio, con tarjeta, mixto, la cuenta con
+ * tarjeta y la propina SÓLO en billete (la 184), y por transferencia. Al final, el corte
  * de turno, el cierre del día a ciegas con un faltante, la dueña que lo lee desde su teléfono,
  * y el dinero y el almacén que tienen que cuadrar al centavo contra el servidor
  * (`conciliarElDia`), con un centavo de más que NO cuadra.
@@ -39,6 +40,8 @@ import {
 
 const SLUG = 'demo-acople-restaurante';
 const FONDO_CENTAVOS = 150_000;
+/** La venta del día, sin propinas: las mesas 1 a 5. */
+const VENDIDO_DEL_DIA = 56_400 + 28_300 + 39_900 + 10_000 + 15_400;
 
 const PLATILLO = {
   guacamole: 'Guacamole con totopos',
@@ -246,10 +249,15 @@ async function cobrar(
   pago:
     | { readonly metodo: 'Efectivo'; readonly recibidoCentavos: number }
     | { readonly metodo: 'Tarjeta' }
+    | { readonly metodo: 'Transferencia' }
     | {
         readonly metodo: 'Mixto';
+        /** La VENTA por método, sin la propina; cero deja el campo vacío. */
         readonly efectivoCentavos: number;
         readonly tarjetaCentavos: number;
+        /** Con qué se pagó la propina, exacta por método (el desglose de abajo). */
+        readonly propinaEfectivoCentavos?: number;
+        readonly propinaTarjetaCentavos?: number;
       },
 ): Promise<Cobrado> {
   await page.getByRole('tab', { name: /^Pendientes/ }).click();
@@ -261,10 +269,19 @@ async function cobrar(
     await dialogo.getByPlaceholder('0.00').fill(pesos(pago.recibidoCentavos));
   }
   if (pago.metodo === 'Mixto') {
-    // «Efectivo», «Tarjeta» y «Transfer.», en ese orden y sin etiqueta ligada a su campo.
+    // «Efectivo», «Tarjeta» y «Transfer.» de la venta, y debajo —si hay propina— los mismos
+    // tres de la propina: en ese orden y sin etiqueta ligada a su campo.
     const partes = dialogo.getByPlaceholder('0', { exact: true });
-    await partes.nth(0).fill(pesos(pago.efectivoCentavos));
-    await partes.nth(1).fill(pesos(pago.tarjetaCentavos));
+    if (pago.efectivoCentavos > 0) await partes.nth(0).fill(pesos(pago.efectivoCentavos));
+    if (pago.tarjetaCentavos > 0) await partes.nth(1).fill(pesos(pago.tarjetaCentavos));
+    if (pago.propinaEfectivoCentavos !== undefined) {
+      await partes.nth(3).fill(pesos(pago.propinaEfectivoCentavos));
+    }
+    if (pago.propinaTarjetaCentavos !== undefined) {
+      await partes.nth(4).fill(pesos(pago.propinaTarjetaCentavos));
+    }
+    // La línea que dice si la venta (sin propina) quedó cubierta, antes de cobrar.
+    await expect(dialogo.getByText(/^✓ La venta \(\$[\d,.]+\) queda cubierta\.$/)).toBeVisible();
   }
   const respuesta = page.waitForResponse(
     (r) => new URL(r.url()).pathname === '/api/venta/cobrar' && r.request().method() === 'POST',
@@ -557,13 +574,76 @@ test.describe('el día completo del restaurante', () => {
         });
       });
 
+      // ── MESA 4 · LA CUENTA CON TARJETA Y LA PROPINA SÓLO EN EFECTIVO ────────
+      // Lo más normal en una mesa, y lo que no se podía cobrar: la pantalla nueva lo rechazaba
+      // y la caja heredada se comía la propina (renglón de efectivo sin venta). Desde la 184.
+      await test.step('mesa 4: cerveza y limonada, sólo barra, cuenta con 10 %', async () => {
+        await abrirLaMesa(lupita, 4, 2);
+        await comandar(lupita, 4, [PLATILLO.cerveza, PLATILLO.limonada]);
+        await alMapa(lupita);
+        await prepararLaMesa(tono, 4, 1);
+        await entregar(lupita, 4);
+        // 55 + 45 = $100.00; el 10 %, $10.00.
+        await pedirLaCuenta(lupita, 4, '10%', 11_000);
+        await alMapa(lupita);
+      });
+
+      await test.step('Rosa cobra la mesa 4: la cuenta con tarjeta y los $10 de propina en billete', async () => {
+        const hecho = await cobrar(rosa, 4, {
+          metodo: 'Mixto',
+          efectivoCentavos: 0,
+          tarjetaCentavos: 10_000,
+          propinaEfectivoCentavos: 1_000,
+        });
+        expect(hecho).toMatchObject({
+          ventaCentavos: 10_000,
+          propinaCentavos: 1_000,
+          cambioCentavos: 0,
+        });
+        libro.cobro({
+          referencia: 'mesa 4 · tarjeta y propina en efectivo',
+          ventaId: hecho.ventaId,
+          sesionCajaId: sesion,
+          ventaCentavos: 10_000,
+          pagos: { tarjeta: 10_000, efectivo: 1_000 },
+          propina: { efectivo: 1_000 },
+        });
+      });
+
+      // ── MESA 5 · TRANSFERENCIA CON 15 % ─────────────────────────────────────
+      await test.step('mesa 5: tacos y mineral, cocina y barra, cuenta con 15 %', async () => {
+        await abrirLaMesa(lupita, 5, 2);
+        await comandar(lupita, 5, [PLATILLO.pastor, PLATILLO.mineral]);
+        await alMapa(lupita);
+        await prepararLaMesa(tono, 5, 2);
+        await entregar(lupita, 5);
+        // 119 + 35 = $154.00; el 15 %, $23.10.
+        await pedirLaCuenta(lupita, 5, '15%', 17_710);
+        await alMapa(lupita);
+      });
+
+      await test.step('Rosa cobra la mesa 5 por transferencia', async () => {
+        const hecho = await cobrar(rosa, 5, { metodo: 'Transferencia' });
+        expect(hecho).toMatchObject({ ventaCentavos: 15_400, propinaCentavos: 2_310 });
+        libro.cobro({
+          referencia: 'mesa 5 · transferencia',
+          ventaId: hecho.ventaId,
+          sesionCajaId: sesion,
+          ventaCentavos: 15_400,
+          pagos: { transferencia: 17_710 },
+          propina: { transferencia: 2_310 },
+        });
+      });
+
       // ── EL CORTE DE TURNO Y EL CIERRE DEL DÍA ───────────────────────────────
       await test.step('Rosa hace su corte de turno con lo que hay: no cierra la caja', async () => {
         const esperado = await esperadoDelCajon(rosa);
-        expect(esperado).toBe(FONDO_CENTAVOS + 62_040 + 20_000);
+        // El billete de las mesas 1 y 3, y la propina en billete de la 4: la tarjeta y la
+        // transferencia no entran al cajón.
+        expect(esperado).toBe(FONDO_CENTAVOS + 62_040 + 20_000 + 1_000);
         await botonDeLaCaja(rosa, 'Corte de turno').click();
         const corte = rosa.getByRole('dialog').filter({ hasText: 'Corte de turno' });
-        await expect(corte.getByText(enPantalla(56_400 + 28_300 + 39_900)).first()).toBeVisible();
+        await expect(corte.getByText(enPantalla(VENDIDO_DEL_DIA)).first()).toBeVisible();
         // «Efectivo contado» y «Dinero dejado en caja», en ese orden y sin etiqueta ligada.
         await corte.getByPlaceholder('0.00').nth(0).fill(pesos(esperado));
         await corte.getByRole('button', { name: 'Registrar corte de turno' }).click();
@@ -594,10 +674,12 @@ test.describe('el día completo del restaurante', () => {
         fallos.push(vigilarFallos(enSuTelefono));
         await enSuTelefono.goto('/');
         await expect(enSuTelefono.getByText('Buen día')).toBeVisible({ timeout: 30_000 });
+        await expect(enSuTelefono.getByText(enPantalla(VENDIDO_DEL_DIA)).first()).toBeVisible({
+          timeout: 30_000,
+        });
         await expect(
-          enSuTelefono.getByText(enPantalla(56_400 + 28_300 + 39_900)).first(),
-        ).toBeVisible({ timeout: 30_000 });
-        await expect(enSuTelefono.getByText(enPantalla(5_640 + 4_245)).first()).toBeVisible();
+          enSuTelefono.getByText(enPantalla(5_640 + 4_245 + 1_000 + 2_310)).first(),
+        ).toBeVisible();
       });
 
       await test.step('el dinero del día cuadra al centavo, y un centavo de más NO', async () => {
@@ -627,7 +709,8 @@ test.describe('el día completo del restaurante', () => {
         };
         expect(bajo(RECETA.arrachera.insumo)).toBeCloseTo(2 * RECETA.arrachera.gramos, 3);
         expect(bajo(RECETA.guacamole.insumo)).toBeCloseTo(RECETA.guacamole.gramos, 3);
-        expect(bajo(RECETA.pastor.insumo)).toBeCloseTo(2 * RECETA.pastor.gramos, 3);
+        // Dos órdenes en la mesa 2 y una en la 5.
+        expect(bajo(RECETA.pastor.insumo)).toBeCloseTo(3 * RECETA.pastor.gramos, 3);
       });
 
       await test.step('persistencia: Rosa recarga y la dueña vuelve a entrar por el acceso central', async () => {
@@ -667,9 +750,9 @@ test.describe('el día completo del restaurante', () => {
           }
           await deNuevo.waitForURL((url) => url.pathname === '/');
           await expect(deNuevo.getByText('Buen día')).toBeVisible({ timeout: 30_000 });
-          await expect(deNuevo.getByText(enPantalla(56_400 + 28_300 + 39_900)).first()).toBeVisible(
-            { timeout: 30_000 },
-          );
+          await expect(deNuevo.getByText(enPantalla(VENDIDO_DEL_DIA)).first()).toBeVisible({
+            timeout: 30_000,
+          });
         } finally {
           await otroNavegador.close();
         }
