@@ -896,7 +896,14 @@ test.describe('el día completo del salón', () => {
         // Se paga por transferencia: no sale del cajón (§8.3, compra al distribuidor).
         await nota.getByRole('combobox').filter({ hasText: 'Efectivo' }).click();
         await paty.getByRole('option', { name: 'Transferencia', exact: true }).click();
-        await nota.getByRole('combobox').filter({ hasText: 'Selecciona proveedor' }).click();
+        // El proveedor arranca en «Compra directa / Sin proveedor», como en el diálogo de
+        // Miguel (`proveedorMode = 'directa'`); «Selecciona proveedor» es sólo el texto del
+        // campo vacío, que esta pantalla no enseña nunca. Este paso no se había alcanzado: el
+        // día caía antes, en la cita que «Cobrar» no listaba.
+        await nota
+          .getByRole('combobox')
+          .filter({ hasText: 'Compra directa / Sin proveedor' })
+          .click();
         await paty.getByRole('option', { name: PROVEEDOR, exact: true }).click();
         await nota.getByPlaceholder('Buscar ingrediente...').fill(PRODUCTO.oxigenada);
         await nota
@@ -1055,7 +1062,13 @@ test.describe('el día completo del salón', () => {
         const ajuste = sandra.getByRole('dialog', { name: 'Ajustar stock' });
         // Corrección de conteo, definiendo el stock final: es lo que se contó.
         const hay = await existenciaDe(dueno, PRODUCTO.shampoo);
-        await ajuste.getByPlaceholder('0', { exact: true }).fill(String(Math.max(hay - 1, 0)));
+        // Tres campos dicen «0» y ninguna etiqueta está ligada al suyo: el del conteo es el
+        // que va bajo «Nuevo stock real *» (el método «Definir stock final»).
+        await ajuste
+          .locator('div')
+          .filter({ hasText: /^Nuevo stock real \*$/ })
+          .getByRole('spinbutton')
+          .fill(String(Math.max(hay - 1, 0)));
         await ajuste
           .getByPlaceholder(/Ej: conteo físico inicial/)
           .fill('conteo del anaquel: falta uno');

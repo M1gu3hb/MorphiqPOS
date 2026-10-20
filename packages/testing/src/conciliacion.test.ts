@@ -314,9 +314,13 @@ describe('conciliarElDia · el dinero cuadra al centavo', () => {
     ).toEqual(['inventario']);
   });
 
-  it('la comisión redondea la mitad hacia arriba, como `aplicarPorcentaje` del dominio', () => {
+  it('la comisión redondea la mitad alejándose del cero, como `aplicarPorcentaje` del dominio', () => {
     expect(comisionDeLaRegla(35_000n, 4_000)).toBe(14_000n);
     expect(comisionDeLaRegla(12_345n, 3_500)).toBe(4_321n);
     expect(comisionDeLaRegla(1n, 5_000)).toBe(1n);
+    // Revertir es la causada con el signo cambiado: la mitad se aleja del cero.
+    expect(comisionDeLaRegla(-38_793n, 4_000)).toBe(-comisionDeLaRegla(38_793n, 4_000));
+    expect(comisionDeLaRegla(-38_793n, 4_000)).toBe(-15_517n);
+    expect(comisionDeLaRegla(-1n, 5_000)).toBe(-1n);
   });
 });

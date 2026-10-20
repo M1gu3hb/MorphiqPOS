@@ -367,9 +367,17 @@ function conciliarPasivos(libro: LibroDelDia, servidor: ServidorDelDia): Hallazg
   return salida;
 }
 
-/** La regla en puntos base sobre la base, redondeada al centavo (la mitad, hacia arriba). */
+/**
+ * La regla en puntos base sobre la base, redondeada al centavo con la mitad ALEJÁNDOSE DEL
+ * CERO, como `redondear` del dominio. Con una base negativa —la comisión que se revierte al
+ * devolver una cita— `(base · bp + 5000) / 10000` trunca hacia el cero en `bigint` y no es
+ * simétrica: daba −155.16 para revertir 155.17, y el día del salón esperaba un centavo de más
+ * en la liquidación de Karla. Revertir es la causada con el signo cambiado.
+ */
 export function comisionDeLaRegla(baseCentavos: bigint, puntosBase: number): bigint {
-  return (baseCentavos * BigInt(puntosBase) + 5_000n) / 10_000n;
+  const magnitud = baseCentavos < 0n ? -baseCentavos : baseCentavos;
+  const redondeada = (magnitud * BigInt(puntosBase) + 5_000n) / 10_000n;
+  return baseCentavos < 0n ? -redondeada : redondeada;
 }
 
 function conciliarComisiones(libro: LibroDelDia, servidor: ServidorDelDia): Hallazgo[] {

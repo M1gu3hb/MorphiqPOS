@@ -1233,6 +1233,18 @@ export interface OpcionesDeVigilancia {
   readonly sondeando?: () => boolean;
 }
 
+/**
+ * En qué pantalla estaba la persona cuando llegó la respuesta rota. Sin esto el fallo decía
+ * «403 RecetaEscandallo.listar» y había que adivinar quién de cinco personas abrió qué.
+ */
+function enLaPantalla(page: Page): string {
+  try {
+    return ` · en ${new URL(page.url()).pathname}`;
+  } catch {
+    return '';
+  }
+}
+
 export function vigilarFallos(page: Page, opciones: OpcionesDeVigilancia = {}): () => void {
   const reventadas: string[] = [];
   const rechazosDeSonda: string[] = [];
@@ -1249,7 +1261,7 @@ export function vigilarFallos(page: Page, opciones: OpcionesDeVigilancia = {}): 
       return;
     }
     if (estado >= 500 || (esApi && estado >= 400)) {
-      reventadas.push(`${String(estado)} ${ruta}${loQuePedia(respuesta)}`);
+      reventadas.push(`${String(estado)} ${ruta}${loQuePedia(respuesta)}${enLaPantalla(page)}`);
       return;
     }
     if (!esApi || estado !== 200) return;
@@ -1265,7 +1277,7 @@ export function vigilarFallos(page: Page, opciones: OpcionesDeVigilancia = {}): 
           if (sobre.ok !== false) return;
           const codigo =
             typeof sobre.error?.codigo === 'string' ? sobre.error.codigo : 'SIN_CODIGO';
-          reventadas.push(`${codigo} ${ruta}${loQuePedia(respuesta)}`);
+          reventadas.push(`${codigo} ${ruta}${loQuePedia(respuesta)}${enLaPantalla(page)}`);
         })
         // Un cuerpo que no es JSON no dice nada: la navegación ya se comprobó.
         .catch(() => undefined),
