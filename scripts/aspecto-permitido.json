@@ -544,6 +544,56 @@
         "+ clase:text-[11px]",
         "+ clase:text-[11px]"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/mesas/MesaEditDialog.jsx",
+      "porque": "Cierre del restaurante (2.4): «Eliminar» una mesa la DESACTIVA —borrado suave del puente: su historial de ventas se conserva y la mesa puede volver—, pero el diálogo prometía eliminarla y la mesa seguía en el editor igual que antes. Miguel pidió que eliminar o desactivar dé un resultado comprensible: el botón dice ahora lo que hace («Quitar del mapa») y la confirmación explica que la mesa deja el mapa y a los meseros, que no se borra nada y dónde se reactiva.",
+      "testigos": [
+        "- texto:¿Seguro que quieres eliminar esta mesa?",
+        "- texto:No se borrarán ventas, registros ni historial — solo la mesa del mapa actual.",
+        "- texto:Sí, eliminar mesa",
+        "+ texto:¿Quitar esta mesa del mapa?",
+        "+ texto:No se borran ventas, registros ni historial. Puedes reactivarla desde «Mesas desactivadas», debajo del mapa.",
+        "+ texto:Sí, quitar del mapa"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Cierre del restaurante (2.4): las mesas desactivadas seguían pintadas en el mapa del editor —el aviso decía «Mesa eliminada» y la mesa no se movía de su lugar—. Ahora el mapa, la lista del teléfono y el contador por zona son de las mesas activas, y debajo del mapa una sección «Mesas desactivadas» las enseña con su número y zona y un botón «Reactivar» (si otra mesa activa ya tiene ese número, el aviso dice por qué no). Los avisos dicen qué pasó de verdad. No se quita nada de lo que Miguel usaba: el editor, el arrastre y el interruptor «Mesa activa» siguen igual.",
+      "testigos": [
+        "- aviso:Mesa eliminada",
+        "+ clase:flex",
+        "+ clase:flex",
+        "+ clase:flex-col",
+        "+ clase:items-center",
+        "+ clase:text-muted-foreground",
+        "+ clase:text-sm",
+        "+ clase:text-sm",
+        "+ clase:text-xs",
+        "+ clase:justify-between",
+        "+ clase:font-semibold",
+        "+ clase:rounded-lg",
+        "+ clase:border",
+        "+ clase:mt-4",
+        "+ clase:gap-2",
+        "+ clase:p-3",
+        "+ clase:gap-1.5",
+        "+ clase:mb-2",
+        "+ texto:No aparecen en el mapa ni con los meseros. Su historial se conserva.",
+        "+ texto:Reactivar",
+        "+ aviso:Mesa ${mesa?.numero ?? ''} quitada del mapa. Su historial se conserva; puedes reactivarla en «Mesas desactivadas».",
+        "+ aviso:Mesa ${mesa.numero} reactivada: vuelve al mapa y a los meseros.",
+        "+ aviso:No se pudo reactivar la mesa:",
+        "+ label:Mesas desactivadas",
+        "+ aria-label:Mesas desactivadas"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Cierre del restaurante (21-10): la zona elegida al crear o editar una mesa no se guardaba —el diálogo la manda por nombre, el puente guarda `zona_id` y `zona` es un derivado de sólo lectura—, y la mesa creada desde la pestaña «Terraza» caía en «Interior» sin aviso. Ahora el nombre se traduce a su `zona_id` con las zonas del negocio; si la zona no existe, el aviso lo dice en vez de guardar la mesa en otra zona. No cambia nada de lo que Miguel ve al guardar con éxito.",
+      "testigos": [
+        "+ aviso:No se pudo guardar la mesa: la zona «${data.zona}» no existe en este negocio."
+      ]
     }
   ]
 }

@@ -221,15 +221,44 @@ async function actualizar(
     consulta = consulta.where(columna, '=', valor);
   }
 
+  // Si este `update` APAGA el registro —también el borrado suave pasa por aquí—, sólo cuando no
+  // está en uso (`apagarSoloSi`). En el mismo `where`: no hay hueco entre mirar y apagar.
+  const columnaActivo = mapa.campos['activo']?.columna;
+  const guarda =
+    columnaActivo !== undefined && valores[columnaActivo] === false ? mapa.apagarSoloSi : undefined;
+  if (guarda !== undefined) {
+    consulta = consulta.where(guarda.columnaEstado, 'in', guarda.estados);
+    for (const columna of guarda.vacias) consulta = consulta.where(columna, 'is', null);
+  }
+
   const fila = await consulta.returning(columnasDeSalida(mapa, ambito.rol)).executeTakeFirst();
 
   // Cero filas es un FALLO, no un éxito silencioso. Es la trampa de
   // `supabase-vercel-produccion` §7: un UPDATE que no encuentra su fila no da
   // error, devuelve nada, y la pantalla enseña «guardado».
   if (fila === undefined) {
+    if (guarda !== undefined && (await existeEnElNegocio(tx, ambito, mapa, peticion.id))) {
+      throw new ErrorDominio(guarda.codigo, guarda.mensaje);
+    }
     throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese registro no existe en este negocio.');
   }
   return traducirFila(fila, mapa, ambito.rol);
+}
+
+/** Si la fila existe en este negocio: distingue «está en uso» de «no existe». */
+async function existeEnElNegocio(
+  tx: Transaccion,
+  ambito: AmbitoEscritura,
+  mapa: MapaEntidad,
+  id: string,
+): Promise<boolean> {
+  const fila = await transaccionLibre(tx)
+    .selectFrom(mapa.tabla)
+    .select('id' as never)
+    .where('id' as never, '=', id as never)
+    .where('organizacion_id' as never, '=', ambito.organizacionId as never)
+    .executeTakeFirst();
+  return fila !== undefined;
 }
 
 /**

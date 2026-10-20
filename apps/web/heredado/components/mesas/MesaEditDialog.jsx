@@ -312,10 +312,12 @@ export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }
                 size="sm"
                 onClick={handleDeleteClick}
                 disabled={mesaOcupada}
-                title={mesaOcupada ? 'No se puede eliminar una mesa ocupada' : 'Eliminar mesa'}
+                title={
+                  mesaOcupada ? 'No se puede quitar una mesa ocupada' : 'Quitar la mesa del mapa'
+                }
               >
                 <Trash2 className="w-4 h-4 mr-1" />
-                Eliminar
+                Quitar del mapa
               </Button>
             ) : (
               <div />
@@ -333,18 +335,19 @@ export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }
       <AlertDialog open={confirmDelete} onOpenChange={setConfirmDelete}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>¿Seguro que quieres eliminar esta mesa?</AlertDialogTitle>
+            <AlertDialogTitle>¿Quitar esta mesa del mapa?</AlertDialogTitle>
             <AlertDialogDescription className="space-y-2">
               <span className="block">
-                Se eliminará la mesa{' '}
+                La mesa{' '}
                 <strong>
                   #{mesa?.numero}
                   {mesa?.nombre ? ` · ${mesa.nombre}` : ''}
                 </strong>{' '}
-                del mapa.
+                deja de aparecer en el mapa y con los meseros.
               </span>
               <span className="block text-xs text-muted-foreground">
-                No se borrarán ventas, registros ni historial — solo la mesa del mapa actual.
+                No se borran ventas, registros ni historial. Puedes reactivarla desde «Mesas
+                desactivadas», debajo del mapa.
               </span>
             </AlertDialogDescription>
           </AlertDialogHeader>
@@ -354,7 +357,7 @@ export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }
               className="bg-destructive hover:bg-destructive/90"
               onClick={handleConfirmDelete}
             >
-              Sí, eliminar mesa
+              Sí, quitar del mapa
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

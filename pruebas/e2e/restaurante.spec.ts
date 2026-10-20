@@ -434,4 +434,143 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
 
     exigirSinFallos();
   });
+
+  /**
+   * LAS MESAS SE CONFIGURAN DESDE CONFIGURACIÓN, y el resultado se entiende (cierre del 21-10).
+   *
+   * Crear, editar, acomodar y guardar la posición, quitar del mapa y reactivar, mirando la base
+   * después de cada paso —no el aviso—. «Eliminar» desactiva (borrado suave: el historial se
+   * conserva) y antes la mesa SEGUÍA en el mapa con el aviso «Mesa eliminada»; ahora sale del
+   * mapa, aparece en «Mesas desactivadas» con «Reactivar», y la mesera no la ve.
+   *
+   * En el teléfono el editor es una LISTA —sin mapa libre ni arrastre; cada mesa se abre con su
+   * lápiz—, con el mismo corte que la pantalla (`useIsMobile`, menos de 768 px): ahí se prueba
+   * todo menos acomodar.
+   */
+  test('el dueño crea, edita, acomoda, quita del mapa y reactiva una mesa', async ({ page }) => {
+    const exigirSinFallos = vigilarFallos(page);
+    await entrar(page);
+    const conMapa = (page.viewportSize()?.width ?? 0) >= 768;
+
+    interface MesaConfigurada extends MesaDelPuente {
+      readonly nombre?: string | null;
+      readonly capacidad?: number | null;
+      readonly zona?: string | null;
+      readonly activo?: boolean | null;
+      readonly posicion_x?: number | null;
+      readonly posicion_y?: number | null;
+    }
+    const leerMesa = async (numero: number): Promise<MesaConfigurada | undefined> => {
+      const todas = await consultarPuente<MesaConfigurada>(page, 'Mesa', { limite: 100 });
+      return todas.find((m) => m.numero === numero);
+    };
+    const enElEditor = (numero: number) =>
+      conMapa
+        ? page
+            .locator('span.font-heading')
+            .filter({ hasText: new RegExp(`^${String(numero)}$`) })
+            .first()
+        : page.getByRole('button', { name: `Editar mesa ${String(numero)}`, exact: true });
+    const dialogo = page.getByRole('dialog').filter({ hasText: 'Nombre visible' });
+
+    const pestanaDeZona = (zona: string) =>
+      page.getByRole('button', { name: new RegExp(`^${zona} \\(\\d+\\)$`) });
+
+    await page.goto('/configuracion?tab=mesas');
+    // Se crea desde la pestaña «Terraza», y nace en la Terraza. Antes la zona no viajaba
+    // —`zona` es un derivado; lo que se guarda es `zona_id`— y la mesa caía en «Interior».
+    await pestanaDeZona('Terraza').click();
+    await page.getByRole('button', { name: 'Nueva mesa' }).click();
+    await expect(dialogo).toBeVisible({ timeout: 30_000 });
+    // El número lo propone el editor: el siguiente al mayor.
+    const numero = Number(await dialogo.getByRole('spinbutton').first().inputValue());
+    expect(numero, 'El editor no propuso un número de mesa.').toBeGreaterThan(0);
+    await dialogo.getByPlaceholder('Opcional').fill('Terraza norte');
+    await dialogo.getByRole('button', { name: 'Crear mesa' }).click();
+    await expect(dialogo).toBeHidden({ timeout: 30_000 });
+    await expect(enElEditor(numero)).toBeVisible({ timeout: 30_000 });
+    expect(await leerMesa(numero)).toMatchObject({
+      nombre: 'Terraza norte',
+      zona: 'Terraza',
+      activo: true,
+    });
+
+    // Editar: el nombre, la capacidad y la ZONA se guardan; la mesa se va a su pestaña nueva.
+    await enElEditor(numero).click();
+    await expect(dialogo).toBeVisible();
+    await dialogo.getByPlaceholder('Opcional').fill('Terraza norte · sombra');
+    await dialogo.getByRole('spinbutton').nth(1).fill('6');
+    // El primer selector del diálogo es la zona (luego forma, tamaño y mesero).
+    await dialogo.getByRole('combobox').first().click();
+    await page.getByRole('option', { name: 'Exterior', exact: true }).click();
+    await dialogo.getByRole('button', { name: 'Guardar cambios' }).click();
+    await expect(dialogo).toBeHidden({ timeout: 30_000 });
+    await expect
+      .poll(async () => (await leerMesa(numero))?.nombre, { timeout: 15_000 })
+      .toBe('Terraza norte · sombra');
+    expect(await leerMesa(numero)).toMatchObject({ capacidad: 6, zona: 'Exterior' });
+    await expect(enElEditor(numero)).toBeHidden();
+    await pestanaDeZona('Exterior').click();
+    await expect(enElEditor(numero)).toBeVisible();
+
+    // Acomodar: se arrastra y la posición se guarda al soltar, y sobrevive a la recarga.
+    if (conMapa) {
+      const antes = await leerMesa(numero);
+      const caja = await enElEditor(numero).boundingBox();
+      if (caja === null) throw new Error('La mesa nueva no tiene caja en el editor.');
+      const guardada = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === '/api/datos/escribir' && r.request().method() === 'POST',
+      );
+      await page.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(caja.x + caja.width / 2 + 90, caja.y + caja.height / 2 + 60, {
+        steps: 8,
+      });
+      await page.mouse.up();
+      expect((await guardada).ok(), 'La posición no se guardó al soltar la mesa.').toBe(true);
+      await expect
+        .poll(async () => (await leerMesa(numero))?.posicion_x, { timeout: 15_000 })
+        .not.toBe(antes?.posicion_x);
+      const movida = await leerMesa(numero);
+      await page.reload();
+      // La recarga vuelve a la pestaña «Interior»: la mesa está en «Exterior».
+      await pestanaDeZona('Exterior').click();
+      await expect(enElEditor(numero)).toBeVisible({ timeout: 30_000 });
+      expect(await leerMesa(numero)).toMatchObject({
+        posicion_x: movida?.posicion_x,
+        posicion_y: movida?.posicion_y,
+      });
+    }
+
+    // Quitar del mapa: se desactiva, sale del mapa y aparece en «Mesas desactivadas».
+    await enElEditor(numero).click();
+    await expect(dialogo).toBeVisible();
+    await dialogo.getByRole('button', { name: 'Quitar del mapa' }).click();
+    await page.getByRole('button', { name: 'Sí, quitar del mapa' }).click();
+    await expect(page.getByText(`Mesa ${String(numero)} quitada del mapa`).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    const desactivadas = page.getByLabel('Mesas desactivadas');
+    await expect(desactivadas).toContainText(`Mesa ${String(numero)}`);
+    await expect(enElEditor(numero)).toBeHidden();
+    expect((await leerMesa(numero))?.activo).toBe(false);
+
+    // Reactivar: vuelve al mapa.
+    await desactivadas
+      .getByRole('listitem')
+      .filter({ hasText: `Mesa ${String(numero)}` })
+      .getByRole('button', { name: 'Reactivar' })
+      .click();
+    await expect(enElEditor(numero)).toBeVisible({ timeout: 30_000 });
+    expect((await leerMesa(numero))?.activo).toBe(true);
+
+    // Se deja como estaba la demo: la mesa de la prueba, fuera del mapa.
+    await enElEditor(numero).click();
+    await dialogo.getByRole('button', { name: 'Quitar del mapa' }).click();
+    await page.getByRole('button', { name: 'Sí, quitar del mapa' }).click();
+    await expect(enElEditor(numero)).toBeHidden({ timeout: 30_000 });
+
+    exigirSinFallos();
+  });
 });

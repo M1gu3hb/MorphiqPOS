@@ -328,12 +328,19 @@ export default function Configuracion() {
     // que no quepan aquí es lo que impide «mesa libre con venta viva».
 
     try {
-      if (data.id) {
-        const { id, ...rest } = data;
-        await api.entidades.Mesa.update(id, soloCamposEditablesMesa(rest));
+      // La zona se elige por nombre y se guarda por `zona_id` (ver `soloCamposEditablesMesa`).
+      const zonas = await api.entidades.Zona.list();
+      const { id, ...rest } = data;
+      const campos = soloCamposEditablesMesa(rest, zonas);
+      if (data.zona && !campos.zona_id) {
+        toast.error(`No se pudo guardar la mesa: la zona «${data.zona}» no existe en este negocio.`);
+        return;
+      }
+      if (id) {
+        await api.entidades.Mesa.update(id, campos);
         toast.success(`Mesa ${data.numero} actualizada`);
       } else {
-        await api.entidades.Mesa.create(soloCamposEditablesMesa(data));
+        await api.entidades.Mesa.create(campos);
         toast.success(`Mesa ${data.numero} creada`);
       }
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
@@ -362,9 +369,13 @@ export default function Configuracion() {
         );
         return;
       }
+      // El puente la DESACTIVA (borrado suave): su historial de ventas se conserva y puede
+      // volver. Antes decía «Mesa eliminada» y la mesa seguía en el mapa, igual que antes.
       await api.entidades.Mesa.delete(id);
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
-      toast.success('Mesa eliminada');
+      toast.success(
+        `Mesa ${mesa?.numero ?? ''} quitada del mapa. Su historial se conserva; puedes reactivarla en «Mesas desactivadas».`,
+      );
       setShowMesaDialog(false);
       setEditingMesa(null);
     } catch (e) {
@@ -401,7 +412,21 @@ export default function Configuracion() {
     setShowMesaDialog(true);
   };
 
-  const mesasFiltradas = mesas.filter((m) => (m.zona || 'Interior') === zonaFiltro);
+  // El mapa y la lista son de las mesas ACTIVAS; las desactivadas van aparte, con «Reactivar».
+  const mesasActivas = mesas.filter((m) => m.activo !== false);
+  const mesasDesactivadas = mesas.filter((m) => m.activo === false);
+  const mesasFiltradas = mesasActivas.filter((m) => (m.zona || 'Interior') === zonaFiltro);
+
+  const reactivarMesa = async (mesa) => {
+    try {
+      await api.entidades.Mesa.update(mesa.id, { activo: true });
+      queryClient.invalidateQueries({ queryKey: ['mesas'] });
+      toast.success(`Mesa ${mesa.numero} reactivada: vuelve al mapa y a los meseros.`);
+    } catch (e) {
+      // El servidor dice por qué —por ejemplo, otra mesa activa ya tiene ese número—.
+      toast.error('No se pudo reactivar la mesa: ' + (e?.message || ''));
+    }
+  };
 
   const eliminarMesasDemo = async () => {
     setEliminando(true);
@@ -945,7 +970,7 @@ export default function Configuracion() {
                     >
                       {z}{' '}
                       <span className="opacity-60">
-                        ({mesas.filter((m) => (m.zona || 'Interior') === z).length})
+                        ({mesasActivas.filter((m) => (m.zona || 'Interior') === z).length})
                       </span>
                     </button>
                   ))}
@@ -984,6 +1009,29 @@ export default function Configuracion() {
                       Las posiciones se guardan automáticamente al soltar.
                     </p>
                   </>
+                )}
+                {mesasDesactivadas.length > 0 && (
+                  <div className="mt-4 rounded-lg border p-3" aria-label="Mesas desactivadas">
+                    <p className="text-sm font-semibold">
+                      Mesas desactivadas ({mesasDesactivadas.length})
+                    </p>
+                    <p className="text-xs text-muted-foreground mb-2">
+                      No aparecen en el mapa ni con los meseros. Su historial se conserva.
+                    </p>
+                    <ul className="flex flex-col gap-1.5">
+                      {mesasDesactivadas.map((m) => (
+                        <li key={m.id} className="flex items-center justify-between gap-2 text-sm">
+                          <span>
+                            Mesa {m.numero}
+                            {m.nombre ? ` · ${m.nombre}` : ''} · {m.zona || 'Interior'}
+                          </span>
+                          <Button size="sm" variant="outline" onClick={() => reactivarMesa(m)}>
+                            Reactivar
+                          </Button>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
                 )}
               </CardContent>
             </Card>

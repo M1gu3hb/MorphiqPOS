@@ -1,5 +1,6 @@
 import 'server-only';
 
+import type { CodigoError } from '@morphiqpos/contracts';
 import { desdeTexto } from '@morphiqpos/domain/dinero';
 
 /**
@@ -284,6 +285,25 @@ export interface MapaEntidad {
    * que revienta la creación de la primera mesa del negocio.
    */
   readonly conSucursal?: boolean;
+  /**
+   * LO QUE NO SE APAGA MIENTRAS ESTÁ EN USO (cierre del restaurante, 21-10).
+   *
+   * El borrado suave apaga `activo` y nada más. Para una mesa con la cuenta abierta eso dejaba
+   * la cuenta colgando de una mesa «dada de baja»: fuera del mapa, y sin poder seguir
+   * atendiéndose desde su mesa. La pantalla deshabilitaba el botón; el servidor lo dejaba pasar.
+   *
+   * Con esto, apagar el registro —por `delete` o por un `update` con `activo: false`— sólo
+   * ocurre si `columnaEstado` está en `estados` y las `vacias` están en NULL. La condición va en
+   * el `where` del MISMO `update`: si una apertura gana la carrera, el apagado no encuentra su
+   * fila y contesta `codigo` con `mensaje`.
+   */
+  readonly apagarSoloSi?: {
+    readonly columnaEstado: string;
+    readonly estados: readonly string[];
+    readonly vacias: readonly string[];
+    readonly codigo: CodigoError;
+    readonly mensaje: string;
+  };
   /**
    * LA FRONTERA POR SUCURSAL de lo que se LEE (cierre de la 2.4, D-36). Obligatoria, como
    * `rolesLectura`: una entidad nueva no puede quedar sin decidir si es de una sucursal.

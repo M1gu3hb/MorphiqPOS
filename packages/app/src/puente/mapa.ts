@@ -2934,6 +2934,16 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
     escritura: 'directa',
     // `mesas.sucursal_id` es `not null`: la pone el servidor desde la sesión.
     conSucursal: true,
+    // Quitar del mapa una mesa en servicio dejaba su cuenta colgando de una mesa dada de baja.
+    // Los estados son los que la pantalla deja quitar (`MesaEditDialog.jsx`, `ESTADOS_OCUPADA`):
+    // una mesa unida a otra no tiene cuenta propia, pero lleva el estado de la principal.
+    apagarSoloSi: {
+      columnaEstado: 'estado',
+      estados: ['libre', 'limpieza', 'pagada', 'cancelada'],
+      vacias: ['orden_activa_id'],
+      codigo: 'MESA_YA_ABIERTA',
+      mensaje: 'Esa mesa está en servicio: cóbrala o cancela su cuenta antes de quitarla del mapa.',
+    },
     ordenPorOmision: 'numero',
     campos: {
       ...AUTO,

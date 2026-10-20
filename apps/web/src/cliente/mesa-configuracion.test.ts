@@ -16,6 +16,30 @@ describe('mesa guardada desde Configuración', () => {
     ).toEqual({ numero: 7, nombre: 'Terraza', qr_activo: false });
   });
 
+  const ZONAS = [
+    { id: 'zona-interior', nombre: 'Interior' },
+    { id: 'zona-terraza', nombre: 'Terraza' },
+  ];
+
+  it('la zona elegida por nombre viaja como su zona_id', () => {
+    expect(soloCamposEditablesMesa({ numero: 13, zona: 'Terraza' }, ZONAS)).toEqual({
+      numero: 13,
+      zona_id: 'zona-terraza',
+    });
+  });
+
+  it('al editar, la zona nueva manda sobre el zona_id que trajo la lectura', () => {
+    expect(
+      soloCamposEditablesMesa({ numero: 4, zona: ' terraza ', zona_id: 'zona-interior' }, ZONAS),
+    ).toEqual({ numero: 4, zona_id: 'zona-terraza' });
+  });
+
+  it('una zona que no existe no deja el zona_id viejo: sale sin él, para que quien llama avise', () => {
+    expect(
+      soloCamposEditablesMesa({ numero: 4, zona: 'Azotea', zona_id: 'zona-interior' }, ZONAS),
+    ).toEqual({ numero: 4 });
+  });
+
   it('convierte la asignación vacía en null para que PostgreSQL acepte el UUID opcional', () => {
     expect(
       soloCamposEditablesMesa({
