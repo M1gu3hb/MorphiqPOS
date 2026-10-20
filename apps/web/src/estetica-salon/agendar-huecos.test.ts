@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
 
-import {
-  conOtraPersona,
-  consumoDeLaReceta,
-  diaIso,
-  huecosParaOfrecer,
-  minutosDelServicio,
-} from './agendar-huecos.ts';
+import { conOtraPersona, diaIso, huecosParaOfrecer, minutosDelServicio } from './agendar-huecos.ts';
 
 describe('cuánto dura el servicio con quien lo da', () => {
   it('los tres tramos, al factor de esa persona', () => {
@@ -58,21 +52,7 @@ describe('los huecos que se ofrecen', () => {
   });
 });
 
-describe('lo que el servicio gasta de la cabina', () => {
-  it('sumado por insumo, con cuatro decimales; sin cantidad no suma', () => {
-    expect(
-      consumoDeLaReceta([
-        { ingrediente_id: 'tinte', cantidad_convertida_unidad_base: 60 },
-        { ingrediente_id: 'oxidante', cantidad_convertida_unidad_base: 90 },
-        { ingrediente_id: 'tinte', cantidad_convertida_unidad_base: 0.5 },
-        { ingrediente_id: 'guantes', cantidad_convertida_unidad_base: null },
-      ]),
-    ).toEqual([
-      { insumoId: 'tinte', cantidadBase: '60.5000' },
-      { insumoId: 'oxidante', cantidadBase: '90.0000' },
-    ]);
-  });
-
+describe('el día que pide la agenda', () => {
   it('el día va en la hora local', () => {
     expect(diaIso(new Date(2026, 8, 5))).toBe('2026-09-05');
   });

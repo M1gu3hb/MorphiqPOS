@@ -239,6 +239,86 @@ describe('F-155 · ¿alcanza la cabina para lo que está agendado?', () => {
   });
 });
 
+describe('F-107 · ¿alcanza para EL servicio que se agenda? La receta la lee el servidor', () => {
+  const SERVICIO = 'b0000000-0000-4000-8000-0000000000aa';
+  const recetas = (organizacion = ORG) => [
+    // Dos líneas del mismo insumo se suman; la inactiva no cuenta.
+    {
+      organizacion_id: organizacion,
+      producto_id: SERVICIO,
+      insumo_id: INSUMO,
+      cantidad: '60.0000',
+      activa: true,
+    },
+    {
+      organizacion_id: organizacion,
+      producto_id: SERVICIO,
+      insumo_id: INSUMO,
+      cantidad: '15.5000',
+      activa: true,
+    },
+    {
+      organizacion_id: organizacion,
+      producto_id: SERVICIO,
+      insumo_id: OTRO_INSUMO,
+      cantidad: '999.0000',
+      activa: false,
+    },
+  ];
+
+  it('la recepcionista pregunta con el servicio y sabe qué faltará, sin leer la receta', async () => {
+    const base = baseDe({
+      productos: [producto(), { id: SERVICIO, organizacion_id: ORG, nombre: 'Tinte de raíz' }],
+      recetas: recetas(),
+      existencias: [
+        { organizacion_id: ORG, almacen_id: CABINA, insumo_id: INSUMO, cantidad: '70.0000' },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await alcanzaLaCabina.ejecutar(ctx, {
+      almacenCabinaId: CABINA,
+      servicioId: SERVICIO,
+    });
+
+    expect(salida.alcanza).toBe(false);
+    expect(salida.faltantes).toHaveLength(1);
+    expect(salida.faltantes[0]?.hay).toBe('70.0000');
+  });
+
+  it('justo lo que pide la receta SÍ alcanza: la suma es exacta, a cuatro decimales', async () => {
+    const base = baseDe({
+      productos: [producto(), { id: SERVICIO, organizacion_id: ORG, nombre: 'Tinte de raíz' }],
+      recetas: recetas(),
+      existencias: [
+        { organizacion_id: ORG, almacen_id: CABINA, insumo_id: INSUMO, cantidad: '75.5000' },
+      ],
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    const salida = await alcanzaLaCabina.ejecutar(ctx, {
+      almacenCabinaId: CABINA,
+      servicioId: SERVICIO,
+    });
+
+    expect(salida.alcanza).toBe(true);
+  });
+
+  it('un servicio de otro negocio no existe para éste', async () => {
+    const base = baseDe({
+      productos: [producto(), { id: SERVICIO, organizacion_id: 'otra-org', nombre: 'Ajeno' }],
+      recetas: recetas('otra-org'),
+    });
+    const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);
+
+    expect(
+      await codigoDe(() =>
+        alcanzaLaCabina.ejecutar(ctx, { almacenCabinaId: CABINA, servicioId: SERVICIO }),
+      ),
+    ).toBe('PRODUCTO_NO_ENCONTRADO');
+  });
+});
+
 describe('F-155 · los dos almacenes salen de la SESIÓN cuando no se dicen', () => {
   /**
    * ── Por qué esto hacía falta ────────────────────────────────────────────
