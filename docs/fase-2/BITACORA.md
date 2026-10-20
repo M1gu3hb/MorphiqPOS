@@ -6678,3 +6678,130 @@ rojo, con su causa y no con su síntoma:
 
 **En qué voy:** integrar lo de los dos subagentes cuando entreguen; el PR contra `main`; el CI
 sobre el SHA del PR; el preview; `07-ESTADO.md` y el reporte 020.
+
+## 20-10-2026 · Etapa 2.4 · El restaurante, presentable, y CI otra vez en verde tras la intervención
+
+Se retoma con `CONTINUAR-CLAUDE-2026-10-20.md`. Lo que dejó la intervención de Codex/ChatGPT
+(autorizada por Miguel) ya está en la rama por la fusión de `main` (`df25286`): el recorrido
+heredado del restaurante como principal, la entrada central y la cuenta «Miguel, Dueño
+general» (A-52/D-42), y las migraciones 181/182 aplicadas en producción. Producción = `main` =
+`5a5bf6f`. Prioridad: que el restaurante se pueda operar, recorrer y presentar.
+
+**El día completo del restaurante, por el recorrido que se presenta** (`d395560`). CI llamaba a
+`dia-completo-restaurante` y el archivo no existía. Ahora vive el día por las pantallas
+heredadas, cada quien en su aparato y con su terminal, en **PC, tableta y teléfono** (los tres
+en CI): cada puesto entra a SU inicio y la mesera sólo ve «Mesas y pedidos»; Rosa abre con
+$1,500; tres mesas con comanda a cocina y barra, preparación, entrega, precuenta con 10 %, 15 %
+y sin propina; cobro en efectivo con cambio, tarjeta y mixto; corte de turno, cierre a ciegas
+con $10 de faltante y su PDF; la dueña lee ventas y propinas en su teléfono; el dinero cuadra
+al centavo contra el servidor y con un centavo de más NO; el almacén baja lo de las recetas; y
+tras recargar y volver a entrar por el acceso central, el día sigue ahí. `vigilarFallos` tumba el
+día ante cualquier 4xx/5xx de la API.
+
+**Lo que el recorrido destapó en el producto, cada cosa arreglada antes de escribirla como
+prueba:**
+- La mesera no podía pedir la cuenta: el corte era 403 para su rol (`771be9a`, el puente le deja
+  saber si hay caja y ni un importe del corte).
+- La barra no la veía nadie: la cocina sólo pedía el área `cocina` (`977a5cd`).
+- La cajera veía la caja de OTRA terminal como suya y cada cobro le contestaba «Abre la caja»
+  (`977a5cd`, `useCajaAbierta({ deEstaTerminal })`).
+- La cajera en `/` veía el tablero de la dueña con lecturas en 403; la mesera que teclea `/caja`,
+  la pantalla de cobro (`1a7ffca`); y la guarda decidía con la configuración de omisión mientras
+  cargaba (`5c2162c`).
+- El cierre de la cajera no daba PDF: tres lecturas de costos en 403 tumbaban el `Promise.all`
+  (`5c2162c`).
+- El botón del menú del teléfono y la tableta era invisible en 11 de los 16 estilos (contraste
+  1.0–1.4, entre ellos «noche», el de la demo): `text-primario-texto` sobre la barra desde C.16
+  (`1759aa5`, excepción de color declarada; el día lo mide en los 16).
+- «Guardar para el negocio» en Apariencia contestaba 403 desde la 2.35: su `fetch` iba sin la
+  cabecera propia (`86659a2`, contrato nuevo: toda escritura del navegador la lleva).
+- Caja anunciaba «No hay caja abierta» medio segundo con la caja abierta (`fcac47a`).
+- Resetear la demo del restaurante le reponía el PIN público a la cuenta general de Miguel y le
+  borraba la concesión de los modelos (`19d32d2`, con prueba contra Postgres vista roja de las
+  dos maneras).
+
+**La presentación, comprobada en la base desechable** con una cuenta de prueba de dueño general
+(no la de Miguel): entra por `/login-pos` con su nombre preseleccionado, abre «Modelos de
+negocio», cambia entre los cinco modelos sin volver a teclear el PIN, y en cada uno cada pantalla
+del menú pinta sin un solo 4xx; sale, y Lupita, Rosa, Toño, Beatriz y Nacho caen cada quien en su
+inicio con su menú. En PC y en teléfono. El tablero de la dueña, el mapa con su color por estado,
+el editor de mesas (crear, arrastrar —la posición se guarda—, que la mesera la vea) y el cambio de
+estilo (ahora sí se guarda y lo ve la mesera en su aparato).
+
+**Lo que la intervención dejó rojo en CI y no se veía** (la corrida de `main` en `5a5bf6f`, leída
+trabajo por trabajo): las puertas de tokens, adopción y cobertura por dos componentes nuevos y
+un huérfano (`937f262`); la fusión `c1ada17` perdió `useState(deModelo)` y la barra abría a 240
+px en las pantallas de modelo —la tienda y la ferretería cayeron en tableta— (`eaeee33`); D-42
+le quitó a Café Jacaranda «Baristas» y «Barras» del menú (`5b9fbd2`); y «Cobrar» del salón leía
+las citas una sola vez (la CITA-1 que no aparecía; parte del parche del subagente de estética).
+
+**El rastreo del restaurante, rojo en `main` en los ocho estilos** (21.3 % sin alcance, techo 15 %;
+`8082229`). Desde D-42 el recorrido principal son las pantallas heredadas, y dos supuestos del rastreo
+dejaron de cumplirse. Recargar no volvía al estado inicial: la X de «Primeros pasos» guarda
+`mh_primeros_pasos_dismissed` en `localStorage`, la guía desaparecía y 17 caminos `nth-child` del
+tablero dejaban de existir; ahora cada recarga repone lo que la pantalla tenía guardado al enumerarla.
+Y dentro de un diálogo, un toque que agrega piezas («Agregar grupo», «Agregar otra línea») corría de
+lugar a «Guardar», «Cancelar» y la X —198 piezas—; ahora la capa se vuelve a enumerar y cada pieza se
+busca alineando las firmas (`packages/testing/src/reubicar.ts`, con pruebas). Mismo techo. En CI:
+14.1 min, verde. De paso, la tienda: su rastreo caía en siete de ocho estilos porque el Enter del
+buscador del conteo no contestaba nada (`c78ea6e`).
+
+**El esquema, contra producción, sólo leyendo** (`15724db`). Ledger de `wyqmzhliurwyxuyxznpb`: 114
+filas, la última la 182 (aplicadas el 19-10 a las 22:36 UTC), y el md5 de la lista `versión:hash` es el
+mismo que el de los 114 archivos. Y el esquema es EXACTAMENTE el de las 182 migraciones más un índice
+que ninguna crea, `mesas_numero_unico` (único por negocio y parcial, `where activa`): llegó fuera del
+ledger, como el de la 052, y una base nueva —la de CI— aceptaba dos «Mesa 5» activas en el mismo
+restaurante. La **183** lo crea con `if not exists` (en producción no cambia nada), con precondición y
+poscondición; vista por sus cuatro caminos en una base aparte, y con las 183 aplicadas desde cero el
+resumen del esquema (1727 columnas, 1362 restricciones, 439 índices) es idéntico al de producción.
+`scripts/esquema-esperado.json` se había parchado a mano para la 181 y no tenía la 182: ahora es
+producción. Con la llave nueva de la 182 se regeneró el orden de limpieza de las demos. **La 183 no se
+aplicó**: va por `pnpm db:migrate` cuando Miguel acepte.
+
+**Lo que destapó la primera corrida del PR #13** (`dd4dbb8`, corrida 39423569015), arreglado:
+`verify:mutaciones-backend` —«logout limitado a borrar la cookie» sobrevivía desde `c1ada17` porque la
+ruta de salir revoca ahora DOS sesiones y la prueba sólo buscaba el texto una vez; y la mutación del
+fondo de la caja (mía, `771be9a`) no podía caer por el arnés— (`46b3d2b`); `verify:matriz` no conocía
+`/api/presentacion` ni el `servicioId` de la cabina (`e42cd77`); y la suite del restaurante esperaba
+«Meseros» y «Cocinas» en el menú, el de antes de D-42 (`b819b0c`). En `main` las tres puertas ya
+estaban rojas o no llegaban a correr. Las cinco jornadas, los permisos y el aislamiento pasaron; la del
+restaurante, en PC, tableta y teléfono (47.9 s, 47.5 s, 41.1 s).
+
+**La segunda corrida del PR** (`b819b0c`, corrida 39427748961): formato, lint, tipos, unitarias,
+integración, build y cabeceras en vivo; contratos y mutaciones; adopción; las cinco jornadas; permisos
+y aislamiento; y el rastreo de los cinco: en verde. Lo único rojo, la galería, que compara contra
+retratos anteriores al menú de D-34, al «Mixto» de C.5 y al «Casco»: se regeneraron con el flujo a mano
+(`actualizar_galeria`, corrida 39427772118) y se revisan antes de subirlos; queda la corrida del PR
+sobre el SHA que los lleve.
+
+**La tienda, colgada una vez en la tableta** (corrida 39423569015): a los 109 s, en la entrada de
+Jesica, la página dejó de pintarse con el teclado ya en pantalla —el último cuadro de la traza lo
+enseña— y el «3» no llegó a resolverse. El clic falló a los 20 s; los veinte minutos se fueron en
+`equipo.cerrar()`, que no puede cerrar un contexto con la página colgada. No se reprodujo en dos
+corridas locales en tableta ni en la corrida siguiente de CI. No lo llamo «intermitente» como
+explicación: queda con su traza, y si vuelve hay que cerrar los contextos con un tiempo máximo para que
+caiga en segundos.
+
+**El preview, desde fuera** (`morphiqpos-84zrxu8sp-mh-astral-systems.vercel.app` = `dd4dbb8`): sirve la
+entrada central con sus seis vistas y las seis personas del restaurante (`/api/auth/empleados` 200).
+Entrar NO: `POST /api/auth/entrar` contesta 403 de la frontera de escritura, por el despliegue y por el
+alias de la rama, porque el `APP_URL_ALTERNAS` de Preview no incluye esta rama (`VERCEL-ENTORNO.md`
+§9). La sesión no tiene permiso para leer ni crear variables del proyecto (la API de Vercel contesta
+403). Bloqueado hasta que Miguel cree la variable; no se corrió ninguna suite contra el preview, que
+escribe en la base de producción.
+
+**La sesión se reinició dos veces** a media corrida (se cayeron Docker, la base desechable y el
+servidor local); se retomó desde el árbol cada vez, sin perder commits.
+
+**No resuelto, para decidir:**
+- Aplicar la 183 en producción (no-op: el índice ya está) con el respaldo de siempre
+  (`MIGRACIONES-181-182.md` §5–§7).
+- La variable de Preview para esta rama, para entrar al preview desde fuera.
+- Del parche del subagente de estética se integró lo que el día necesitaba (`Cobrar` al día, la cabina
+  al agendar, los costos y la lista de espera por rol). El resto —mejoras de fórmula, expediente,
+  walk-in, no-show, «sin llegar», kardex y existencias de cabina— no se revisó línea por línea y no
+  entra a este PR: queda en `docs/fase-2/pendientes/estetica-subagente-2026-10-20.patch`.
+- Eliminar una mesa la apaga (`activa = false`, borrado suave del puente) y el editor la sigue
+  enseñando: «eliminada» e «inactiva» son el mismo campo. Borrarla de verdad arrastraría su
+  bitácora (`eventos_mesa` en cascada). Opciones: una columna `eliminada_en` con su migración, o
+  que el editor distinga las inactivas. Decisión de Miguel.

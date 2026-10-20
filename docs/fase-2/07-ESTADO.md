@@ -1,3 +1,10 @@
+> **Actualización 20-oct-2026, tarde (PR #13):** el día completo del restaurante existe y corre en
+> CI por el recorrido heredado en PC, tableta y teléfono (D-43), cuadrado al centavo; el rastreo del
+> restaurante, rojo en `main` en los ocho estilos, vuelve a alcanzar lo que enumera; las migraciones
+> reproducen el esquema de producción (183, `mesas_numero_unico`, sin aplicar todavía). CI en el SHA
+> final: todo en verde menos la galería, que se regenera (corrida 39427748961 sobre `b819b0c`). Producción sigue en `main` @ `5a5bf6f`: nada de esto está desplegado hasta que
+> Miguel acepte y fusione. Ver la bitácora del 20-10 y el reporte 020.
+>
 > **Actualización 20-oct-2026:** el trabajo de la rama de estabilización hasta `167f9eb`
 > se integró a `main` en `c1ada172`; `af40953` corrigió el PIN pegado/autocompletado.
 > A-52 / D-42 aclaran el Master POS interno y la entrega independiente por cliente.
@@ -883,7 +890,7 @@ Rama `fase-2.4`, sacada de `origin/fase-2` (el PR #11 sigue sin fusionar). **Nun
 | **A** | La entrada es de UN negocio: `/n/<slug>/login-pos`, la lista de empleados exige el negocio (404 igual para «no se sirve» y «no existe»), `/login-pos` sin nombres en un despliegue de varios, rol por el vocabulario del giro, Preview sólo con demos | ✅ código, pruebas y puertas en verde (la prueba de la ruta, 7 de 8 en ROJO contra la de `fase-2`); las cinco suites de modelo entrando por `/n/<demo>/login-pos`; Preview con las cinco demos |
 | **B** | Que nada pueda tocar un negocio real | ✅ B.1–B.6 hechos y vistos negarse, también contra el servidor local (reseteo 403 sin consultas; limpieza completa y en orden de llaves; humo, bootstrap, alta e integración) |
 | **C** | Los 18 pendientes | 🟨 C.1, C.2 (`verify:unidades` en 0, vista roja con 130), C.3 (cobro de estética: propina, anticipo, descuento, mixto e IVA; D-17), C.4 (sin migración: D-16), C.5 (mixto y cambio, abono por método, propina libre, teclas F; y la llave de mora que daba el navegador), C.7, C.8, C.12, C.13, C.14 (apartado público sin pago, D-18), C.15, C.16 (el heredado en tokens, D-19), C.6 (el corte y su PDF en los cinco giros, D-20), C.9 (existencia, «mi día», agenda y cierre de turno con lo que el puente no servía; cocina sin costos), C.17 y C.18 hechos; C.10 en curso (la tienda, la cafetería y el salón construidos, D-21, D-22 y D-23; de ferretería Entradas, Facturación y la ficha, D-24; `verify:pendientes` en 6: cinco de ferretería y el portal del comensal) y falta C.11 |
-| **D** | La batería de pruebas | ⬜ |
-| **E** | Producción que se prueba sola | ⬜ |
-| **F** | Correr todo y cerrar | ⬜ |
+| **D** | La batería de pruebas | ✅ 20-10-2026: las cinco jornadas por las pantallas de cada rol, cuadradas al centavo (el restaurante en PC, tableta y teléfono), la matriz de permisos y el aislamiento entre negocios y sucursales, el rastreo de los cinco y las suites de modelo, todo en CI sin reintentos (D-39, D-43); la galería, regenerándose |
+| **E** | Producción que se prueba sola | ⬜ El preview de esta rama sirve la entrada central, pero entrar contesta 403: falta la variable `APP_URL_ALTERNAS` de Preview para esta rama, que es de Miguel (`VERCEL-ENTORNO.md` §9) |
+| **F** | Correr todo y cerrar | 🟨 PR #13 contra `main`. Falta: la aceptación de Miguel (fusionar = desplegar), aplicar la 183 (no-op en producción) y la variable de Preview |
 
