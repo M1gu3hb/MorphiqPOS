@@ -53,11 +53,7 @@ describe('la cuenta con tarjeta y la propina sólo en efectivo', () => {
     const { ordenId, totalCentavos } = await armarVenta(ambito(), [
       { productoId: platillo.productoId, cantidad: '1' },
     ]);
-    const antes = await repoCaja.arqueoDeSesion(
-      obtenerDb(),
-      negocio.organizacionId,
-      sesionCajaId,
-    );
+    const antes = await repoCaja.arqueoDeSesion(obtenerDb(), negocio.organizacionId, sesionCajaId);
 
     const idempotencyKey = clave();
     const cobrar = () =>
@@ -67,7 +63,12 @@ describe('la cuenta con tarjeta y la propina sólo en efectivo', () => {
           pagos: [
             { metodo: 'tarjeta', montoCentavos: totalCentavos },
             // Sin venta: inventarle un centavo descuadraría la venta por método.
-            { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 3_000, recibidoCentavos: 5_000 },
+            {
+              metodo: 'efectivo',
+              montoCentavos: 0,
+              propinaCentavos: 3_000,
+              recibidoCentavos: 5_000,
+            },
           ],
           totalEsperadoCentavos: totalCentavos,
           propinaOrigen: 'caja',

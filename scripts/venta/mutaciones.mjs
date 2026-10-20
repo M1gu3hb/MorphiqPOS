@@ -162,10 +162,18 @@ export const contraPruebas = [
     despues: 'if (false) {',
   },
   {
-    nombre: 'aceptar un renglón de pago en cero',
+    // Desde la 184 un renglón puede ser SÓLO propina (la cuenta con tarjeta y la propina en
+    // billete); lo que sigue sin ser un pago es el renglón VACÍO, sin venta ni propina.
+    nombre: 'aceptar un renglón de pago vacío, sin venta ni propina',
     ruta: PAGOS,
-    antes: 'if (monto <= 0n) {',
+    antes: 'if (monto < 0n || (monto === 0n && propina === 0n)) {',
     despues: 'if (monto < 0n) {',
+  },
+  {
+    nombre: 'aceptar una venta negativa compensada con propina',
+    ruta: PAGOS,
+    antes: 'if (monto < 0n || (monto === 0n && propina === 0n)) {',
+    despues: 'if (monto === 0n && propina === 0n) {',
   },
   {
     nombre: 'truncar la cantidad a entero (media res costaría cero)',

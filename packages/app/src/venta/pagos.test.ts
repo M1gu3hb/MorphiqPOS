@@ -81,6 +81,36 @@ describe('repartirPagos', () => {
     );
   });
 
+  it('rechaza una venta negativa aunque la propina la compense', () => {
+    // 20100 con tarjeta y −100 en efectivo suman los 20000 de la cuenta: sin la guarda del
+    // signo, la propina del renglón negativo «justificaría» un importe que no existe.
+    expect(
+      codigoDe(() =>
+        repartirPagos(
+          [
+            { metodo: 'tarjeta', montoCentavos: 20100 },
+            { metodo: 'efectivo', montoCentavos: -100, propinaCentavos: 3000 },
+          ],
+          20000n,
+        ),
+      ),
+    ).toBe('PAGO_NO_CUADRA');
+  });
+
+  it('acepta un renglón SÓLO de propina junto a la venta (la 184)', () => {
+    const pagos = repartirPagos(
+      [
+        { metodo: 'tarjeta', montoCentavos: 20000 },
+        { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 3000 },
+      ],
+      20000n,
+    );
+    expect(pagos.map((p) => [p.metodo, p.montoCentavos, p.propinaCentavos])).toEqual([
+      ['tarjeta', 20000n, 0n],
+      ['efectivo', 0n, 3000n],
+    ]);
+  });
+
   it('rechaza efectivo recibido menor que su importe', () => {
     expect(
       codigoDe(() =>
