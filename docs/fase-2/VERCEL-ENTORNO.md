@@ -369,3 +369,30 @@ Al fusionar la rama, la variable se borra. Lo que SÍ se pudo comprobar sin entr
 020 (§ preview): las cinco demos servidas y los cuatro negocios reales en 404 igual que uno que no
 existe, sin hash ni PIN en la entrada, las cabeceras de seguridad, 403 sin sesión y 403 de un origen
 ajeno.
+
+### 9.1 · Resuelto el 20-10-2026: el preview acepta sus propios hostnames (D-47)
+
+Desde `c098b59`, con `VERCEL_ENV=preview`, la frontera de escritura agrega por sí sola los dos
+hostnames EXACTOS del despliegue (`VERCEL_URL` y `VERCEL_BRANCH_URL`): ya no hace falta la variable
+de arriba. Producción conserva su lista escrita, y la protección de Vercel del preview sigue puesta.
+
+**Cómo se verifica un preview, sin tocar los datos.** El preview escribe en la MISMA base que
+producción, así que sólo se ensaya lo que no escribe:
+
+1. Enlace compartido de Vercel (`get_access_to_vercel_url`): es una credencial temporal, no se
+   guarda en el repositorio ni en los reportes.
+2. Un solo navegador para todo el ensayo. Entrar con PIN desde un aparato nuevo da de alta una
+   terminal («Caja N») en la demo; el token del aparato se guarda FUERA del repositorio y se reusa
+   en los ensayos siguientes, así que el ensayo deja a lo más una terminal.
+3. Antes de teclear un PIN, comprobar «Iniciando como: <persona>»: el acceso central abre con el
+   dueño general elegido, y un PIN tecleado a otra persona cuenta como intento fallido SUYO.
+4. Se vigila cada petición: lo que no sea lectura se anota. La app hace sola dos llamadas al
+   navegar: `caja/estado` (lectura) y `restaurante/limpiar-solicitudes` (borra avisos del QR ya
+   CERRADOS de hace más de 24 h; mantenimiento por diseño, E7-3).
+5. Antes y después, una huella de la base (filas por tabla y md5 de mesas, órdenes, existencias,
+   configuración, sesiones de caja y empleos): sólo pueden moverse sesiones, auditoría, la
+   bitácora de comandos y, la primera vez, una terminal.
+
+El ensayo del preview de `acb94b9` encontró que la cocina podía quedarse en `/abarrotes/cobrar` al
+entrar (la carrera de dos redirecciones); se corrigió en `b3fc9fb` con una prueba que reproduce la
+red lenta. Detalle en la bitácora del 20-10 (noche) y en el reporte 021.

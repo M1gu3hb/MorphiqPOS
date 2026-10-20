@@ -6886,3 +6886,36 @@ columnas, 1,360 restricciones, 438 índices) idéntico al de una base 1–184.
 
 En curso: dos agentes (Sonnet) terminan las suites de operaciones por las vistas adicionales y
 de estilos/contraste de estados de mesa. Después: integración a `main`, despliegue y ensayo.
+
+### Punto de control · 20-10 23:35 UTC · el ensayo del preview destapó una carrera al entrar
+
+- `acb94b9` (contraste de los estados de mesa en claro y en el teléfono; la jornada espera la
+  entrega antes del clic): **CI verde**, corrida 39510224126.
+- **Ensayo de sólo lectura del preview de `acb94b9`** (enlace compartido, un solo navegador, huella
+  de la base antes y después; proceso en el §9.1 de `VERCEL-ENTORNO.md`). Encontró un defecto: Toño,
+  de la cocina, entró con su PIN y **se quedó en `/abarrotes/cobrar`**. La pantalla de acceso recarga
+  la página entera hacia la casa del puesto y, a la vez, su efecto de «ya hay sesión» navegaba con la
+  configuración de la pantalla de acceso —sin sesión, la de omisión: `tienda`—. Reproducido en local
+  con el documento de la casa retrasado 2.5 s: cocina, caja y mesera rebotaban entre
+  `/abarrotes/cobrar` y el mapa de mesas hasta que llegaba la recarga.
+- `b3fc9fb` · el efecto ya no navega mientras se entra con el PIN, y usa la plantilla de la sesión.
+  Prueba nueva en `restaurante.spec.ts` con la red lenta: roja sin el arreglo, verde con él en PC,
+  tableta y teléfono; la suite del modelo, 3 de 3.
+- **Ensayo del preview de `b3fc9fb`:** login central con 26 tarjetas (7 del restaurante, 1 de dueño
+  general); el dueño entra al tablero, recarga y conserva la sesión, abre las 12 pantallas del menú
+  heredado y las 11 vistas del restaurante (`/corte-caja` → `/caja` y `/mesas` → `/mesero` son
+  redirecciones heredadas a propósito); Lupita, Toño y Rosa llegan a `/mesero`, `/cocina` y `/caja`,
+  y cada dirección ajena tecleada los regresa a la suya; el servidor niega a la mesera y a la cocina
+  los movimientos de caja y a la mesera y la cajera los insumos (403 `PUENTE_SIN_PERMISO`); cada uno
+  sale por «Salir» al mismo login y la sesión deja de responder (401). Sin 5xx.
+- **La base, antes y después** (`demo-acople-restaurante`): mesas, órdenes, existencias,
+  configuración, sesiones de caja y empleos con el mismo md5; pagos, movimientos de caja y de stock,
+  comandas y eventos de mesa con las mismas filas. Se movieron: sesiones (+11, una por entrada),
+  auditoría y bitácora de comandos (+95: `caja/estado` y `restaurante/limpiar-solicitudes`, que la
+  app llama sola al cargar el marco) y **una terminal, «Caja 17»**, la del navegador del ensayo,
+  cuyo token se reusa en los siguientes.
+- Hallazgo menor, sin arreglar en este cierre: `limpiar_solicitudes` audita aunque no borre nada y
+  corre en cada carga del marco: ruido en la auditoría, no un fallo.
+
+Siguiente: CI de `b3fc9fb`, las suites de los dos agentes, la integración a `main`, el despliegue,
+el ensayo en producción y el borrado del respaldo `respaldo_183_184`.
