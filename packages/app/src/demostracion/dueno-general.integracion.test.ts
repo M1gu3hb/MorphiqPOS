@@ -229,3 +229,85 @@ describe('configuracion.resetear_demo · el dueño general', () => {
     expect(await autorizaPresentacion(dueno, { rol: 'dueno', ...primero })).toBe(true);
   });
 });
+
+/**
+ * D-6 · UNA DEMO CON UNA CUENTA DIVIDIDA SE PUEDE RESETEAR (cierre del 21-10).
+ *
+ * El reseteo borra en una transacción todas las cuentas, madres e hijas, y el disparador diferido
+ * de la 070 (`division_cuadra`) comparaba al confirmar el total de una madre que ya no existía:
+ * 23514 «La división no cuadra: la madre suma <NULL>…», un 500 y la demo sin poder dejarse limpia
+ * después de presentar la cuenta dividida. La 185 lo arregla en el disparador; la regla con la
+ * madre viva sigue en pie.
+ */
+describe('configuracion.resetear_demo · con una cuenta dividida (D-6)', () => {
+  /** Una cuenta de la demo dividida en dos partes que suman lo que ella: una división válida. */
+  async function dividirUnaCuenta(): Promise<{ madre: string; hijas: string[] }> {
+    const madre = randomUUID();
+    const hijas = [randomUUID(), randomUUID()];
+    const organizacionId = quienResetea.organizacionId;
+    await conTransaccion(async (tx) => {
+      await tx
+        .insertInto('ordenes')
+        .values({
+          id: madre,
+          organizacion_id: organizacionId,
+          sucursal_id: sucursalId,
+          estado: 'dividida',
+          subtotal_centavos: 10_000n,
+          total_centavos: 10_000n,
+        })
+        .execute();
+      for (const [indice, id] of hijas.entries())
+        await tx
+          .insertInto('ordenes')
+          .values({
+            id,
+            organizacion_id: organizacionId,
+            sucursal_id: sucursalId,
+            estado: 'cuenta_solicitada',
+            orden_padre_id: madre,
+            division_indice: indice + 1,
+            subtotal_centavos: indice === 0 ? 6_000n : 4_000n,
+            total_centavos: indice === 0 ? 6_000n : 4_000n,
+          })
+          .execute();
+    });
+    return { madre, hijas };
+  }
+
+  it('el reseteo contesta bien y no deja ninguna cuenta, ni la madre ni sus partes', async () => {
+    const { madre, hijas } = await dividirUnaCuenta();
+
+    exigirOk(
+      await comando(resetearDemo, {
+        entrada: { confirmacion: 'RESETEAR' },
+        ambito: ambitoDe(quienResetea, sucursalId, null),
+        idempotencyKey: clave(),
+      }),
+      'El reseteo de una demo con una cuenta dividida',
+    );
+
+    const quedan = await obtenerDb()
+      .selectFrom('ordenes')
+      .select('id')
+      .where('id', 'in', [madre, ...hijas])
+      .execute();
+    expect(quedan).toEqual([]);
+  });
+
+  it('con la madre viva, la regla sigue: una parte que cambia sola no confirma', async () => {
+    const { hijas } = await dividirUnaCuenta();
+    const [primera] = hijas;
+    if (primera === undefined) throw new Error('Sin partes.');
+
+    await expect(
+      conTransaccion(async (tx) => {
+        await tx
+          .updateTable('ordenes')
+          .set({ total_centavos: 5_000n })
+          .where('id', '=', primera)
+          .execute();
+      }),
+    ).rejects.toThrow(/La división no cuadra/);
+  });
+});

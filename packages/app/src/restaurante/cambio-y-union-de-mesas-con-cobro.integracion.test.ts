@@ -3,6 +3,7 @@ import { beforeAll, describe, expect, it } from 'vitest';
 
 import { comando } from '../produccion.ts';
 import { clave, exigirOk } from '../pruebas/negocio-real.ts';
+import { cancelarOrden } from './cancelacion.ts';
 import { cambiarMesaComando } from './cambio-de-mesa.ts';
 import { liberarMesa } from './mesas.ts';
 import {
@@ -466,5 +467,72 @@ describe('C05b · unir dos mesas y cobrar el grupo UNA vez', () => {
 
     expect((await mesaPersistida(otro.a.mesaId)).estado).toBe('libre');
     expect((await mesaPersistida(otro.b.mesaId)).estado).toBe('libre');
+  });
+});
+
+// ── D-7 · cancelar la cuenta de un grupo: la comanda de la mesa unida también se cancela ────────
+
+/**
+ * Lo encontró la suite de operaciones (D-7, cierre del 21-10). Al unir mesas, las LÍNEAS pasan a
+ * la cuenta principal pero cada comanda sigue colgada de la cuenta que se absorbió; cancelar la
+ * cuenta del grupo cancelaba sólo las comandas de la principal, y el plato de la mesa unida se
+ * quedaba «nuevo» en el tablero de la cocina —para una mesa ya libre, que puede estar sentando a
+ * otra gente—.
+ */
+describe('D-7 · cancelar la cuenta de un grupo de mesas unidas', () => {
+  it('ninguna comanda del grupo queda viva en la cocina y las dos mesas quedan libres', async () => {
+    const salon = await sembrarSalon({
+      nombre: 'Restaurante del grupo que se cancela',
+      mesas: 4,
+      terminales: 1,
+    });
+    await abrirLasCajas(salon);
+    const a = await sentarYPedir(salon, 0, PEDIDO_DE_A);
+    const b = await sentarYPedir(salon, 1, PEDIDO_DE_B);
+    exigirOk(
+      await comando(unirMesasComando, {
+        entrada: { mesaPrincipalId: a.mesaId, mesaIds: [b.mesaId] },
+        ambito: ambitoDeCaja(salon),
+        idempotencyKey: clave(),
+      }),
+      'restaurante.unir_mesas',
+    );
+
+    exigirOk(
+      await comando(cancelarOrden, {
+        entrada: { ordenId: a.ordenId, motivo: 'se levantaron antes de que saliera la comida' },
+        ambito: ambitoDeCaja(salon),
+        idempotencyKey: clave(),
+      }),
+      'restaurante.cancelar_orden (el grupo)',
+    );
+
+    const db = obtenerDb();
+    const comandas = await db
+      .selectFrom('comandas')
+      .select(['id', 'orden_id', 'estado'])
+      .where('orden_id', 'in', [a.ordenId, b.ordenId])
+      .execute();
+    expect(
+      comandas.filter((c) => c.orden_id === b.ordenId).length,
+      'la mesa unida mandó su comanda',
+    ).toBeGreaterThan(0);
+    expect(
+      comandas.filter((c) => c.estado !== 'cancelado').map((c) => `${c.orden_id}: ${c.estado}`),
+      'comandas del grupo que la cocina sigue viendo',
+    ).toEqual([]);
+    const items = await db
+      .selectFrom('comanda_items')
+      .select('estado')
+      .where(
+        'comanda_id',
+        'in',
+        comandas.map((c) => c.id),
+      )
+      .execute();
+    expect(items.filter((i) => i.estado !== 'cancelado')).toEqual([]);
+
+    expect((await mesaPersistida(a.mesaId)).estado).toBe('libre');
+    expect((await mesaPersistida(b.mesaId)).estado).toBe('libre');
   });
 });
