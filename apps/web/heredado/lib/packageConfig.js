@@ -398,6 +398,9 @@ export { INICIO_POR_PLANTILLA, navegacionDePlantilla, PLANTILLAS };
  * COMPRÓ el negocio y el rol dice qué puede TOCAR esta persona. Aquí se
  * responden en ese orden.
  */
+/** El plural del restaurante para las entradas que el restaurante nombra a su manera. */
+const PLURAL_DEL_RESTAURANTE = { '/mesero': 'meseros', '/cocina': 'cocinas' };
+
 export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
   const plantilla = normalizarPlantilla(paqueteModo);
   let entradas = navegacionDePlantilla(plantilla);
@@ -410,7 +413,11 @@ export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
       icono: item.icon,
       permiso: item.permission,
       modulo: ROUTE_TO_MODULE[item.path],
-      entidad: ['/mesero', '/cocina'].includes(item.path) ? undefined : item.entidad,
+      entidad: item.entidad,
+      // «Mesas y pedidos» y «Cocina» son los nombres del recorrido del restaurante, y se
+      // quedan mientras el diccionario diga lo del restaurante. Otro giro con esta
+      // plantilla —Café Jacaranda— las nombra con el suyo: «Baristas», «Barras».
+      pluralPropio: PLURAL_DEL_RESTAURANTE[item.path],
     }));
     const vistas = new Set(anteriores.map((item) => item.ruta));
     entradas = ['dueno', 'administrador'].includes(rol)

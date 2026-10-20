@@ -71,6 +71,12 @@ export interface EntradaDeMenu {
   readonly permiso: string;
   /** Qué sustantivo del giro la nombra. Sin esto, la etiqueta va tal cual. */
   readonly entidad?: EntidadDeVocabulario;
+  /**
+   * El plural con el que la entrada conserva su `etiqueta` propia: el restaurante dice
+   * «Mesas y pedidos» mientras su diccionario diga «meseros»; otro giro con su plantilla
+   * —una cafetería— la nombra con el suyo («Baristas»).
+   */
+  readonly pluralPropio?: string;
 }
 
 /**

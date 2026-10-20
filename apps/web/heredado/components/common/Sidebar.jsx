@@ -157,6 +157,7 @@ export default function Sidebar({ collapsed, onToggle }) {
       label: entrada.etiqueta,
       icon: entrada.icono,
       entidad: entrada.entidad,
+      pluralPropio: entrada.pluralPropio,
     }),
   );
 

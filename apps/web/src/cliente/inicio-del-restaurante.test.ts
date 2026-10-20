@@ -36,7 +36,38 @@ describe('restaurante: entrada y menú de cada puesto', () => {
       const entrada = menu.find((n: { ruta: string }) => n.ruta === ruta);
       expect(entrada).toBeDefined();
       expect(
-        etiquetaDeNavegacion({ label: entrada?.etiqueta, entidad: entrada?.entidad }, vocabulario),
+        etiquetaDeNavegacion(
+          {
+            label: entrada?.etiqueta,
+            entidad: entrada?.entidad,
+            pluralPropio: entrada?.pluralPropio,
+          },
+          vocabulario,
+        ),
+      ).toBe(etiqueta);
+    }
+  });
+  it('con la plantilla del restaurante, otro giro nombra esas entradas con su diccionario', () => {
+    // Café Jacaranda: giro cafetería con la plantilla del restaurante. Su mesero es
+    // «barista» y su cocina, «barra»; el menú lo dice así, no «Mesas y pedidos».
+    const menu = navegacionParaRolYPlantilla('administrador', 'restaurante', hasPermission);
+    const cafeteria = {
+      plural: (entidad: string) => (entidad === 'responsable' ? 'baristas' : 'barras'),
+    };
+    for (const [ruta, etiqueta] of [
+      ['/mesero', 'Baristas'],
+      ['/cocina', 'Barras'],
+    ]) {
+      const entrada = menu.find((n: { ruta: string }) => n.ruta === ruta);
+      expect(
+        etiquetaDeNavegacion(
+          {
+            label: entrada?.etiqueta,
+            entidad: entrada?.entidad,
+            pluralPropio: entrada?.pluralPropio,
+          },
+          cafeteria,
+        ),
       ).toBe(etiqueta);
     }
   });

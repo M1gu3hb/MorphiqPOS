@@ -115,6 +115,7 @@ export function getNavForRole(role) {
 export function etiquetaDeNavegacion(item, vocabulario) {
   if (!item.entidad || !vocabulario) return item.label;
   const plural = vocabulario.plural(item.entidad);
-  if (!plural) return item.label;
+  // `pluralPropio`: la entrada tiene nombre propio mientras el giro diga eso mismo.
+  if (!plural || plural === item.pluralPropio) return item.label;
   return plural.charAt(0).toLocaleUpperCase('es-MX') + plural.slice(1);
 }
