@@ -47,7 +47,9 @@ export default function AppLayout({ marco = 'interno' }) {
    * demás (la venta de mostrador, la presentación) siguen como estaban.
    */
   const { pathname } = useLocation();
-  const { paquete_modo } = useConfig();
+  // Mientras la configuración carga, `paquete_modo` es el de omisión (`tienda`): decidir el
+  // inicio con él mandaba a la mesera a la pantalla de mesas de la tienda. Se espera.
+  const { paquete_modo, isLoading: cargandoConfig } = useConfig();
   const rutaAjena =
     !!posUser &&
     NAV_ITEMS.some(
@@ -55,9 +57,9 @@ export default function AppLayout({ marco = 'interno' }) {
         item.path === pathname && item.permission && !hasPermission(posUser.rol, item.permission),
     );
   React.useEffect(() => {
-    if (!rutaAjena) return;
+    if (!rutaAjena || cargandoConfig) return;
     navigate(inicioDeLaSesion(posUser.rol, paquete_modo, hasPermission), { replace: true });
-  }, [rutaAjena, posUser, paquete_modo, navigate]);
+  }, [rutaAjena, cargandoConfig, posUser, paquete_modo, navigate]);
 
   if (isLoading) {
     return (

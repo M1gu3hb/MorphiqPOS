@@ -5,6 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Printer, X, Download, Loader2 } from 'lucide-react';
 import { api } from '@/api/cliente';
 import { useConfig } from '@/lib/ConfigContext';
+import { usePOSAuth } from '@/lib/POSAuthContext';
+import { hasPermission } from '@/lib/permissions';
 import { canAccessModule } from '@/lib/packageConfig';
 import { getStockStatus } from '@/utils/inventoryUtils';
 import { printDocument } from '@/lib/print';
@@ -20,7 +22,10 @@ export default function CorteViewerDialog({ corte, open, onClose }) {
   // paquete: con el renombre de D-01 ningún negocio se llama `esencial` ni
   // `restaurante_pro`, y comparar contra esos nombres imprimía el corte
   // equivocado para todos.
-  const sinCostos = !canAccessModule('costos_basicos', paquete_modo);
+  const { posUser } = usePOSAuth();
+  const veCostos = hasPermission(posUser?.rol, 'ver_costos');
+  // Sin el módulo o sin el permiso de ver costos, la hoja va sin ellos (la cajera abre aquí sus cortes).
+  const sinCostos = !canAccessModule('costos_basicos', paquete_modo) || !veCostos;
   const haySala = canAccessModule('mesero', paquete_modo);
   const ticketRef = useRef(null);
   const [data, setData] = useState({
@@ -53,9 +58,13 @@ export default function CorteViewerDialog({ corte, open, onClose }) {
           await Promise.all([
             api.entidades.Venta.list('-fecha_cierre', 2000),
             api.entidades.GastoOperativo.list('-created_date', 500),
-            api.entidades.DescuentoInventarioVenta.list('-created_date', 3000),
-            api.entidades.Ingrediente.list(),
-            api.entidades.RecetaEscandallo.list('-created_date', 2000),
+            // Lo de costos e inventario sólo lo lee quien lo puede ver (restaurante, 20-10-2026):
+            // para la cajera, que es quien cierra, esas tres lecturas eran 403, el `Promise.all`
+            // caía y el corte del día se quedaba SIN PDF. Ahora su hoja sale sin costos —el
+            // ticket ya sabe hacerlo (`sinCostos`)— en vez de no salir.
+            veCostos ? api.entidades.DescuentoInventarioVenta.list('-created_date', 3000) : [],
+            veCostos ? api.entidades.Ingrediente.list() : [],
+            veCostos ? api.entidades.RecetaEscandallo.list('-created_date', 2000) : [],
           ]);
 
         const matchVenta = (v) => {
@@ -174,7 +183,7 @@ export default function CorteViewerDialog({ corte, open, onClose }) {
     return () => {
       cancelled = true;
     };
-  }, [open, corte]);
+  }, [open, corte, veCostos]);
 
   // === Imprimir (sí abre diálogo del navegador) ===
   const handlePrintCashCut = () => {
