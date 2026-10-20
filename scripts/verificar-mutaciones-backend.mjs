@@ -452,8 +452,20 @@ comprobarMutacion({
   prueba: PRUEBA_AUTORIZACION_PUENTE,
   transformar: (codigo) =>
     codigo.replace(
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...CAJA]",
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...TODOS_LOS_ROLES]",
+      "Cocina sigue sin leerlo.\n     */\n    rolesLectura: [...CAJA, 'mesero'],",
+      'Cocina sigue sin leerlo.\n     */\n    rolesLectura: [...TODOS_LOS_ROLES],',
+    ),
+});
+comprobarMutacion({
+  nombre: 'el fondo de la caja visible al mesero',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_MAPA_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(
+      "        columna: 'fondo_inicial_centavos',\n        conversion: 'dinero',\n        escribible: false,\n        rolesLectura: [...CAJA],",
+      "        columna: 'fondo_inicial_centavos',\n        conversion: 'dinero',\n        escribible: false,",
     ),
 });
 comprobarMutacion({

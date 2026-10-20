@@ -1110,7 +1110,18 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   CorteCaja: {
     tabla: 'sesiones_caja',
     sucursal: DE_SU_SUCURSAL,
-    rolesLectura: [...CAJA],
+    /**
+     * EL MESERO PREGUNTA SI HAY CAJA, y nada más (restaurante, 20-10-2026).
+     *
+     * Antes de pedir la cuenta, `Mesero.jsx` mira `useCajaAbierta`: si no hay caja que
+     * cobre, la precuenta no sirve. Con el corte cerrado a la caja, su lectura volvía 403,
+     * el hook entendía «no hay caja» y la mesera leía «No se puede solicitar cuenta porque
+     * la caja está cerrada» con la caja abierta: ninguna mesa podía pedir su cuenta desde
+     * la tableta del mesero. Ahora lee el ESTADO del corte —abierto o cerrado, y desde
+     * cuándo— y ningún importe, nota ni persona: esos campos llevan `rolesLectura` de caja
+     * y ni siquiera se seleccionan para él. Cocina sigue sin leerlo.
+     */
+    rolesLectura: [...CAJA, 'mesero'],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
     campos: {
@@ -1141,23 +1152,31 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       },
       // Sus nombres. Dieciséis archivos leen `fecha_apertura` y tres
       // `efectivo_inicial_contado`.
-      serie: { columna: 'serie', conversion: 'texto', escribible: false },
-      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      serie: { columna: 'serie', conversion: 'texto', escribible: false, rolesLectura: [...CAJA] },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false, rolesLectura: [...CAJA] },
       efectivo_inicial_contado: {
         columna: 'fondo_inicial_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       fondo_esperado_apertura: {
         columna: 'fondo_esperado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
-      notas_apertura: { columna: 'notas_apertura', conversion: 'texto', escribible: false },
+      notas_apertura: {
+        columna: 'notas_apertura',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
       efectivo_contado: {
         columna: 'efectivo_contado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       /**
        * LO RETIRADO al cerrar, que es lo que la columna guarda. Aquí iba
@@ -1169,6 +1188,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         columna: 'efectivo_retirado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       /**
        * EL ESPERADO Y LA DIFERENCIA DEL CORTE (C.4 de la 2.4).
@@ -1186,17 +1206,34 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         columna: 'efectivo_esperado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       diferencia_al_cerrar: {
         columna: 'diferencia_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       fecha_apertura: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
       fecha_cierre: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
-      usuario_apertura_id: { columna: 'empleado_abre_id', conversion: 'texto', escribible: false },
-      usuario_cajero_id: { columna: 'empleado_cierra_id', conversion: 'texto', escribible: false },
-      notas: { columna: 'notas_cierre', conversion: 'texto', escribible: false },
+      usuario_apertura_id: {
+        columna: 'empleado_abre_id',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
+      usuario_cajero_id: {
+        columna: 'empleado_cierra_id',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
+      notas: {
+        columna: 'notas_cierre',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
     },
     derivados: {
       usuario_apertura_nombre: {
@@ -1204,17 +1241,23 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         porColumna: 'empleado_abre_id',
         columna: 'nombre',
         conversion: 'texto',
+        rolesLectura: [...CAJA],
       },
       usuario_cajero_nombre: {
         tabla: 'empleados_visibles',
         porColumna: 'empleado_cierra_id',
         columna: 'nombre',
         conversion: 'texto',
+        rolesLectura: [...CAJA],
       },
     },
     calculados: {
       // El fondo de mañana. `useCajaAbierta` lo lee como el fondo esperado de la apertura.
-      dinero_dejado_en_caja: { formula: 'dineroDejadoEnCaja', conversion: 'dinero' },
+      dinero_dejado_en_caja: {
+        formula: 'dineroDejadoEnCaja',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
     },
   },
 
