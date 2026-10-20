@@ -7,6 +7,7 @@ import { Aviso, Dinero, Superficie } from '@morphiqpos/ui/sistema';
 import { CLAVES_ESTILO, ESTILOS, PERILLAS, atributosDeEstilo } from '@morphiqpos/ui/tokens';
 import { Check, Palette } from 'lucide-react';
 
+import { ErrorApi, ErrorSinRespuesta, invocarComando } from '~/cliente/api';
 import { useAparienciaEnVivo } from '~/proveedores/Apariencia';
 
 /**
@@ -107,32 +108,26 @@ export function SelectorDeApariencia() {
   async function guardar(): Promise<void> {
     setGuardando(true);
     setResultado(null);
+    // Por `invocarComando`, el único sitio que decide las cabeceras de una escritura. Este
+    // `fetch` propio iba sin `x-morphiqpos-request` y la guarda del servidor lo rechazaba
+    // siempre (403): el estilo cambiaba en la pantalla y nunca se guardaba para el negocio.
     try {
-      const respuesta = await fetch('/api/configuracion/apariencia', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({
-          estilo: apariencia.estilo,
-          densidad: apariencia.densidad,
-          redondeo: apariencia.redondeo,
-          elevacion: apariencia.elevacion,
-          movimiento: apariencia.movimiento,
-        }),
+      await invocarComando('/api/configuracion/apariencia', {
+        estilo: apariencia.estilo,
+        densidad: apariencia.densidad,
+        redondeo: apariencia.redondeo,
+        elevacion: apariencia.elevacion,
+        movimiento: apariencia.movimiento,
       });
-      const cuerpo = (await respuesta.json()) as {
-        ok?: boolean;
-        error?: { mensaje?: string };
-      };
-      setResultado(
-        cuerpo.ok === true
-          ? { tono: 'exito', texto: 'Guardado. Todo el negocio lo verá así.' }
-          : {
-              tono: 'peligro',
-              texto: cuerpo.error?.mensaje ?? 'No se pudo guardar la apariencia.',
-            },
-      );
-    } catch {
-      setResultado({ tono: 'peligro', texto: 'No se pudo guardar: revisa la conexión.' });
+      setResultado({ tono: 'exito', texto: 'Guardado. Todo el negocio lo verá así.' });
+    } catch (fallo) {
+      setResultado({
+        tono: 'peligro',
+        texto:
+          fallo instanceof ErrorApi || fallo instanceof ErrorSinRespuesta
+            ? fallo.message
+            : 'No se pudo guardar la apariencia.',
+      });
     } finally {
       setGuardando(false);
     }
