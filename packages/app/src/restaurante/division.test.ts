@@ -64,7 +64,13 @@ function salon(
     ],
     orden_lineas: lineas ?? [
       linea({ anulada_en: null }),
-      linea({ id: OTRA_LINEA, total_centavos: 15_000n, anulada_en: null }),
+      // Una línea es coherente: su total es su subtotal menos su descuento (el que cobra `cotizar`).
+      linea({
+        id: OTRA_LINEA,
+        subtotal_centavos: 15_000n,
+        total_centavos: 15_000n,
+        anulada_en: null,
+      }),
     ],
     movimientos_cuenta: [],
     mesas: [mesa(estadoDeLaMesa)],
@@ -173,9 +179,15 @@ describe('F-321 · dividir la cuenta de una mesa', () => {
     // los $200 vivos. Si el comando la cargara, o las partes no cuadrarían o
     // alguien pagaría un platillo que la cocina nunca sirvió.
     const base = baseDe({ total_centavos: 20_000n }, [
-      linea({ cantidad: '2.0000', total_centavos: 20_000n, anulada_en: null }),
+      linea({
+        cantidad: '2.0000',
+        subtotal_centavos: 20_000n,
+        total_centavos: 20_000n,
+        anulada_en: null,
+      }),
       linea({
         id: OTRA_LINEA,
+        subtotal_centavos: 15_000n,
         total_centavos: 15_000n,
         anulada_en: new Date('2026-09-14T00:00:00.000Z'),
       }),

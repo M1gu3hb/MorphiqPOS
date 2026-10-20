@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { descontarLaOrden } from '../venta/descuento-de-mostrador.ts';
+import { ajustarLaMadreASusPartes } from './division-escrituras.ts';
 
 /**
  * `restaurante.descontar_cuenta` — el descuento de la CUENTA DE UNA MESA, con su tope y su
@@ -111,6 +112,15 @@ export const descontarCuenta = definirComando<
     }
 
     const hecho = await descontarLaOrden(ctx, orden.id, entrada);
+
+    // Una parte de una cuenta dividida: la madre vale lo que suman sus partes, y la base lo
+    // exige al confirmar. Sin esto, descontar una parte reventaba como «Algo falló».
+    if (orden.padreId !== null) {
+      const madreId = orden.padreId;
+      await ctx.paso('ajustar_la_madre', () =>
+        ajustarLaMadreASusPartes(ctx.tx, organizacionId, madreId, ctx.ahora),
+      );
+    }
 
     ctx.auditar({
       entidadId: orden.id,

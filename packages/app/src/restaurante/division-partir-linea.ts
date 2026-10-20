@@ -62,7 +62,10 @@ function sinLoGenerado<T extends object>(fila: T): Omit<T, 'id' | 'created_at' |
  * proporción, porque «esta línea ya salió» se lee ahí y una fila sin item se mandaría otra
  * vez a la plancha al cobrar (`comandar-pendientes.ts`).
  */
-export async function partirLinea(tx: Transaccion, datos: DatosDeLaPartida): Promise<void> {
+export async function partirLinea(
+  tx: Transaccion,
+  datos: DatosDeLaPartida,
+): Promise<readonly bigint[]> {
   const { organizacionId, unidades } = datos;
   const original = await tx
     .selectFrom('orden_lineas')
@@ -83,7 +86,14 @@ export async function partirLinea(tx: Transaccion, datos: DatosDeLaPartida): Pro
 
   const subtotal = repartirDinero(original.subtotal_centavos, unidades);
   const descuento = repartirDinero(original.descuento_centavos, unidades);
-  const total = repartirDinero(original.total_centavos, unidades);
+  // El total de cada trozo es SU subtotal menos SU descuento, no un tercer reparto (cierre del
+  // 21-10): repartidos por separado, el centavo sobrante de cada columna caía en trozos
+  // distintos, y la parte de una cuenta con descuento enseñaba un total y se cobraba otro
+  // —`cotizar` lo calcula como subtotal − descuento—, con lo que ninguna parte se cobraba.
+  const total =
+    original.total_centavos === original.subtotal_centavos - original.descuento_centavos
+      ? subtotal.map((parte, i) => parte - (descuento[i] ?? 0n))
+      : repartirDinero(original.total_centavos, unidades);
   const utilidad = repartirDinero(original.utilidad_centavos, unidades);
   const material = repartirDinero(original.material_centavos, unidades);
   const variable = repartirCantidad(original.cantidad_variable, unidades);
@@ -169,4 +179,7 @@ export async function partirLinea(tx: Transaccion, datos: DatosDeLaPartida): Pro
         .execute();
     }
   }
+
+  // Lo que se llevó cada parte, tal como quedó escrito: lo registra el movimiento de la división.
+  return unidades.map((u, i) => (u > 0 ? (total[i] ?? 0n) : 0n));
 }

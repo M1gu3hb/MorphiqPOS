@@ -371,7 +371,97 @@ export async function pasarMesaCobradaALimpieza(
     ahora: quien.ahora,
   });
 
+  // Si era la principal de un grupo, el grupo entero se recoge con ella.
+  await cerrarElGrupoDeLaMesa(tx, organizacionId, mesa.id, {
+    estado: 'limpieza',
+    ordenId: cuentaDeLaMesa,
+    empleoId: quien.empleoId,
+    ahora: quien.ahora,
+  });
+
   return { mesaId: mesa.id, numero: mesa.numero };
+}
+
+/**
+ * UN GRUPO DE MESAS UNIDAS SE VA JUNTO (cierre del restaurante, 21-10).
+ *
+ * El grupo se cobra —o se cancela— en la cuenta de la PRINCIPAL, y las mesas miembro no la
+ * tienen: `unirMesas` les quita `orden_activa_id` para que nadie comande en la 5 mientras el
+ * grupo se cobra en la 4. Por eso el cobro sólo encontraba a la principal: las demás se
+ * quedaban en «Pedido enviado» con la cuenta ya pagada, y «mesa limpia» las rechazaba por ser
+ * de un grupo que nadie cerraba (separar existe, pero ninguna pantalla lo ofrece al cobrar).
+ *
+ * Aquí el grupo se CIERRA con su cuenta y cada miembro sigue a la principal: a `limpieza` si
+ * se cobró —hay platos encima; «mesa limpia» la libera—, a `libre` si se canceló. Cada una con
+ * su sello en el ledger. Sin grupo abierto no hace nada. Devuelve cuántas mesas miembro tenía.
+ */
+export async function cerrarElGrupoDeLaMesa(
+  tx: Transaccion,
+  organizacionId: string,
+  principalId: string,
+  destino: {
+    readonly estado: 'limpieza' | 'libre';
+    readonly ordenId: string;
+    readonly empleoId: string;
+    readonly ahora: Date;
+  },
+): Promise<number> {
+  const union = await tx
+    .selectFrom('uniones_mesa')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('mesa_principal_id', '=', principalId)
+    .where('cerrada_en', 'is', null)
+    .executeTakeFirst();
+  if (union === undefined) return 0;
+
+  const miembros = await tx
+    .selectFrom('union_mesa_miembros')
+    .innerJoin('mesas', 'mesas.id', 'union_mesa_miembros.mesa_id')
+    .select(['mesas.id as id', 'mesas.estado as estado', 'mesas.sucursal_id as sucursalId'])
+    .where('union_mesa_miembros.union_id', '=', union.id)
+    .where('mesas.organizacion_id', '=', organizacionId)
+    .execute();
+
+  for (const miembro of miembros) {
+    if (miembro.estado === destino.estado || miembro.estado === 'libre') continue;
+    if (destino.estado === 'libre') {
+      await limpiarMesa(tx, organizacionId, miembro.id, {
+        sucursalId: miembro.sucursalId,
+        estadoAnterior: miembro.estado,
+        empleoId: destino.empleoId,
+        ahora: destino.ahora,
+      });
+      continue;
+    }
+    await tx
+      .updateTable('mesas')
+      .set({ estado: 'limpieza' })
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', miembro.id)
+      .execute();
+    await sellarTransicionDeMesa(tx, {
+      organizacionId,
+      sucursalId: miembro.sucursalId,
+      mesaId: miembro.id,
+      ordenId: destino.ordenId,
+      estadoAnterior: miembro.estado,
+      estadoNuevo: 'limpieza',
+      empleadoId: destino.empleoId,
+      ahora: destino.ahora,
+    });
+  }
+
+  // Cerrar la unión dispara el trigger que apaga `union_abierta` en los miembros: vuelven a
+  // poder unirse a otro grupo, y «mesa limpia» deja de rechazarlas.
+  await tx
+    .updateTable('uniones_mesa')
+    .set({ cerrada_en: destino.ahora, empleado_cierra_id: destino.empleoId })
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', union.id)
+    .where('cerrada_en', 'is', null)
+    .execute();
+  return miembros.length;
 }
 
 interface MesaDeUnaCuenta {
@@ -416,6 +506,17 @@ async function mesaDeLaCuenta(
     .executeTakeFirst();
   const madreId = cuenta?.madreId ?? null;
   if (madreId === null) return undefined;
+  // El candado de la guarda (cierre del 21-10): dos cajas cobrando a la vez las dos últimas
+  // partes se veían vivas la una a la otra y ninguna recogía la mesa. Hoy no pasa sólo porque
+  // el folio serializa los cobros de la sucursal; con la madre tomada, el segundo cobro espera
+  // al primero y cuenta las partes ya confirmadas, sea cual sea el folio.
+  await tx
+    .selectFrom('ordenes')
+    .select('id')
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', madreId)
+    .forUpdate()
+    .execute();
   if ((await partesSinSaldar(tx, organizacionId, madreId, ordenId)) > 0) return undefined;
 
   const deLaMadre = await tx
