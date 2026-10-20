@@ -159,7 +159,7 @@ export default function Caja() {
   const [showPropinaCaja, setShowPropinaCaja] = useState(false);
 
   // Caja abierta global (fuente única de verdad)
-  const { cajaAbierta, hayCaja, fondoEsperado } = useCajaAbierta();
+  const { cajaAbierta, hayCaja, fondoEsperado } = useCajaAbierta({ deEstaTerminal: true });
 
   // Clave de idempotencia del cobro: se genera al ABRIR el diálogo de cobro y
   // se reusa mientras siga abierto (F1-02 §8, trampa T5). Es lo que impide que

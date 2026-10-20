@@ -96,20 +96,22 @@ export default function Cocina() {
   }, [posUser, estacionesActivas]);
 
   // === Carga de pedidos ===
-  // - Modo legacy (estaciones apagadas): filtra por area:'cocina' como siempre.
   // - Modo estaciones activas: trae TODOS los pedidos activos y filtra en memoria.
   //   No usamos filter({estacion_preparacion_id: ...}) en BD porque los pedidos
   //   legacy sin ese campo desaparecerían — y el requisito es que NO desaparezcan.
+  // - Modo legacy (estaciones apagadas): también TODOS, cocina y barra. Filtraba
+  //   por area:'cocina' de cuando la barra tenía pantalla propia; hoy `Barra.jsx`
+  //   no tiene ruta («la barra es una estación de la cocina», `lib/constants.js`),
+  //   así que las bebidas que el mesero comandaba no las veía nadie: la comanda de
+  //   la barra se quedaba en «nuevo» para siempre y la mesa, «En preparación»
+  //   aunque la cocina ya hubiera entregado todo (restaurante, 20-10-2026).
   // F3.1: refetchInterval bajado de 6000 → 3000ms para sensación más viva.
   // HOTFIX 6A.3: bajado a 2000ms para que cocina quite los entregados rápido
   // cuando Mesero marca "Entregado" en su lado. Las acciones manuales
   // además usan optimistic update + refetch inmediato, así que esto es un seguro.
   const { data: pedidos, isPending: pedidosLoading } = useQuery({
     queryKey: ['pedidos_cocina', estacionesActivas ? 'all' : 'legacy'],
-    queryFn: () =>
-      estacionesActivas
-        ? api.entidades.PedidoPreparacion.list('-created_date', 500)
-        : api.entidades.PedidoPreparacion.filter({ area: 'cocina' }),
+    queryFn: () => api.entidades.PedidoPreparacion.list('-created_date', 500),
     placeholderData: (prev) => prev,
     staleTime: 1000,
     refetchInterval: 2000,
