@@ -603,6 +603,10 @@ jobs:
   # corte en el suyo (un Pixel 7 aparte que entra con su PIN), y la estilista ve su día.
   # Correr el día entero en un teléfono probaría algo que el producto declara que no hace:
   # «el dueño no cobra desde el teléfono» (abarrotes, `00-FICHA-Y-EJES`).
+  # El RESTAURANTE corre en los tres: su `04-INTERFAZ` declara el teléfono para la cocina
+  # chica, para el dueño que cobra una mesa y para el cierre, la mesera tiene en él su
+  # carrito flotante (donde viven «Enviar a Cocina» y «Solicitar cuenta»), y es el recorrido
+  # que Miguel presenta desde su teléfono y su PC (D-42).
   #
   # Los tres aparatos se emulan sobre Chromium (`playwright.config.ts`). WebKit y Firefox
   # no corren aquí, y está dicho: el iPad real entra con su pantalla de mesero; hasta
@@ -633,7 +637,7 @@ jobs:
             aparatos: --project=escritorio --project=tablet
           - modelo: restaurante
             suite: dia-completo-restaurante
-            aparatos: --project=tablet
+            aparatos: --project=escritorio --project=tablet --project=telefono
           - modelo: estetica
             suite: dia-completo-estetica
             aparatos: --project=tablet

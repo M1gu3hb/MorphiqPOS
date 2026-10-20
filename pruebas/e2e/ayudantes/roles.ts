@@ -84,7 +84,7 @@ export function personaDe(slug: string, rol: RolDePrueba, nombre?: string): Pers
 }
 
 /** Las opciones del proyecto (dispositivo, URL, cabeceras del muro) para un contexto propio. */
-function opcionesDelProyecto(info: TestInfo): BrowserContextOptions {
+export function opcionesDelProyecto(info: TestInfo): BrowserContextOptions {
   const use = info.project.use;
   const opciones: BrowserContextOptions = {
     ...(use.baseURL === undefined ? {} : { baseURL: use.baseURL }),
