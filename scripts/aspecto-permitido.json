@@ -522,6 +522,16 @@
         "+ label:Vistas adicionales de restaurante",
         "+ aria-label:Vistas adicionales de restaurante"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/common/Sidebar.jsx",
+      "porque": "Sólo color (restaurante, 20-10-2026). El botón «Abrir menú» del teléfono y la tableta y la X del cajón eran `text-white` sobre `bg-sidebar` en el código de Miguel; C.16 tradujo ese blanco a `text-primario-texto`, que es el texto SOBRE EL PRIMARIO y sólo es blanco en algunos estilos. Medido en los ocho estilos, claro y oscuro: el ícono quedaba con contraste de 1.0 a 1.4 —invisible— en once de dieciséis, entre ellos «noche», el de la demo del restaurante, donde la mesera no veía cómo abrir su menú. Con `text-sidebar-foreground`, el texto del propio menú lateral, queda entre 10.3 y 17.7 en los dieciséis, y en el estilo de Miguel se ve como lo veía él: claro sobre la barra oscura.",
+      "testigos": [
+        "- clase:text-primario-texto",
+        "- clase:text-primario-texto",
+        "+ clase:text-sidebar-foreground",
+        "+ clase:text-sidebar-foreground"
+      ]
     }
   ]
 }

@@ -331,7 +331,7 @@ export default function Sidebar({ collapsed, onToggle }) {
       <button
         type="button"
         onClick={() => setMobileOpen(true)}
-        className="lg:hidden fixed top-3 left-3 z-[70] w-11 h-11 bg-sidebar rounded-xl flex items-center justify-center text-primario-texto shadow-lg active:scale-95 transition-transform"
+        className="lg:hidden fixed top-3 left-3 z-[70] w-11 h-11 bg-sidebar rounded-xl flex items-center justify-center text-sidebar-foreground shadow-lg active:scale-95 transition-transform"
         aria-label="Abrir menú"
         style={{ touchAction: 'manipulation' }}
       >
@@ -353,7 +353,7 @@ export default function Sidebar({ collapsed, onToggle }) {
             <button
               type="button"
               onClick={closeMobile}
-              className="absolute top-2 right-2 w-11 h-11 rounded-full bg-superficie/10 hover:bg-superficie/20 flex items-center justify-center text-primario-texto z-10 active:scale-95 transition-transform"
+              className="absolute top-2 right-2 w-11 h-11 rounded-full bg-superficie/10 hover:bg-superficie/20 flex items-center justify-center text-sidebar-foreground z-10 active:scale-95 transition-transform"
               aria-label="Cerrar menú"
               style={{ touchAction: 'manipulation' }}
             >

@@ -219,7 +219,7 @@ async function pedirLaCuenta(
     await pregunta.getByRole('button', { name: 'Aplicar' }).click();
   }
   const precuenta = page.getByRole('dialog').filter({ hasText: 'PRE-CUENTA' });
-  await expect(precuenta).toBeVisible({ timeout: 30_000 });
+  await yaAbierto(precuenta);
   // El TOTAL de la hoja, no cualquier cifra: sin propina el subtotal dice lo mismo.
   await expect(precuenta).toContainText(
     new RegExp(`TOTAL\\s*${enPantalla(totalCentavos).replace(/[$.]/g, '\\$&')}`),
@@ -227,6 +227,7 @@ async function pedirLaCuenta(
   const codigo = /M\d{2}-\d{4}/.exec(await precuenta.innerText())?.[0] ?? '';
   expect(codigo, 'La precuenta no trae el código para caja.').not.toBe('');
   await precuenta.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(precuenta).toBeHidden();
   return codigo;
 }
 
@@ -284,9 +285,12 @@ async function cobrar(
     true,
   );
   const datos = cuerpo.datos!;
+  // Se cierra cuando terminó de abrir: un toque durante la animación se perdió una vez en el
+  // teléfono, y el cobro siguiente ya no encontraba las pestañas detrás del ticket.
   const ticket = page.getByRole('dialog').filter({ hasText: 'TICKET DE PAGO' });
-  await expect(ticket).toBeVisible({ timeout: 30_000 });
+  await yaAbierto(ticket);
   await ticket.getByRole('button', { name: 'Cerrar' }).click();
+  await expect(ticket).toBeHidden();
   return {
     ventaId: datos.ordenId,
     folio: datos.folio,
@@ -317,11 +321,67 @@ async function esperadoDelCajon(page: Page): Promise<number> {
   return Number(cuerpo.datos?.efectivoEsperadoCentavos ?? Number.NaN);
 }
 
+const ESTILOS = ['morphiq', 'cristal', 'relieve', 'taller', 'bloque', 'terminal', 'papel', 'noche'];
+
+/**
+ * El botón del menú del teléfono se tiene que VER, en los ocho estilos, claros y oscuros. Era
+ * `text-primario-texto` —el texto sobre el primario— encima de la barra: contraste de 1.0 a
+ * 1.4 en once de los dieciséis, entre ellos «noche», el de esta demo, y la mesera no veía cómo
+ * abrir su menú. Un ícono que se toca pide 3:1 (WCAG 1.4.11). Devuelve los que no llegan.
+ */
+function menuIlegible(page: Page): Promise<string[]> {
+  return page.evaluate((estilos) => {
+    const pincel = document.createElement('canvas').getContext('2d', { willReadFrequently: true });
+    const luz = (color: string): number => {
+      if (pincel === null) return Number.NaN;
+      pincel.clearRect(0, 0, 1, 1);
+      pincel.fillStyle = color;
+      pincel.fillRect(0, 0, 1, 1);
+      const [r = 0, g = 0, b = 0] = [...pincel.getImageData(0, 0, 1, 1).data].map((v) => {
+        const c = v / 255;
+        return c <= 0.03928 ? c / 12.92 : ((c + 0.055) / 1.055) ** 2.4;
+      });
+      return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    };
+    // El estilo y el modo viven en `data-estilo` y `data-modo` de la raíz: la clase `dark` sólo
+    // la traduce un observador a `data-modo` un instante después, y medir antes daba el claro.
+    const raiz = document.documentElement;
+    const { estilo, modo: modoAntes } = raiz.dataset;
+    const boton = document.querySelector('button[aria-label="Abrir menú"]');
+    const icono = boton?.querySelector('svg');
+    if (!boton || !icono) return ['no está el botón del menú'];
+    const malos: string[] = [];
+    for (const e of estilos) {
+      for (const modo of [false, true]) {
+        raiz.dataset['estilo'] = e;
+        raiz.dataset['modo'] = modo ? 'oscuro' : 'claro';
+        const [a, b] = [
+          luz(getComputedStyle(icono).color),
+          luz(getComputedStyle(boton).backgroundColor),
+        ];
+        const contraste = (Math.max(a, b) + 0.05) / (Math.min(a, b) + 0.05);
+        if (!(contraste >= 3)) malos.push(`${e}${modo ? ' oscuro' : ''} ${contraste.toFixed(2)}`);
+      }
+    }
+    for (const [atributo, valor] of [
+      ['data-estilo', estilo],
+      ['data-modo', modoAntes],
+    ] as const) {
+      if (valor === undefined) raiz.removeAttribute(atributo);
+      else raiz.setAttribute(atributo, valor);
+    }
+    return malos;
+  }, ESTILOS);
+}
+
 /** Las entradas del menú lateral de esta persona, por su nombre. En teléfono, tras la hamburguesa. */
 async function elMenuDe(page: Page): Promise<readonly string[]> {
   const hamburguesa = page.getByRole('button', { name: 'Abrir menú' });
   const enTelefono = await hamburguesa.isVisible();
-  if (enTelefono) await hamburguesa.click();
+  if (enTelefono) {
+    expect(await menuIlegible(page), 'El botón del menú no se ve en estos estilos').toEqual([]);
+    await hamburguesa.click();
+  }
   const menu = page.getByRole('navigation', { name: 'Menú principal' }).filter({ visible: true });
   await expect(menu).toBeVisible();
   const entradas = (await menu.getByRole('link').allInnerTexts())
