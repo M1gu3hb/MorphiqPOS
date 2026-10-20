@@ -45,7 +45,10 @@ export default function POSLogin() {
     setUsuariosError(false);
     try {
       const list = await api.auth.usuarios();
-      setUsuarios(Array.isArray(list) ? list : []);
+      const disponibles = Array.isArray(list) ? list : [];
+      setUsuarios(disponibles);
+      const equipo = disponibles.filter((u) => u.esDuenoGeneral);
+      if (equipo.length === 1) setSelectedUser((actual) => actual ?? equipo[0]);
       setUsuariosError(false);
     } catch (err) {
       console.error('[POSLogin] cargar usuarios:', err);
@@ -244,7 +247,7 @@ export default function POSLogin() {
             }}
           >
             Iniciando como: {selectedUser.nombre}
-            {variosNegocios && selectedUser.negocio ? ` · ${selectedUser.negocio}` : ''}
+            {variosNegocios && selectedUser.negocio && !selectedUser.esDuenoGeneral ? ` · ${selectedUser.negocio}` : ''}
           </p>
         )}
 
@@ -308,7 +311,7 @@ export default function POSLogin() {
         `}</style>
 
         <p className="text-center text-primario-texto/40 text-[11px] mt-4">
-          Toca tu nombre o escribe directamente tu PIN · Enter para entrar
+          Selecciona tu nombre e ingresa tu PIN
         </p>
 
         {/* Banner discreto: el admin sigue usando PIN default. */}

@@ -104,3 +104,18 @@ La verificación final de esta continuación pasó 4,119 pruebas (3 omitidas pre
 tipos de los siete paquetes, ESLint y la comparación del aspecto con los cambios de UX
 explícitos registrados. La comprobación de enlaces encontró 86 pantallas servidas y
 66 enlaces válidos, sin enlaces interpolados.
+
+## Comprobación en producción · c9028da
+
+Vercel compiló y publicó la corrección central. Se verificó por HTTP sin cookies el
+teclado en `/login-pos`, seis contextos servidos y una cuenta general Miguel. Su login
+resolvió dueño general/restaurante; configuración, mesas, productos terminados,
+categorías y ventas respondieron. Se desbloqueó la presentación y se recorrieron los
+seis contextos comprobando organización, modelo y privilegio general en cada uno.
+Salir revocó la sesión y devolvió el mismo login central con la cuenta general disponible.
+
+En navegador se verificaron el dashboard con el menú principal corregido, despliegue
+/ocultación de vistas adicionales, enlace permanente a Modelos de negocio y regreso al
+login central al salir. El selector muestra Equipo Morphiq y permite acceder a los
+puestos de cada demostración. Se ajustó un último detalle: si sólo hay una cuenta general
+se preselecciona, y su rótulo no incluye el nombre técnico del contexto de origen.
