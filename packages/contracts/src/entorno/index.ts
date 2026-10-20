@@ -157,6 +157,28 @@ export class ErrorDeEntorno extends Error {
  * Se le pasa el objeto de variables a proposito, en vez de leer `process.env`
  * por dentro: asi se puede probar sin ensuciar el proceso.
  */
+/** Un hostname completo y nada más: sin esquema, ruta, puerto ni comodín. */
+const HOSTNAME = /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?(?:\.[a-z0-9](?:[a-z0-9-]*[a-z0-9])?)+$/i;
+
+/**
+ * LOS ORÍGENES DE UN PREVIEW DE VERCEL (cierre del restaurante, 2.4).
+ *
+ * Un preview se sirve por el hostname de su despliegue y por el alias de su rama, y ninguno
+ * está en `APP_URL_ALTERNAS`, que se escribe a mano: entrar contestaba 403 desde el preview y
+ * verificarlo desde fuera exigía crear una variable por rama. Vercel inyecta esos dos
+ * hostnames EXACTOS en `VERCEL_URL` y `VERCEL_BRANCH_URL`: son configuración de la plataforma
+ * —quien despliega—, no el `Host` de la petición, así que R-17 se sostiene. Sólo cuentan con
+ * `VERCEL_ENV=preview`: producción sigue con su lista escrita. Ni comodines ni esquemas: un
+ * valor que no es un hostname completo se ignora.
+ */
+function origenesDelPreview(variables: Record<string, string | undefined>): string[] {
+  if (variables['VERCEL_ENV'] !== 'preview') return [];
+  return [variables['VERCEL_URL'], variables['VERCEL_BRANCH_URL']]
+    .map((valor) => valor?.trim() ?? '')
+    .filter((host) => HOSTNAME.test(host))
+    .map((host) => `https://${host}`);
+}
+
 export function validarEntorno(variables: Record<string, string | undefined>): Entorno {
   const resultado = esquemaEntorno.safeParse(variables);
 
@@ -168,5 +190,14 @@ export function validarEntorno(variables: Record<string, string | undefined>): E
     throw new ErrorDeEntorno(problemas);
   }
 
-  return resultado.data;
+  const delPreview = origenesDelPreview(variables);
+  if (delPreview.length === 0) return resultado.data;
+  const escritas = (resultado.data.APP_URL_ALTERNAS ?? '')
+    .split(',')
+    .map((valor) => valor.trim())
+    .filter((valor) => valor.length > 0);
+  return {
+    ...resultado.data,
+    APP_URL_ALTERNAS: [...new Set([...escritas, ...delPreview])].join(','),
+  };
 }

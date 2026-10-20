@@ -103,3 +103,58 @@ describe('validacion del entorno', () => {
     }
   });
 });
+
+describe('los orígenes de un PREVIEW de Vercel (cierre del restaurante)', () => {
+  // Un preview se sirve por el hostname de su despliegue y por el alias de su rama. Sin
+  // ellos en la lista, entrar contestaba 403 desde el preview, y verificarlo desde fuera
+  // exigía crear a mano una variable por rama. Vercel inyecta los dos hostnames EXACTOS en
+  // `VERCEL_URL` y `VERCEL_BRANCH_URL`: son configuración de la plataforma, no el `Host` de
+  // la petición (R-17), y sólo cuentan en un preview.
+  const PREVIEW = {
+    ...VALIDO,
+    VERCEL_ENV: 'preview',
+    VERCEL_URL: 'morphiqpos-abc123-mh-astral-systems.vercel.app',
+    VERCEL_BRANCH_URL: 'morphiqpos-git-rama-mh-astral-systems.vercel.app',
+  };
+
+  it('en un preview, los dos hostnames del despliegue se vuelven orígenes permitidos', () => {
+    const alternas = (validarEntorno(PREVIEW).APP_URL_ALTERNAS ?? '').split(',');
+    expect(alternas).toContain('https://morphiqpos-abc123-mh-astral-systems.vercel.app');
+    expect(alternas).toContain('https://morphiqpos-git-rama-mh-astral-systems.vercel.app');
+  });
+
+  it('conserva los alternos que ya venían configurados', () => {
+    const alternas = validarEntorno({
+      ...PREVIEW,
+      APP_URL_ALTERNAS: 'https://morphiq.example',
+    }).APP_URL_ALTERNAS;
+    expect(alternas?.split(',')).toEqual([
+      'https://morphiq.example',
+      'https://morphiqpos-abc123-mh-astral-systems.vercel.app',
+      'https://morphiqpos-git-rama-mh-astral-systems.vercel.app',
+    ]);
+  });
+
+  it('en producción y fuera de Vercel no agrega nada', () => {
+    expect(validarEntorno({ ...PREVIEW, VERCEL_ENV: 'production' }).APP_URL_ALTERNAS).toBe(
+      undefined,
+    );
+    expect(validarEntorno({ ...PREVIEW, VERCEL_ENV: undefined }).APP_URL_ALTERNAS).toBe(undefined);
+  });
+
+  it('no acepta comodines, esquemas, rutas ni puertos: sólo un hostname exacto', () => {
+    for (const malo of [
+      '*.vercel.app',
+      'https://morphiqpos.vercel.app',
+      'morphiqpos.vercel.app/ruta',
+      'morphiqpos.vercel.app:8443',
+      'localhost',
+      '',
+    ]) {
+      expect(
+        validarEntorno({ ...PREVIEW, VERCEL_URL: malo, VERCEL_BRANCH_URL: undefined })
+          .APP_URL_ALTERNAS,
+      ).toBe(undefined);
+    }
+  });
+});
