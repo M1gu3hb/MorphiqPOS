@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { MESA_STATUS_CONFIG } from '@/lib/constants';
+import { MESA_STATUS_CONFIG, insigniaDeEstadoDeMesa } from '@/lib/constants';
 import MeseroCartFAB from '@/components/mesero/MeseroCartFAB';
 import { formatearCantidadVariable } from '@/utils/tipoVentaUtils';
 
@@ -80,7 +80,7 @@ export default function MesaActivaView({
             <span>Mesa {mesaActiva?.numero ?? '—'}</span>
             <span
               className="text-xs font-normal px-2 py-0.5 rounded-full"
-              style={{ background: statusCfg.fill, color: statusCfg.text }}
+              style={insigniaDeEstadoDeMesa(statusCfg)}
             >
               {statusCfg.label || ''}
             </span>

@@ -197,10 +197,13 @@ async function entregar(page: Page, numero: number): Promise<void> {
   const marcar = mesa.getByRole('button', { name: 'Marcar entregado' });
   await expect(marcar.first()).toBeVisible({ timeout: 30_000 });
   while ((await marcar.count()) > 0) {
-    await marcar.first().click();
-    await page.waitForResponse(
+    // La espera se pide ANTES del clic: en el teléfono la respuesta llegaba antes de que la
+    // prueba empezara a escucharla, y la esperaba para siempre con la entrega ya hecha.
+    const entregada = page.waitForResponse(
       (r) => new URL(r.url()).pathname === '/api/restaurante/entregar-pedidos' && r.ok(),
     );
+    await marcar.first().click();
+    await entregada;
   }
   await expect(mesa.getByText('Ocupada', { exact: true })).toBeVisible({ timeout: 30_000 });
 }

@@ -9,7 +9,7 @@ import {
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { AlertTriangle, UtensilsCrossed } from 'lucide-react';
-import { MESA_STATUS_CONFIG } from '@/lib/constants';
+import { MESA_STATUS_CONFIG, insigniaDeEstadoDeMesa } from '@/lib/constants';
 
 /**
  * 6A — Dialog que bloquea el cierre diario cuando hay mesas pendientes.
@@ -61,8 +61,7 @@ export default function MesasPendientesCierreDialog({ open, onClose, mesas = [] 
                     <div
                       className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0 font-heading font-black text-xs"
                       style={{
-                        background: cfg.fill,
-                        color: cfg.text,
+                        ...insigniaDeEstadoDeMesa(cfg),
                         border: `1.5px solid ${cfg.stroke}`,
                       }}
                     >

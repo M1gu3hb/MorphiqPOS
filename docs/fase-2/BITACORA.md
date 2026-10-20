@@ -6860,3 +6860,29 @@ diseño en tres aparatos y ocho estilos, 183+184 en producción por el proceso (
 con `rollback` en producción, respaldo de `pagos`/`mesas` DENTRO de la base, aplicación con la
 tanda de `migrar.mjs --emitir`, verificación), fusión a `main`, despliegue, comprobación del SHA y
 ensayo no destructivo en producción.
+
+### Punto de control · 20-10 22:40 UTC (después del reinicio del contenedor)
+
+En la rama, con CI: `c7336df` (verde, corrida 39474081863) y `a8b138a` (en curso).
+- `c7336df` · mesas: la zona se guarda (`zona_id`), una mesa en servicio no se quita del mapa
+  (guarda `apagarSoloSi` del puente) y «Quitar del mapa» / «Mesas desactivadas» / «Reactivar».
+- `e064b9b` · permisos: rutas por puesto en `AppLayout` (`/pos`, `/mesas`, `/restaurante/*`),
+  `establecer_pin` con `PUEDE_OTORGAR`, `venta.estado` sin costos para caja y mesero,
+  `venta.devolver` sólo en cafetería, `alta_rapida` sólo en tienda y sin mesero, cocina sin
+  gramaje ni importes de cuentas.
+- `8cebd23` · mesas unidas recogidas enteras al cobrar o cancelar; cuenta dividida con descuento
+  o IVA fuera del precio cobrable; descuento a una parte; candado de la última parte.
+- `a8b138a` · suites e2e del portal QR (dos grupos) y de concurrencia en CI; la caja heredada dice
+  en español que el cobro pudo hacerse; la mesera con sus mesas sólo en «Barra» llega a ellas.
+
+PRODUCCIÓN (`wyqmzhliurwyxuyxznpb`), 22:2x UTC: **183 y 184 APLICADAS** por el proceso.
+Ledger 114/182 = disco (huella `fd37c99c…`); precondiciones en cero; ensayo con `rollback` sin
+residuo; respaldo `respaldo_183_184` (pagos 15 filas, mesas 24) con restauración ensayada (md5
+iguales); aplicación con `apply_migration` («morphiq_183_numero_de_mesa_unico_184_pago_solo_de_propina»);
+después: ledger 116/184 con huella `2b4ba333…` igual a una base migrada de cero, restricciones
+de `pagos` como las exige la 184, datos con el mismo md5, y el contrato de esquema (1,724
+columnas, 1,360 restricciones, 438 índices) idéntico al de una base 1–184.
+**Pendiente:** `drop schema respaldo_183_184 cascade` después del ensayo post-despliegue.
+
+En curso: dos agentes (Sonnet) terminan las suites de operaciones por las vistas adicionales y
+de estilos/contraste de estados de mesa. Después: integración a `main`, despliegue y ensayo.

@@ -125,7 +125,16 @@ export default function MesaShape({
       <span className="font-heading font-bold text-base leading-none">{mesa.numero}</span>
       <span
         className="font-semibold leading-tight text-center px-1 mt-1"
-        style={{ fontSize: dim.w < 75 ? 8 : 9, maxWidth: dim.w - 8 }}
+        style={{
+          fontSize: dim.w < 75 ? 8 : 9,
+          maxWidth: dim.w - 8,
+          // El estado se LEE (cierre del 21-10): en claro, el texto blanco de 8-9 px sobre el
+          // relleno saturado bajaba hasta 3.3:1; una pastilla oscura detrás lo deja arriba de
+          // 6.7:1 sin cambiar el color de la mesa. En oscuro ya pasaba.
+          ...(!isDark && textoClaro(cfg.text)
+            ? { background: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: '1px 5px' }
+            : {}),
+        }}
       >
         {cfg.label}
       </span>
@@ -187,6 +196,11 @@ export default function MesaShape({
 }
 
 // Shade a hex color by percent (negative = darker)
+/** ¿Es blanco el texto del estado? Ahí, en claro, la etiqueta lleva pastilla oscura. */
+function textoClaro(color) {
+  return typeof color === 'string' && color.toLowerCase() === '#ffffff';
+}
+
 function shade(hex, percent) {
   if (!hex || !hex.startsWith('#')) return hex;
   const num = parseInt(hex.slice(1), 16);

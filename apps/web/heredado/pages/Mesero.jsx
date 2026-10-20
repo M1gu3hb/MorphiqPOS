@@ -32,7 +32,7 @@ import {
   DialogTitle,
   DialogFooter,
 } from '@/components/ui/dialog';
-import { MESA_STATUS_CONFIG, ZONAS_MESA } from '@/lib/constants';
+import { MESA_STATUS_CONFIG, ZONAS_MESA, insigniaDeEstadoDeMesa } from '@/lib/constants';
 import MesaShape from '@/components/mesas/MesaShape';
 import MesaGridMobile from '@/components/mesero/MesaGridMobile';
 import MeseroCartFAB from '@/components/mesero/MeseroCartFAB';
@@ -1130,10 +1130,7 @@ function Mesero() {
               Mesa {mesaActiva?.numero}
               <span
                 className="text-xs font-normal px-2 py-0.5 rounded-full"
-                style={{
-                  background: MESA_STATUS_CONFIG[mesaActiva?.estado]?.fill,
-                  color: MESA_STATUS_CONFIG[mesaActiva?.estado]?.text,
-                }}
+                style={insigniaDeEstadoDeMesa(MESA_STATUS_CONFIG[mesaActiva?.estado])}
               >
                 {MESA_STATUS_CONFIG[mesaActiva?.estado]?.label}
               </span>
