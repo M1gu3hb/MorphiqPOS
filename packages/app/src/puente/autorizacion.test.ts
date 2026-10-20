@@ -55,6 +55,12 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
     expect(codigo).toMatch(
       /CorteCaja:\s*{\s*tabla: 'sesiones_caja',\s*sucursal: DE_SU_SUCURSAL,[\s\S]{0,1500}?rolesLectura: \[\.\.\.CAJA, 'mesero'\]/,
     );
+    // Y el fondo de apertura sigue siendo de la caja, en el FUENTE: la prueba de abajo mira el
+    // módulo ya importado y el arnés de mutaciones cambia una copia del archivo, así que sin
+    // esto la mutación «el fondo de la caja visible al mesero» sobrevivía.
+    expect(codigo).toMatch(
+      /efectivo_inicial_contado:\s*\{\s*columna: 'fondo_inicial_centavos',\s*conversion: 'dinero',\s*escribible: false,\s*rolesLectura: \[\.\.\.CAJA\],/,
+    );
     expect(codigo).toMatch(/qr_token:\s*\{\s*rolesLectura: \[\.\.\.DIRECCION\]/);
     expect(codigo).toMatch(/IntegrationSyncLog:\s*\{[\s\S]{0,200}?escritura: 'lectura'/);
   });

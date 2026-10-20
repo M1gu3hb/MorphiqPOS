@@ -420,6 +420,20 @@ comprobarMutacion({
   prueba: PRUEBA_SALIR,
   transformar: (codigo) => codigo.replace('await cerrarSesion(', 'await Promise.resolve('),
 });
+// La sesión de presentación del dueño general (D-42) es la que abre los demás modelos: salir
+// tiene que revocarla también, no sólo la del puesto.
+comprobarMutacion({
+  nombre: 'logout deja viva la sesión de presentación',
+  origen: SALIR,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_SALIR_ROUTE_PATH',
+  prueba: PRUEBA_SALIR,
+  transformar: (codigo) =>
+    codigo.replace(
+      /await cerrarSesion\((\s*leerCookie\(peticion\.headers\.get\('cookie'\), COOKIE_PRESENTACION\))/,
+      'await Promise.resolve($1',
+    ),
+});
 comprobarMutacion({
   nombre: 'roles de entidad otra vez opcionales',
   origen: TIPOS_PUENTE,
