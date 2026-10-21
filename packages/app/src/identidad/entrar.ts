@@ -183,7 +183,14 @@ export async function resolverTerminal(
 
   if (sucursalId === null) return { terminalId: null, deviceToken: null };
 
-  const deviceToken = randomBytes(32).toString('base64url');
+  // El MISMO navegador conserva su token al entrar en otro negocio (21-10-2026): antes
+  // cada negocio nuevo acuñaba uno y pisaba la cookie, y al volver al primero el
+  // navegador ya era una terminal desconocida —«Caja 20», «Caja 21»…— y su caja abierta
+  // se quedaba en la terminal vieja. El token lo puso este servidor (HttpOnly); uno con
+  // otra forma no se adopta y se acuña uno nuevo.
+  const deviceToken = TOKEN_DE_DISPOSITIVO.test(peticion.deviceToken)
+    ? peticion.deviceToken
+    : randomBytes(32).toString('base64url');
   const deviceTokenHash = hashearDispositivo(deviceToken, peticion.pimienta);
   const yaHay = await repoIdentidad.contarTerminales(
     obtenerDb(),
@@ -227,6 +234,9 @@ export async function resolverTerminal(
 
 /** Cinco es de sobra: son colisiones de milisegundos, no de configuracion. */
 const INTENTOS_DE_NOMBRE = 5;
+
+/** La forma de un token acuñado aquí: 32 bytes en base64url. */
+const TOKEN_DE_DISPOSITIVO = /^[A-Za-z0-9_-]{43}$/;
 
 /** Rastro operativo antes de eliminar sesiones vencidas. */
 const RETENCION_SESIONES_MS = 7 * 24 * 60 * 60 * 1000;

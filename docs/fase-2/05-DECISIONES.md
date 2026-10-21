@@ -1233,3 +1233,30 @@ El QR se genera con el origen de `APP_URL` (`<html data-url-publica>`), no con e
 
 **Alternativas.** Aceptar el `Host` de la petición (rompe R-17); comodines (abren la escritura a
 despliegues ajenos).
+
+## D-56 · 21-10-2026 · La caja se trae al dispositivo; el navegador no cambia de terminal
+
+**Contexto.** En producción el dueño abrió la caja del restaurante en «Caja 20» y al día siguiente
+entró desde otros navegadores: había 29 terminales para un restaurante. La caja es de la terminal (la
+cookie del dispositivo) y el cupo de la sucursal es uno, así que desde el dispositivo nuevo no podía
+cobrar («Caja cerrada») ni abrir («ya hay una abierta en Caja 20: haz el corte desde ESA terminal»).
+Si esa cookie ya no existe, la caja quedaba abierta para siempre: desde fuera parecía que la caja se
+cerraba sola. En la presentación pasó igual entre dos teléfonos. Nada cierra cajas por su cuenta.
+
+**Decisión.**
+1. `caja.traer` (`/api/caja/traer`) mueve la sesión ABIERTA a la terminal que lo pide, con
+   bloqueo, auditoría de origen y destino y sus ventas apartadas. El arqueo no cambia: es de la
+   sesión. Puede quien la abrió, a cualquiera de sus dispositivos, y la gerencia; otra cajera no.
+2. `caja.estado`, sin caja en esta terminal, devuelve `enOtraTerminal` (terminal, quién, desde
+   cuándo, si se puede traer) y `puedoAbrir`. Las dos pantallas de caja del restaurante lo enseñan
+   con «Usar esta caja aquí» y no ofrecen un «Abrir caja» que fallaría.
+3. `resolverTerminal` conserva el token del navegador al entrar en otro negocio (sólo si tiene la
+   forma de uno acuñado aquí): el dueño general ya no estrena terminal en cada cambio de negocio.
+   La terminal del espejo toma el nombre de la real; el sufijo, sólo si choca.
+
+**Alternativas.** Subir el cupo del restaurante (tapa el síntoma y parte el arqueo en dos cajones);
+cobrar con cualquier caja abierta de la sucursal (rompe el cuadre por cajón de F-235); cerrar desde
+fuera sin contar (firma un corte que nadie contó).
+
+**Consecuencias.** `traer.integracion.test.ts` (estado, traer, idempotencia, corte desde el nuevo
+dispositivo, cajera ajena rechazada) y `terminal-estable.integracion.test.ts` (roja sin el arreglo).

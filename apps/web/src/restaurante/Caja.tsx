@@ -105,6 +105,30 @@ export interface ResumenDeTurno {
   readonly numeroVentas: number;
   /** Si a esta sesión se le enseñan el gasto y la devolución (el servidor lo exige igual). */
   readonly puedeAdministrar?: boolean;
+  /** Sin caja aquí: la que la sucursal tiene abierta en otra terminal (`caja.traer`). */
+  readonly enOtraTerminal?: CajaEnOtraTerminal | null;
+  /** `false` si la sucursal ya llenó su cupo de cajas: abrir aquí fallaría. */
+  readonly puedoAbrir?: boolean;
+}
+
+/** La caja abierta en otra terminal, como la describe `caja.estado`. */
+interface CajaEnOtraTerminal {
+  readonly sesionCajaId: string;
+  readonly terminalNombre: string | null;
+  readonly abiertaPor: string | null;
+  readonly abiertaEn: string;
+  readonly puedoTraerla: boolean;
+}
+
+/** «La abrió Miguel el 20 oct, 21:18»: dónde está la caja y desde cuándo, en una línea. */
+function dondeEstaLaCaja(caja: CajaEnOtraTerminal): string {
+  const desde = new Date(caja.abiertaEn).toLocaleString('es-MX', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
+  return `${caja.abiertaPor === null ? 'Se abrió' : `La abrió ${caja.abiertaPor}`} el ${desde}.`;
 }
 
 /**
@@ -126,6 +150,83 @@ const SIN_FONDO: Readonly<Record<Monton, number | null>> = {
   chicos: null,
   grandes: null,
 };
+
+type FondoPorMontones = Readonly<Record<Monton, number | null>>;
+
+/** El fondo por montones y «Abrir caja»: lo que el muro pide cuando todavía cabe abrir. */
+function FondoDeApertura({
+  fondo,
+  alCambiar,
+  alAbrir,
+}: {
+  readonly fondo: FondoPorMontones;
+  readonly alCambiar: (cambio: (antes: FondoPorMontones) => FondoPorMontones) => void;
+  readonly alAbrir: () => void;
+}) {
+  return (
+    <>
+      {MONTONES.map((monton, indice) => (
+        <div key={monton.clave} className="flex flex-col gap-(--espacio-1)">
+          <Label htmlFor={`caja-fondo-${monton.clave}`}>
+            {monton.etiqueta} <span className="text-texto-sutil">{monton.ayuda}</span>
+          </Label>
+          <CampoDeDinero
+            id={`caja-fondo-${monton.clave}`}
+            autoFocus={indice === 0}
+            centavos={fondo[monton.clave]}
+            alCambiar={(centavos) => {
+              alCambiar((antes) => ({ ...antes, [monton.clave]: centavos }));
+            }}
+          />
+        </div>
+      ))}
+      <p className="flex items-baseline justify-between text-sm">
+        <span className="text-texto-sutil">Abres con</span>
+        <Dinero
+          centavos={MONTONES.reduce((suma, m) => suma + (fondo[m.clave] ?? 0), 0)}
+          tamano="lg"
+        />
+      </p>
+      <Button size="lg" className="w-full" onClick={alAbrir}>
+        Abrir caja
+      </Button>
+    </>
+  );
+}
+
+/** «Usar esta caja aquí», o a quién pedírselo si la abrió otra persona. */
+function TraerLaCaja({
+  caja,
+  alTraer,
+}: {
+  readonly caja: CajaEnOtraTerminal;
+  readonly alTraer: (sesionCajaId: string) => void;
+}) {
+  if (!caja.puedoTraerla) {
+    return (
+      <p className="text-sm text-texto-sutil">
+        Pide a quien la abrió o a la gerencia que la traiga a este dispositivo, o que haga su corte.
+      </p>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-(--espacio-2)">
+      <Button
+        size="lg"
+        className="w-full"
+        onClick={() => {
+          alTraer(caja.sesionCajaId);
+        }}
+      >
+        Usar esta caja aquí
+      </Button>
+      <p className="text-sm text-texto-sutil">
+        Cobras y haces su corte desde este dispositivo; las ventas del turno siguen en la misma
+        caja.
+      </p>
+    </div>
+  );
+}
 
 /** Lo que `caja.abrir` recibe: cada montón, en centavos; lo que no se tecleó, cero. */
 export function fondoParaAbrir(fondo: Readonly<Record<Monton, number | null>>) {
@@ -522,6 +623,24 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
       });
   };
 
+  /**
+   * TRAER LA CAJA A ESTE DISPOSITIVO (21-10-2026): la caja es de la terminal donde se abrió,
+   * y quien la abrió en la computadora y entra desde el teléfono veía «Caja cerrada» y un
+   * «Abrir caja» que chocaba con la suya. Se mueve la sesión aquí y se relee el turno.
+   */
+  const alTraerCaja = (sesionCajaId: string) => {
+    invocarComando('/api/caja/traer', { sesionCajaId })
+      .then(async () => leerCaja(new AbortController().signal))
+      .then(({ pendientes, estado }) => {
+        setFilas(pendientes);
+        setTurno(estado);
+        setError(null);
+      })
+      .catch((fallo: unknown) => {
+        setError(fallo instanceof Error ? fallo.message : 'No se pudo traer la caja.');
+      });
+  };
+
   if (falloDeCarga !== null) {
     return (
       <main className="mx-auto flex max-w-lg flex-col gap-(--espacio-4) p-(--espacio-6)">
@@ -568,7 +687,11 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
 
   if (!turno.abierta) {
     // El muro es la tarjeta ámbar del documento, y no un `Aviso` con un enlace:
-    // aquí mismo se declara el fondo y se abre, sin ir a otra pantalla.
+    // aquí mismo se declara el fondo y se abre, sin ir a otra pantalla. Si la caja de la
+    // sucursal está abierta en otra terminal, el muro lo dice y la trae; el fondo sólo se
+    // pide si todavía cabe abrir otra.
+    const ajena = turno.enOtraTerminal ?? null;
+    const puedoAbrir = turno.puedoAbrir !== false;
     return (
       <main className="flex min-h-dvh items-center justify-center p-(--espacio-4)">
         <Superficie
@@ -581,38 +704,19 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           <div className="flex flex-col gap-(--espacio-2)">
             <h1 id="caja-muro" className="flex items-center gap-(--espacio-2) text-2xl font-bold">
               <TriangleAlert aria-hidden="true" className="size-5 shrink-0" />
-              Caja cerrada
+              {ajena === null ? 'Caja cerrada' : 'La caja está en otra terminal'}
             </h1>
             <p className="text-sm text-texto-sutil">
-              Sin sesión de caja, un cobro no entra en ningún corte. Declara el fondo y ábrela.
+              {ajena === null
+                ? 'Sin sesión de caja, un cobro no entra en ningún corte. Declara el fondo y ábrela.'
+                : `Está abierta en «${ajena.terminalNombre ?? 'otra terminal'}». ${dondeEstaLaCaja(ajena)}`}
             </p>
           </div>
           {error === null ? null : <Aviso tono="peligro" titulo={error} />}
-          {MONTONES.map((monton, indice) => (
-            <div key={monton.clave} className="flex flex-col gap-(--espacio-1)">
-              <Label htmlFor={`caja-fondo-${monton.clave}`}>
-                {monton.etiqueta} <span className="text-texto-sutil">{monton.ayuda}</span>
-              </Label>
-              <CampoDeDinero
-                id={`caja-fondo-${monton.clave}`}
-                autoFocus={indice === 0}
-                centavos={fondo[monton.clave]}
-                alCambiar={(centavos) => {
-                  setFondo((antes) => ({ ...antes, [monton.clave]: centavos }));
-                }}
-              />
-            </div>
-          ))}
-          <p className="flex items-baseline justify-between text-sm">
-            <span className="text-texto-sutil">Abres con</span>
-            <Dinero
-              centavos={MONTONES.reduce((suma, m) => suma + (fondo[m.clave] ?? 0), 0)}
-              tamano="lg"
-            />
-          </p>
-          <Button size="lg" className="w-full" onClick={alAbrirCaja}>
-            Abrir caja
-          </Button>
+          {ajena === null ? null : <TraerLaCaja caja={ajena} alTraer={alTraerCaja} />}
+          {puedoAbrir ? (
+            <FondoDeApertura fondo={fondo} alCambiar={setFondo} alAbrir={alAbrirCaja} />
+          ) : null}
         </Superficie>
       </main>
     );

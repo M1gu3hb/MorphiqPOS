@@ -47,6 +47,7 @@ import {
 } from '@/utils/tipsUtils';
 import SafeBoundary from '@/components/common/SafeBoundary';
 import AbrirCajaDialog from '@/components/caja/AbrirCajaDialog';
+import CajaEnOtraTerminal from '@/components/caja/CajaEnOtraTerminal';
 import CorteTurnoDialog from '@/components/caja/CorteTurnoDialog';
 import CierreDiarioDialog from '@/components/caja/CierreDiarioDialog';
 import MesasPendientesCierreDialog from '@/components/caja/MesasPendientesCierreDialog';
@@ -165,6 +166,8 @@ export default function Caja() {
   const {
     cajaAbierta,
     hayCaja,
+    cajaEnOtraTerminal,
+    puedoAbrir,
     fondoEsperado,
     isLoading: cargandoCaja,
   } = useCajaAbierta({ deEstaTerminal: true });
@@ -1096,9 +1099,11 @@ export default function Caja() {
           <Button
             size="sm"
             onClick={() => setShowAbrirCaja(true)}
-            disabled={hayCaja || cargandoCaja}
-            variant={hayCaja ? 'outline' : 'default'}
-            title={hayCaja ? 'Ya hay una caja abierta' : 'Abrir caja para comenzar operación'}
+            disabled={hayCaja || cargandoCaja || !puedoAbrir}
+            variant={hayCaja || !puedoAbrir ? 'outline' : 'default'}
+            title={
+              hayCaja || !puedoAbrir ? 'Ya hay una caja abierta' : 'Abrir caja para comenzar operación'
+            }
             className="px-2"
           >
             <DoorOpen className="w-4 h-4 sm:mr-1" />
@@ -1138,8 +1143,13 @@ export default function Caja() {
         </div>
       </div>
 
+      {/* La caja de la sucursal está abierta en OTRA terminal: traerla, no abrir otra. */}
+      {!hayCaja && !cargandoCaja && cajaEnOtraTerminal && (
+        <CajaEnOtraTerminal caja={cajaEnOtraTerminal} />
+      )}
+
       {/* Aviso si NO hay caja abierta */}
-      {!hayCaja && !cargandoCaja && (
+      {!hayCaja && !cargandoCaja && !cajaEnOtraTerminal && (
         <div className="px-4 py-3 rounded-xl bg-advertencia/10 border-2 border-advertencia/30 text-sm text-advertencia flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-advertencia" />
           <div className="flex-1">
