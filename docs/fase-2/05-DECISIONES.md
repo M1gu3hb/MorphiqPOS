@@ -1140,3 +1140,21 @@ huérfanos con descuento por renglón); impedir dividir cuentas con descuento (l
 
 **Consecuencias.** Cinco pruebas de integración contra Postgres (cambio y unión con cobro,
 cierre de caja con mesa abierta, cobro simultáneo de partes, división y cobro).
+
+## D-51 · 21-10-2026 · Una división que se borra entera no se comprueba (185)
+
+**Contexto.** `division_cuadra` (070) es diferido: al confirmar compara el total de cada madre con
+la suma de sus hijas vivas. El reseteo de una demostración borra en una transacción todas las
+cuentas, madres e hijas; al confirmar, la madre ya no existía y la comparación con NULL fallaba
+(23514): bastaba dividir una cuenta en la demo para que ya no se pudiera dejar limpia.
+
+**Decisión.** Si la madre ya no existe, el disparador no compara nada (185). La llave
+`orden_padre_id` no deja hijas vivas sin madre, y con la madre viva la regla es la misma.
+
+**Alternativas.** Que el reseteo deshaga las divisiones antes de borrar (código especial para un
+solo camino, y `sembrar-demos` seguiría expuesto); apagar el disparador durante el reseteo (DDL
+desde la aplicación y privilegios de dueño de la tabla).
+
+**Consecuencias.** Aplicada en producción el 21-10 con ensayo, respaldo de la función, vuelta atrás
+ensayada y verificación contra una base migrada de cero. Lo que la suite de operaciones encontró y
+no entra en este cierre queda en `test.fixme` con qué falla y dónde (D-2, D-3, D-5; reporte 021).

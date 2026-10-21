@@ -982,7 +982,16 @@ test.describe('el día completo de la ferretería', () => {
         await expect(
           ficha.getByRole('table', { name: 'Remisiones abiertas' }).getByRole('checkbox'),
         ).toBeChecked({ timeout: 30_000 });
+        // El aviso tiene que SEGUIR ahí después de releer la cartera. Este pago salda la única
+        // cuenta, la cartera vuelve vacía, y la pantalla caía en su vacío sin el aviso: la
+        // prueba pasaba sólo si miraba antes de que llegara la relectura (CI de main, 21-10).
+        const relectura = elena.waitForResponse(
+          (r) =>
+            new URL(r.url()).pathname === '/api/datos/consultar' &&
+            (r.request().postData() ?? '').includes('"CarteraPorObra"'),
+        );
         await ficha.getByRole('button', { name: 'Registrar pago', exact: true }).click();
+        await relectura;
         await expect(elena.getByText(`Pago de ${INGENIERO} registrado.`)).toBeVisible({
           timeout: 30_000,
         });

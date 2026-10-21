@@ -6919,3 +6919,94 @@ de estilos/contraste de estados de mesa. Después: integración a `main`, despli
 
 Siguiente: CI de `b3fc9fb`, las suites de los dos agentes, la integración a `main`, el despliegue,
 el ensayo en producción y el borrado del respaldo `respaldo_183_184`.
+
+### Punto de control · 21-10 00:10 UTC · las suites de los agentes, lo que destaparon, y la 185
+
+- `b3fc9fb` (la carrera al entrar): **CI verde**, corrida 39514176320, 16 de 16.
+- Los dos agentes (Sonnet) entregaron sus suites en sus worktrees; se copiaron los archivos (sin
+  sus commits) y se revisaron:
+  - `restaurante-operaciones` (por las vistas adicionales; opera dirección): dividir y cobrar las
+    partes, descuento con PIN de supervisor, anular, cancelar, cambiar, unir, separar y cancelar
+    un grupo, el cajón cuadrado. Seis hallazgos.
+  - `estilos-del-negocio` y `estados-de-mesa` (contraste medido sobre el peor píxel). Seis
+    hallazgos más; el contraste de los estados ya lo había arreglado `acb94b9`, y su suite pasa
+    con ese arreglo: 18 de 18 en PC y en teléfono.
+- Corregido, con prueba en rojo antes:
+  - **D-6** · tras dividir una cuenta, el reseteo de la demo contestaba 500 (y `sembrar-demos`
+    caía): `division_cuadra` (070) comparaba al confirmar una madre ya borrada. **Migración 185**
+    (`division_sin_madre`): sin madre no hay división que cuadrar; con madre, la regla de siempre.
+  - **D-7** · cancelar la cuenta de un grupo dejaba viva en cocina la comanda de la mesa unida.
+  - **D-4** · la mesa unida se ofrecía «libre» y se podía intentar abrir.
+  - Las **perillas** de Apariencia guardadas se perdían al recargar (el proveedor arrancaba sólo con
+    el nombre del estilo).
+  - Mapa de la dueña: `en_espera_entrega` crudo; en el teléfono, la fila de zonas ensanchaba la
+    página en `taller` y `bloque` y el botón flotante tapaba la leyenda; en `terminal`, «Cuenta
+    solicitada» se salía del círculo.
+- **PRODUCCIÓN, 185 aplicada por el proceso** (00:0x UTC): registro 116/184 igual al disco (huella
+  `ae4a1350…`); ensayo con `rollback` sin residuo (función y registro como antes, sin transacciones
+  colgadas ni candados); respaldo de la definición en `respaldo_185.funcion_division` (md5
+  `f947fd68…`) con la vuelta atrás ensayada (restaurada idéntica); `apply_migration`
+  «morphiq_185_division_sin_madre»; después, registro 117/185 (huella `8d519753…`), función
+  `d3da5e39…` y 2,088 columnas · 1,366 restricciones · 442 índices, **idéntico** a una base local
+  migrada de cero hasta la 185. Compatible con `main` (sólo relaja la comprobación sin madre).
+- Quedan en `test.fixme`, documentados como pendientes: **D-2** (no hay botón «Separar»: un grupo
+  se deshace al cobrarlo o cancelarlo), **D-3** («Marcar entregado» en la principal no alcanza lo
+  que cocina dejó listo para la mesa unida; la cocina sí puede retirarlo) y **D-5** (la
+  autorización del supervisor dura dos minutos y no va atada a una cuenta).
+- Local: operaciones 15 de 15; estilos 11 de 11; estados 18 + 18; jornada en PC; integración
+  completa 41 archivos · 130 pruebas; lint y tipos en verde.
+- `07725a0` en la rama, con las tres suites en el trabajo «Jornada completa · restaurante».
+
+### Punto de control · 21-10 00:55 UTC · los tres rojos de la corrida de `e333538`
+
+Corrida 39520096354 sobre `e333538`: 13 de 16 en verde. Los tres rojos, con su causa:
+
+- **Estados de mesa** (los ocho estilos, sólo en claro): «Esperando entrega» en la mesa 6, de 60 px,
+  daba 3.90-4.20:1. En local pasaba. La etiqueta va en dos renglones casi del ancho de su pastilla, y
+  la pastilla era una píldora (radio 999): sus extremos redondos dejaban las puntas de cada renglón
+  sobre el verde sin oscurecer, y la medida toma el peor píxel de la caja de los dos renglones. Una
+  réplica local con el texto 1.8 px más ancho —como lo pinta CI— da 4.15 y 3.91 con la píldora (los
+  mismos números de CI) y 7.12 con esquinas de 4 px. Arreglado en `edd793e`; local, 36 de 36 en PC
+  y en teléfono.
+- **Galería de la estética**, el inicio en `morphiq`: el salón salía cerrado —«Hoy no hay citas
+  todavía», 0 huecos— contra un retrato con las dos estilistas y sus huecos. La siembra fechaba el
+  horario con `current_date` y la regla de comisión con `toISOString()`: el día en UTC, que a las
+  18:15 de México ya es mañana. No venía de este PR; sale en cualquier siembra de las 18:00 a la
+  medianoche de México, también en producción (la demo reseteada a esa hora abre cerrada el resto
+  del día y lo cobrado no comisiona). Arreglado en `edd793e` con el día de la zona del negocio;
+  prueba de integración nueva, roja con el código anterior. Sembrada en local a las 18:5x de México:
+  UTC 2026-10-21, negocio 2026-10-20, horario y regla desde 2026-10-20.
+- **Galería del restaurante**, `/mesero` en `terminal` (450 px): las etiquetas «Libre» con la letra
+  de cuerpo en vez de la monoespaciada, que es el cambio de `8291028`. Se declara regenerando los
+  retratos en CI (corrida manual 39523370809 con `actualizar_galeria`).
+- Corrida del PR sobre `edd793e` (39523370520): **15 de 16**. La jornada del restaurante en verde con
+  los estados de mesa en los ocho estilos, y la galería de la estética en verde corriendo a las
+  19:1x de México, la misma franja que antes fallaba. El único rojo, el retrato declarado de
+  `/mesero` en `terminal` (450 px).
+- La corrida manual 39523370809 regeneró los 72 retratos del restaurante: 63 idénticos, 8 con ruido
+  de suavizado (hasta 23 niveles en Cristal) y uno que cambia, `/mesero` en `terminal`, sólo en las
+  etiquetas «Libre». Se sube ese (`d72ab2c`); los otros se quedan como estaban. El resto de la
+  corrida manual se canceló para liberar máquinas: lo que se necesitaba de ella ya estaba.
+
+### Punto de control · 21-10 02:30 UTC · publicado
+
+- **PR #13 fusionado** con CI en verde sobre su punta exacta `d72ab2c` (corrida 39526173928, 16 de
+  16): fusión `ffed55e`, autor M1gu3hb, sin coautorías en ninguno de los 51 commits.
+- **Producción:** `dpl_HGH4QaraKEeoXfMuGewYc4NGdtit`, `READY` a las 01:36 UTC con el SHA de la
+  fusión y el alias `morphiqpos-kappa.vercel.app` sin error. `/login-pos` 200, y el JavaScript que
+  la app carga en producción trae la etiqueta de `edd793e`. El build es sólo `next build`: el
+  despliegue no toca la base.
+- **Ensayo en producción**, de sólo lectura, con el token de aparato del ensayo: 53 bien, 0 mal;
+  ninguna escritura, ninguna 5xx. La demo del restaurante antes y después: los seis md5 iguales; +4
+  sesiones, +32 auditoría y +32 bitácora de comandos (el mantenimiento de avisos QR); 17
+  terminales, las mismas. Una lectura de `Venta` contestó 403 durante el «Salir» de Rosa en la
+  caja: es el sondeo de la pantalla que sale con la sesión ya revocada; reproducido en local (la
+  galleta recién revocada → 403 `SIN_PERMISO`), sin efecto visible.
+- **Respaldos:** el borrado de `respaldo_183_184` y `respaldo_185` pidió confirmación, no llegó y
+  se canceló; no se reintentó. Siguen ahí (24 filas de `mesas`, 15 de `pagos` y una función), sin
+  nada que dependa de ellos. El comando para borrarlos está en el reporte 021, §10.
+- **CI de `main` sobre `ffed55e`** (39528164412): 50 de 51. El rojo, la jornada de la ferretería:
+  el pago que salda la última cuenta borraba su propio aviso (la vista vacía de Cuentas no lo
+  pintaba). El pago sí entraba. Anterior al PR #13: ni `Cuentas.tsx` ni su prueba cambiaron en él;
+  en las corridas del PR la prueba ganó la carrera. `f20a540` lo corrige y vuelve determinista la
+  prueba (roja sin el arreglo, verde en escritorio y tableta con él), en el PR de seguimiento.
