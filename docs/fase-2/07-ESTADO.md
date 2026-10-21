@@ -1,3 +1,13 @@
+> **Actualización 21-oct-2026 (cierre del restaurante):** el restaurante queda operable, presentable
+> y PUBLICADO para la presentación del 21-10: cobro y propinas por método (184), el dueño general a
+> salvo de los reseteos, cada puesto con sus pantallas y el servidor negando lo ajeno, mesas, grupos
+> y divisiones corregidos, la carrera al entrar, y la demo que se resetea aunque haya cuentas
+> divididas (185). En CI, además de la jornada en tres aparatos: el portal QR, la concurrencia, las
+> operaciones de mesa, los ocho estilos del negocio y el contraste de los estados de mesa. 183, 184 y
+> 185 aplicadas en producción por el proceso. Producción sirve la fusión `ffed55e` (PR #13) desde el
+> 21-10 a las 01:36 UTC, con el ensayo de sólo lectura en verde. Pendientes reales y la publicación,
+> en el reporte 021.
+>
 > **Actualización 20-oct-2026, tarde (PR #13):** el día completo del restaurante existe y corre en
 > CI por el recorrido heredado en PC, tableta y teléfono (D-43), cuadrado al centavo; el rastreo del
 > restaurante, rojo en `main` en los ocho estilos, vuelve a alcanzar lo que enumera; las migraciones
