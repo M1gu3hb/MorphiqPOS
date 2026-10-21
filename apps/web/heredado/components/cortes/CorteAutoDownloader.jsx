@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/api/cliente';
+import { detallesDeVentas } from '@/lib/detallesDeVentas';
 import { useConfig } from '@/lib/ConfigContext';
 import { canAccessModule } from '@/lib/packageConfig';
 import { usePOSAuth } from '@/lib/POSAuthContext';
@@ -83,13 +84,8 @@ export default function CorteAutoDownloader({ corte, onDone }) {
                 new Date(v.fecha_cierre).getTime() <= cierre)),
         );
         const ventaIds = ventasCorte.map((v) => v.id);
-        const detalles = ventaIds.length
-          ? (
-              await Promise.all(
-                ventaIds.map((id) => api.entidades.DetalleVenta.filter({ venta_id: id })),
-              )
-            ).flat()
-          : [];
+        // Una lectura para todos los renglones del corte, no una petición por venta.
+        const detalles = await detallesDeVentas(ventasCorte);
         const gastosCorte = allGastos.filter((g) => {
           const t = g.created_date ? new Date(g.created_date).getTime() : 0;
           return t >= inicio && t <= cierre;

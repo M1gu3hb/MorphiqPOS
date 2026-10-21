@@ -4,6 +4,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Button } from '@/components/ui/button';
 import { Printer, X, Download, Loader2 } from 'lucide-react';
 import { api } from '@/api/cliente';
+import { detallesDeVentas } from '@/lib/detallesDeVentas';
 import { useConfig } from '@/lib/ConfigContext';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { hasPermission } from '@/lib/permissions';
@@ -94,13 +95,8 @@ export default function CorteViewerDialog({ corte, open, onClose }) {
         const ventaIds = ventasCorte.map((v) => v.id);
         // Idem venta a venta: con `.catch(() => [])` el desglose por producto
         // salía incompleto y en silencio, ticket a ticket.
-        const detalles = ventaIds.length
-          ? (
-              await Promise.all(
-                ventaIds.map((id) => api.entidades.DetalleVenta.filter({ venta_id: id })),
-              )
-            ).flat()
-          : [];
+        // Una lectura para todos los renglones del corte, no una petición por venta.
+        const detalles = await detallesDeVentas(ventasCorte);
 
         const gastosCorte = allGastos.filter((g) => {
           const t = g.created_date ? new Date(g.created_date).getTime() : 0;

@@ -595,15 +595,6 @@ function PortalCliente() {
         {/* La firma de la plataforma al pie del menú. El comensal ve el nombre del negocio
             arriba y la marca de Morphiq aquí, nunca un nombre técnico. */}
         <MarcaMorphiq variante="portal" />
-        {/* Las fotos de la carta son de Wikimedia Commons con licencias CC: su atribución. */}
-        <a
-          href="/platillos/CREDITOS.md"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="mt-1 block text-center text-[10px] opacity-60 hover:opacity-100"
-        >
-          Créditos de las fotos
-        </a>
       </main>
 
       {/* Botón flotante de atención.
