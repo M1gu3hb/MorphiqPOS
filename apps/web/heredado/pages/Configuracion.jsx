@@ -41,6 +41,7 @@ import {
 import IntegracionesRespaldos from '@/components/configuracion/IntegracionesRespaldos';
 import DatosSection from '@/components/datos/DatosSection';
 import { PresentacionDelDueno } from '~/configuracion/PresentacionDelDueno';
+import ConfiguracionDeVoz from '@/components/configuracion/ConfiguracionDeVoz';
 import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
 import { useLocation } from '@/enrutado';
 import { canAccessModule } from '@/lib/packageConfig';
@@ -469,7 +470,7 @@ export default function Configuracion() {
   if (configLoading && !cfg) {
     return (
       <div className="space-y-6">
-        <PageHeader title="Configuración" description="Ajustes del sistema MH Astral Systems" />
+        <PageHeader title="Configuración" description="Ajustes de Morphiq POS" />
         <Card>
           <CardContent className="py-12 flex flex-col items-center gap-3 text-muted-foreground">
             <div className="w-8 h-8 border-2 border-muted-foreground/30 border-t-primary rounded-full animate-spin" />
@@ -482,7 +483,7 @@ export default function Configuracion() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Configuración" description="Ajustes del sistema MH Astral Systems" />
+      <PageHeader title="Configuración" description="Ajustes de Morphiq POS" />
 
       <Tabs defaultValue={new URLSearchParams(location.search).get('tab') || 'identidad'}>
         <TabsList className="mb-4 flex-wrap h-auto">
@@ -536,7 +537,12 @@ export default function Configuracion() {
         </TabsContent>
 
         <TabsContent value="apariencia">
-          <SelectorDeApariencia />
+          <div className="space-y-6">
+            <SelectorDeApariencia />
+            {/* La voz de los avisos es de ESTE dispositivo: la cocina o la tableta de la sala
+                eligen la suya entrando aquí desde ese equipo. */}
+            <ConfiguracionDeVoz />
+          </div>
         </TabsContent>
 
         <TabsContent value="negocio">

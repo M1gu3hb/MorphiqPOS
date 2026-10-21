@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { marcaVisibleDePlataforma, nombreVisibleDelNegocio } from '~/marca/nombre-visible';
 import { Link, useLocation } from '@/enrutado';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
@@ -182,10 +183,10 @@ export default function Sidebar({ collapsed, onToggle }) {
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-sm font-heading font-bold truncate tracking-wide">
-              {config.nombre_negocio}
+              {nombreVisibleDelNegocio(config.nombre_negocio)}
             </p>
             <p className="text-[10px] text-sidebar-foreground/50 truncate">
-              {config.platform_brand || 'MH Astral Systems'}
+              {marcaVisibleDePlataforma(config.platform_brand)}
             </p>
           </div>
         )}

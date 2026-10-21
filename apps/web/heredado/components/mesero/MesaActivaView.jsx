@@ -13,6 +13,7 @@ import {
   ArrowLeft,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Link } from '@/enrutado';
 import { Input } from '@/components/ui/input';
 import { MESA_STATUS_CONFIG, insigniaDeEstadoDeMesa } from '@/lib/constants';
 import MeseroCartFAB from '@/components/mesero/MeseroCartFAB';
@@ -322,6 +323,16 @@ export default function MesaActivaView({
                   Solicitar cuenta
                 </Button>
               )}
+            {/* Dividir, unir, separar o cambiar de mesa viven en la mesa activa del restaurante;
+                desde el 21-10 (D-52) no hay menú de «vistas adicionales» y se llega desde aquí. */}
+            {ventaActiva && mesaActiva?.id && (
+              <Link
+                to={`/restaurante/mesa-activa?mesa=${encodeURIComponent(mesaActiva.id)}`}
+                className="w-full text-center text-sm font-medium underline-offset-4 hover:underline py-2"
+              >
+                Dividir, unir, separar o cambiar de mesa
+              </Link>
+            )}
           </div>
         </div>
       </div>
