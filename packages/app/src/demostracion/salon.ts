@@ -93,17 +93,37 @@ export async function sembrarSalon(
   productosPorNombre: ReadonlyMap<string, string>,
 ): Promise<ResumenSalon> {
   const recursos = await sembrarRecursos(tx, organizacionId, sucursalId);
-  const reglaId = await sembrarReglaDeComision(tx, organizacionId);
+  const hoy = await hoyDelNegocio(tx, organizacionId);
+  const reglaId = await sembrarReglaDeComision(tx, organizacionId, hoy);
   const profesionales = await sembrarProfesionales(
     tx,
     organizacionId,
     sucursalId,
     empleos,
     reglaId,
+    hoy,
   );
   const cuantos = await sembrarServicios(tx, organizacionId, servicios, productosPorNombre);
   await sembrarQuienHaceQue(tx, organizacionId, servicios, productosPorNombre);
   return { profesionales, recursos, servicios: cuantos };
+}
+
+/**
+ * HOY, EN EL RELOJ DEL NEGOCIO, y no en el de la base.
+ *
+ * El horario y la regla de comisión rigen «desde hoy». Con el día en UTC
+ * (`current_date` en la base, `toISOString()` aquí), una demo sembrada de las 18:00 a
+ * la medianoche de México nacía con todo vigente desde MAÑANA: el salón salía cerrado
+ * el resto del día —sin columnas ni huecos— y lo cobrado no comisionaba. Lo vio la
+ * galería al correr a las 18:23 (cierre del 21-10).
+ */
+async function hoyDelNegocio(tx: Transaccion, organizacionId: string): Promise<string> {
+  const filas = await sql<{ fecha: string }>`
+    select to_char((now() at time zone o.zona_horaria)::date, 'YYYY-MM-DD') as fecha
+      from organizaciones o
+     where o.id = ${organizacionId}
+  `.execute(tx);
+  return filas.rows[0]?.fecha ?? new Date().toISOString().slice(0, 10);
 }
 
 /**
@@ -119,7 +139,11 @@ export async function sembrarSalon(
  * es del SAT, no del salón— y el material a cargo del salón. Es el trato más
  * común y el que la pantalla de liquidación sabe explicar.
  */
-async function sembrarReglaDeComision(tx: Transaccion, organizacionId: string): Promise<string> {
+async function sembrarReglaDeComision(
+  tx: Transaccion,
+  organizacionId: string,
+  hoy: string,
+): Promise<string> {
   const existente = await tx
     .selectFrom('reglas_comision')
     .select('id')
@@ -144,7 +168,7 @@ async function sembrarReglaDeComision(tx: Transaccion, organizacionId: string): 
       anticipo_perdido_paga: false,
       // Desde hoy: una regla con vigencia futura no comisiona nada, y una demo
       // que no comisiona es exactamente el agujero que esto tapa.
-      vigente_desde: new Date().toISOString().slice(0, 10),
+      vigente_desde: hoy,
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -242,6 +266,8 @@ async function sembrarProfesionales(
   empleos: ReadonlyMap<string, string>,
   /** La regla con la que comisionan. Sin ella, cobrar no causa comisión. */
   reglaComisionId: string,
+  /** Desde cuándo rige su horario: hoy, en el reloj del negocio. */
+  hoy: string,
 ): Promise<number> {
   let creadas = 0;
   for (const [indice, quien] of PROFESIONALES.entries()) {
@@ -276,7 +302,7 @@ async function sembrarProfesionales(
       await sql`insert into horarios_profesional
           (organizacion_id, profesional_id, dia_semana, hora_inicio, hora_fin, vigente_desde)
         values (${organizacionId}, ${profesional.id}, ${dia}, ${HORARIO.inicio}::time,
-          ${HORARIO.fin}::time, current_date)`.execute(tx);
+          ${HORARIO.fin}::time, ${hoy}::date)`.execute(tx);
     }
     creadas += 1;
   }

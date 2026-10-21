@@ -134,8 +134,11 @@ export default function MesaShape({
           // El estado se LEE (cierre del 21-10): en claro, el texto blanco de 8-9 px sobre el
           // relleno saturado bajaba hasta 3.3:1; una pastilla oscura detrás lo deja arriba de
           // 6.7:1 sin cambiar el color de la mesa. En oscuro ya pasaba.
+          // Esquinas de 4 px y no de píldora: en la mesa chica «Esperando entrega» va en dos
+          // renglones casi del ancho de la caja, y los extremos redondos de una píldora de 22 px
+          // dejaban las puntas de cada renglón sobre el verde sin oscurecer (4.2:1 en CI).
           ...(!isDark && textoClaro(cfg.text)
-            ? { background: 'rgba(0,0,0,0.35)', borderRadius: 999, padding: '1px 5px' }
+            ? { background: 'rgba(0,0,0,0.35)', borderRadius: 4, padding: '1px 5px' }
             : {}),
         }}
       >
