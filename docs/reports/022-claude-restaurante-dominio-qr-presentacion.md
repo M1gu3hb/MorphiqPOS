@@ -41,8 +41,37 @@ preparar; encender/apagar es del dueño general desbloqueado.
 
 ## 4 · Producción
 
-Ver §6 (se completa al publicar): SHA servido, CI del SHA exacto, verificación en el dominio,
-escrituras hechas y su alcance.
+- **CI** del PR #15 sobre `451d066`: 16/16 en verde (corrida del `pull_request`), con los retratos de
+  la galería regenerados en CI (`actualizar_galeria`, corrida 39612252059) y declarados en su commit.
+- **Fusión:** `bdbcbf8` en `main` (autor M1gu3hb). Vercel no disparó el despliegue de `main`; se creó
+  desde el origen de git con ese SHA exacto: `dpl_GSKXouX27DegWihWhLfFDDjydqT5`, READY, con los
+  alias `www.pos-mh-astral-systems.com`, `pos-mh-astral-systems.com` y `morphiqpos-kappa.vercel.app`.
+- **Verificación en el dominio** (`.work/verificacion/produccion.mjs`): 26/26 — `/login-pos` 200 en www
+  y kappa, apex → 308 a www, escrituras aceptadas desde www/apex/kappa y 403 desde un origen ajeno,
+  la lista de acceso dice «Restaurante MH» y no el nombre técnico, el QR de la Mesa 3 abre su portal
+  en www (antes 422) y un token inventado da 404; Lupita, Toño y Rosa entran en www a /mesero,
+  /cocina y /caja, recargan, no abren Configuración y sin 5xx.
+- **Escrituras en producción y su alcance:**
+  - Variables de Production (`APP_URL`, `APP_URL_ALTERNAS`, `ORGANIZACION`), ver D-55.
+  - `organizaciones.nombre` de `demo-acople-restaurante` → «Restaurante MH» (con auditoría).
+  - Comanda `73f655b9…` → `cancelado` (con auditoría): la «Mesa 1» fantasma de cocina.
+  - `productos.imagen_url` de 26 platillos del restaurante (sólo los que no tenían imagen).
+  - Sesiones de la verificación (Lupita, Toño, Rosa y «Demo»).
+  - **Presentación preparada, no encendida**, como el dueño de la demostración: contexto espejo
+    `a0523523…` con 30 días (664 tickets, ventas = pagos = $424,861.00, 0 comandas vivas, 0 cajas
+    abiertas, 12 mesas). El restaurante real quedó con sus 2 órdenes y 12 mesas; el modo, apagado.
+
+### Para entrar y presentar
+
+1. https://www.pos-mh-astral-systems.com → «Equipo Morphiq · dueño general» → Miguel → tu PIN.
+2. Configuración → Presentación → tu PIN → aparecen los modelos y, debajo, «Modo presentación al
+   cliente». Enciéndelo: como ya está preparado, entra en segundos y vuelves al tablero con el
+   historial (gráfica, propinas, cortes con sus totales).
+3. Cada puesto entra en su teléfono por el mismo enlace, grupo «Restaurante MH», con su PIN: cae en
+   la presentación. El QR de cada mesa está en Portal QR (en presentación, los QR son del contexto
+   de presentación).
+4. Para salir: Configuración → Presentación → apagar. Todos vuelven al acceso con un aviso y
+   tus datos aparecen tal cual.
 
 ## 5 · Pendientes reales
 
