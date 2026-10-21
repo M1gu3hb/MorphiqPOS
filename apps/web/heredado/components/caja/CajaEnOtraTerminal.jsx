@@ -52,7 +52,8 @@ export default function CajaEnOtraTerminal({ caja }) {
       <div className="flex-1">
         <p className="font-bold">La caja está abierta en {donde}</p>
         <p className="text-xs opacity-90">
-          {quien} el {desde}.{' '}
+          {quien} el {desde}
+          {desde.endsWith('.') ? ' ' : '. '}
           {caja.puedoTraerla
             ? 'Úsala aquí para cobrar y hacer su corte desde este dispositivo.'
             : 'Pide a quien la abrió o a la gerencia que la traiga a este dispositivo, o que haga su corte.'}

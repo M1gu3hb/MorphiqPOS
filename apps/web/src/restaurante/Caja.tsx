@@ -128,7 +128,9 @@ function dondeEstaLaCaja(caja: CajaEnOtraTerminal): string {
     hour: '2-digit',
     minute: '2-digit',
   });
-  return `${caja.abiertaPor === null ? 'Se abrió' : `La abrió ${caja.abiertaPor}`} el ${desde}.`;
+  // «p. m.» ya trae su punto: no se le pone otro.
+  const fin = desde.endsWith('.') ? '' : '.';
+  return `${caja.abiertaPor === null ? 'Se abrió' : `La abrió ${caja.abiertaPor}`} el ${desde}${fin}`;
 }
 
 /**
