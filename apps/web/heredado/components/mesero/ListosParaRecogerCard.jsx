@@ -47,10 +47,8 @@ export default function ListosParaRecogerCard({ mesa, ventaId, onAfterEntregar }
     enabled: !!ventaId,
     refetchInterval: 1500,
     staleTime: 1500,
-    // SIN `placeholderData: (prev) => prev`. Durante un refetch de LA MISMA clave React Query ya
-    // conserva el dato (no hace falta pedirlo), y aquí la clave lleva la venta: al pasar de una
-    // mesa a otra, «el dato previo» eran los pedidos listos de la MESA ANTERIOR, que se pintaban
-    // como si fueran de la nueva hasta que llegara su lectura. Sin dato propio, no hay dato.
+    // Mantener data previa durante el refetch (evita flicker básico).
+    placeholderData: (prev) => prev,
   });
 
   // Solo los que están en 'listo'.

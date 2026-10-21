@@ -193,6 +193,15 @@ beforeAll(async () => {
     idempotencyKey: randomUUID(),
   });
   if (!siembra.ok) throw new Error(siembra.error.mensaje);
+  // La base de integración es UNA para todos los archivos: la prueba del historial marca esta
+  // misma demo como espejo de otro negocio, y el reseteo conserva esas llaves. Aquí la demo es
+  // el restaurante REAL, así que se le quitan antes de empezar.
+  await sql`
+    update configuracion set valores = valores - 'presentacion_espejo_de' - 'presentacion_activa'
+      - 'presentacion_gemelos' - 'presentacion_preparado' - 'presentacion_historial'
+      - 'presentacion_modo'
+    where organizacion_id = ${real}
+  `.execute(obtenerDb());
   await conTransaccion(async (tx) => {
     await tx
       .updateTable('mesas')
