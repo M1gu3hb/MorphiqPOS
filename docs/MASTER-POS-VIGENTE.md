@@ -11,12 +11,17 @@ entregar sistemas personalizados. No es un SaaS compartido entre sus clientes.
 
 1. Abrir el enlace central → login por cuenta y PIN.
 2. Equipo Morphiq → cuenta personal de dueño general → dashboard.
-3. Modelos de negocio, también accesible desde Configuración → Presentación → verificar
+3. Modelos de negocio, en Configuración → Presentación (ya no en el menú lateral, D-52) → verificar
    el PIN del dueño general → cambiar de giro sin otra dirección, nueva cuenta o despliegue.
 4. Recorrer todas las pantallas autorizadas del modelo. Restaurante tiene dashboard,
    mesas, cocina, caja, inventario, gestión, distribución de mesas y apariencia.
 5. Salir → mismo login central → elegir un modelo y su usuario de operación para demostrar
    mesero, cocina, caja u otro puesto. El puesto conserva permisos limitados en servidor.
+6. Restaurante: un solo restaurante visible, «Restaurante MH» (D-52). En Configuración →
+   Presentación, debajo del selector, el switch «Modo presentación al cliente» (D-54):
+   apagado, Miguel opera con sus datos; encendido, todo el personal entra con su PIN de
+   siempre a un contexto aparte con treinta días de historial, y al apagarlo sus datos vuelven
+   tal cual.
 
 Hoy sólo se creó la cuenta nueva de Miguel solicitada. Cada integrante futuro tendrá
 su propia credencial y concesión general. Los PIN no se documentan en el repositorio.
