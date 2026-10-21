@@ -730,6 +730,22 @@ jobs:
         if: matrix.modelo == 'restaurante'
         run: pnpm test:e2e pruebas/e2e/restaurante-concurrencia.spec.ts pruebas/e2e/restaurante-portal-qr.spec.ts --project=escritorio --workers=1 --retries=0
 
+      # EL ESTILO DEL NEGOCIO Y LOS ESTADOS DE MESA (cierre del 21-10): cada uno de los ocho
+      # estilos —y una perilla— se elige, se guarda, sobrevive a recargar y lo ve otro aparato; y
+      # cada estado de mesa se lee, con su palabra y su contraste medido sobre el peor píxel, en
+      # los ocho estilos.
+      - name: El estilo del negocio y los estados de mesa
+        if: matrix.modelo == 'restaurante'
+        run: pnpm test:e2e pruebas/e2e/estilos-del-negocio.spec.ts pruebas/e2e/estados-de-mesa.spec.ts --project=escritorio --workers=1 --retries=0
+
+      # LAS OPERACIONES DE MESA POR LAS VISTAS ADICIONALES (cierre del 21-10): dividir y cobrar
+      # las partes, el descuento con el PIN de un supervisor, anular, cancelar, cambiar, unir y
+      # separar mesas, con lo persistido afirmado en el servidor y el cajón cuadrado al centavo.
+      # Va la última: deja cuentas divididas, y el reseteo con ellas es una de sus pruebas (D-6).
+      - name: Las operaciones de mesa
+        if: matrix.modelo == 'restaurante'
+        run: pnpm test:e2e pruebas/e2e/restaurante-operaciones.spec.ts --project=escritorio --workers=1 --retries=0
+
       - name: Las trazas del día
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
