@@ -45,8 +45,10 @@ const CorteTicket = React.forwardRef(function CorteTicket(
   const metodos = desgloseMetodosPagoConPropinas(ventas);
   const totalRealMetodos =
     metodos.efectivo.total + metodos.tarjeta.total + metodos.transferencia.total;
-  const fInicio = corte?.fecha_inicio
-    ? format(new Date(corte.fecha_inicio), 'd MMM yyyy, HH:mm', { locale: es })
+  // En el puente la apertura es `fecha_apertura`; `fecha_inicio` era el nombre de su fuente.
+  const aperturaDelCorte = corte?.fecha_apertura;
+  const fInicio = aperturaDelCorte
+    ? format(new Date(aperturaDelCorte), 'd MMM yyyy, HH:mm', { locale: es })
     : '—';
   const fCierre = corte?.fecha_cierre
     ? format(new Date(corte.fecha_cierre), 'd MMM yyyy, HH:mm', { locale: es })
