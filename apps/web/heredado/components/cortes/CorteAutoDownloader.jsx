@@ -2,6 +2,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/api/cliente';
+import { detallesDeVentas } from '@/lib/detallesDeVentas';
 import { useConfig } from '@/lib/ConfigContext';
 import { canAccessModule } from '@/lib/packageConfig';
 import { usePOSAuth } from '@/lib/POSAuthContext';
@@ -37,7 +38,11 @@ export default function CorteAutoDownloader({ corte, onDone }) {
     if (!corte) return;
     let cancelled = false;
     (async () => {
-      const inicio = corte.fecha_inicio ? new Date(corte.fecha_inicio).getTime() : 0;
+      // La caja se llama `fecha_apertura` en el puente (`CorteCaja`), no `fecha_inicio`: con el
+      // nombre equivocado el inicio era 0 y el corte se quedaba con TODAS las ventas de la
+      // historia —666 lecturas al abrir uno, totales que cambiaban cada vez— (21-10-2026).
+      const aperturaDelCorte = corte.fecha_apertura || null;
+      const inicio = aperturaDelCorte ? new Date(aperturaDelCorte).getTime() : 0;
       const cierre = corte.fecha_cierre ? new Date(corte.fecha_cierre).getTime() : Date.now();
       const corteId = corte.id;
 
@@ -62,15 +67,15 @@ export default function CorteAutoDownloader({ corte, onDone }) {
           ]);
 
         const matchVenta = (v) => {
-          if (corteId && v.corte_caja_id === corteId) return true;
+          // La venta que dice su caja es de ESA caja y de ninguna otra: la ventana de tiempo
+          // es sólo para las viejas sin caja, y sin apertura no hay ventana.
+          if (v.corte_caja_id) return Boolean(corteId) && v.corte_caja_id === corteId;
+          if (!aperturaDelCorte) return false;
           const t = v.fecha_cierre ? new Date(v.fecha_cierre).getTime() : 0;
           if (t >= inicio && t <= cierre) return true;
-          if (!v.corte_caja_id && corte.fecha_inicio) {
-            const dayCorte = corte.fecha_inicio.slice(0, 10);
-            const dayVenta = (v.fecha_apertura || v.fecha_cierre || '').slice(0, 10);
-            if (dayCorte && dayCorte === dayVenta) return true;
-          }
-          return false;
+          const dayCorte = String(aperturaDelCorte).slice(0, 10);
+          const dayVenta = (v.fecha_apertura || v.fecha_cierre || '').slice(0, 10);
+          return dayCorte === dayVenta;
         };
 
         const ventasCorte = allVentas.filter((v) => v.estado === 'pagada' && matchVenta(v));
@@ -83,13 +88,8 @@ export default function CorteAutoDownloader({ corte, onDone }) {
                 new Date(v.fecha_cierre).getTime() <= cierre)),
         );
         const ventaIds = ventasCorte.map((v) => v.id);
-        const detalles = ventaIds.length
-          ? (
-              await Promise.all(
-                ventaIds.map((id) => api.entidades.DetalleVenta.filter({ venta_id: id })),
-              )
-            ).flat()
-          : [];
+        // Una lectura para todos los renglones del corte, no una petición por venta.
+        const detalles = await detallesDeVentas(ventasCorte);
         const gastosCorte = allGastos.filter((g) => {
           const t = g.created_date ? new Date(g.created_date).getTime() : 0;
           return t >= inicio && t <= cierre;

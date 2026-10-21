@@ -50,7 +50,7 @@ const LECTURAS_PERMITIDAS = [
   },
   {
     campo: 'fecha_inicio',
-    cantidad: 17,
+    cantidad: 7,
     razon:
       'Es un campo real de PedidoPreparacion y un respaldo heredado para cortes; CorteCaja usa fecha_apertura como fuente primaria.',
   },
