@@ -733,10 +733,13 @@ jobs:
       # EL ESTILO DEL NEGOCIO Y LOS ESTADOS DE MESA (cierre del 21-10): cada uno de los ocho
       # estilos —y una perilla— se elige, se guarda, sobrevive a recargar y lo ve otro aparato; y
       # cada estado de mesa se lee, con su palabra y su contraste medido sobre el peor píxel, en
-      # los ocho estilos.
+      # los ocho estilos. La demo se vuelve a sembrar antes: los estados se ponen sobre mesas
+      # libres, y la concurrencia deja mesas usadas.
       - name: El estilo del negocio y los estados de mesa
         if: matrix.modelo == 'restaurante'
-        run: pnpm test:e2e pruebas/e2e/estilos-del-negocio.spec.ts pruebas/e2e/estados-de-mesa.spec.ts --project=escritorio --workers=1 --retries=0
+        run: |
+          node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+          pnpm test:e2e pruebas/e2e/estilos-del-negocio.spec.ts pruebas/e2e/estados-de-mesa.spec.ts --project=escritorio --workers=1 --retries=0
 
       # LAS OPERACIONES DE MESA POR LAS VISTAS ADICIONALES (cierre del 21-10): dividir y cobrar
       # las partes, el descuento con el PIN de un supervisor, anular, cancelar, cambiar, unir y
