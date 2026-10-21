@@ -232,6 +232,13 @@
       "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
     },
     {
+      "ruta": "/api/caja/traer",
+      "comando": "caja.traer",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+    },
+    {
       "ruta": "/api/catalogo/alta-rapida",
       "comando": "catalogo.alta_rapida",
       "escribe": true,

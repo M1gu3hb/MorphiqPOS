@@ -81,9 +81,17 @@ export function useCajaAbierta({ deEstaTerminal = false } = {}) {
   const fondoEsperado = Number(ultimoCierre?.dinero_dejado_en_caja);
   const fondoEsperadoSeguro = Number.isFinite(fondoEsperado) ? fondoEsperado : 0;
 
+  // Sin caja AQUÍ, la que la sucursal tiene abierta en otra terminal (21-10-2026): la
+  // pantalla ofrece traerla en vez de «Abrir caja», que chocaba con «ya hay una abierta».
+  const cajaEnOtraTerminal =
+    deEstaTerminal && deLaTerminal?.abierta === false ? deLaTerminal.enOtraTerminal || null : null;
+  const puedoAbrir = !(deEstaTerminal && deLaTerminal?.puedoAbrir === false);
+
   return {
     cajaAbierta,
     hayCaja: !!cajaAbierta,
+    cajaEnOtraTerminal,
+    puedoAbrir,
     isLoading: cargando,
     isFetching,
     fondoEsperado: fondoEsperadoSeguro,

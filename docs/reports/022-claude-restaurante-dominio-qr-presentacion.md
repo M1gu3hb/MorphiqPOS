@@ -85,3 +85,32 @@ preparar; encender/apagar es del dueño general desbloqueado.
   $2 menos que la suma de los cortes; la base cuadra al centavo por día.
 - Voces neuronales (Chatterbox/MeloTTS): evaluadas en `docs/fase-2/VOCES.md`, no integradas
   (requieren servidor con GPU/CPU propio).
+
+## 6 · Caja abierta en otra terminal (21-10, tarde) · PR [#17](https://github.com/M1gu3hb/MorphiqPOS/pull/17)
+
+- **Síntoma:**
+  - Sin presentación, no se podía cobrar («Caja cerrada»).
+  - Tampoco se podía abrir: «ya hay una abierta en la terminal «Caja 2x»».
+  - En la presentación pasó igual con «Caja 28 · 007f».
+- **Causa (producción, lectura):**
+  - La caja del restaurante seguía abierta desde el 20-10 21:18 en «Caja 20».
+  - La de la presentación estaba abierta en «Caja 28 · 007f».
+  - Había 29 terminales: cada navegador nuevo, y cada cambio de negocio del dueño general,
+    estrenaba terminal.
+  - La caja es de la terminal y el cupo es uno.
+  - Nada cerraba cajas: quedaban en una terminal a la que ya no se volvía.
+- **Arreglo (D-56):**
+  - `caja.traer` y «Usar esta caja aquí» en `/caja` y `/restaurante/caja`.
+  - `caja.estado` dice dónde está la caja, quién la abrió y desde cuándo.
+  - El navegador conserva su token entre negocios.
+- **Verificación local:**
+  - Integración: caja (7 archivos), espejo y dueño general.
+  - `terminal-estable` (roja sin el arreglo).
+  - Navegador contra el build:
+    - Cajera, 12/12: computadora y teléfono, recuperar una caja huérfana, traerla, devolverla y
+      cortar.
+    - Dueño, 8/8: pantalla nueva, traer la caja de la cajera y cortar.
+    - Sin errores de consola ni 5xx.
+- **Producción:**
+  - No se tocaron las cajas abiertas.
+  - Cada una se trae con un clic desde el dispositivo de quien la abrió o de la gerencia.

@@ -15,6 +15,13 @@ export {
 
 export { corteDeTurno, entradaCorteTurno, type ResultadoCorteTurno } from './turno.ts';
 
+export {
+  entradaTraerCaja,
+  traerCaja,
+  type CajaEnOtraTerminal,
+  type ResultadoTraerCaja,
+} from './traer.ts';
+
 export { encolarSincronizacionCorte, entradaEncolarSincronizacionCorte } from './sincronizacion.ts';
 
 export {

@@ -355,6 +355,16 @@
       "ids": [{ "camino": "sesionCajaId", "tabla": "sesiones_caja" }]
     },
     {
+      "ruta": "/api/caja/traer",
+      "comando": "caja.traer",
+      "escribe": true,
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"],
+      "idRequerido": true,
+      "cuerpo": { "sesionCajaId": "⟨sesiones_caja⟩" },
+      "ids": [{ "camino": "sesionCajaId", "tabla": "sesiones_caja" }]
+    },
+    {
       "ruta": "/api/catalogo/alta-rapida",
       "comando": "catalogo.alta_rapida",
       "escribe": true,

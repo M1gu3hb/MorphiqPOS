@@ -334,7 +334,7 @@ export function CierreDiario({ datosIniciales }: CierreDiarioProps) {
         <Vacio
           icono={<Lock />}
           titulo="No hay ninguna caja abierta que cerrar."
-          explicacion="El día se cierra desde la terminal donde se abrió la caja: ahí vive el fondo que se contó por la mañana y de esa sesión cuelgan las ventas que entran al corte."
+          explicacion="El día se cierra desde la terminal que tiene la caja: ahí vive el fondo que se contó por la mañana y de esa sesión cuelgan las ventas que entran al corte. Si la abriste en otro dispositivo, en Caja la traes a éste."
           accion={
             <Button asChild>
               <a href="/restaurante/caja">Ir a la caja</a>

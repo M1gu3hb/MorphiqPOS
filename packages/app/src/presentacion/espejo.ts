@@ -745,19 +745,30 @@ async function terminalEnElEspejo(
       .select(['nombre', 'device_token_hash'])
       .where('id', '=', realId)
       .executeTakeFirstOrThrow();
-    const nueva = await tx
+    // Con el MISMO nombre que en el real, que es el que la cajera ve en los avisos de caja;
+    // el sufijo sólo si ese nombre ya está tomado en la presentación.
+    const terminal = (nombre: string) => ({
+      organizacion_id: gemelo.espejoId,
+      sucursal_id: sucursalId,
+      nombre,
+      device_token_hash: fila.device_token_hash,
+      enrolada_en: ahora,
+      ultima_actividad: ahora,
+      activa: true,
+    });
+    const igual = await tx
       .insertInto('terminales')
-      .values({
-        organizacion_id: gemelo.espejoId,
-        sucursal_id: sucursalId,
-        nombre: `${fila.nombre} · ${randomBytes(2).toString('hex')}`,
-        device_token_hash: fila.device_token_hash,
-        enrolada_en: ahora,
-        ultima_actividad: ahora,
-        activa: true,
-      })
+      .values(terminal(fila.nombre))
+      .onConflict((oc) => oc.doNothing())
       .returning('id')
-      .executeTakeFirstOrThrow();
+      .executeTakeFirst();
+    const nueva =
+      igual ??
+      (await tx
+        .insertInto('terminales')
+        .values(terminal(`${fila.nombre} · ${randomBytes(2).toString('hex')}`))
+        .returning('id')
+        .executeTakeFirstOrThrow());
     return nueva.id;
   });
   return { terminalId, deviceToken: real.deviceToken };

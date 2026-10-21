@@ -6,6 +6,7 @@ import { repoCaja } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { cajasDeLaSucursal, type CajaEnOtraTerminal } from './traer.ts';
 
 /**
  * El estado del turno para la pantalla de corte (F1.1-C-10).
@@ -59,6 +60,12 @@ export interface EstadoCaja {
    * enseñar como morralla un fondo del que nadie declaró la forma.
    */
   readonly fondoDesglosado?: DesgloseDelFondo;
+  /**
+   * Sin caja AQUÍ: la que la sucursal tiene abierta en otra terminal, para traerla en vez
+   * de chocar con «ya hay una abierta» (`traer.ts`), y si todavía cabe abrir otra.
+   */
+  readonly enOtraTerminal?: CajaEnOtraTerminal | null;
+  readonly puedoAbrir?: boolean;
 }
 
 export type DesgloseDelFondo = {
@@ -97,7 +104,14 @@ export const estadoDeCaja = definirComando<Transaccion, typeof entradaEstadoCaja
     const sesion = await ctx.paso('cargar_caja', () =>
       repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId),
     );
-    if (sesion === null) return vacia;
+    const { sucursalId } = ctx.ambito;
+    if (sesion === null) {
+      if (sucursalId === null) return vacia;
+      const otras = await ctx.paso('cajas_de_la_sucursal', () =>
+        cajasDeLaSucursal(ctx.tx, { ...ctx.ambito, sucursalId }),
+      );
+      return { ...vacia, ...otras };
+    }
 
     const [arqueo, movimientos, fondo] = await Promise.all([
       repoCaja.arqueoDeSesion(ctx.tx, organizacionId, sesion.id),
