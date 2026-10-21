@@ -9,6 +9,8 @@ import { sql } from 'kysely';
 import { resetearDemo } from '../demostracion/resetear.ts';
 import { resolverTerminal, terminalPorToken } from '../identidad/entrar.ts';
 import { comando } from '../produccion.ts';
+import { sembrarHistorialDePresentacion } from './historial.ts';
+import { diaDeInstante, sumarDias, ZONA_DEL_HISTORIAL } from './historial-fechas.ts';
 import {
   DURACION_SESION_SEGUNDOS,
   firmarSesion,
@@ -840,3 +842,31 @@ export async function abrirSesionEnElEspejo(peticion: {
     empleoId: peticion.gemelo.empleoId,
   };
 }
+
+/**
+ * EL HISTORIAL DEL ESPEJO, por tramos: los treinta días que terminan AYER (hora de México), de
+ * `maxDias` en `maxDias`. Idempotente por día (`sembrarHistorialDePresentacion`): llamarlo otra
+ * vez, desde otro dispositivo o al día siguiente sólo siembra lo que falta de la ventana.
+ */
+export async function prepararHistorial(
+  origenId: string,
+  maxDias: number,
+): Promise<{ readonly sembrados: number; readonly pendientes: number }> {
+  const { modo } = await estadoDePresentacion(origenId);
+  if (modo.espejoId === null)
+    throw new ErrorDominio('CONFIGURACION_INVALIDA', 'Prepara la presentación antes de sembrarla.');
+  const ayer = sumarDias(diaDeInstante(new Date(), ZONA_DEL_HISTORIAL), -1);
+  const resultado = await sembrarHistorialDePresentacion({
+    organizacionId: modo.espejoId,
+    hastaDia: ayer,
+    dias: DIAS_DE_HISTORIAL,
+    maxDiasPorLlamada: maxDias,
+  });
+  return {
+    sembrados: resultado.sembrados.length + resultado.yaExistian.length,
+    pendientes: resultado.pendientes.length,
+  };
+}
+
+/** Los días que enseña la presentación. */
+const DIAS_DE_HISTORIAL = 30;

@@ -10,7 +10,12 @@ import { entrarConPin } from '../identidad/entrar.ts';
 import { hashearPin } from '../identidad/pin.ts';
 import { comando } from '../produccion.ts';
 import { resolverSesion } from '../sesion/resolver.ts';
-import { asegurarEspejo, cambiarModoDePresentacion, estadoDePresentacion } from './espejo.ts';
+import {
+  asegurarEspejo,
+  cambiarModoDePresentacion,
+  estadoDePresentacion,
+  prepararHistorial,
+} from './espejo.ts';
 import { sesionDePresentacion } from './entrada.ts';
 
 /**
@@ -251,6 +256,18 @@ describe('el modo presentación del restaurante', () => {
       ).n;
     expect(await productos(espejo)).toBe(await productos(real));
   }, 120_000);
+
+  it('el historial se siembra por tramos en la presentación, no en el real', async () => {
+    const primero = await prepararHistorial(real, 4);
+    expect(primero).toEqual({ sembrados: 4, pendientes: 26 });
+    const otraVez = await prepararHistorial(real, 4);
+    expect(otraVez).toEqual({ sembrados: 8, pendientes: 22 });
+    const ventas = await sql<{ n: string }>`
+      select count(*)::text as n from ordenes where organizacion_id = ${espejo} and estado = 'pagada'
+    `.execute(obtenerDb());
+    expect(Number(ventas.rows[0]?.n)).toBeGreaterThan(0);
+    expect((await estadoDePresentacion(real)).historial).toHaveLength(8);
+  }, 300_000);
 
   it('preparar otra vez no crea otro contexto', async () => {
     const otra = await asegurarEspejo(real, general);

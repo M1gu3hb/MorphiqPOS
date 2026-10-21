@@ -11,6 +11,7 @@ import {
   cambiarModoDePresentacion,
   estadoDePresentacion,
   gemeloEnPresentacion,
+  prepararHistorial,
   restauranteDelContexto,
 } from '@morphiqpos/app/presentacion';
 import { destinosDePresentacion, resolverSesion, verificarSesion } from '@morphiqpos/app/sesion';
@@ -121,13 +122,17 @@ export async function POST(peticion: Request) {
   try {
     if (entrada.data.accion === 'preparar' && quienPrepara !== null) {
       const espejo = await asegurarEspejo(restaurante, quienPrepara);
+      // El historial va por tramos para no rebasar el tiempo de la función: la pantalla vuelve
+      // a pedir mientras queden días. La primera vez, el espejo recién sembrado ya gastó tiempo.
+      const historial = await prepararHistorial(restaurante, espejo.creado ? 3 : 8);
       const estado = await estadoDePresentacion(restaurante);
       return json({
         ok: true,
         datos: {
           preparado: estado.preparado,
           creado: espejo.creado,
-          dias: estado.historial.length,
+          dias: historial.sembrados,
+          pendientes: historial.pendientes,
         },
       });
     }
