@@ -595,7 +595,7 @@ export async function asegurarEspejo(
     ambitoDelDuenoEnElEspejo(tx, fase.espejoId, duenoOrigenId),
   );
   const siembra = await comando(resetearDemo, {
-    entrada: { confirmacion: 'RESETEAR' },
+    entrada: { confirmacion: 'RESETEAR', espejo: true },
     ambito,
     idempotencyKey: randomUUID(),
   });
