@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { api } from '@/api/cliente';
+import { claves } from '~/cliente/claves-de-consulta';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -30,7 +31,7 @@ export default function MesasQRTab({ config }) {
     isError,
     refetch,
   } = useQuery({
-    queryKey: ['mesas', 'qr_admin', { activo: true }],
+    queryKey: claves.mesas.qrOperativos(),
     queryFn: () => api.entidades.Mesa.filter({ activo: true }, 'orden', 200),
   });
 
@@ -41,7 +42,7 @@ export default function MesasQRTab({ config }) {
   const asegurarToken = async (mesa) => {
     if (!mesa?.id || mesa.qr_token) return mesa;
     const token = await generarTokenMesa(mesa.id);
-    queryClient.invalidateQueries({ queryKey: ['mesas'] });
+    queryClient.invalidateQueries({ queryKey: claves.mesas.raiz() });
     return { ...mesa, qr_token: token };
   };
 
@@ -53,7 +54,7 @@ export default function MesasQRTab({ config }) {
       // que se guardaron, así que el toast decía «Tokens generados (12)» con
       // doce mesas sin QR. Si una falla, falla el lote y se dice.
       await Promise.all(pendientes.map((m) => generarTokenMesa(m.id)));
-      queryClient.invalidateQueries({ queryKey: ['mesas'] });
+      queryClient.invalidateQueries({ queryKey: claves.mesas.raiz() });
       toast.success(`Tokens generados (${pendientes.length})`);
     } catch (err) {
       toast.error(err?.message || 'No se pudo generar tokens');
@@ -64,7 +65,7 @@ export default function MesasQRTab({ config }) {
     if (!mesa?.id) return;
     try {
       await api.entidades.Mesa.update(mesa.id, { qr_activo: !!value });
-      queryClient.invalidateQueries({ queryKey: ['mesas'] });
+      queryClient.invalidateQueries({ queryKey: claves.mesas.raiz() });
     } catch (err) {
       toast.error(err?.message || 'No se pudo actualizar');
     }

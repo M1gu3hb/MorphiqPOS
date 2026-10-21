@@ -67,6 +67,11 @@ export const claves = {
     /** El salón en servicio: `Mesa.filter({ activo: true })`. Es el mapa del mesero. */
     activas: (): ClaveDeConsulta => ['mesas', { activo: true }],
     /**
+     * Las activas en el orden del plano, para repartir sus QR: `Mesa.filter({ activo: true },
+     * 'orden', 200)`. Otra pregunta que `activas` (orden y tope), así que otra clave (21-10).
+     */
+    qrOperativos: (): ClaveDeConsulta => ['mesas', { activo: true, orden: 'orden', limite: 200 }],
+    /**
      * TODAS, también las dadas de baja: `Mesa.list('-created_date', 500)`. Sólo el editor
      * de mesas la necesita (para ofrecer «Reactivar»); nada que PINTE un mapa debe usarla.
      */

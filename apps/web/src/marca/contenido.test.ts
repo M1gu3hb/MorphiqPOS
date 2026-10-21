@@ -15,23 +15,33 @@ import { RUTA_DEL_LOGO_OFICIAL } from './logo';
 
 const VARIANTES: readonly VarianteDeMarca[] = ['acceso', 'ticket', 'documento', 'portal'];
 
-describe('contenidoDeLaMarca · mientras no haya logo oficial', () => {
-  it('el repositorio todavía no trae el logo oficial: hay un solo punto donde ponerlo', () => {
-    expect(RUTA_DEL_LOGO_OFICIAL).toBeNull();
+describe('contenidoDeLaMarca · el logo oficial que entregó Miguel (21-10)', () => {
+  it('el repositorio trae el logo oficial en un solo punto', () => {
+    expect(RUTA_DEL_LOGO_OFICIAL).toBe('/marca/morphiq-logo.png');
+    expect(contenidoDeLaMarca(null)).toEqual({
+      tipo: 'logo',
+      src: '/marca/morphiq-logo.png',
+      alt: 'Morphiq',
+    });
   });
+});
 
+describe('contenidoDeLaMarca · sin archivo de logo', () => {
   it('pinta la palabra «Morphiq»', () => {
-    expect(contenidoDeLaMarca(null)).toEqual({ tipo: 'texto', texto: 'Morphiq' });
-    expect(contenidoDeLaMarca(undefined)).toEqual({ tipo: 'texto', texto: 'Morphiq' });
-    expect(contenidoDeLaMarca('')).toEqual({ tipo: 'texto', texto: 'Morphiq' });
+    expect(contenidoDeLaMarca(null, null)).toEqual({ tipo: 'texto', texto: 'Morphiq' });
+    expect(contenidoDeLaMarca(undefined, null)).toEqual({ tipo: 'texto', texto: 'Morphiq' });
+    expect(contenidoDeLaMarca('', null)).toEqual({ tipo: 'texto', texto: 'Morphiq' });
   });
 
   it('cambia la marca anterior de la plataforma por la de hoy', () => {
-    expect(contenidoDeLaMarca('MH Astral Systems')).toEqual({ tipo: 'texto', texto: 'Morphiq' });
+    expect(contenidoDeLaMarca('MH Astral Systems', null)).toEqual({
+      tipo: 'texto',
+      texto: 'Morphiq',
+    });
   });
 
   it('respeta la marca que el negocio escribió a propósito', () => {
-    expect(contenidoDeLaMarca('Agencia Aurora')).toEqual({
+    expect(contenidoDeLaMarca('Agencia Aurora', null)).toEqual({
       tipo: 'texto',
       texto: 'Agencia Aurora',
     });
