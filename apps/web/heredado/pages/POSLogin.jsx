@@ -77,6 +77,10 @@ export default function POSLogin() {
   }, []);
 
   useEffect(() => {
+    // Con la sesión ya puesta la pantalla va de salida (el efecto de arriba navega): pedir otra
+    // vez la lista sólo gasta el cupo de `/api/auth/empleados`, que es por red y lo comparten
+    // todos los aparatos del restaurante (21-10).
+    if (posUser) return undefined;
     let cancelled = false;
     (async () => {
       if (cancelled) return;

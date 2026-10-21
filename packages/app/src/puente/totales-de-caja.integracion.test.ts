@@ -40,7 +40,7 @@ describe('los totales de una caja por el puente', () => {
       exigirOk(await cobrarEnEfectivo(ambito, venta.ordenId, venta.totalCentavos), 'venta.cobrar');
     }
 
-    const cortes = await consultar(ambito, { entidad: 'CorteCaja', operacion: 'listar' });
+    const cortes = await consultar(ambito, { entidad: 'CorteCaja', operacion: 'list' });
     const corte = cortes.find((c) => c['id'] === caja);
     expect(corte).toMatchObject({
       total_efectivo: 175,
