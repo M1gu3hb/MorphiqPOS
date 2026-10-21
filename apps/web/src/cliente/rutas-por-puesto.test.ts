@@ -34,12 +34,20 @@ describe('rutas del restaurante por puesto', () => {
     for (const ruta of VISTAS_DEL_RESTAURANTE) expect(puede(ruta, rol), ruta).toBe(true);
   });
 
-  it.each(['mesero', 'cocina', 'caja', 'almacen'])(
-    '%s no abre ninguna vista del restaurante tecleándola',
-    (rol) => {
-      for (const ruta of VISTAS_DEL_RESTAURANTE) expect(puede(ruta, rol), ruta).toBe(false);
-    },
-  );
+  // D-52 (21-10): ya no hay menú de «vistas adicionales»; cada vista pide el permiso de su
+  // puesto. La mesera abre la mesa activa (dividir, unir, cambiar, separar) desde sus mesas.
+  it.each([
+    [
+      'mesero',
+      ['/restaurante/mapa-de-mesas', '/restaurante/mesa-activa', '/restaurante/precuenta'],
+    ],
+    ['cocina', ['/restaurante/cocina']],
+    ['caja', ['/restaurante/cobro', '/restaurante/caja', '/restaurante/cierre-diario-y-arqueo']],
+    ['almacen', ['/restaurante/productos', '/restaurante/recetas', '/restaurante/inventario']],
+  ] as const)('%s abre sólo las vistas de su puesto', (rol, suyas) => {
+    for (const ruta of VISTAS_DEL_RESTAURANTE)
+      expect(puede(ruta, rol), ruta).toBe((suyas as readonly string[]).includes(ruta));
+  });
 
   it('el mostrador (/pos) es de la caja y de dirección: ni la mesera ni la cocina', () => {
     expect(puede('/pos', 'caja')).toBe(true);

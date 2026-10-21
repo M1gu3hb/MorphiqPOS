@@ -3,7 +3,7 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 
 import { api, ErrorPuente } from '@/api/cliente';
 
-/** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, paquete?: string, organizacionId?: string}} UsuarioDePOS */
+/** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, enPresentacion?: boolean, paquete?: string, organizacionId?: string}} UsuarioDePOS */
 /** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
 const POSAuthContext = createContext(null);
 

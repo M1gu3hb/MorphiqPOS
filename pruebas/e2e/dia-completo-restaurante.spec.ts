@@ -753,13 +753,11 @@ test.describe('el día completo del restaurante', () => {
           await expect(modelos.or(suTarjeta).first()).toBeVisible({ timeout: 30_000 });
           const variosModelos = (await modelos.count()) > 0;
           if (variosModelos) {
-            await modelos.selectOption({ label: 'Demo del acople · restaurante' });
+            await modelos.selectOption({ label: 'Restaurante MH' });
           }
           await suTarjeta.first().click();
           if (variosModelos) {
-            await expect(deNuevo.getByText(/^Iniciando como:/)).toContainText(
-              'Demo del acople · restaurante',
-            );
+            await expect(deNuevo.getByText(/^Iniciando como:/)).toContainText('Restaurante MH');
           }
           for (const digito of laDuena.pin) {
             await deNuevo.getByRole('button', { name: digito, exact: true }).click();

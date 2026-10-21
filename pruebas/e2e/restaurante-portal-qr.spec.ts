@@ -82,7 +82,7 @@ const FONDO_CENTAVOS = 150_000;
 const MESA = 6;
 const ZONA = 'Interior';
 const MESERO = 'Lupita';
-const NEGOCIO = 'Demo del acople · restaurante';
+const NEGOCIO = 'Restaurante MH';
 
 /** Lo que consume el primer grupo: $329 + 2 × $55 = $439.00. */
 const PEDIDO_UNO: readonly PlatilloPedido[] = [

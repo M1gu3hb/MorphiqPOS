@@ -238,6 +238,7 @@ export async function POST(peticion: Request): Promise<Response> {
             : etiquetaDeRolEnElGiro(resultado.rol, terminos.giro, terminos.personalizado),
         activo: true,
         organizacionId: enPresentacion?.organizacionId ?? resultado.organizacionId,
+        enPresentacion: enPresentacion !== null,
       },
     },
     cookies,
