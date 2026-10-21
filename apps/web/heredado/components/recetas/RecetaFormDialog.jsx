@@ -23,7 +23,8 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import { Plus, Trash2, Save } from 'lucide-react';
-import { formatCurrency, formatPercent, calculateMargin } from '@/utils/financialUtils';
+import { formatCurrency, formatPercent } from '@/utils/financialUtils';
+import { economiaDelPlatillo } from '~/inventario/costo-del-platillo';
 import IngredienteAutocomplete from './IngredienteAutocomplete';
 import CategoriaSelect from '@/components/productos/CategoriaSelect';
 import ImageUploader from '@/components/common/ImageUploader';
@@ -143,7 +144,7 @@ export default function RecetaFormDialog({
         const respaldo = {
           id: l.ingrediente_id,
           nombre: l.ingrediente_nombre,
-          unidad_base: l.unidad_usada,
+          unidad_base: l.unidad_usada ?? l.unidad,
           costo_por_unidad_base: l.costo_unitario_base_snapshot,
           stock_actual: 0,
         };
@@ -151,11 +152,13 @@ export default function RecetaFormDialog({
         return {
           id: l.id,
           ingrediente,
-          cantidad_usada: l.cantidad_usada,
+          // `guardar_receta` escribe sólo la cantidad ya convertida (`cantidad`, `unidad`): lo
+          // "capturado" llega nulo, y sin este respaldo editar una receta abría todo en blanco.
+          cantidad_usada: l.cantidad_usada ?? l.cantidad_convertida_unidad_base,
           // Se normaliza al abrir: una línea vieja guardada con «kilogramos» o
           // con una unidad de otra dimensión tiene que caer en una opción real
           // del selector, no dejarlo en blanco.
-          unidad_usada: unidadDeLinea(l.unidad_usada, ingrediente.unidad_base),
+          unidad_usada: unidadDeLinea(l.unidad_usada ?? l.unidad, ingrediente.unidad_base),
           merma_porcentaje: l.merma_porcentaje || 0,
         };
       });
@@ -191,7 +194,10 @@ export default function RecetaFormDialog({
   }, [open, productoToEdit?.id]);
 
   const calc = useMemo(() => {
-    let costo = 0;
+    // Las líneas que ya tienen insumo, tal como las lee `economiaDelPlatillo`: el mismo
+    // cálculo que la lista de Recetas, para que la vista previa y la lista no discrepen.
+    // Una fila a medias (sin insumo elegido) todavía no es parte de la receta.
+    const paraElCosto = [];
     const detalle = lineas.map((l) => {
       if (!l.ingrediente) return { ...l, costoLinea: 0 };
       // La cantidad se lleva a la unidad base ANTES de multiplicar por el
@@ -203,16 +209,21 @@ export default function RecetaFormDialog({
         l.unidad_usada || l.ingrediente.unidad_base,
         1,
       );
-      const merma = 1 + (parseFloat(l.merma_porcentaje) || 0) / 100;
+      const mermaPorcentaje = parseFloat(l.merma_porcentaje) || 0;
+      const merma = 1 + mermaPorcentaje / 100;
       const costoUnit = l.ingrediente.costo_por_unidad_base || 0;
       const costoLinea = cant * merma * costoUnit;
-      costo += costoLinea;
+      paraElCosto.push({
+        ingrediente_nombre: l.ingrediente.nombre,
+        cantidad_convertida_unidad_base: cant,
+        merma_porcentaje: mermaPorcentaje,
+        costo_unitario_base_snapshot: l.ingrediente.costo_por_unidad_base,
+      });
       return { ...l, costoLinea };
     });
     const precio = parseFloat(producto.precio_venta) || 0;
-    const utilidad = precio - costo;
-    const margen = calculateMargin(precio, costo);
-    return { costo, utilidad, margen, detalle };
+    // Sin receta o con un insumo sin costo, el costo es DESCONOCIDO: no $0.00 ni 100 %.
+    return { ...economiaDelPlatillo(precio, paraElCosto), detalle };
   }, [lineas, producto.precio_venta]);
 
   const addLinea = () => setLineas((prev) => [...prev, { ...EMPTY_LINEA }]);
@@ -552,7 +563,11 @@ export default function RecetaFormDialog({
                         Costo línea
                       </Label>
                       <p className="h-9 flex items-center font-bold text-sm">
-                        {formatCurrency(l.costoLinea)}
+                        {l.ingrediente && !(l.ingrediente.costo_por_unidad_base > 0) ? (
+                          <span className="text-xs font-semibold text-advertencia">Sin costo</span>
+                        ) : (
+                          formatCurrency(l.costoLinea)
+                        )}
                       </p>
                     </div>
                     <div className="col-span-1">
@@ -573,8 +588,9 @@ export default function RecetaFormDialog({
             <section className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-4 rounded-xl bg-exito/10 border border-exito/30">
               <Stat
                 label="Costo producción"
-                value={formatCurrency(calc.costo)}
+                value={calc.costo === null ? calc.etiqueta : formatCurrency(calc.costo)}
                 color="text-advertencia"
+                pequeno={calc.costo === null}
               />
               <Stat
                 label="Precio venta"
@@ -582,20 +598,27 @@ export default function RecetaFormDialog({
               />
               <Stat
                 label="Utilidad bruta"
-                value={formatCurrency(calc.utilidad)}
-                color="text-exito"
+                value={calc.utilidad === null ? '—' : formatCurrency(calc.utilidad)}
+                color={calc.utilidad === null ? 'text-muted-foreground' : 'text-exito'}
               />
               <Stat
                 label="Margen"
-                value={formatPercent(calc.margen)}
+                value={calc.margen === null ? '—' : formatPercent(calc.margen)}
                 color={
-                  calc.margen >= 60
-                    ? 'text-exito'
-                    : calc.margen >= 40
-                      ? 'text-advertencia'
-                      : 'text-peligro'
+                  calc.margen === null
+                    ? 'text-muted-foreground'
+                    : calc.margen >= 60
+                      ? 'text-exito'
+                      : calc.margen >= 40
+                        ? 'text-advertencia'
+                        : 'text-peligro'
                 }
               />
+              {calc.pista && (
+                <p className="col-span-2 text-center text-xs text-advertencia sm:col-span-4">
+                  {calc.pista}
+                </p>
+              )}
             </section>
           )}
         </div>
@@ -614,11 +637,15 @@ export default function RecetaFormDialog({
   );
 }
 
-function Stat({ label, value, color }) {
+function Stat({ label, value, color, pequeno = false }) {
   return (
     <div className="text-center">
       <p className="text-[10px] uppercase tracking-wide text-muted-foreground">{label}</p>
-      <p className={`font-heading font-black text-lg ${color || ''}`}>{value}</p>
+      <p
+        className={`font-heading font-black tabular-nums ${pequeno ? 'text-sm leading-tight' : 'text-lg'} ${color || ''}`}
+      >
+        {value}
+      </p>
     </div>
   );
 }
