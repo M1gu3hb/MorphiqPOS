@@ -3,7 +3,8 @@ import React, { useState, useMemo, useRef } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useLocation } from '@/enrutado';
-import { calculateMargin, getMarginLevel } from '@/utils/financialUtils';
+import { ErrorDePantalla } from '@morphiqpos/ui/sistema';
+import { economiaDelProducto } from '~/inventario/costo-del-platillo';
 import PageHeader from '@/components/common/PageHeader';
 import EmptyState from '@/components/common/EmptyState';
 import { Button } from '@/components/ui/button';
@@ -11,7 +12,7 @@ import { BookOpen, Plus, Eye, Package, ArrowRight } from 'lucide-react';
 import { toast } from 'sonner';
 import RecetaAccordionRow from '@/components/recetas/RecetaAccordionRow';
 import RecetaFormDialog from '@/components/recetas/RecetaFormDialog';
-import LoadingState from '@/components/common/LoadingState';
+import { EncabezadoDeColumnas, EsqueletoDeRecetas } from '@/components/recetas/RejillaDeRecetas';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { hasPermission } from '@/lib/permissions';
 import { Navigate, Link } from '@/enrutado';
@@ -40,21 +41,36 @@ export default function Recetas() {
   // Sin initialData:[] — distinguimos "primer fetch" (loading) de "vacío real".
   // Antes mostraba "Sin recetas" / "No hay inventario" antes del primer fetch,
   // confundiendo al usuario y haciendo aparecer un falso onboarding.
-  const { data: productosRaw, isPending: productosLoading } = useQuery({
+  const {
+    data: productosRaw,
+    isPending: productosLoading,
+    isError: productosError,
+    refetch: recargarProductos,
+  } = useQuery({
     queryKey: ['productos_all'],
     queryFn: () => api.entidades.ProductoTerminado.filter({ activo: true }),
     placeholderData: (prev) => prev,
     staleTime: 5000,
   });
 
-  const { data: recetasRaw, isPending: recetasLoading } = useQuery({
+  const {
+    data: recetasRaw,
+    isPending: recetasLoading,
+    isError: recetasError,
+    refetch: recargarRecetas,
+  } = useQuery({
     queryKey: ['recetas_all'],
     queryFn: () => api.entidades.RecetaEscandallo.list('-created_date', 1000),
     placeholderData: (prev) => prev,
     staleTime: 5000,
   });
 
-  const { data: ingredientesRaw, isPending: ingLoading } = useQuery({
+  const {
+    data: ingredientesRaw,
+    isPending: ingLoading,
+    isError: ingError,
+    refetch: recargarIngredientes,
+  } = useQuery({
     queryKey: ['ingredientes_all'],
     queryFn: () => api.entidades.Ingrediente.filter({ activo: true }),
     placeholderData: (prev) => prev,
@@ -80,6 +96,18 @@ export default function Recetas() {
     (recetasLoading && !recetasRaw) ||
     (ingLoading && !ingredientesRaw);
 
+  // Un fallo de lectura SIN datos no es «Sin recetas»: es que no se pudo leer. Sin esta
+  // rama, la query caída dejaba la lista vacía y la pantalla afirmaba que no había nada.
+  const falloDeCarga =
+    (productosError && !productosRaw) ||
+    (recetasError && !recetasRaw) ||
+    (ingError && !ingredientesRaw);
+  const recargarTodo = () => {
+    if (productosError) recargarProductos();
+    if (recetasError) recargarRecetas();
+    if (ingError) recargarIngredientes();
+  };
+
   // Index para resolver ingrediente base de productos variables.
   const ingredientesById = useMemo(() => {
     const m = new Map();
@@ -89,24 +117,20 @@ export default function Recetas() {
     return m;
   }, [ingredientes]);
 
+  // El costo de cada platillo sale de SUS líneas, y es «desconocido» —no cero— si no tiene
+  // receta o si a algún insumo le falta el costo (`economiaDelPlatillo`). Antes se sumaba
+  // con `|| 0` y un platillo sin receta salía con costo $0.00 y margen 100 %.
   const productosConReceta = useMemo(() => {
+    const porProducto = new Map();
+    for (const linea of recetas) {
+      if (linea.activo === false) continue;
+      const grupo = porProducto.get(linea.producto_id) ?? [];
+      grupo.push(linea);
+      porProducto.set(linea.producto_id, grupo);
+    }
     return productos.map((p) => {
-      const lines = recetas.filter((r) => r.producto_id === p.id && r.activo !== false);
-      const costo = lines.reduce((s, l) => {
-        const merma = 1 + (l.merma_porcentaje || 0) / 100;
-        return (
-          s +
-          (l.cantidad_convertida_unidad_base || 0) * merma * (l.costo_unitario_base_snapshot || 0)
-        );
-      }, 0);
-      const margen = calculateMargin(p.precio_venta, costo);
-      return {
-        ...p,
-        recetaLines: lines,
-        costoReceta: costo,
-        margenCalc: margen,
-        utilidadCalc: (p.precio_venta || 0) - costo,
-      };
+      const lines = porProducto.get(p.id) ?? [];
+      return { ...p, recetaLines: lines, economia: economiaDelProducto(p, lines) };
     });
   }, [productos, recetas]);
 
@@ -199,7 +223,17 @@ export default function Recetas() {
           terminar el primer fetch. Esto previene el flash que asustaba al usuario
           haciéndole creer que el sistema borró sus datos. */}
       {cargandoInicial ? (
-        <LoadingState label="Cargando recetas…" />
+        <EsqueletoDeRecetas />
+      ) : falloDeCarga ? (
+        <ErrorDePantalla
+          titulo="No se pudieron cargar las recetas"
+          queHacer="Revisa tu conexión e inténtalo de nuevo. Tus recetas siguen guardadas."
+          reintentar={
+            <Button variant="outline" size="sm" onClick={recargarTodo}>
+              Reintentar
+            </Button>
+          }
+        />
       ) : canEdit && sinInventario && productosConReceta.length === 0 ? (
         <Card className="p-8 text-center space-y-4 border-2 border-dashed">
           <div className="w-14 h-14 mx-auto rounded-2xl bg-advertencia/15 flex items-center justify-center">
@@ -237,7 +271,9 @@ export default function Recetas() {
           }
         />
       ) : (
-        <div className="space-y-2">
+        <div className="@container">
+          <EncabezadoDeColumnas />
+          <div className="space-y-2">
           {productosConReceta.map((p) => (
             <div
               key={p.id}
@@ -256,7 +292,6 @@ export default function Recetas() {
             >
               <RecetaAccordionRow
                 producto={p}
-                marginLevel={getMarginLevel(p.margenCalc)}
                 onEdit={canEdit ? openEdit : null}
                 onPrint={handlePrint}
                 onDelete={canEdit ? handleDeleteReceta : null}
@@ -273,6 +308,7 @@ export default function Recetas() {
               Este producto no tiene receta asociada.
             </div>
           )}
+          </div>
         </div>
       )}
 
