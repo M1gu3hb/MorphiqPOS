@@ -160,6 +160,34 @@ export function exigirQueSeaDemo(organizacionId: string): NegocioConocido {
   return demo;
 }
 
+/**
+ * La demo, o el CONTEXTO DE PRESENTACIÓN de un restaurante (cierre del 21-10).
+ *
+ * El modo presentación siembra su espejo con esta misma máquina: catálogo, recetas, equipo y
+ * sala. El espejo no está en `DEMOS` —nace cuando el dueño prepara su presentación— y se
+ * reconoce por su configuración, que sólo escribe el servidor (`presentacion_espejo_de`). Un
+ * negocio real nunca la tiene, así que la regla sigue siendo positiva: o es una demo por ID,
+ * o es un espejo declarado; todo lo demás, 403 como antes. Conserva su nombre.
+ */
+export async function exigirDemoOPresentacion(
+  tx: Transaccion,
+  organizacionId: string,
+): Promise<{ readonly nombre: string }> {
+  if (demoPorId(organizacionId) !== null) return exigirQueSeaDemo(organizacionId);
+  const fila = await tx
+    .selectFrom('configuracion')
+    .innerJoin('organizaciones', 'organizaciones.id', 'configuracion.organizacion_id')
+    .select([
+      'organizaciones.nombre',
+      sql<string | null>`configuracion.valores->>'presentacion_espejo_de'`.as('espejoDe'),
+    ])
+    .where('configuracion.organizacion_id', '=', organizacionId)
+    .executeTakeFirst();
+  if (fila?.espejoDe === undefined || fila.espejoDe === null || fila.espejoDe === '')
+    return exigirQueSeaDemo(organizacionId);
+  return { nombre: fila.nombre };
+}
+
 export const resetearDemo = definirComando<
   Transaccion,
   typeof entradaResetearDemo,
@@ -181,7 +209,7 @@ export const resetearDemo = definirComando<
   paquetes: PAQUETES,
   entrada: entradaResetearDemo,
   async ejecutar(ctx) {
-    const demo = exigirQueSeaDemo(ctx.ambito.organizacionId);
+    const demo = await exigirDemoOPresentacion(ctx.tx, ctx.ambito.organizacionId);
     const organizacion = await ctx.tx
       .selectFrom('organizaciones')
       .select('giro')

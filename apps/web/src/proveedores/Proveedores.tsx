@@ -13,6 +13,7 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 import type { AparienciaInicial } from '@morphiqpos/ui/hooks';
 
 import { ProveedorDeApariencia } from './Apariencia';
+import { VigiaDePresentacion } from './VigiaDePresentacion';
 
 /**
  * Los proveedores de la aplicación — los SUYOS, en su orden.
@@ -56,6 +57,7 @@ export function Proveedores({
     <ProveedorDeApariencia aparienciaInicial={apariencia}>
       <ThemeProvider>
         <QueryClientProvider client={queryClientInstance}>
+          <VigiaDePresentacion />
           <POSAuthProvider conSesion={conSesion}>
             {conSesion ? <ConfigProvider>{children}</ConfigProvider> : children}
           </POSAuthProvider>

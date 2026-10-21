@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 
 import type { Esquema } from '../esquema.ts';
 
@@ -35,6 +35,15 @@ export interface AmbitoResuelto {
   readonly giro: string;
   readonly nombreNegocio: string;
   readonly nombreSucursal: string | null;
+  /**
+   * EL MODO PRESENTACIÓN (21-10), leído en el mismo viaje: ¿el negocio está en presentación
+   * (`'true'`)?, ¿es el espejo de otro (su id)?, ¿ese espejo está encendido (`'true'`)? y
+   * quién es su dueño general. Texto o `null`, como salen del `jsonb`.
+   */
+  readonly presentacionActivo: string | null;
+  readonly presentacionEspejoDe: string | null;
+  readonly presentacionEspejoActivo: string | null;
+  readonly duenoGeneralEmpleo: string | null;
 }
 
 export interface NuevaSesion {
@@ -142,7 +151,20 @@ export async function resolverAmbito(
     // puede tener empleo sin sucursal asignada, y un `innerJoin` lo dejaría sin
     // ámbito — es decir, sin poder entrar.
     .leftJoin('sucursales', 'sucursales.id', 'empleos.sucursal_id')
+    .leftJoin('configuracion', 'configuracion.organizacion_id', 'empleos.organizacion_id')
     .select([
+      sql<string | null>`configuracion.valores->'presentacion_modo'->>'activo'`.as(
+        'presentacionActivo',
+      ),
+      sql<string | null>`configuracion.valores->>'presentacion_espejo_de'`.as(
+        'presentacionEspejoDe',
+      ),
+      sql<string | null>`configuracion.valores->>'presentacion_activa'`.as(
+        'presentacionEspejoActivo',
+      ),
+      sql<string | null>`configuracion.valores->>'presentacion_dueno_empleo'`.as(
+        'duenoGeneralEmpleo',
+      ),
       'empleos.organizacion_id as organizacionId',
       'empleos.sucursal_id as sucursalId',
       'identidades.id as identidadId',

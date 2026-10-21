@@ -54,6 +54,7 @@ const ESTADO_SESION: Readonly<Record<ResultadoSesionFallida, number>> = {
   invalida: 401,
   expirada: 401,
   revocada: 403,
+  presentacion: 401,
 };
 
 type ResultadoSesionFallida = Exclude<ResultadoSesion, { ok: true }>['motivo'];
@@ -63,6 +64,7 @@ const MENSAJE_SESION: Readonly<Record<ResultadoSesionFallida, string>> = {
   invalida: 'Tu sesión no es válida. Entra otra vez.',
   expirada: 'La sesión terminó. Vuelve a entrar; tu venta no se perdió.',
   revocada: 'Tu acceso cambió. Pide a un encargado que lo revise.',
+  presentacion: 'El restaurante cambió de modo presentación. Vuelve a entrar con tu PIN.',
 };
 
 /**
@@ -111,13 +113,18 @@ export function rutaDeComando<E extends ZodType, S>(
     });
 
     if (!sesion.ok) {
-      return respuesta(ESTADO_SESION[sesion.motivo], {
+      const salida = respuesta(ESTADO_SESION[sesion.motivo], {
         ok: false,
         error: {
           codigo: sesion.motivo === 'revocada' ? 'SIN_PERMISO' : 'NO_AUTENTICADO',
           mensaje: MENSAJE_SESION[sesion.motivo],
         },
       });
+      // La pantalla vuelve al acceso con un aviso cuando la sesión era del otro lado de la
+      // presentación (misma cabecera que `apps/web/src/servidor/http.ts`).
+      return sesion.motivo === 'presentacion'
+        ? { ...salida, cabeceras: { ...salida.cabeceras, 'x-morphiqpos-presentacion': '1' } }
+        : salida;
     }
 
     let entrada: unknown;

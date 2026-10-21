@@ -302,7 +302,7 @@ interface TerminalIdentificada {
   readonly sucursalId: string;
 }
 
-async function terminalPorToken(
+export async function terminalPorToken(
   deviceToken: string,
   pimienta: string,
   organizacionId: string,

@@ -14,12 +14,24 @@ export async function generarTokenMesa(mesaId) {
 }
 
 /**
- * URL pública de la mesa para escanear con QR.
- * Usa el origin actual + ruta /qr/:token
+ * La dirección PÚBLICA del despliegue, la canónica de `APP_URL`.
+ *
+ * El servidor la pone en `<html data-url-publica>`. Con el origen de la pestaña, el QR que
+ * se imprimía desde la URL de Vercel llevaba esa URL y no el dominio propio, y el que se
+ * imprimía desde un preview quedaba muerto al borrarse el preview.
+ */
+export function urlPublica() {
+  if (typeof window === 'undefined') return '';
+  const publica = document.documentElement?.dataset?.urlPublica;
+  return publica && /^https?:\/\//.test(publica) ? publica.replace(/\/+$/, '') : window.location.origin;
+}
+
+/**
+ * URL pública de la mesa para escanear con QR: el dominio público + /qr/:token.
  */
 export function buildPortalQRUrl(mesa) {
   if (typeof window === 'undefined' || !mesa?.qr_token) return '';
-  return `${window.location.origin}/qr/${mesa.qr_token}`;
+  return `${urlPublica()}/qr/${mesa.qr_token}`;
 }
 
 /**

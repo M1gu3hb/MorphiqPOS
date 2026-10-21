@@ -30,6 +30,7 @@
  */
 
 import { negocioParaEntrar, rutaDeEmpleados } from '~/cliente/entrada';
+import { vigilarPresentacion } from '~/cliente/presentacion';
 
 /** Las seis operaciones que su código usa, con su semántica exacta. */
 /** Un rango cerrado sobre un campo de fecha. Los dos extremos son inclusivos. */
@@ -111,6 +112,7 @@ async function pedir<T>(ruta: string, cuerpo: unknown, clave?: string): Promise<
       // La cookie de sesión es `HttpOnly`: la adjunta el navegador, no el script.
       credentials: 'same-origin',
     });
+    vigilarPresentacion(respuesta);
   } catch {
     // SIN RESPUESTA (cierre del 21-10): la caja enseñaba el texto del navegador —«Failed to
     // fetch»— cuando lo único que importa es que pudo hacerse y que repetir es seguro (la

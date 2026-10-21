@@ -1,6 +1,7 @@
 import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
 
 import { crearRegistroDeIntentos } from './claves-de-intento.ts';
+import { vigilarPresentacion } from './presentacion.ts';
 
 /**
  * El único camino del navegador al servidor (F1.1-X-01).
@@ -205,6 +206,7 @@ export function nuevaClave(): string {
 }
 
 async function leerResultado<T>(respuesta: Response): Promise<T> {
+  vigilarPresentacion(respuesta);
   const correlationId = respuesta.headers.get('x-correlation-id');
   const cuerpo: unknown = await respuesta.json().catch(() => null);
 

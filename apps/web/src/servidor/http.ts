@@ -40,6 +40,9 @@ import {
 
 export type { SesionDeNegocio };
 
+/** La respuesta que dice «tu sesión era del otro lado de la presentación». */
+export const CABECERA_CAMBIO_DE_PRESENTACION = 'x-morphiqpos-presentacion';
+
 /**
  * Resuelve la sesión o devuelve la respuesta HTTP que corresponde.
  *
@@ -57,6 +60,24 @@ async function sesionDeLaPeticion(
 
   if (resultado.ok) return { ok: true, sesion: resultado.sesion };
 
+  // El restaurante entró o salió de presentación (21-10): la sesión era buena en el otro
+  // contexto. Es 401 —volver a entrar SÍ lo arregla— y lo dice una cabecera para que la
+  // pantalla vuelva al acceso con un aviso, en vez de enseñar un «sin permiso» que asusta.
+  if (resultado.motivo === 'presentacion') {
+    return {
+      ok: false,
+      respuesta: Response.json(
+        errorHttp(
+          'NO_AUTENTICADO',
+          'El restaurante cambió de modo presentación. Vuelve a entrar con tu PIN.',
+        ),
+        {
+          status: ESTADO_HTTP.NO_AUTENTICADO,
+          headers: { [CABECERA_CAMBIO_DE_PRESENTACION]: '1' },
+        },
+      ),
+    };
+  }
   // `revocada` es 403 y no 401: la sesión era válida y dejó de serlo. Volver a
   // pedir el PIN no arregla que te hayan dado de baja.
   const revocada = resultado.motivo === 'revocada';

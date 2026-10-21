@@ -16,6 +16,12 @@
 export const CONCESION_DEL_DUENO_GENERAL = [
   'presentacion_dueno_empleo',
   'presentacion_destinos',
+  // Las llaves del modo presentación (21-10): el real recuerda a su espejo, y el espejo de
+  // quién es y quién es quién. Reponer la demo o resembrar el espejo no las puede perder.
+  'presentacion_modo',
+  'presentacion_espejo_de',
+  'presentacion_activa',
+  'presentacion_gemelos',
 ] as const;
 
 function esRegistro(valor: unknown): valor is Readonly<Record<string, unknown>> {

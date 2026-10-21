@@ -231,6 +231,88 @@ export async function negocioDelDespliegue(
   return primero;
 }
 
+/**
+ * LOS NEGOCIOS QUE PUEDE ATENDER EL PORTAL PÚBLICO: los del despliegue y sus contextos de
+ * presentación (cierre del restaurante, 21-10).
+ *
+ * Durante el modo presentación el personal opera en el contexto espejo, y el QR que se
+ * enseña en su pantalla es de una mesa de ese contexto. No se sirve por su cuenta —no está
+ * en `ORGANIZACION` ni en la entrada—: entra aquí sólo como espejo de un negocio servido.
+ */
+export async function negociosDelPortal(
+  slugConfigurado: string | undefined,
+  host?: string | null,
+): Promise<readonly NegocioDelDespliegue[]> {
+  const servidos = await negociosDelDespliegue(slugConfigurado, host);
+  const espejos = await repoNegocio.espejosDePresentacion(
+    obtenerDb(),
+    servidos.map((n) => n.organizacionId),
+  );
+  return [...servidos, ...espejos];
+}
+
+/** La fila mínima para decidir de quién es un token: su organización. */
+export interface DuenoDelToken {
+  readonly organizacion_id: string;
+}
+
+/**
+ * De quién es un código, ENTRE los negocios del portal. Decisión pura, probada sin base.
+ *
+ * Un solo candidato: ése (el despliegue de un cliente, como antes). Varios: el token dice
+ * de qué organización es su mesa, y sólo vale si esa organización es una de las candidatas.
+ * Ninguna fila, o filas de dos negocios —un token repetido que la base no impide—: `null`, y
+ * quien llama contesta lo mismo que a un token inexistente.
+ */
+export function elegirNegocioDelToken(
+  candidatos: readonly NegocioDelDespliegue[],
+  filas: readonly DuenoDelToken[],
+): NegocioDelDespliegue | null {
+  if (candidatos.length === 1) return candidatos[0] ?? null;
+  const organizaciones = new Set(filas.map((f) => f.organizacion_id));
+  if (organizaciones.size !== 1) return null;
+  const [organizacionId] = [...organizaciones];
+  return candidatos.find((n) => n.organizacionId === organizacionId) ?? null;
+}
+
+/**
+ * EL negocio de un código QR de mesa.
+ *
+ * `negocioDelDespliegue` exige UN negocio y, con los seis del sistema maestro en un dominio
+ * sin slug, fallaba ANTES de mirar el token: todo QR escaneado en el dominio propio
+ * contestaba 422. Aquí el negocio sale del token, acotado a lo que sirve el despliegue. La
+ * organización sigue sin llegar del cliente (R16): el token es la credencial de la mesa y se
+ * busca sólo dentro de esa lista, y el portal la vuelve a comprobar en `resolverAmbitoPortal`.
+ */
+export async function negocioDelTokenDeMesa(
+  slugConfigurado: string | undefined,
+  host: string | null | undefined,
+  token: string,
+): Promise<NegocioDelDespliegue> {
+  const candidatos = await negociosDelPortal(slugConfigurado, host);
+  const filas =
+    candidatos.length === 1 || !/^[A-Za-z0-9_-]{6,120}$/.test(token)
+      ? []
+      : await obtenerDb()
+          .selectFrom('mesas')
+          .select('organizacion_id')
+          .where('qr_token', '=', token)
+          .where(
+            'organizacion_id',
+            'in',
+            candidatos.map((n) => n.organizacionId),
+          )
+          .limit(2)
+          .execute();
+  const negocio = elegirNegocioDelToken(candidatos, filas);
+  if (negocio === null)
+    throw new ErrorDominio(
+      'QR_TOKEN_INVALIDO',
+      'Este código QR ya no es válido. Pide ayuda al personal.',
+    );
+  return negocio;
+}
+
 /** Con la base: los negocios del despliegue, y de ellos el de esta entrada. */
 export async function negocioDeLaEntrada(
   slugConfigurado: string | undefined,

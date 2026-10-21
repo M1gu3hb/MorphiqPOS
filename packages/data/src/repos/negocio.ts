@@ -1,6 +1,6 @@
 import 'server-only';
 
-import type { Kysely } from 'kysely';
+import { sql, type Kysely } from 'kysely';
 
 import type { Esquema } from '../esquema.ts';
 
@@ -32,6 +32,30 @@ export async function porSlug(
     .executeTakeFirst();
 
   return fila ?? null;
+}
+
+/**
+ * Los contextos de PRESENTACIÓN de unos negocios (modo presentación del restaurante).
+ *
+ * Un contexto de presentación es una organización interna, nunca listada en la entrada,
+ * cuya configuración dice de qué negocio es espejo (`presentacion_espejo_de`). Sólo se
+ * devuelven los espejos de los negocios que se piden: quien llama ya acotó esa lista a
+ * lo que sirve el despliegue.
+ */
+export async function espejosDePresentacion(
+  db: Kysely<Esquema>,
+  organizacionIds: readonly string[],
+): Promise<readonly OrganizacionDelDespliegue[]> {
+  if (organizacionIds.length === 0) return [];
+  return db
+    .selectFrom('configuracion')
+    .innerJoin('organizaciones', 'organizaciones.id', 'configuracion.organizacion_id')
+    .select(['organizaciones.id as organizacionId', 'organizaciones.nombre', 'organizaciones.slug'])
+    .where('organizaciones.activa', '=', true)
+    .where(sql<string>`configuracion.valores->>'presentacion_espejo_de'`, 'in', [
+      ...organizacionIds,
+    ])
+    .execute();
 }
 
 /**

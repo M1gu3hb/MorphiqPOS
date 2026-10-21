@@ -3,7 +3,7 @@ import 'server-only';
 import { ESTADO_HTTP, esErrorDominio, validarEntorno, type Resultado } from '@morphiqpos/contracts';
 import type { ZodType } from 'zod';
 
-import { negocioDelDespliegue } from '../negocio/despliegue.ts';
+import { negocioDelTokenDeMesa } from '../negocio/despliegue.ts';
 import { cuerpoDentroDelLimite } from '../http/limite-cuerpo.ts';
 import { correlationIdDe, registrar } from '../observabilidad.ts';
 import { ejecutarComandoPublico } from './comando-publico.ts';
@@ -140,9 +140,12 @@ interface Despliegue {
  * comprueba contra la tabla, y el token se busca DENTRO de la organizacion que
  * resulte. Un token de otro negocio no encuentra mesa.
  */
-async function resolverDespliegue(host?: string | null): Promise<Despliegue> {
+async function resolverDespliegue(token: string, host?: string | null): Promise<Despliegue> {
   const entorno = validarEntorno(process.env);
-  const negocio = await negocioDelDespliegue(entorno.ORGANIZACION, host);
+  // El negocio sale del TOKEN dentro de los que sirve el despliegue: con el sistema maestro
+  // sirviendo seis negocios en un dominio sin slug, pedir «el» negocio del despliegue fallaba
+  // con 422 antes de mirar la mesa (cierre del 21-10).
+  const negocio = await negocioDelTokenDeMesa(entorno.ORGANIZACION, host, token);
   return { organizacionId: negocio.organizacionId, pimienta: entorno.PIN_PEPPER };
 }
 
@@ -152,7 +155,7 @@ export async function servirPortal(
   host?: string | null,
 ): Promise<RespuestaDelPortal> {
   try {
-    const { organizacionId, pimienta } = await resolverDespliegue(host);
+    const { organizacionId, pimienta } = await resolverDespliegue(token, host);
     const datos: PayloadPortal = await payloadDelPortal(organizacionId, token, pimienta);
     return respuesta(200, { ok: true, datos });
   } catch (error) {
@@ -189,7 +192,7 @@ export function manejadorPublico<E extends ZodType, S>(definicion: ComandoPublic
 
     let despliegue: Despliegue;
     try {
-      despliegue = await resolverDespliegue(peticion.headers.get('host'));
+      despliegue = await resolverDespliegue(token, peticion.headers.get('host'));
     } catch (error) {
       return respuestaDeError(error, definicion.nombre, { correlationId });
     }
