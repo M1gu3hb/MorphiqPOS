@@ -5,9 +5,12 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { formatCurrency } from '@/utils/financialUtils';
 import { getStockStatus, calculateInventoryValue } from '@/utils/inventoryUtils';
 import { StockStatusBadge } from '@/components/common/StatusBadge';
+import { Esqueleto, ErrorDePantalla } from '@morphiqpos/ui/sistema';
 import PageHeader from '@/components/common/PageHeader';
 import EmptyState from '@/components/common/EmptyState';
-import LoadingState from '@/components/common/LoadingState';
+import EsqueletoDeInventario, {
+  FILA_DE_INVENTARIO,
+} from '@/components/inventario/EsqueletoDeInventario';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -103,7 +106,12 @@ export default function Inventario() {
   const [contenedorIng, setContenedorIng] = useState(null);
 
   // Sin initialData:[] para distinguir loading inicial de "vacío real".
-  const { data: ingredientes, isPending: ingLoading } = useQuery({
+  const {
+    data: ingredientes,
+    isPending: ingLoading,
+    isError: ingError,
+    refetch: recargarIngredientes,
+  } = useQuery({
     queryKey: ['ingredientes_all'],
     queryFn: () => api.entidades.Ingrediente.filter({ activo: true }),
     placeholderData: (prev) => prev,
@@ -111,6 +119,8 @@ export default function Inventario() {
   });
   const safeIngredientes = Array.isArray(ingredientes) ? ingredientes : [];
   const cargandoInv = ingLoading && !ingredientes;
+  // Un fallo de lectura SIN datos no es «Aún no tienes inventario»: es que no se pudo leer.
+  const falloDeCarga = ingError && !ingredientes;
 
   const { data: recetasAll = [] } = useQuery({
     queryKey: ['recetas_all'],
@@ -164,6 +174,11 @@ export default function Inventario() {
   }, [enriched, search, filterStatus]);
 
   const totalValue = enriched.reduce((s, i) => s + i.valorInventario, 0);
+  // Un insumo con existencias y SIN costo no vale cero: vale algo que no se sabe. El total
+  // no lo incluye, y la tarjeta lo dice en lugar de presentarse como el valor completo.
+  const sinCostoConExistencias = enriched.filter(
+    (i) => !(Number(i.costo_por_unidad_base) > 0) && Number(i.stock_actual) > 0,
+  ).length;
   const criticalCount = enriched.filter((i) =>
     ['critico', 'agotado'].includes(i.stockStatus),
   ).length;
@@ -207,7 +222,7 @@ export default function Inventario() {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="@container space-y-6">
       <PageHeader
         title="Inventario"
         description="Ingredientes e insumos"
@@ -234,18 +249,47 @@ export default function Inventario() {
         }
       />
 
-      <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+      {/* Mientras carga NO se pinta «0» ni «$0.00»: un cero provisional se lee como un
+          inventario vacío. Cada cifra reserva su hueco con un esqueleto de su misma altura.
+          Dos y una en teléfono (la tercera, a lo ancho); las tres en una fila desde la tableta. */}
+      <div className="grid grid-cols-2 gap-4 @2xl:grid-cols-3">
         <Card className="premium-sheen p-4">
           <p className="text-xs text-muted-foreground">Total ingredientes</p>
-          <p className="text-2xl font-heading font-bold">{safeIngredientes.length}</p>
+          {cargandoInv ? (
+            <Esqueleto className="mt-1 h-8 w-16" />
+          ) : (
+            <p className="text-2xl font-heading font-bold tabular-nums">
+              {safeIngredientes.length}
+            </p>
+          )}
         </Card>
-        <Card className="premium-sheen p-4">
+        <Card className="premium-sheen order-first col-span-2 p-4 @2xl:order-none @2xl:col-span-1">
           <p className="text-xs text-muted-foreground">Valor de inventario</p>
-          <p className="text-2xl font-heading font-bold">{formatCurrency(totalValue)}</p>
+          {cargandoInv ? (
+            <Esqueleto className="mt-1 h-8 w-28" />
+          ) : (
+            <>
+              <p className="text-2xl font-heading font-bold tabular-nums">
+                {formatCurrency(totalValue)}
+              </p>
+              {sinCostoConExistencias > 0 && (
+                <p className="mt-0.5 text-[11px] leading-snug text-advertencia">
+                  No incluye {sinCostoConExistencias}{' '}
+                  {sinCostoConExistencias === 1 ? 'ingrediente' : 'ingredientes'} sin costo
+                </p>
+              )}
+            </>
+          )}
         </Card>
         <Card className="premium-sheen p-4">
           <p className="text-xs text-muted-foreground">Alertas críticas</p>
-          <p className="text-2xl font-heading font-bold text-destructive">{criticalCount}</p>
+          {cargandoInv ? (
+            <Esqueleto className="mt-1 h-8 w-12" />
+          ) : (
+            <p className="text-2xl font-heading font-bold tabular-nums text-destructive">
+              {criticalCount}
+            </p>
+          )}
         </Card>
       </div>
 
@@ -275,8 +319,18 @@ export default function Inventario() {
       </div>
 
       {cargandoInv ? (
-        <LoadingState label="Cargando inventario…" />
-      ) : filtered.length === 0 ? (
+        <EsqueletoDeInventario />
+      ) : falloDeCarga ? (
+        <ErrorDePantalla
+          titulo="No se pudo cargar el inventario"
+          queHacer="Revisa tu conexión e inténtalo de nuevo. Tu inventario sigue guardado."
+          reintentar={
+            <Button variant="outline" size="sm" onClick={() => recargarIngredientes()}>
+              Reintentar
+            </Button>
+          }
+        />
+      ) : safeIngredientes.length === 0 ? (
         <EmptyState
           icon={Package}
           title="Aún no tienes inventario"
@@ -294,90 +348,127 @@ export default function Inventario() {
             </div>
           }
         />
+      ) : filtered.length === 0 ? (
+        // Hay inventario, pero la búsqueda o el estado elegido no encontró nada: eso no es
+        // «Aún no tienes inventario».
+        <EmptyState
+          icon={Search}
+          title="Sin resultados"
+          description="Ningún ingrediente coincide con la búsqueda o el estado elegido."
+          action={
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSearch('');
+                setFilterStatus('all');
+              }}
+            >
+              Limpiar filtros
+            </Button>
+          }
+        />
       ) : (
         <div className="space-y-2">
-          {filtered.map((ing) => (
-            <Card key={ing.id} className="premium-sheen p-4 hover:shadow-sm transition-shadow">
-              <div className="flex items-center gap-4">
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-1">
-                    <p className="font-medium text-sm truncate">{ing.nombre}</p>
-                    <StockStatusBadge status={ing.stockStatus} />
-                  </div>
-                  <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                    {/* Solo mostramos categoría si REALMENTE tiene una asignada.
+          {filtered.map((ing) => {
+            const conCosto = Number(ing.costo_por_unidad_base) > 0;
+            return (
+              <Card key={ing.id} className="premium-sheen p-4 hover:shadow-sm transition-shadow">
+                <div className={FILA_DE_INVENTARIO}>
+                  <div className="col-span-2 min-w-0 @2xl:col-span-1">
+                    <div className="mb-1 flex min-w-0 items-center gap-2">
+                      <p className="min-w-0 truncate text-sm font-medium" title={ing.nombre}>
+                        {ing.nombre}
+                      </p>
+                      <div className="shrink-0">
+                        <StockStatusBadge status={ing.stockStatus} />
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-xs tabular-nums text-muted-foreground">
+                      {/* Solo mostramos categoría si REALMENTE tiene una asignada.
                         Antes aparecía "Sin categoría" en cada tarjeta — ruido visual. */}
-                    {ing.categoriaNombre && <span>{ing.categoriaNombre}</span>}
-                    <span>
-                      Costo: {formatCurrency(ing.costo_por_unidad_base)}/{ing.unidad_base}
-                    </span>
-                    <span>Valor: {formatCurrency(ing.valorInventario)}</span>
+                      {ing.categoriaNombre && <span>{ing.categoriaNombre}</span>}
+                      {/* Sin costo registrado NO es «$0.00»: el insumo cuesta, sólo que
+                        nadie lo ha dicho, y su valor en el total no se conoce. */}
+                      <span>
+                        Costo:{' '}
+                        {conCosto ? (
+                          `${formatCurrency(ing.costo_por_unidad_base)}/${ing.unidad_base}`
+                        ) : (
+                          <span className="font-medium text-advertencia">Sin costo</span>
+                        )}
+                      </span>
+                      <span>Valor: {conCosto ? formatCurrency(ing.valorInventario) : '—'}</span>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-lg font-heading font-bold">
-                    {formatStockEnUnidad(ing.stock_actual, ing.unidad_base)}
-                  </p>
-                  {ing.consumidoHoy > 0 && (
-                    <p className="text-base font-heading font-bold text-peligro">
-                      −{Number(ing.consumidoHoy).toLocaleString()}{' '}
-                      <span className="text-xs">{ing.unidad_base}</span>
-                      <span className="ml-1 text-[10px] font-normal text-peligro">hoy</span>
+                  <div data-existencias className="min-w-0 @2xl:text-right">
+                    <p className="text-lg font-heading font-bold tabular-nums">
+                      {formatStockEnUnidad(ing.stock_actual, ing.unidad_base)}
                     </p>
-                  )}
-                  <p className="text-[10px] text-muted-foreground">
-                    Min: {formatUmbral(ing.stock_minimo, ing.unidad_base)}
-                    {' · '}
-                    Crit: {formatUmbral(ing.stock_critico, ing.unidad_base)}
-                  </p>
-                </div>
-                {(isAdmin || puedeAjustar) && (
-                  <div className="flex items-center gap-0.5">
-                    {puedeAjustar && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="h-8 gap-1 text-xs"
-                        onClick={() => setAjustarIng(ing)}
-                        title="Ajustar stock (merma, conteo físico, corrección)"
-                      >
-                        <Sliders className="w-3.5 h-3.5" />
-                        <span className="hidden sm:inline">Ajustar</span>
-                      </Button>
+                    {ing.consumidoHoy > 0 && (
+                      <p className="text-base font-heading font-bold tabular-nums text-peligro">
+                        −{Number(ing.consumidoHoy).toLocaleString()}{' '}
+                        <span className="text-xs">{ing.unidad_base}</span>
+                        <span className="ml-1 text-[10px] font-normal text-peligro">hoy</span>
+                      </p>
                     )}
-                    {isAdmin && (
-                      <>
-                        {/* 6B / 1.C — Marcar como contenedor (botellas/cilindros para venta por porción) */}
+                    <p className="text-[10px] tabular-nums text-muted-foreground">
+                      <span className="@2xl:block">
+                        Min: {formatUmbral(ing.stock_minimo, ing.unidad_base)}
+                      </span>
+                      <span className="@2xl:hidden">{' · '}</span>
+                      <span className="@2xl:block">
+                        Crit: {formatUmbral(ing.stock_critico, ing.unidad_base)}
+                      </span>
+                    </p>
+                  </div>
+                  {(isAdmin || puedeAjustar) && (
+                    <div className="flex items-center justify-end gap-0.5">
+                      {puedeAjustar && (
                         <Button
                           variant="ghost"
                           size="sm"
                           className="h-8 gap-1 text-xs"
-                          onClick={() => setContenedorIng(ing)}
-                          title="Configurar como contenedor (botella, etc.) para venta por porción"
+                          onClick={() => setAjustarIng(ing)}
+                          title="Ajustar stock (merma, conteo físico, corrección)"
                         >
-                          <Beaker
-                            className={`w-3.5 h-3.5 ${ing.tipo_ingrediente === 'contenedor' ? 'text-exito' : ''}`}
-                          />
-                          <span className="hidden sm:inline">
-                            {ing.tipo_ingrediente === 'contenedor' ? 'Contenedor' : 'Contenedor'}
-                          </span>
+                          <Sliders className="w-3.5 h-3.5" />
+                          <span className="hidden @2xl:inline">Ajustar</span>
                         </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-8 w-8 text-destructive hover:bg-destructive/10"
-                          onClick={() => setConfirmDelete(ing)}
-                          title="Eliminar / desactivar"
-                        >
-                          <Trash2 className="w-4 h-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
-            </Card>
-          ))}
+                      )}
+                      {isAdmin && (
+                        <>
+                          {/* 6B / 1.C — Marcar como contenedor (botellas/cilindros para venta por porción) */}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1 text-xs"
+                            onClick={() => setContenedorIng(ing)}
+                            title="Configurar como contenedor (botella, etc.) para venta por porción"
+                          >
+                            <Beaker
+                              className={`w-3.5 h-3.5 ${ing.tipo_ingrediente === 'contenedor' ? 'text-exito' : ''}`}
+                            />
+                            <span className="hidden @2xl:inline">
+                              {ing.tipo_ingrediente === 'contenedor' ? 'Contenedor' : 'Contenedor'}
+                            </span>
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                            onClick={() => setConfirmDelete(ing)}
+                            title="Eliminar / desactivar"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </Button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </Card>
+            );
+          })}
         </div>
       )}
 
