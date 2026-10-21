@@ -459,7 +459,9 @@ async function consultarUnaVez(
 
 /** Suma por método, propinas y número de cuentas cobradas en cada sesión de caja. */
 async function adjuntarTotalesDeCaja(organizacionId: string, cajas: Fila[]): Promise<void> {
-  const ids = cajas.map((c) => String(c['id'] ?? '')).filter((id) => id !== '');
+  const ids = cajas
+    .map((c) => (typeof c['id'] === 'string' ? c['id'] : ''))
+    .filter((id) => id !== '');
   if (ids.length === 0) return;
   const porMetodo = await obtenerDb()
     .selectFrom('pagos')
