@@ -428,7 +428,8 @@ export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
     const delDia = entradas
       .filter((item) => DEL_RESTAURANTE_EN_EL_MENU.has(item.ruta))
       .map((item) => ({ ...item, etiqueta: ETIQUETA_EN_EL_MENU[item.ruta] ?? item.etiqueta }));
-    entradas = ['dueno', 'administrador'].includes(rol) ? [...anteriores, ...delDia] : anteriores;
+    // El cierre del día lo ve quien tiene su permiso: dirección y la caja que cierra.
+    entradas = [...anteriores, ...delDia];
   }
   if (typeof tienePermiso !== 'function') return entradas;
   return entradas.filter((entrada) => tienePermiso(rol, entrada.permiso));
