@@ -149,6 +149,32 @@ export const ESTILOS: Readonly<Record<string, DefinicionEstilo>> = {
 export const CLAVES_ESTILO = Object.keys(ESTILOS);
 
 /**
+ * EL ESTILO CON QUE ARRANCA TODO LO QUE NO TIENE UNA PREFERENCIA GUARDADA.
+ *
+ * Es `morphiq`: el base, el que ya vende y el que el cliente conoce. Los otros siete son
+ * variaciones sobre ese esqueleto y se eligen a proposito (Configuracion → Estilo visual);
+ * ninguno es «el que sale si nadie dijo nada».
+ *
+ * Es la UNICA fuente de la respuesta a «¿y si no hay nada guardado?». La consultan:
+ *   · `useApariencia`, cuando lo que llega del servidor no es un estilo conocido;
+ *   · `app/layout.tsx`, antes de escribir `data-estilo` en el `<html>`;
+ *   · el guion de arranque (`heredado/tema-arranque.ts`), si el `<html>` llegara sin el
+ *     atributo — porque sin `data-estilo` no hay `--fondo`, y sin `--fondo` la primera
+ *     pintura sale en blanco y negro.
+ * La capa de datos (`packages/app`, `APARIENCIA_POR_OMISION`) dice lo mismo desde el servidor;
+ * una prueba de `apps/web` compara las dos para que no se desfasen.
+ *
+ * Lo que NO hace: pisar lo que un negocio guardo. La preferencia del negocio (en la base) y
+ * la del dispositivo (modo claro/oscuro, en `localStorage`) mandan siempre sobre esto.
+ */
+export const ESTILO_PREDETERMINADO = 'morphiq';
+
+/** La clave si es un estilo construido; si no (vacia, desconocida, de otra version), la predeterminada. */
+export function estiloOPredeterminado(clave: string | null | undefined): string {
+  return typeof clave === 'string' && Object.hasOwn(ESTILOS, clave) ? clave : ESTILO_PREDETERMINADO;
+}
+
+/**
  * Los atributos que hay que poner en `<html>` para activar un estilo.
  *
  * El modo claro/oscuro es ortogonal (§5) y lo maneja aparte el `ThemeContext`
