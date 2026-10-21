@@ -1202,15 +1202,27 @@ export function Cuentas({
     </Button>
   );
 
+  // El pago recién registrado se dice en las DOS vistas: el que salda la única cuenta deja la
+  // cartera vacía, y el aviso se iba con ella al releerla (CI de main, 21-10).
+  const avisoDePago =
+    pagoRegistrado === null ? null : (
+      <Aviso tono="exito" titulo={`Pago de ${pagoRegistrado.nombre} registrado.`}>
+        <Dinero centavos={pagoRegistrado.centavos} tamano="sm" /> · se aplica a lo que venció
+        primero.
+      </Aviso>
+    );
+
   if (renglones.length === 0) {
-    // El vacío ENSEÑA el flujo: de dónde sale un cliente de cuenta.
+    // El vacío ENSEÑA el flujo: de dónde sale un cliente de cuenta. Tras un pago que saldó
+    // la última cuenta no es «nadie tiene crédito»: es que nadie debe.
     return (
       <div className="mx-auto flex max-w-lg flex-col gap-(--espacio-3) p-(--espacio-8)">
         <h1 className="sr-only">Cuentas</h1>
         {altaDeCliente}
+        {avisoDePago}
         <Vacio
           icono={<FileSignature />}
-          titulo="Todavía no le das crédito a nadie."
+          titulo={pagoRegistrado === null ? 'Todavía no le das crédito a nadie.' : 'Nadie te debe.'}
           explicacion="Da de alta al cliente con su límite, y cuando despaches con «Remisión a cuenta» (F11) en el mostrador aparece aquí con su obra, su antigüedad y lo que debe."
           accion={
             <span className="flex flex-wrap justify-center gap-(--espacio-2)">
@@ -1250,12 +1262,7 @@ export function Cuentas({
           Ningún pago quedó registrado.
         </Aviso>
       ) : null}
-      {pagoRegistrado === null ? null : (
-        <Aviso tono="exito" titulo={`Pago de ${pagoRegistrado.nombre} registrado.`}>
-          <Dinero centavos={pagoRegistrado.centavos} tamano="sm" /> · se aplica a lo que venció
-          primero.
-        </Aviso>
-      )}
+      {avisoDePago}
       {/* El pago entró; lo que no llegó es la cartera nueva. Dice las dos cosas, para
           que nadie lo registre otra vez al ver el saldo de antes. */}
       {falloDeRelectura === null ? null : (
