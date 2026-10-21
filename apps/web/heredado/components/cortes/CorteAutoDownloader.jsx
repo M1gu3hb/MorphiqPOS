@@ -13,6 +13,7 @@ import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Download, Loader2 } from 'lucide-react';
 import CorteTicket from '@/components/tickets/CorteTicket';
+import { MARCA_DE_PLATAFORMA } from '~/marca/nombre-visible';
 
 /**
  * Renderiza el CorteTicket fuera de pantalla, genera el PDF y lo descarga.
@@ -180,7 +181,7 @@ export default function CorteAutoDownloader({ corte, onDone }) {
         ? format(new Date(corte.fecha_cierre), 'yyyyMMdd')
         : format(new Date(), 'yyyyMMdd');
       const negocio = safeFileName(
-        config?.nombre_negocio || config?.platform_brand || 'MH-Astral-Systems',
+        config?.nombre_negocio || config?.platform_brand || MARCA_DE_PLATAFORMA,
       );
       const folio = safeFileName(corte?.folio || 'corte');
       await downloadNodeAsPDF(ref.current, `Corte_${folio}_${fecha}_${negocio}.pdf`);

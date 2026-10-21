@@ -12,6 +12,8 @@
  *       margen, y no se inventa un cero.
  */
 
+import { nombreVisibleDelNegocio } from '../marca/nombre-visible.ts';
+
 // ── Lo que llega del servidor (importes en centavos, como texto de bigint) ──────────
 
 export interface SesionDeLaHoja {
@@ -998,9 +1000,12 @@ export function ventaPorCategoria(
   });
 }
 
-/** El nombre del archivo: negocio, tipo y folio, sin acentos ni espacios. */
+/**
+ * El nombre del archivo: negocio, tipo y folio, sin acentos ni espacios. El negocio va como
+ * se IMPRIME (sin «Demo del acople · …»): el PDF que se manda por correo lleva ese nombre.
+ */
 export function nombreDeArchivo(negocio: string, tipo: string, folio: string): string {
-  const limpio = `${negocio}-${tipo}-${folio}`
+  const limpio = `${nombreVisibleDelNegocio(negocio)}-${tipo}-${folio}`
     .normalize('NFD')
     .replace(/[̀-ͯ]/g, '')
     .replace(/[^a-zA-Z0-9-_]+/g, '-')

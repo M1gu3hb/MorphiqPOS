@@ -17,6 +17,11 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import ColoresSistemaSection from '@/components/configuracion/ColoresSistemaSection';
+import {
+  MARCA_DE_PLATAFORMA,
+  marcaVisibleDePlataforma,
+  nombreVisibleDelSistema,
+} from '~/marca/nombre-visible';
 
 /**
  * Sección "Identidad del negocio".
@@ -35,7 +40,7 @@ export default function IdentidadNegocio({ cfg }) {
   const [form, setForm] = useState({
     nombre_negocio: '',
     nombre_sistema: '',
-    platform_brand: 'MH Astral Systems',
+    platform_brand: MARCA_DE_PLATAFORMA,
     logo_url: '',
     logo_ticket_url: '',
     logo_pdf_url: '',
@@ -63,8 +68,13 @@ export default function IdentidadNegocio({ cfg }) {
     setForm((f) => ({
       ...f,
       nombre_negocio: cfg.nombre_negocio ?? f.nombre_negocio ?? '',
-      nombre_sistema: cfg.nombre_sistema ?? f.nombre_sistema ?? '',
-      platform_brand: cfg.platform_brand ?? f.platform_brand ?? 'MH Astral Systems',
+      // El nombre del sistema y la marca traen de fábrica el texto de la plataforma anterior
+      // («MH Astral …»): se muestran ya como Morphiq, y si se guarda, se guarda así. El NOMBRE
+      // DEL NEGOCIO no se retoca: es el dato que el dueño edita.
+      nombre_sistema: cfg.nombre_sistema
+        ? nombreVisibleDelSistema(cfg.nombre_sistema)
+        : (f.nombre_sistema ?? ''),
+      platform_brand: marcaVisibleDePlataforma(cfg.platform_brand ?? f.platform_brand),
       logo_url: cfg.logo_url ?? '',
       logo_ticket_url: cfg.logo_ticket_url ?? '',
       logo_pdf_url: cfg.logo_pdf_url ?? '',
@@ -239,7 +249,7 @@ export default function IdentidadNegocio({ cfg }) {
             <Input
               value={form.nombre_sistema}
               onChange={(e) => setForm({ ...form, nombre_sistema: e.target.value })}
-              placeholder="POS MH Astral Systems"
+              placeholder="Morphiq POS"
             />
           </div>
           <div>
@@ -247,7 +257,7 @@ export default function IdentidadNegocio({ cfg }) {
             <Input
               value={form.platform_brand}
               onChange={(e) => setForm({ ...form, platform_brand: e.target.value })}
-              placeholder="MH Astral Systems"
+              placeholder="Morphiq"
             />
           </div>
         </div>

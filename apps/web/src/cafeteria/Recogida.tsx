@@ -6,6 +6,9 @@ import { useEffect, useRef, useState, type ReactElement } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { nombreVisibleDelNegocio } from '~/marca/nombre-visible';
+import { leerVelocidad, leerVozElegida } from '~/voz/preferencia-de-voz';
+import { encontrarVoz } from '~/voz/voces';
 
 /**
  * PANTALLA · cafeteria · recogida
@@ -157,6 +160,14 @@ function hablar(nombre: string): void {
   if (sintesis === undefined) return;
   const frase = new SpeechSynthesisUtterance(`${nombre}, tu pedido está listo.`);
   frase.lang = 'es-MX';
+  // La voz que se eligió en ESTE monitor (Configuración → Voz de los avisos), si la tiene.
+  // Si no eligió una, o ya no existe aquí, suena la de siempre: la del idioma es-MX.
+  const elegida = encontrarVoz(sintesis.getVoices(), leerVozElegida());
+  if (elegida !== null) {
+    frase.voice = elegida;
+    frase.lang = elegida.lang;
+  }
+  frase.rate = leerVelocidad();
   sintesis.speak(frase);
 }
 
@@ -209,7 +220,7 @@ function PieDelCartel({
       )}
       {nombreNegocio !== undefined && nombreNegocio !== '' && (
         <p className="text-[clamp(1rem,1.5vw,1.5rem)] font-semibold text-texto-sutil">
-          {nombreNegocio}
+          {nombreVisibleDelNegocio(nombreNegocio)}
         </p>
       )}
     </footer>

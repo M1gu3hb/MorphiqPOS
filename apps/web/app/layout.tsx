@@ -8,6 +8,7 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import { NOMBRE_COOKIE } from '@morphiqpos/app/http';
 import { APARIENCIA_POR_OMISION, aparienciaDeLaOrganizacion } from '@morphiqpos/app/configuracion';
 import { negocioDeLaEntrada, slugDeLaRutaDeEntrada } from '@morphiqpos/app/negocio';
+import { estiloOPredeterminado } from '@morphiqpos/ui/tokens';
 
 import { sesionDelServidor } from '~/servidor/http';
 
@@ -129,11 +130,20 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
    * una respuesta correcta, y ahí sí se pinta con la base.
    */
   const sesion = conSesion ? await sesionDelServidor() : null;
-  const apariencia = await aparienciaDelDespliegue(
+  const guardada = await aparienciaDelDespliegue(
     sesion,
     cabeceras.get('host'),
     cabeceras.get(CABECERA_RUTA),
   );
+  /**
+   * Sin preferencia, o con una que ya no es un estilo construido, arranca `morphiq`.
+   *
+   * `aparienciaDeLaOrganizacion` ya normaliza lo que lee de la base; esto cierra el hueco
+   * que queda entre ella y el `<html>`: el atributo que se escribe SIEMPRE es un estilo
+   * conocido, porque uno desconocido es una pagina sin tokens. Y no pisa nada: un negocio
+   * que guardo `noche` o `bloque` sigue viendo `noche` o `bloque`.
+   */
+  const apariencia = { ...guardada, estilo: estiloOPredeterminado(guardada.estilo) };
 
   /**
    * LA DIRECCIÓN PÚBLICA, para lo que se imprime o se comparte (el QR de cada mesa).

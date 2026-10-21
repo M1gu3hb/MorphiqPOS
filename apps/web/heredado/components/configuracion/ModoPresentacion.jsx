@@ -176,7 +176,7 @@ export default function ModoPresentacion({ cfg }) {
           <div className="flex items-center gap-2">
             <Sparkles className="w-5 h-5 text-primary" />
             <CardTitle className="font-heading text-lg">
-              Modo Presentación — MH Astral Systems POS
+              Modo Presentación — Morphiq POS
             </CardTitle>
           </div>
           <p className="text-sm text-muted-foreground">

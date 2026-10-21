@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 
-import { ESTILOS, atributosDeEstilo } from '../tokens/estilos';
+import { ESTILOS, atributosDeEstilo, estiloOPredeterminado } from '../tokens/estilos';
 import {
   PERILLAS,
   type Densidad,
@@ -71,8 +71,13 @@ function aparienciaDe(estilo: string, guardada?: AparienciaInicial): Apariencia 
  * negocio» contestaba bien y al recargar volvian las de fabrica (cierre del 21-10).
  */
 export function useApariencia(inicial: string | AparienciaInicial) {
+  // Lo que llega del servidor es un dato externo: si el estilo guardado no es uno de los
+  // construidos (vacio, de otra version, escrito a mano en la base), arranca con el
+  // predeterminado en vez de lanzar durante la hidratacion y dejar la aplicacion en blanco.
   const [apariencia, setApariencia] = useState<Apariencia>(() =>
-    typeof inicial === 'string' ? aparienciaDe(inicial) : aparienciaDe(inicial.estilo, inicial),
+    typeof inicial === 'string'
+      ? aparienciaDe(estiloOPredeterminado(inicial))
+      : aparienciaDe(estiloOPredeterminado(inicial.estilo), inicial),
   );
 
   // Se aplica sobre <html> porque los tokens se resuelven en cascada desde la

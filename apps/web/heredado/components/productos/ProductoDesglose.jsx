@@ -9,6 +9,7 @@ import {
   mlPorPorcionEfectivo,
   unidadBaseDesdeMostrada,
 } from '@/utils/tipoVentaUtils';
+import { MARCA_DE_PLATAFORMA } from '~/marca/nombre-visible';
 
 /**
  * Printable product breakdown / cost sheet.
@@ -53,7 +54,7 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
       }}
     >
       <div className="text-center border-b-2 border-borde-fuerte pb-3 mb-4">
-        <h1 className="text-xl font-bold">{config?.nombre_negocio || 'AZECAFE'}</h1>
+        <h1 className="text-xl font-bold">{config?.nombre_negocio || MARCA_DE_PLATAFORMA}</h1>
         <p className="text-xs text-texto-sutil">FICHA DE PRODUCTO · {fecha}</p>
       </div>
 
@@ -225,7 +226,7 @@ function FichaVariable({ producto, ingrediente, config, fecha }) {
       }}
     >
       <div className="text-center border-b-2 border-borde-fuerte pb-3 mb-4">
-        <h1 className="text-xl font-bold">{config?.nombre_negocio || 'AZECAFE'}</h1>
+        <h1 className="text-xl font-bold">{config?.nombre_negocio || MARCA_DE_PLATAFORMA}</h1>
         <p className="text-xs text-texto-sutil">FICHA DE PRODUCTO · {fecha}</p>
       </div>
 
