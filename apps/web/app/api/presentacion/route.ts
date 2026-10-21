@@ -44,9 +44,24 @@ export async function GET(peticion: Request) {
     entorno.SESSION_SECRET,
     negocios.map((n) => n.organizacionId),
   );
+  // Entró ya delegado (el restaurante en presentación o en otro modelo) y todavía no desbloquea:
+  // es el dueño general, así que se le pide su PIN en vez de tratarlo como un dueño cualquiera.
+  const sesion =
+    opciones.length > 0
+      ? null
+      : await resolverSesion({
+          token: leerCookie(cookie, NOMBRE_COOKIE),
+          secreto: entorno.SESSION_SECRET,
+        });
+  const esGeneral =
+    opciones.length > 0 || (sesion?.ok === true && sesion.sesion.presentador !== undefined);
   return json({
     ok: true,
-    datos: { negocios: opciones, desbloqueado: maestro !== undefined && opciones.length > 0 },
+    datos: {
+      negocios: opciones,
+      desbloqueado: maestro !== undefined && opciones.length > 0,
+      esGeneral,
+    },
   });
 }
 

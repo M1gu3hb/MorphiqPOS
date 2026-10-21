@@ -63,8 +63,8 @@ export function mesasDelPlano<T extends Pick<MesaDelPlano, 'activo' | 'zona'>>(
  * Las zonas que de verdad tienen mesas en servicio, en el orden de `zonasConocidas`.
  * Una pestaña de una zona vacía —o que sólo tiene bajas— es una trampa.
  */
-export function zonasConMesas<T extends Pick<MesaDelPlano, 'activo' | 'zona'>>(
-  mesas: readonly T[],
+export function zonasConMesas(
+  mesas: readonly Pick<MesaDelPlano, 'activo' | 'zona'>[],
   zonasConocidas: readonly string[],
 ): readonly { readonly zona: string; readonly cuantas: number }[] {
   return zonasConocidas

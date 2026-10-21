@@ -201,7 +201,7 @@ export async function POST(peticion: Request): Promise<Response> {
     }),
   ];
   const dispositivoNuevo = enPresentacion?.deviceToken ?? resultado.deviceToken;
-  if (dispositivoNuevo !== undefined && dispositivoNuevo !== null) {
+  if (dispositivoNuevo !== undefined) {
     cookies.push(
       cookieDeDispositivo({
         token: dispositivoNuevo,

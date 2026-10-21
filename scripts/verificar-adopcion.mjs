@@ -64,6 +64,34 @@ export const SIN_ESTADO = [
       'Diálogo: no lee nada —ni consultarPuente ni una espera antes de pintarse—. Lo único asíncrono es el comando, y mientras corre el botón pasa a «Quitando…» con `cargando`.',
   },
   {
+    pantalla: 'cliente/EstadosDeCarga',
+    estado: 'vacio',
+    razon:
+      'Pieza de los estados de carga de las pantallas heredadas (21-10): pinta el esqueleto con su espacio reservado y el error con «Reintentar»; el vacío real lo dice cada pantalla que la monta.',
+  },
+  {
+    pantalla: 'configuracion/ModoPresentacionAlCliente',
+    estado: 'vacio',
+    razon:
+      'Interruptor del modo presentación (21-10): no lista nada; mientras lee su estado pinta EsqueletoDeLista y si falla un Aviso de peligro.',
+  },
+  {
+    pantalla: 'proveedores/Proveedores',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: monta apariencia, sesión, caché de consultas y avisos alrededor de la aplicación.',
+  },
+  {
+    pantalla: 'proveedores/Proveedores',
+    estado: 'cargando',
+    razon: 'No es una pantalla: no lee nada; cada pantalla de dentro pinta su propia espera.',
+  },
+  {
+    pantalla: 'proveedores/Proveedores',
+    estado: 'error',
+    razon: 'No es una pantalla: no lee nada; cada pantalla de dentro pinta su propio error.',
+  },
+  {
     pantalla: 'restaurante/DividirCuentaDialog',
     estado: 'vacio',
     razon:

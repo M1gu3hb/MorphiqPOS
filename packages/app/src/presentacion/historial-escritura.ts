@@ -27,6 +27,7 @@ export const SERIES_DE_FOLIO = { orden: 'A', caja: 'CC', turno: 'CT' } as const;
 /** La acción con que cada día sembrado queda en la auditoría. */
 export const ACCION_DE_AUDITORIA = 'presentacion.sembrar_historial';
 
+// eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- T ata la tabla al tipo de su lote.
 async function insertarPorLotes<T extends keyof Esquema>(
   tx: Transaccion,
   tabla: T,

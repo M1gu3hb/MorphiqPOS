@@ -545,7 +545,10 @@ async function concederElEspejo(
   );
   if (yaEsta) return;
   await mezclar(tx, origenId, {
-    presentacion_destinos: [...destinos, { empleoId: gemelo, organizacionId: espejoId }],
+    presentacion_destinos: [
+      ...(destinos as unknown[]),
+      { empleoId: gemelo, organizacionId: espejoId },
+    ],
   });
 }
 

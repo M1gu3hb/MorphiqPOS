@@ -79,7 +79,7 @@ export function EsqueletoDePestanas({
       className="flex gap-(--espacio-2)"
     >
       {Array.from({ length: cantidad }, (_, indice) => (
-        <Esqueleto key={indice} className="h-8 w-24 rounded-full" />
+        <Esqueleto key={indice} className="h-(--altura-control) w-24 rounded-full" />
       ))}
     </div>
   );
@@ -144,7 +144,7 @@ export function EsqueletoDeBloque({
       aria-label={etiqueta}
       className={conSeparacion ? 'mt-(--espacio-4)' : undefined}
     >
-      <Esqueleto className="h-16 w-full" />
+      <Esqueleto className="h-[calc(var(--altura-control)*2)] w-full" />
     </div>
   );
 }
@@ -183,7 +183,7 @@ export function EsqueletoDeCifras({
           className="flex flex-col gap-(--espacio-2) rounded-lg border border-borde p-(--espacio-4)"
         >
           <Esqueleto className="h-3 w-20" />
-          <Esqueleto className="h-7 w-28" />
+          <Esqueleto className="h-[calc(var(--altura-control)*0.875)] w-28" />
           <Esqueleto className="h-3 w-16" />
         </div>
       ))}

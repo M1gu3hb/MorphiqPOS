@@ -18,7 +18,11 @@ type Negocio = z.infer<typeof NegocioSchema>;
 const RespuestaSchema = z.object({
   ok: z.boolean(),
   datos: z
-    .object({ negocios: z.array(NegocioSchema).optional(), desbloqueado: z.boolean().optional() })
+    .object({
+      negocios: z.array(NegocioSchema).optional(),
+      desbloqueado: z.boolean().optional(),
+      esGeneral: z.boolean().optional(),
+    })
     .optional(),
   error: z.object({ mensaje: z.string() }).optional(),
 });
@@ -52,6 +56,7 @@ async function pedir(entrada?: unknown) {
 export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
   const [negocios, setNegocios] = useState<Negocio[] | null>(null);
   const [abierto, setAbierto] = useState(false);
+  const [esGeneral, setEsGeneral] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [ocupado, setOcupado] = useState(false);
@@ -64,6 +69,7 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
         if (vigente) {
           setNegocios(datos.negocios ?? []);
           setAbierto(datos.desbloqueado ?? false);
+          setEsGeneral(datos.esGeneral ?? false);
         }
       })
       .catch((fallo: unknown) => {
@@ -87,14 +93,18 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
           /* La cookie sigue siendo la fuente de verdad. */
         }
         window.location.replace('/');
-      } else setAbierto(true);
+      } else {
+        setAbierto(true);
+        // Desbloqueado desde una sesión delegada: ahora sí hay modelos que listar.
+        setIntento((n) => n + 1);
+      }
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo completar la operación.');
     } finally {
       setOcupado(false);
     }
   }
-  if (negocios?.length === 0) return <ModoPresentacion cfg={cfg} />;
+  if (negocios?.length === 0 && !esGeneral) return <ModoPresentacion cfg={cfg} />;
   return (
     <div className="flex flex-col gap-(--espacio-4)">
       <Superficie

@@ -157,7 +157,7 @@ describe('una respuesta que llega tarde', () => {
     // descarta su cliente y se monta uno vacío (B). Cuando la respuesta de A llega, B no la ve.
     const clienteDeA = new ClienteReal();
     let responderTarde: (filas: readonly string[]) => void = () => undefined;
-    const enVuelo = clienteDeA.fetchQuery({
+    const enVuelo = clienteDeA.query({
       queryKey: ['mesas', { activo: true }],
       queryFn: () =>
         new Promise<readonly string[]>((resolver) => {

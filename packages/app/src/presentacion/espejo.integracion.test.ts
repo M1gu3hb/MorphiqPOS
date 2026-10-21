@@ -69,11 +69,12 @@ async function huellaDelReal(): Promise<Record<string, string>> {
     .select('valores')
     .where('organizacion_id', '=', real)
     .executeTakeFirstOrThrow();
-  const {
-    presentacion_modo: _modo,
-    presentacion_destinos: _destinos,
-    ...resto
-  } = cfg.valores as Record<string, unknown>;
+  // Las dos llaves que el modo presentación SÍ escribe en el real (su espejo y la concesión).
+  const resto = Object.fromEntries(
+    Object.entries(cfg.valores as Record<string, unknown>).filter(
+      ([llave]) => llave !== 'presentacion_modo' && llave !== 'presentacion_destinos',
+    ),
+  );
   huella['configuracion'] = JSON.stringify(resto);
   return huella;
 }

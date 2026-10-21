@@ -145,7 +145,7 @@ export function planearCobro(azar: Azar, total: bigint, esMesa: boolean): CobroP
   const dejaPropina = porcentaje > 0;
 
   let entrantes: PagoEntrante[];
-  let enBillete = false;
+  let enBillete: boolean;
 
   if (metodo === 'efectivo') {
     enBillete = dejaPropina;
