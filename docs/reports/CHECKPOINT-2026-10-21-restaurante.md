@@ -1,5 +1,8 @@
 # Checkpoint · cierre del restaurante para la presentación del 21-10
 
+> **Publicado (21-10):** PR #15 fusionado (`bdbcbf8`) y desplegado; ver el reporte 022 §4. Lo que
+> sigue abajo es el registro del corte por límite de uso, conservado como historia.
+
 Rama: `claude/restaurante-dominio-qr-presentacion` (sale de `main` = `cc92c66`). Commits como
 `M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>`, sin coautorías. Sin secretos aquí.
 
