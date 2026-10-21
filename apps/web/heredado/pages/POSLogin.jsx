@@ -10,6 +10,13 @@ import { hasPermission } from '@/lib/permissions';
 import { Delete, User, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 import LoginBrandColors from '@/components/common/LoginBrandColors';
+import { MarcaMorphiq } from '~/marca/MarcaMorphiq';
+import {
+  MARCA_DE_PLATAFORMA,
+  NOMBRE_DEL_SISTEMA,
+  nombreVisibleDelNegocio,
+  nombreVisibleDelSistema,
+} from '~/marca/nombre-visible';
 
 export default function POSLogin() {
   const [pin, setPin] = useState('');
@@ -70,6 +77,10 @@ export default function POSLogin() {
   }, []);
 
   useEffect(() => {
+    // Con la sesión ya puesta la pantalla va de salida (el efecto de arriba navega): pedir otra
+    // vez la lista sólo gasta el cupo de `/api/auth/empleados`, que es por red y lo comparten
+    // todos los aparatos del restaurante (21-10).
+    if (posUser) return undefined;
     let cancelled = false;
     (async () => {
       if (cancelled) return;
@@ -163,8 +174,19 @@ export default function POSLogin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, loading, usuarios, selectedUser]);
 
+  // Llegó aquí porque el restaurante entró o salió del modo presentación (21-10): se dice por
+  // qué, una vez, y se limpia la dirección para que recargar no lo repita.
+  useEffect(() => {
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get('aviso') !== 'presentacion') return;
+    toast.info('El restaurante cambió de modo presentación. Entra con tu PIN para continuar.');
+    parametros.delete('aviso');
+    const resto = parametros.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${resto ? `?${resto}` : ''}`);
+  }, []);
+
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
-  const sistema = config.nombre_sistema || 'MH Astral Systems POS';
+  const sistema = nombreVisibleDelSistema(config.nombre_sistema);
 
   // Una entrada para el equipo y las demostraciones. El servidor delimita la lista;
   // elegir un modelo sólo filtra las tarjetas, nunca concede permisos.
@@ -174,8 +196,12 @@ export default function POSLogin() {
   const vista = vistaDeAcceso || (generales.length ? 'equipo' : negociosServidos[0] || '');
   const visibles = !variosNegocios ? usuarios : vista === 'equipo'
     ? generales : usuarios.filter((u) => u.negocioSlug === vista && !u.esDuenoGeneral);
-  const negocio = variosNegocios ? 'Morphiq POS'
-    : usuarios[0]?.negocio || config.nombre_negocio || 'Morphiq POS';
+  // El nombre se IMPRIME sin el prefijo con que nace una demostración («Demo del acople · …»):
+  // el dato queda como está en la base, lo que se lee en pantalla no.
+  const nombreDelNegocio = nombreVisibleDelNegocio(usuarios[0]?.negocio || config.nombre_negocio);
+  // Sin un negocio propio, el título es el del producto —«Morphiq POS»—, no sólo la marca.
+  const negocio =
+    variosNegocios || nombreDelNegocio === MARCA_DE_PLATAFORMA ? NOMBRE_DEL_SISTEMA : nombreDelNegocio;
 
   return (
     <div className="min-h-screen flex flex-col bg-gradient-to-br from-[#04070f] via-[#0a1428] to-[#0b1d3a] relative overflow-hidden">
@@ -260,7 +286,7 @@ export default function POSLogin() {
             }}
           >
             Iniciando como: {selectedUser.nombre}
-            {variosNegocios && selectedUser.negocio && !selectedUser.esDuenoGeneral ? ` · ${selectedUser.negocio}` : ''}
+            {variosNegocios && selectedUser.negocio && !selectedUser.esDuenoGeneral ? ` · ${nombreVisibleDelNegocio(selectedUser.negocio)}` : ''}
           </p>
         )}
 
@@ -327,6 +353,10 @@ export default function POSLogin() {
           Selecciona tu nombre e ingresa tu PIN
         </p>
 
+        {/* La firma de la plataforma: la palabra Morphiq mientras no exista el logo oficial
+            (`~/marca/logo`). La variante lleva sus propios espacios y colores. */}
+        <MarcaMorphiq variante="acceso" nombre={config.platform_brand} />
+
         {/* Banner discreto: el admin sigue usando PIN default. */}
         {usingDefaultPin && (
           <div className="mt-4 inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-advertencia/40 bg-advertencia/10 text-advertencia text-[11px]">
@@ -359,7 +389,7 @@ export default function POSLogin() {
               >
                 {generales.length > 0 && <option value="equipo">Equipo Morphiq · dueño general</option>}
                 {negociosServidos.map((slug) => (
-                  <option key={slug} value={slug}>{usuarios.find((u) => u.negocioSlug === slug)?.negocio}</option>
+                  <option key={slug} value={slug}>{nombreVisibleDelNegocio(usuarios.find((u) => u.negocioSlug === slug)?.negocio)}</option>
                 ))}
               </select>
               <p className="text-primario-texto/60 text-xs">Entra como dueño general para recorrer todos los modelos, o elige una demostración para probar sus puestos.</p>
@@ -435,7 +465,7 @@ export default function POSLogin() {
                           className="text-[9px] truncate mt-0.5"
                           style={{ color: 'var(--brand-accent, #60a5fa)' }}
                         >
-                          {u.negocio}
+                          {nombreVisibleDelNegocio(u.negocio)}
                         </p>
                       )}
                     </div>

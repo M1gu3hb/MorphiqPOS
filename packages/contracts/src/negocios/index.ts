@@ -76,7 +76,9 @@ export const DEMOS: readonly NegocioConocido[] = [
   {
     id: '33dad5ff-ffea-44a5-abd4-cce8019098a7',
     slug: 'demo-acople-restaurante',
-    nombre: 'Demo del acople · restaurante',
+    // El restaurante que Miguel presenta y opera: un solo restaurante visible (21-10, D-52).
+    // `mh-restaurante` se llama igual pero ya no lo sirve el despliegue.
+    nombre: 'Restaurante MH',
   },
   {
     id: '61d447a6-9633-4709-b850-871c00ae162f',

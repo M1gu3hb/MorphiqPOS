@@ -14,6 +14,7 @@ import RegistrarCompraDialog from '@/components/compras/RegistrarCompraDialog';
 import RegistrarGastoDialog from '@/components/compras/RegistrarGastoDialog';
 import PlantillasGastoSection from '@/components/compras/PlantillasGastoSection';
 import LoadingState from '@/components/common/LoadingState';
+import { claves } from '~/cliente/claves-de-consulta';
 
 export default function Compras() {
   const [openCompra, setOpenCompra] = useState(false);
@@ -35,7 +36,7 @@ export default function Compras() {
   });
 
   const { data: gastos, isPending: gastosLoading } = useQuery({
-    queryKey: ['gastos_hoy'],
+    queryKey: claves.gastos.recientes(30),
     queryFn: () => api.entidades.GastoOperativo.list('-created_date', 30),
     placeholderData: (prev) => prev,
     staleTime: 5000,

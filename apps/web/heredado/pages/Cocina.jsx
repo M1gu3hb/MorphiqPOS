@@ -16,6 +16,7 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
+import { claves } from '~/cliente/claves-de-consulta';
 
 const ESTADOS = ['nuevo', 'en_preparacion', 'listo'];
 const ESTADO_LABELS = { nuevo: 'Nuevos', en_preparacion: 'En preparación', listo: 'Listos' };
@@ -127,7 +128,10 @@ export default function Cocina() {
   });
 
   const { data: mesas } = useQuery({
-    queryKey: ['mesas'],
+    // TODAS las mesas (también las de baja), con SU clave: compartía `['mesas']` con el mapa
+    // del mesero, que pide sólo las activas, y la primera pintada del mapa salía con las de baja
+    // encima de las activas en las mismas coordenadas: las «mesas encimadas» (21-10).
+    queryKey: claves.mesas.todas(),
     queryFn: () => api.entidades.Mesa.list('-created_date', 500),
     placeholderData: (prev) => prev,
     staleTime: 20000,

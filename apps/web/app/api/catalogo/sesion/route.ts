@@ -48,6 +48,8 @@ export function GET(): Promise<Response> {
         nombreSucursal: sesion.nombreSucursal,
         tieneTerminal: sesion.terminalId !== null,
         esDuenoGeneral,
+        // El restaurante se está presentando y esta sesión trabaja en su contexto (21-10).
+        enPresentacion: sesion.enPresentacion,
       };
     },
     { roles: ROLES },

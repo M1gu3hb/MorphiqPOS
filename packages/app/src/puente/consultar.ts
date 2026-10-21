@@ -444,7 +444,60 @@ async function consultarUnaVez(
   //     padre: dentro de una pantalla de cocina que refresca cada pocos
   //     segundos, un N+1 aquí se nota.
   await adjuntarHijos(ambito, mapa, traducidas);
+
+  // 8 · Los totales de cada caja (`CorteCaja`). El mapa los declara derivados de los pagos
+  //     de la sesión (`cobertura.test.ts`) y nadie los derivaba: «Cortes de caja recientes»
+  //     decía «$0.00 · 0 tickets» en cada corte, con dinero real y con el historial de la
+  //     presentación (21-10). Una consulta agregada por página, sólo para quien ve importes.
+  if (
+    mapa.tabla === 'sesiones_caja' &&
+    (mapa.campos['efectivo_inicial_contado']?.rolesLectura ?? []).includes(ambito.rol)
+  )
+    await adjuntarTotalesDeCaja(ambito.organizacionId, traducidas);
   return traducidas;
+}
+
+/** Suma por método, propinas y número de cuentas cobradas en cada sesión de caja. */
+async function adjuntarTotalesDeCaja(organizacionId: string, cajas: Fila[]): Promise<void> {
+  const ids = cajas
+    .map((c) => (typeof c['id'] === 'string' ? c['id'] : ''))
+    .filter((id) => id !== '');
+  if (ids.length === 0) return;
+  const porMetodo = await obtenerDb()
+    .selectFrom('pagos')
+    .select([
+      'sesion_caja_id as caja',
+      'metodo',
+      sql<string>`sum(monto_centavos)::text`.as('monto'),
+      sql<string>`sum(propina_centavos)::text`.as('propina'),
+    ])
+    .where('organizacion_id', '=', organizacionId)
+    .where('sesion_caja_id', 'in', ids)
+    .groupBy(['sesion_caja_id', 'metodo'])
+    .execute();
+  const cuentas = await obtenerDb()
+    .selectFrom('pagos')
+    .select(['sesion_caja_id as caja', sql<string>`count(distinct orden_id)::text`.as('cuantas')])
+    .where('organizacion_id', '=', organizacionId)
+    .where('sesion_caja_id', 'in', ids)
+    .groupBy('sesion_caja_id')
+    .execute();
+  const pesos = (centavos: bigint) => Number(centavos) / CENTAVOS_POR_PESO;
+  for (const caja of cajas) {
+    const suyas = porMetodo.filter((f) => f.caja === caja['id']);
+    const de = (metodo: string) =>
+      suyas.filter((f) => f.metodo === metodo).reduce((t, f) => t + BigInt(f.monto), 0n);
+    const total = suyas.reduce((t, f) => t + BigInt(f.monto), 0n);
+    const propinas = suyas.reduce((t, f) => t + BigInt(f.propina), 0n);
+    const numero = Number(cuentas.find((f) => f.caja === caja['id'])?.cuantas ?? '0');
+    caja['total_efectivo'] = pesos(de('efectivo'));
+    caja['total_tarjeta'] = pesos(de('tarjeta'));
+    caja['total_transferencia'] = pesos(de('transferencia'));
+    caja['total_general'] = pesos(total);
+    caja['total_propinas'] = pesos(propinas);
+    caja['numero_ventas'] = numero;
+    caja['ticket_promedio'] = numero === 0 ? 0 : pesos(total) / numero;
+  }
 }
 
 /**

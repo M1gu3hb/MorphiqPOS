@@ -23,6 +23,8 @@ import {
 import { getTiposSolicitudHabilitados, TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import ThemeToggle from '@/components/common/ThemeToggle';
+import { MarcaMorphiq } from '~/marca/MarcaMorphiq';
+import { nombreVisibleDelNegocio } from '~/marca/nombre-visible';
 
 /**
  * Vista pública del comensal (sin sidebar, sin POS).
@@ -481,7 +483,7 @@ function PortalCliente() {
           {brandLogo && (
             <img
               src={brandLogo}
-              alt={config?.nombre_negocio || ''}
+              alt={config?.nombre_negocio ? nombreVisibleDelNegocio(config.nombre_negocio) : ''}
               onError={onLogoError}
               className="w-11 h-11 rounded-lg bg-superficie p-1 border shrink-0"
               style={{ objectFit: 'contain' }}
@@ -489,7 +491,7 @@ function PortalCliente() {
           )}
           <div className="flex-1 min-w-0">
             <p className="font-heading font-black text-base leading-tight truncate">
-              {config?.nombre_negocio || 'Menú'}
+              {config?.nombre_negocio ? nombreVisibleDelNegocio(config.nombre_negocio) : 'Menú'}
             </p>
             <p className="text-xs text-muted-foreground">
               Mesa {mesa?.numero}
@@ -589,6 +591,19 @@ function PortalCliente() {
             Sin menú configurado todavía.
           </p>
         )}
+
+        {/* La firma de la plataforma al pie del menú. El comensal ve el nombre del negocio
+            arriba y la marca de Morphiq aquí, nunca un nombre técnico. */}
+        <MarcaMorphiq variante="portal" />
+        {/* Las fotos de la carta son de Wikimedia Commons con licencias CC: su atribución. */}
+        <a
+          href="/platillos/CREDITOS.md"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-1 block text-center text-[10px] opacity-60 hover:opacity-100"
+        >
+          Créditos de las fotos
+        </a>
       </main>
 
       {/* Botón flotante de atención.

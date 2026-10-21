@@ -6,6 +6,8 @@ import { formatearCantidadVariable } from '@/utils/tipoVentaUtils';
 import { propinaDerivada } from '@/utils/tipsUtils';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { MarcaMorphiq } from '~/marca/MarcaMorphiq';
+import { MARCA_DE_PLATAFORMA } from '~/marca/nombre-visible';
 
 /**
  * Ticket / pre-cuenta optimizado para impresora térmica de 80mm.
@@ -60,7 +62,7 @@ export default function PreCuentaTicket({
           />
         )}
         <h1 style={{ fontWeight: 900, fontSize: '15px', letterSpacing: '2px', margin: 0 }}>
-          {config?.nombre_negocio || 'MH Astral Systems'}
+          {config?.nombre_negocio || MARCA_DE_PLATAFORMA}
         </h1>
         {config?.direccion && (
           <p style={{ fontSize: '9px', margin: '2px 0 0' }}>{config.direccion}</p>
@@ -204,7 +206,7 @@ export default function PreCuentaTicket({
         )}
         {esFinal && <p style={{ fontSize: '9px', margin: '2px 0 0' }}>Conserva este ticket</p>}
         <p style={{ fontSize: '8px', margin: '4px 0 0', color: '#555' }}>
-          {config?.platform_brand || 'MH Astral Systems'}
+          <MarcaMorphiq variante="ticket" nombre={config?.platform_brand} />
         </p>
       </div>
     </div>

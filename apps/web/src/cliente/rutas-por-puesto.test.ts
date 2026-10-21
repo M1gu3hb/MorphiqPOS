@@ -34,12 +34,18 @@ describe('rutas del restaurante por puesto', () => {
     for (const ruta of VISTAS_DEL_RESTAURANTE) expect(puede(ruta, rol), ruta).toBe(true);
   });
 
-  it.each(['mesero', 'cocina', 'caja', 'almacen'])(
-    '%s no abre ninguna vista del restaurante tecleándola',
-    (rol) => {
-      for (const ruta of VISTAS_DEL_RESTAURANTE) expect(puede(ruta, rol), ruta).toBe(false);
-    },
-  );
+  // D-52 (21-10): ya no hay menú de «vistas adicionales». Lo que el recorrido heredado no
+  // tiene se abre con el permiso del puesto —la mesera llega a la mesa activa y la precuenta
+  // desde sus mesas; la caja, al cierre del día—; lo que duplica una pantalla, sólo dirección.
+  it.each([
+    ['mesero', ['/restaurante/mesa-activa', '/restaurante/precuenta']],
+    ['cocina', []],
+    ['caja', ['/restaurante/cierre-diario-y-arqueo']],
+    ['almacen', []],
+  ] as const)('%s abre sólo las vistas de su puesto', (rol, suyas) => {
+    for (const ruta of VISTAS_DEL_RESTAURANTE)
+      expect(puede(ruta, rol), ruta).toBe((suyas as readonly string[]).includes(ruta));
+  });
 
   it('el mostrador (/pos) es de la caja y de dirección: ni la mesera ni la cocina', () => {
     expect(puede('/pos', 'caja')).toBe(true);

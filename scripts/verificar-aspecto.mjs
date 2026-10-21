@@ -44,7 +44,7 @@
  * pidiendo abrir el navegador.
  */
 import { execFileSync } from 'node:child_process';
-import { readFileSync } from 'node:fs';
+import { readFileSync, writeFileSync } from 'node:fs';
 
 import { CLASE_DE_COLOR } from './lib/clases-de-color.mjs';
 import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
@@ -309,6 +309,7 @@ const esEstructura = (testigo) => !testigo.startsWith('aviso:');
 let total = 0;
 let avisos = 0;
 const informe = [];
+const completos = {};
 /**
  * Los que no existían en la referencia.
  *
@@ -348,12 +349,18 @@ for (const ruta of cambiados) {
   total += perdidos.filter(esEstructura).length + nuevos.filter(esEstructura).length;
   avisos +=
     perdidos.filter((t) => !esEstructura(t)).length + nuevos.filter((t) => !esEstructura(t)).length;
+  // `ASPECTO_JSON=<archivo>` vuelca la lista COMPLETA, sin el recorte de 40, para escribir las
+  // entradas de `aspecto-permitido.json` testigo por testigo.
+  completos[ruta.split('\\').join('/')] = { perdidos, nuevos };
   informe.push(`\n${ruta}`);
   for (const t of perdidos.slice(0, 40)) informe.push(`  - ${t}`);
   if (perdidos.length > 40) informe.push(`  … y ${perdidos.length - 40} más que se perdieron`);
   for (const t of nuevos.slice(0, 40)) informe.push(`  + ${t}`);
   if (nuevos.length > 40) informe.push(`  … y ${nuevos.length - 40} más que se añadieron`);
 }
+
+if (process.env['ASPECTO_JSON'])
+  writeFileSync(process.env['ASPECTO_JSON'], JSON.stringify(completos, null, 2));
 
 const cabecera =
   total > 0

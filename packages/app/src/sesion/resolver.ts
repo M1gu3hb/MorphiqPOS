@@ -28,6 +28,8 @@ export interface SesionDeNegocio extends Ambito {
   readonly nombrePersona: string;
   readonly nombreNegocio: string;
   readonly nombreSucursal: string | null;
+  /** Esta sesión trabaja en el contexto de presentación del restaurante (21-10). */
+  readonly enPresentacion: boolean;
 }
 
 export type ResultadoSesion =
@@ -38,7 +40,7 @@ export type ResultadoSesion =
        * `expirada` la UI la trata distinto: reabre el diálogo de PIN conservando
        * el carrito, en vez de mandar al login y perder la venta a medias.
        */
-      readonly motivo: 'ausente' | 'invalida' | 'expirada' | 'revocada';
+      readonly motivo: 'ausente' | 'invalida' | 'expirada' | 'revocada' | 'presentacion';
     };
 
 export interface OpcionesResolver {
@@ -74,6 +76,25 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
   // El rol es `text` con `check` en la base, así que el tipo generado dice
   // `string`. Se estrecha en vez de aseverar: un rol desconocido no autoriza.
   if (!esRol(fila.rol)) return { ok: false, motivo: 'revocada' };
+
+  // EL MODO PRESENTACIÓN (21-10), sin una consulta más: viene en la fila.
+  //
+  // Un espejo APAGADO no tiene sesiones válidas: al terminar la presentación cada puesto
+  // vuelve a entrar y cae en el restaurante real, con sus datos como estaban.
+  const esEspejo =
+    typeof fila.presentacionEspejoDe === 'string' && fila.presentacionEspejoDe !== '';
+  if (esEspejo && fila.presentacionEspejoActivo !== 'true')
+    return { ok: false, motivo: 'presentacion' };
+  // Y el real EN presentación no atiende las sesiones de sus puestos: vuelven a entrar y
+  // `/api/auth/entrar` los abre en su gemelo. Se salvan la sesión del dueño general —es la
+  // raíz de su presentación y la que apaga el modo— y las delegadas, que ya pasaron por su
+  // concesión.
+  if (
+    fila.presentacionActivo === 'true' &&
+    verificado.carga.presentador === undefined &&
+    fila.duenoGeneralEmpleo !== fila.empleoId
+  )
+    return { ok: false, motivo: 'presentacion' };
   // Un contexto de demo depende de la sesión Y del permiso del dueño original.
   // Revocar cualquiera de los dos cierra también los contextos que abrió.
   const origen = verificado.carga.presentador;
@@ -140,6 +161,7 @@ export async function resolverSesion(opciones: OpcionesResolver): Promise<Result
       nombrePersona: duenoGeneral?.nombrePersona ?? fila.nombrePersona,
       nombreNegocio: fila.nombreNegocio,
       nombreSucursal: fila.nombreSucursal,
+      enPresentacion: esEspejo,
     },
   };
 }

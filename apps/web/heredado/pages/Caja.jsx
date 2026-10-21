@@ -72,6 +72,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { safeFormatDate } from '@/lib/safeFormat';
 import StatCard from '@/components/common/StatCard';
+import { claves } from '~/cliente/claves-de-consulta';
 
 const METODOS = [
   {
@@ -196,7 +197,8 @@ export default function Caja() {
   });
 
   const { data: gastos = [] } = useQuery({
-    queryKey: ['gastos_hoy'],
+    // Con su tope en la clave: Compras pide otros (21-10, claves por pregunta).
+    queryKey: claves.gastos.recientes(100),
     queryFn: () => api.entidades.GastoOperativo.list('-created_date', 100),
     initialData: [],
   });

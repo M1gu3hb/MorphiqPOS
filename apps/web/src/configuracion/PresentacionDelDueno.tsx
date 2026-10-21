@@ -6,6 +6,7 @@ import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Input } from '@morphiqpos/ui/primitivas/input';
 import { Aviso, EsqueletoDeLista, ErrorDePantalla, Superficie } from '@morphiqpos/ui/sistema';
 import ModoPresentacion from '@/components/configuracion/ModoPresentacion';
+import { ModoPresentacionAlCliente } from './ModoPresentacionAlCliente';
 
 const NegocioSchema = z.object({
   empleoId: z.string(),
@@ -17,7 +18,11 @@ type Negocio = z.infer<typeof NegocioSchema>;
 const RespuestaSchema = z.object({
   ok: z.boolean(),
   datos: z
-    .object({ negocios: z.array(NegocioSchema).optional(), desbloqueado: z.boolean().optional() })
+    .object({
+      negocios: z.array(NegocioSchema).optional(),
+      desbloqueado: z.boolean().optional(),
+      esGeneral: z.boolean().optional(),
+    })
     .optional(),
   error: z.object({ mensaje: z.string() }).optional(),
 });
@@ -51,6 +56,7 @@ async function pedir(entrada?: unknown) {
 export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
   const [negocios, setNegocios] = useState<Negocio[] | null>(null);
   const [abierto, setAbierto] = useState(false);
+  const [esGeneral, setEsGeneral] = useState(false);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [ocupado, setOcupado] = useState(false);
@@ -63,6 +69,7 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
         if (vigente) {
           setNegocios(datos.negocios ?? []);
           setAbierto(datos.desbloqueado ?? false);
+          setEsGeneral(datos.esGeneral ?? false);
         }
       })
       .catch((fallo: unknown) => {
@@ -86,102 +93,113 @@ export function PresentacionDelDueno({ cfg }: { cfg: unknown }) {
           /* La cookie sigue siendo la fuente de verdad. */
         }
         window.location.replace('/');
-      } else setAbierto(true);
+      } else {
+        setAbierto(true);
+        // Desbloqueado desde una sesión delegada: ahora sí hay modelos que listar.
+        setIntento((n) => n + 1);
+      }
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo completar la operación.');
     } finally {
       setOcupado(false);
     }
   }
-  if (negocios?.length === 0) return <ModoPresentacion cfg={cfg} />;
+  if (negocios?.length === 0 && !esGeneral) return <ModoPresentacion cfg={cfg} />;
   return (
-    <Superficie
-      como="section"
-      aria-labelledby={idTitulo}
-      className="flex flex-col gap-(--espacio-4) sm:p-(--espacio-6)"
-    >
-      <header className="flex flex-col gap-(--espacio-1)">
-        <h2 id={idTitulo} className="text-lg font-semibold">
-          Presentación de Morphiq
-        </h2>
-        <p className="text-sm text-texto-sutil">
-          Tu sistema maestro reúne los modelos de negocio. Cambia de demostración para presentar su
-          operación completa con sus propios datos.
-        </p>
-      </header>
-      {negocios === null ? (
-        error ? (
-          <ErrorDePantalla
-            titulo={error}
-            queHacer="Revisa la conexión y vuelve a intentarlo."
-            reintentar={
-              <Button
-                onClick={() => {
-                  setError('');
-                  setIntento((n) => n + 1);
-                }}
-              >
-                Reintentar
-              </Button>
-            }
-          />
-        ) : (
-          <EsqueletoDeLista filas={3} />
-        )
-      ) : (
-        <>
-          {error && <Aviso tono="peligro" titulo={error} />}
-          {!abierto ? (
-            <form
-              className="max-w-sm space-y-(--espacio-3)"
-              onSubmit={(e) => {
-                e.preventDefault();
-                void ejecutar({ accion: 'desbloquear', pin });
-              }}
-            >
-              <label htmlFor="pin-presentacion" className="text-sm font-medium">
-                PIN del dueño general
-              </label>
-              <Input
-                id="pin-presentacion"
-                type="password"
-                inputMode="numeric"
-                autoComplete="off"
-                value={pin}
-                onChange={(e) => {
-                  setPin(e.target.value);
-                }}
-                maxLength={8}
-              />
-              <Button type="submit" disabled={ocupado || pin.length < 4}>
-                {ocupado ? 'Comprobando…' : 'Abrir modelos de negocio'}
-              </Button>
-            </form>
-          ) : (
-            <div className="grid gap-(--espacio-3) sm:grid-cols-2 lg:grid-cols-3">
-              {negocios.map((negocio) => (
-                <Superficie
-                  key={negocio.empleoId}
-                  como="button"
-                  type="button"
-                  interactiva
-                  disabled={ocupado}
+    <div className="flex flex-col gap-(--espacio-4)">
+      <Superficie
+        como="section"
+        aria-labelledby={idTitulo}
+        className="flex flex-col gap-(--espacio-4) sm:p-(--espacio-6)"
+      >
+        <header className="flex flex-col gap-(--espacio-1)">
+          <h2 id={idTitulo} className="text-lg font-semibold">
+            Presentación de Morphiq
+          </h2>
+          <p className="text-sm text-texto-sutil">
+            Tu sistema maestro reúne los modelos de negocio. Cambia de demostración para presentar
+            su operación completa con sus propios datos.
+          </p>
+        </header>
+        {negocios === null ? (
+          error ? (
+            <ErrorDePantalla
+              titulo={error}
+              queHacer="Revisa la conexión y vuelve a intentarlo."
+              reintentar={
+                <Button
                   onClick={() => {
-                    void ejecutar({ accion: 'cambiar', empleoId: negocio.empleoId }, true);
+                    setError('');
+                    setIntento((n) => n + 1);
                   }}
                 >
-                  <strong className="block text-lg">
-                    {NOMBRES[negocio.paquete] ?? negocio.paquete}
-                  </strong>
-                  <span className="text-sm text-texto-sutil">
-                    {negocio.slug.startsWith('demo-') ? 'Abrir demostración' : negocio.nombre}
-                  </span>
-                </Superficie>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </Superficie>
+                  Reintentar
+                </Button>
+              }
+            />
+          ) : (
+            <EsqueletoDeLista filas={3} />
+          )
+        ) : (
+          <>
+            {error && <Aviso tono="peligro" titulo={error} />}
+            {!abierto ? (
+              <form
+                className="max-w-sm space-y-(--espacio-3)"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  void ejecutar({ accion: 'desbloquear', pin });
+                }}
+              >
+                <label htmlFor="pin-presentacion" className="text-sm font-medium">
+                  PIN del dueño general
+                </label>
+                <Input
+                  id="pin-presentacion"
+                  type="password"
+                  inputMode="numeric"
+                  autoComplete="off"
+                  value={pin}
+                  onChange={(e) => {
+                    setPin(e.target.value);
+                  }}
+                  maxLength={8}
+                />
+                <Button type="submit" disabled={ocupado || pin.length < 4}>
+                  {ocupado ? 'Comprobando…' : 'Abrir modelos de negocio'}
+                </Button>
+              </form>
+            ) : (
+              <div className="grid gap-(--espacio-3) sm:grid-cols-2 lg:grid-cols-3">
+                {negocios.map((negocio) => (
+                  <Superficie
+                    key={negocio.empleoId}
+                    como="button"
+                    type="button"
+                    interactiva
+                    disabled={ocupado}
+                    onClick={() => {
+                      void ejecutar({ accion: 'cambiar', empleoId: negocio.empleoId }, true);
+                    }}
+                  >
+                    <strong className="block text-lg">
+                      {NOMBRES[negocio.paquete] ?? negocio.paquete}
+                    </strong>
+                    <span className="text-sm text-texto-sutil">
+                      {/* El nombre del negocio cuando es suyo (Restaurante MH); las demostraciones
+                        no enseñan su nombre técnico. */}
+                      {negocio.nombre.startsWith('Demo del acople')
+                        ? 'Abrir demostración'
+                        : negocio.nombre}
+                    </span>
+                  </Superficie>
+                ))}
+              </div>
+            )}
+          </>
+        )}
+      </Superficie>
+      <ModoPresentacionAlCliente desbloqueado={abierto} />
+    </div>
   );
 }

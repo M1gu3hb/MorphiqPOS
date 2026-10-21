@@ -129,28 +129,48 @@ export default function FichaResumenVariable({
   // header de la card en pages/Productos.jsx (para no crecerla).
   // =========================================================
   if (v === 'card') {
+    // Las mismas tres cajas, a la misma altura, que las del producto de precio fijo: la
+    // etiqueta se recorta en una línea (lleva la unidad, que puede ser larga) en vez de
+    // crecer la caja y desalinear la tarjeta de su vecina.
     return (
-      <div className="grid grid-cols-3 gap-1 text-center">
-        <div className="rounded-md bg-muted/50 py-1.5">
-          <p className="text-[9px] text-muted-foreground uppercase">Costo / {u}</p>
-          <p className="text-xs font-bold text-advertencia">
-            {resumen.hayCosto ? formatCurrency(costoVal) : '—'}
-          </p>
+      <div className="space-y-1.5">
+        <div className="grid grid-cols-3 gap-1 text-center">
+          <div className="flex min-h-[3.25rem] min-w-0 flex-col items-center justify-center rounded-md bg-muted/50 px-1 py-1.5">
+            <p
+              className="w-full truncate text-[9px] uppercase text-muted-foreground"
+              title={`Costo / ${u}`}
+            >
+              Costo / {u}
+            </p>
+            <p className="text-xs font-bold tabular-nums text-advertencia">
+              {resumen.hayCosto ? formatCurrency(costoVal) : '—'}
+            </p>
+          </div>
+          <div className="flex min-h-[3.25rem] min-w-0 flex-col items-center justify-center rounded-md bg-muted/50 px-1 py-1.5">
+            <p
+              className="w-full truncate text-[9px] uppercase text-muted-foreground"
+              title={`Utilidad / ${u}`}
+            >
+              Utilidad / {u}
+            </p>
+            <p className="text-xs font-bold tabular-nums text-exito">
+              {resumen.hayCosto ? formatCurrency(resumen.utilidad) : '—'}
+            </p>
+          </div>
+          <div className="flex min-h-[3.25rem] min-w-0 flex-col items-center justify-center rounded-md bg-muted/50 px-1 py-1.5">
+            <p className="w-full truncate text-[9px] uppercase text-muted-foreground">Margen</p>
+            <p
+              className={`text-xs font-bold tabular-nums ${resumen.hayCosto ? margenColor(resumen.margen) : 'text-muted-foreground'}`}
+            >
+              {resumen.hayCosto ? formatPercent(resumen.margen) : '—'}
+            </p>
+          </div>
         </div>
-        <div className="rounded-md bg-muted/50 py-1.5">
-          <p className="text-[9px] text-muted-foreground uppercase">Utilidad / {u}</p>
-          <p className="text-xs font-bold text-exito">
-            {resumen.hayCosto ? formatCurrency(resumen.utilidad) : '—'}
+        {!resumen.hayCosto && (
+          <p className="line-clamp-2 text-[11px] leading-snug text-advertencia">
+            Costo por {u} no disponible hasta registrar inventario del ingrediente base.
           </p>
-        </div>
-        <div className="rounded-md bg-muted/50 py-1.5">
-          <p className="text-[9px] text-muted-foreground uppercase">Margen</p>
-          <p
-            className={`text-xs font-bold ${resumen.hayCosto ? margenColor(resumen.margen) : 'text-muted-foreground'}`}
-          >
-            {resumen.hayCosto ? formatPercent(resumen.margen) : '—'}
-          </p>
-        </div>
+        )}
       </div>
     );
   }

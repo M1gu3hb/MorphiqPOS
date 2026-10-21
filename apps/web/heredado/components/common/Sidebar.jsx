@@ -1,5 +1,6 @@
 'use client';
 import React, { useState, useEffect } from 'react';
+import { marcaVisibleDePlataforma, nombreVisibleDelNegocio } from '~/marca/nombre-visible';
 import { Link, useLocation } from '@/enrutado';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
@@ -126,12 +127,10 @@ export default function Sidebar({ collapsed, onToggle }) {
   const { config, paquete_modo } = useConfig();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
-  const [verAdicionales, setVerAdicionales] = useState(location.pathname.startsWith('/restaurante/'));
 
   // Cerrar al cambiar de ruta
   useEffect(() => {
     setMobileOpen(false);
-    if (location.pathname.startsWith('/restaurante/')) setVerAdicionales(true);
   }, [location.pathname]);
 
   // Bloquear scroll del body cuando el drawer está abierto
@@ -161,9 +160,8 @@ export default function Sidebar({ collapsed, onToggle }) {
     }),
   );
 
-  if (posUser?.esDuenoGeneral) navItems.unshift({
-    path: '/presentacion', label: 'Modelos de negocio', icon: 'LayoutGrid', entidad: null,
-  });
+  // «Modelos de negocio» ya no va en el menú (21-10): el selector vive en Configuración →
+  // Presentación, detrás del PIN del dueño general, igual en todos los modelos.
 
   const closeMobile = () => setMobileOpen(false);
 
@@ -185,10 +183,10 @@ export default function Sidebar({ collapsed, onToggle }) {
         {!collapsed && (
           <div className="min-w-0">
             <p className="text-sm font-heading font-bold truncate tracking-wide">
-              {config.nombre_negocio}
+              {nombreVisibleDelNegocio(config.nombre_negocio)}
             </p>
             <p className="text-[10px] text-sidebar-foreground/50 truncate">
-              {config.platform_brand || 'MH Astral Systems'}
+              {marcaVisibleDePlataforma(config.platform_brand)}
             </p>
           </div>
         )}
@@ -205,7 +203,7 @@ export default function Sidebar({ collapsed, onToggle }) {
       {/* Con nombre: las pantallas de modelo tienen su propia navegación —las categorías del
           cobro— y un lector de pantalla tiene que poder distinguir la principal. */}
       <nav aria-label="Menú principal" className="flex-1 py-4 overflow-y-auto space-y-0.5 px-2">
-        {navItems.filter((item) => verAdicionales || !item.path.startsWith('/restaurante/')).map((item) => {
+        {navItems.map((item) => {
           const Icon = ICON_MAP[item.icon] || Tag;
           const active = location.pathname === item.path;
           return (
@@ -270,18 +268,6 @@ export default function Sidebar({ collapsed, onToggle }) {
             </Link>
           );
         })}
-        {navItems.some((item) => item.path.startsWith('/restaurante/')) && (
-          <button
-            type="button"
-            aria-expanded={verAdicionales}
-            aria-label="Vistas adicionales de restaurante"
-            onClick={() => setVerAdicionales((anterior) => !anterior)}
-            className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm text-sidebar-foreground/70 hover:bg-sidebar-accent hover:text-sidebar-foreground"
-          >
-            <LayoutGrid className="w-5 h-5 shrink-0" aria-hidden />
-            {!collapsed && <span>{verAdicionales ? 'Ocultar vistas adicionales' : 'Vistas adicionales'}</span>}
-          </button>
-        )}
       </nav>
 
       {/* Theme toggle — visible en todas las páginas internas */}

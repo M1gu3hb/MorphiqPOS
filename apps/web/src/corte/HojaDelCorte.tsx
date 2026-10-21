@@ -1,6 +1,9 @@
 import { Cifra, Dinero, Tabla, type ColumnaDeTabla } from '@morphiqpos/ui/sistema';
 import type { Ref } from 'react';
 
+import { MarcaMorphiq } from '../marca/MarcaMorphiq.tsx';
+import { marcaVisibleDePlataforma, nombreVisibleDelNegocio } from '../marca/nombre-visible.ts';
+
 import type { Celda, Columna, DocumentoDelCorte, Seccion, Valor } from './hoja.ts';
 
 /**
@@ -151,6 +154,10 @@ export interface HojaDelCorteProps {
 
 export function HojaDelCorte({ documento, generadoEn, ref }: HojaDelCorteProps) {
   const { negocio } = documento;
+  // Lo que se IMPRIME: el nombre sin «Demo del acople · …» y la marca sin la anterior de la
+  // plataforma. El documento conserva el dato tal cual lo mandó el servidor.
+  const nombre = nombreVisibleDelNegocio(negocio.nombre);
+  const marca = marcaVisibleDePlataforma(negocio.marca);
   return (
     <div
       ref={ref}
@@ -163,10 +170,10 @@ export function HojaDelCorte({ documento, generadoEn, ref }: HojaDelCorteProps) 
           // Un <img> y no `next/image`: html2canvas captura el nodo tal cual, y el logo
           // viene del almacén del negocio con CORS.
           // eslint-disable-next-line @next/next/no-img-element
-          <img src={negocio.logoUrl} alt={negocio.nombre} crossOrigin="anonymous" style={LOGO} />
+          <img src={negocio.logoUrl} alt={nombre} crossOrigin="anonymous" style={LOGO} />
         )}
         <div className="flex-1">
-          <h1 className="text-3xl font-black tracking-wider">{negocio.nombre}</h1>
+          <h1 className="text-3xl font-black tracking-wider">{nombre}</h1>
           {negocio.rfc === null ? null : <p className="text-xs">RFC: {negocio.rfc}</p>}
           {negocio.direccion === null ? null : <p className="text-xs">{negocio.direccion}</p>}
           {negocio.telefono === null ? null : <p className="text-xs">Tel: {negocio.telefono}</p>}
@@ -177,7 +184,9 @@ export function HojaDelCorte({ documento, generadoEn, ref }: HojaDelCorteProps) 
           <p className="text-xs">
             Folio: <span className="font-mono font-bold">{documento.folio}</span>
           </p>
-          <p className="mt-(--espacio-1) text-xs text-texto-sutil">{negocio.marca}</p>
+          <p className="mt-(--espacio-1) text-xs text-texto-sutil">
+            <MarcaMorphiq variante="documento" nombre={marca} />
+          </p>
         </div>
       </header>
 
@@ -200,7 +209,7 @@ export function HojaDelCorte({ documento, generadoEn, ref }: HojaDelCorteProps) 
       <footer className="mt-(--espacio-4) border-t border-borde pt-(--espacio-2) text-center text-xs text-texto-sutil">
         {negocio.pie === null ? null : <p>{negocio.pie}</p>}
         <p>
-          Documento interno · {negocio.marca} · Generado{' '}
+          Documento interno · {marca} · Generado{' '}
           {new Intl.DateTimeFormat('es-MX', { dateStyle: 'medium', timeStyle: 'short' }).format(
             generadoEn,
           )}

@@ -27,11 +27,15 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Receipt, Search, Trash2, AlertTriangle, Printer } from 'lucide-react';
+import { ErrorDeLectura, EsqueletoDeFilas } from '~/cliente/EstadosDeCarga';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
 import TicketViewerDialog from '@/components/tickets/TicketViewerDialog';
 import { useConfig } from '@/lib/ConfigContext';
+
+/** La lista de «todavía no llegó nada»: una sola, estable entre pintadas. */
+const SIN_FILAS = [];
 
 const ESTADO_COLORS = {
   pagada: 'bg-exito/15 text-exito',
@@ -56,7 +60,12 @@ export default function Ventas() {
   const [verTicket, setVerTicket] = useState(null);
 
   // No usar initialData:[] (genera "sin ventas" antes del primer fetch).
-  const { data: ventas, isPending: ventasLoading } = useQuery({
+  const {
+    data: ventas,
+    isPending: ventasLoading,
+    isError: ventasFallaron,
+    refetch: releerVentas,
+  } = useQuery({
     queryKey: ['ventas_all'],
     queryFn: () => api.entidades.Venta.list('-created_date', 200),
     placeholderData: (prev) => prev,
@@ -64,13 +73,23 @@ export default function Ventas() {
   });
   const safeVentas = Array.isArray(ventas) ? ventas : [];
   const cargandoVentas = ventasLoading && !ventas;
+  // Falló y no hay ningún dato anterior: se dice, en vez de pintar «Sin ventas».
+  const noSePudoLeerLasVentas = ventasFallaron && ventas === undefined;
 
-  const { data: detalles = [] } = useQuery({
+  // Las líneas de la venta que se abre. Sin `initialData: []`: con él, cada venta abierta
+  // arrancaba con «cero productos» como si fuera su respuesta, y el detalle se pintaba vacío
+  // —con su total— hasta que llegaban las líneas.
+  const {
+    data: detallesLeidos,
+    isError: detallesFallaron,
+    refetch: releerDetalles,
+  } = useQuery({
     queryKey: ['detalles_venta', selectedVenta?.id],
     queryFn: () => api.entidades.DetalleVenta.filter({ venta_id: selectedVenta.id }),
     enabled: !!selectedVenta,
-    initialData: [],
   });
+  const detalles = Array.isArray(detallesLeidos) ? detallesLeidos : SIN_FILAS;
+  const cargandoDetalles = !!selectedVenta && detallesLeidos === undefined && !detallesFallaron;
 
   const filtered = useMemo(() => {
     return safeVentas.filter((v) => {
@@ -103,7 +122,7 @@ export default function Ventas() {
         [
           'ventas_all',
           'ventas_pendientes_caja',
-          'ventas_pagadas_caja',
+          'ventas_hoy',
           'pedidos_cocina',
           'mesas',
           'cortes',
@@ -169,6 +188,8 @@ export default function Ventas() {
 
       {cargandoVentas ? (
         <LoadingState label="Cargando ventas…" />
+      ) : noSePudoLeerLasVentas ? (
+        <ErrorDeLectura queNoSePudoLeer="las ventas" alReintentar={() => releerVentas()} />
       ) : filtered.length === 0 ? (
         <EmptyState
           icon={Receipt}
@@ -365,6 +386,13 @@ export default function Ventas() {
               <div>
                 <p className="text-xs font-medium mb-2 text-muted-foreground">Productos</p>
                 <div className="space-y-1">
+                  {cargandoDetalles && <EsqueletoDeFilas filas={3} />}
+                  {detallesFallaron && detallesLeidos === undefined && (
+                    <ErrorDeLectura
+                      queNoSePudoLeer="los productos de esta venta"
+                      alReintentar={() => releerDetalles()}
+                    />
+                  )}
                   {detalles.map((d, i) => (
                     <div
                       key={i}

@@ -28,7 +28,15 @@ import { sembrarZonasDeTienda } from './zonas.ts';
 import { sembrarSalon, type ResumenSalon } from './salon.ts';
 import { CICLOS, ORDEN_DE_LIMPIEZA } from './tablas-del-reseteo.ts';
 
-export const entradaResetearDemo = z.object({ confirmacion: z.literal('RESETEAR') });
+export const entradaResetearDemo = z.object({
+  confirmacion: z.literal('RESETEAR'),
+  /**
+   * Sembrar el CONTEXTO DE PRESENTACIÓN de un restaurante (21-10) y no una demo. Sólo entonces
+   * se consulta la base para comprobar que la organización es un espejo declarado; sin la marca,
+   * la guarda decide por ID y rechaza a un negocio real sin tocar nada.
+   */
+  espejo: z.literal(true).optional(),
+});
 
 /**
  * LA CONTRASEÑA DEL MODO PRESENTACIÓN, que una demostración necesita tener.
@@ -160,6 +168,33 @@ export function exigirQueSeaDemo(organizacionId: string): NegocioConocido {
   return demo;
 }
 
+/**
+ * El CONTEXTO DE PRESENTACIÓN de un restaurante (cierre del 21-10).
+ *
+ * El modo presentación siembra su espejo con esta misma máquina: catálogo, recetas, equipo y
+ * sala. El espejo no está en `DEMOS` —nace cuando el dueño prepara su presentación— y se
+ * reconoce por su configuración, que sólo escribe el servidor (`presentacion_espejo_de`). Sólo se
+ * consulta cuando la entrada lo pide (`espejo: true`); todo lo que no sea un espejo declarado
+ * contesta el mismo 403 que la guarda por ID. Conserva su nombre.
+ */
+export async function exigirEspejoDePresentacion(
+  tx: Transaccion,
+  organizacionId: string,
+): Promise<{ readonly nombre: string }> {
+  const fila = await tx
+    .selectFrom('configuracion')
+    .innerJoin('organizaciones', 'organizaciones.id', 'configuracion.organizacion_id')
+    .select([
+      'organizaciones.nombre',
+      sql<string | null>`configuracion.valores->>'presentacion_espejo_de'`.as('espejoDe'),
+    ])
+    .where('configuracion.organizacion_id', '=', organizacionId)
+    .executeTakeFirst();
+  if (fila?.espejoDe === undefined || fila.espejoDe === null || fila.espejoDe === '')
+    return exigirQueSeaDemo(organizacionId);
+  return { nombre: fila.nombre };
+}
+
 export const resetearDemo = definirComando<
   Transaccion,
   typeof entradaResetearDemo,
@@ -180,8 +215,11 @@ export const resetearDemo = definirComando<
   roles: ['dueno', 'administrador'],
   paquetes: PAQUETES,
   entrada: entradaResetearDemo,
-  async ejecutar(ctx) {
-    const demo = exigirQueSeaDemo(ctx.ambito.organizacionId);
+  async ejecutar(ctx, entrada) {
+    const demo =
+      entrada.espejo === true
+        ? await exigirEspejoDePresentacion(ctx.tx, ctx.ambito.organizacionId)
+        : exigirQueSeaDemo(ctx.ambito.organizacionId);
     const organizacion = await ctx.tx
       .selectFrom('organizaciones')
       .select('giro')

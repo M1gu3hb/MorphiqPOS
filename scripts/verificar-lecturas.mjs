@@ -32,9 +32,9 @@ const LECTURAS_PERMITIDAS = [
   },
   {
     campo: 'producto_id',
-    cantidad: 16,
+    cantidad: 18,
     razon:
-      'Las lecturas pertenecen a recetas, líneas de venta, comandas y carritos; sólo la vista agregada de descuentos lo descarta.',
+      'Las lecturas pertenecen a recetas, líneas de venta, comandas y carritos; sólo la vista agregada de descuentos lo descarta. Las dos de Recetas y Platillos (21-10) agrupan las líneas de receta por platillo para el costo honesto.',
   },
   {
     campo: 'tipo_venta',

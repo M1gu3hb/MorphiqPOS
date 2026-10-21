@@ -53,11 +53,15 @@ const saveSet = (set) => {
  *   3) voz larga con productos/notas + alergia/celebración (si voz activa).
  * - Cocina NUNCA reproduce voz cuando los pedidos pasan a "listo".
  */
-export default function CocinaNuevoPedidoWatcher({ pedidos = [] }) {
+export default function CocinaNuevoPedidoWatcher({ pedidos = [], cargando = false }) {
   const firstLoadRef = useRef(true);
   const notifiedRef = useRef(loadSet());
 
   useEffect(() => {
+    // Mientras la primera lectura no llega, `pedidos` es una lista vacía que NO es la de la
+    // cocina: tomarla por «la primera carga» dejaba que la lectura de verdad se anunciara
+    // entera —toast y voz por cada pedido que ya estaba— al entrar a la pantalla con la red lenta.
+    if (cargando) return;
     const arr = Array.isArray(pedidos) ? pedidos : [];
     // Solo filtramos por estado. La visibilidad ya está aplicada por Cocina.jsx
     // (que respeta estaciones, cocina general y legacy).
@@ -112,7 +116,7 @@ export default function CocinaNuevoPedidoWatcher({ pedidos = [] }) {
         } catch {}
       });
     }, 280);
-  }, [pedidos]);
+  }, [pedidos, cargando]);
 
   return null;
 }

@@ -67,6 +67,8 @@ import {
   // tercera copia del mismo dato que envejecía sola.
 } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
+import { claves } from '~/cliente/claves-de-consulta';
+import { mesasDelPlano, zonasConMesas } from '~/cliente/mesas-del-mapa';
 
 const MAP_HEIGHT = 600;
 // Hook simple para detectar móvil
@@ -187,7 +189,9 @@ function Mesero() {
 
   // Sin initialData:[] (evita "no hay mesas" antes del primer fetch).
   const { data: mesasRaw, isPending: mesasLoading } = useQuery({
-    queryKey: ['mesas'],
+    // Sólo las activas, con su clave propia (ver Cocina): el dato previo que conserva
+    // `placeholderData` es siempre el de ESTA consulta, nunca la lista con las de baja.
+    queryKey: claves.mesas.activas(),
     queryFn: () => api.entidades.Mesa.filter({ activo: true }),
     refetchInterval: 5000,
     placeholderData: (prev) => prev,
@@ -265,11 +269,12 @@ function Mesero() {
     [detallesVenta],
   );
 
-  const mesasZona = (mesas || []).filter((m) => (m?.zona || 'Interior') === zonaActiva);
-  const zonasConCount = ZONAS_MESA.map((z) => ({
-    zona: z,
-    count: (mesas || []).filter((m) => (m?.zona || 'Interior') === z).length,
-  })).filter((z) => z.count > 0);
+  // El plano de la zona y sus pestañas cuentan sólo mesas en servicio (21-10).
+  const mesasZona = mesasDelPlano(mesas || [], zonaActiva);
+  const zonasConCount = zonasConMesas(mesas || [], ZONAS_MESA).map(({ zona, cuantas }) => ({
+    zona,
+    count: cuantas,
+  }));
 
   // La zona vigente sale de las zonas que esta persona SÍ tiene (cierre del 21-10): con la
   // asignación encendida, una mesera con sus mesas sólo en «Barra» abría en «Interior» —sin

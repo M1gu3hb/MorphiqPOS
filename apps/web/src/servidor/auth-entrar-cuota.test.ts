@@ -70,6 +70,10 @@ vi.mock('@morphiqpos/app/negocio', async () => {
   };
 });
 
+// El restaurante no está en presentación: la entrada sigue como siempre (21-10).
+vi.mock('@morphiqpos/app/presentacion', () => ({
+  sesionDePresentacion: () => Promise.resolve(null),
+}));
 vi.mock('@morphiqpos/app/configuracion', async () => {
   const original = await vi.importActual<typeof import('@morphiqpos/app/configuracion')>(
     '@morphiqpos/app/configuracion',

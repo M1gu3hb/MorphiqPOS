@@ -1773,6 +1773,10 @@
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
     {
+      "ruta": "/api/presentacion/modo",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
       "ruta": "/api/presentacion",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },

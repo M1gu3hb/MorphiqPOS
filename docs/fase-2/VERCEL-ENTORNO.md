@@ -250,6 +250,23 @@ cruzar los dos valores no rompe nada existente. Es un cambio de variable de Prod
 `APP_URL=https://morphiqpos-kappa.vercel.app` y `APP_URL_ALTERNAS=https://pos-mh-astral-systems.com`
 mientras el DNS no apunte a Vercel; cuando apunte, se vuelven a cruzar.
 
+### Cómo está desde el 21-10-2026 (D-55)
+
+El dominio propio ya es de Vercel: `www.pos-mh-astral-systems.com` es el principal y el apex
+redirige con 308 a `www`. El 20-10 en la noche `www` contestaba **403** al PIN (sondeo con la
+cabecera `x-morphiqpos-request`: `www` → 403; apex y kappa → 401), porque no estaba en la lista.
+Se cambiaron con el CLI de Vercel (valores no secretos, tipo cifrado, entorno Production):
+
+| Variable | Valor |
+| --- | --- |
+| `APP_URL` | `https://www.pos-mh-astral-systems.com` (canónica: QR e imágenes nuevas) |
+| `APP_URL_ALTERNAS` | `https://pos-mh-astral-systems.com,https://morphiqpos-kappa.vercel.app` |
+| `ORGANIZACION` | `demo-acople-restaurante,demo-acople-cafeteria,demo-acople-tienda,demo-acople-ferreteria,demo-acople-estetica` |
+
+`ORGANIZACION` ya no lleva `mh-restaurante` (D-52): un solo restaurante visible. Sus datos y su
+cuenta siguen en la base; volver a ponerlo en la lista lo recupera. Las variables se aplican al
+desplegar.
+
 ### Lo que NO se hizo, y por qué
 
 Leer el `Host` de la petición y aceptar el origen que coincida con él. Habría arreglado el síntoma

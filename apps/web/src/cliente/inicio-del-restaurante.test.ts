@@ -22,6 +22,10 @@ describe('restaurante: entrada y menú de cada puesto', () => {
       ])
         expect(rutas).toContain(ruta);
       expect(new Set(rutas).size).toBe(rutas.length);
+      // Sin «vistas adicionales» (D-52): del juego nuevo sólo el cierre del día va al menú.
+      expect(rutas.filter((r: string) => r.startsWith('/restaurante/'))).toEqual([
+        '/restaurante/cierre-diario-y-arqueo',
+      ]);
     },
   );
   it('las entradas de operación conservan nombres de pantallas, no plurales de puestos', () => {

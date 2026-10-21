@@ -17,6 +17,7 @@ import LiquidarPropinasDialog from '@/components/propinas/LiquidarPropinasDialog
 import { Link } from '@/enrutado';
 import { useIsDark } from '@/lib/ThemeContext';
 import { useConfig } from '@/lib/ConfigContext';
+import { claves } from '~/cliente/claves-de-consulta';
 
 /**
  * Sección de propinas para el Dashboard.
@@ -38,7 +39,7 @@ export default function PropinasDashboardSection() {
   });
 
   const { data: meseros = [] } = useQuery({
-    queryKey: ['usuarios_pos_meseros'],
+    queryKey: claves.usuarios.activos(),
     queryFn: () => api.entidades.UsuarioPOS.filter({ activo: true }),
     initialData: [],
   });

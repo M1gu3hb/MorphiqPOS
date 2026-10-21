@@ -1,13 +1,13 @@
 import 'server-only';
 
 import { ErrorDominio, validarEntorno } from '@morphiqpos/contracts';
-import { conTransaccion, type Transaccion } from '@morphiqpos/data';
+import { conTransaccion, obtenerDb, type Transaccion } from '@morphiqpos/data';
 
 // El MISMO hash que usa el enrolamiento de terminales. Calcularlo aquí de otra
 // manera haría que el token emitido desde Configuración no encontrara nunca su
 // fila, y el monitor se quedaría en negro sin decir por qué.
 import { hashearDispositivo } from '../identidad/dispositivo.ts';
-import { negocioDelDespliegue } from '../negocio/despliegue.ts';
+import { elegirNegocioDelToken, negociosDelPortal } from '../negocio/despliegue.ts';
 import type { RespuestaDelPortal } from './http.ts';
 
 /**
@@ -63,8 +63,26 @@ export async function servirRecogida(
 ): Promise<RespuestaDelPortal> {
   try {
     const entorno = validarEntorno(process.env);
-    // El host del QR decide el negocio; ver `resolverDespliegue` en `http.ts`.
-    const negocio = await negocioDelDespliegue(entorno.ORGANIZACION, host);
+    // El negocio sale del token del monitor, dentro de los que sirve el despliegue: con
+    // varios negocios en un dominio sin slug, «el» negocio del despliegue no existe (21-10).
+    const candidatos = await negociosDelPortal(entorno.ORGANIZACION, host);
+    const filas =
+      candidatos.length === 1
+        ? []
+        : await obtenerDb()
+            .selectFrom('terminales')
+            .select('organizacion_id')
+            .where('device_token_hash', '=', hashearDispositivo(token, entorno.PIN_PEPPER))
+            .where(
+              'organizacion_id',
+              'in',
+              candidatos.map((n) => n.organizacionId),
+            )
+            .limit(2)
+            .execute();
+    const negocio = elegirNegocioDelToken(candidatos, filas);
+    if (negocio === null)
+      throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese monitor no está dado de alta.');
     const tablero = await conTransaccion(async (tx) =>
       tableroDeRecogida(tx, negocio.organizacionId, token, entorno.PIN_PEPPER),
     );

@@ -46,6 +46,7 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import PropinasRegistros from '@/components/propinas/PropinasRegistros';
 import { tipsEnabled } from '@/utils/tipsUtils';
 import { useLocation } from '@/enrutado';
+import { claves } from '~/cliente/claves-de-consulta';
 
 export default function Registros() {
   const { config, paquete_modo } = useConfig();
@@ -123,7 +124,7 @@ export default function Registros() {
     staleTime: 5000,
   });
   const { data: ventasRaw, isPending: ventasLoading } = useQuery({
-    queryKey: ['registros_ventas'],
+    queryKey: claves.registrosVentas.porOrden('-created_date', 1000),
     queryFn: () => api.entidades.Venta.list('-created_date', 1000),
     placeholderData: (prev) => prev,
     staleTime: 5000,
@@ -246,7 +247,13 @@ export default function Registros() {
       />
 
       {/* Resumen general con periodos y PDF */}
-      <ResumenPeriodo ventas={ventas} compras={compras} gastos={gastos} onPDF={handlePDF} />
+      <ResumenPeriodo
+        ventas={ventas}
+        compras={compras}
+        gastos={gastos}
+        onPDF={handlePDF}
+        cargando={ventasFirstLoad || (showOperativos && (comprasFirstLoad || gastosFirstLoad))}
+      />
 
       {/* Buscador universal */}
       <div className="relative">

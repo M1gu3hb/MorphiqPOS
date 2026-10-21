@@ -10,7 +10,31 @@ import {
   nuevoIdDeSesion,
   verificarSesion,
 } from '../sesion/token.ts';
+import { abrirSesionEnElEspejo, gemeloEnPresentacion } from '../presentacion/espejo.ts';
 import { resolverTerminal } from './entrar.ts';
+
+/**
+ * El empleo con el que el dueño general desbloquea la presentación: el de su sesión, o —si
+ * está en una sesión delegada (otro modelo, o el restaurante en presentación)— el de su
+ * cuenta raíz, que es el que tiene su PIN (21-10).
+ */
+export async function empleoRaizDePresentacion(sesion: {
+  readonly empleoId: string;
+  readonly organizacionId: string;
+  readonly presentador?: { readonly empleoId: string };
+}): Promise<{ readonly empleoId: string; readonly organizacionId: string }> {
+  if (sesion.presentador === undefined)
+    return { empleoId: sesion.empleoId, organizacionId: sesion.organizacionId };
+  const fila = await obtenerDb()
+    .selectFrom('empleos')
+    .select('organizacion_id')
+    .where('id', '=', sesion.presentador.empleoId)
+    .executeTakeFirst();
+  return {
+    empleoId: sesion.presentador.empleoId,
+    organizacionId: fila?.organizacion_id ?? sesion.organizacionId,
+  };
+}
 
 /** Lista cerrada por empleo del dueño, nunca por nombres, prefijos de slug o rol global. */
 export async function negociosDePresentacion(
@@ -75,6 +99,26 @@ export async function cambiarNegocioDePresentacion(peticion: {
   // La ruta sólo entrega la cookie HttpOnly emitida al comprobar el PIN de presentación.
   const raiz = verificarSesion(peticion.token, peticion.secreto);
   if (!raiz.ok) throw new ErrorDominio('ACCESO_NO_ENCONTRADO', 'Vuelve a iniciar sesión.');
+
+  // El restaurante EN presentación se abre en su contexto de presentación (21-10): elegirlo
+  // en «Modelos de negocio» no debe sacar al dueño de la presentación que está dando.
+  const gemelo = await gemeloEnPresentacion(destino.organizacionId, destino.empleoId);
+  if (gemelo !== null) {
+    const sesion = await abrirSesionEnElEspejo({
+      origenId: destino.organizacionId,
+      gemelo,
+      deviceToken: peticion.deviceToken,
+      pimienta: peticion.pimienta,
+      secreto: peticion.secreto,
+      presentador: raiz.carga,
+    });
+    return {
+      token: sesion.token,
+      maxEdadSegundos: sesion.maxEdadSegundos,
+      deviceToken: sesion.deviceToken,
+      destino,
+    };
+  }
 
   const empleo = await obtenerDb()
     .selectFrom('empleos')

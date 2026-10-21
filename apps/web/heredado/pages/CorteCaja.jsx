@@ -21,6 +21,10 @@ import { toast } from 'sonner';
 import { DollarSign, Receipt, TrendingUp, Scissors, FileText } from 'lucide-react';
 import { safeFormatDate } from '@/lib/safeFormat';
 import CorteViewerDialog from '@/components/cortes/CorteViewerDialog';
+import { claves } from '~/cliente/claves-de-consulta';
+
+/** La lista de «todavía no llegó nada»: una sola, para que los `useMemo` no se invaliden. */
+const SIN_FILAS = [];
 
 export default function CorteCaja() {
   const queryClient = useQueryClient();
@@ -32,17 +36,21 @@ export default function CorteCaja() {
 
   const today = new Date().toISOString().slice(0, 10);
 
-  const { data: ventasHoy = [] } = useQuery({
-    queryKey: ['ventas_corte'],
+  // La misma pregunta que el tablero y Caja hacen (`Venta.filter({ estado: 'pagada' })`): una
+  // sola clave, una sola lectura. SIN `initialData: []`: sembraría `[]` como si ya hubiera
+  // respondido en una entrada del caché que las otras pantallas leen, y el tablero daría por
+  // buenos unos ceros que sólo eran el relleno de ésta.
+  const { data: ventasLeidas } = useQuery({
+    queryKey: ['ventas_hoy'],
     queryFn: () => api.entidades.Venta.filter({ estado: 'pagada' }),
-    initialData: [],
   });
+  const ventasHoy = ventasLeidas ?? SIN_FILAS;
 
-  const { data: gastos = [] } = useQuery({
-    queryKey: ['gastos_hoy'],
+  const { data: gastosLeidos } = useQuery({
+    queryKey: claves.gastos.recientes(100),
     queryFn: () => api.entidades.GastoOperativo.list('-created_date', 100),
-    initialData: [],
   });
+  const gastos = gastosLeidos ?? SIN_FILAS;
 
   const { data: cortes = [] } = useQuery({
     queryKey: ['cortes'],

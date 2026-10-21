@@ -1158,3 +1158,78 @@ desde la aplicación y privilegios de dueño de la tabla).
 **Consecuencias.** Aplicada en producción el 21-10 con ensayo, respaldo de la función, vuelta atrás
 ensayada y verificación contra una base migrada de cero. Lo que la suite de operaciones encontró y
 no entra en este cierre queda en `test.fixme` con qué falla y dónde (D-2, D-3, D-5; reporte 021).
+
+## D-52 · 21-10-2026 · Un solo restaurante visible y sin «vistas adicionales»
+
+**Contexto.** Miguel elegía entre «Restaurante MH» (`mh-restaurante`, la siembra de septiembre casi
+intacta: 12 mesas de fábrica, 14 platillos) y «Restaurante · Abrir demostración»
+(`demo-acople-restaurante`), que es donde él trabaja: su cuenta de dueño general y su concesión, su
+carta de 27 platillos, el estilo `morphiq` y su distribución de seis mesas. El menú lateral tenía
+además «Modelos de negocio» y un segundo menú, «Vistas adicionales», con las mismas pantallas.
+
+**Decisión.** El restaurante visible es `demo-acople-restaurante`, con el nombre «Restaurante MH»
+(contrato `DEMOS` y dato en producción). `mh-restaurante` sale de `ORGANIZACION` en producción: no se
+lista ni se abre, y sus datos y su cuenta «Miguel» quedan intactos (volver a ponerlo en la variable
+lo recupera). «Modelos de negocio» deja el menú: vive en Configuración → Presentación detrás del PIN
+del dueño general. Las vistas `/restaurante/*` dejan el menú salvo el cierre del día. Las que traen
+una función que el recorrido heredado no tiene —la mesa activa (dividir, unir, cambiar, separar),
+la precuenta y el cierre del día— se abren con el permiso de su puesto (la mesera llega desde
+«Mesas y pedidos», la caja a su cierre); las que duplican una pantalla siguen siendo de dirección
+(`rutaPermitidaParaElPuesto`).
+
+**Alternativas.** Mover la configuración de Miguel a `mh-restaurante` (mezclaría catálogos y
+operaciones de dos organizaciones); borrar la demo o `mh-restaurante` (prohibido: datos y cuentas).
+
+**Consecuencias.** Matiza D-49: una vista con función propia es de quien tiene su permiso; las
+duplicadas, de dirección. El servidor sigue negando cada comando por rol.
+
+## D-53 · 21-10-2026 · El QR dice su negocio, dentro de lo que sirve el despliegue
+
+**Contexto.** En el dominio propio el sistema maestro sirve seis negocios en un host sin slug.
+`negocioDelDespliegue` exige UNO y fallaba antes de mirar el token: todo QR contestaba 422. Las
+pruebas del portal corrían con un solo negocio configurado y no lo veían.
+
+**Decisión.** El portal y el monitor de recogida resuelven la organización desde el token,
+buscándolo SÓLO entre los negocios del despliegue y sus contextos de presentación
+(`negocioDelTokenDeMesa`, `negociosDelPortal`). Un token de un negocio no servido, inexistente o
+repetido en dos negocios contesta lo mismo (404). `resolverAmbitoPortal` lo vuelve a comprobar.
+
+**Alternativas.** Reducir `ORGANIZACION` a un negocio (pierde los demás modelos); un subdominio por
+negocio (DNS que no existe y no hace falta).
+
+**Consecuencias.** `varios-negocios.integracion.test.ts` corre con varios negocios y el host
+público; se vio en rojo sin el arreglo.
+
+## D-54 · 21-10-2026 · El modo presentación vive en un contexto espejo
+
+**Contexto.** Miguel quiere enseñar el restaurante con treinta días de actividad y volver a sus datos
+exactamente como estaban, con meseros, cocina y caja operando desde sus teléfonos durante la
+presentación, sin exponer otro restaurante.
+
+**Decisión.** Una organización interna —el espejo— por restaurante, nunca en `ORGANIZACION`. Se
+siembra con la misma máquina de la demo (`resetearDemo`, que acepta un espejo declarado en su
+configuración) y toma del real su configuración, su distribución de mesas (con tokens propios) y
+precio, imagen y estado de cada platillo. El personal tiene gemelos (por nombre y puesto, o creados
+al entrar). Con el modo encendido, la entrada con PIN al real abre la sesión en el gemelo (el dueño
+general, delegada desde su sesión raíz); `resolverSesion` contesta `presentacion` (401 con aviso) a
+las sesiones del lado contrario. El switch está en Configuración → Presentación y el servidor exige
+el desbloqueo del dueño general.
+
+**Alternativas.** Marcar cada fila «simulada» y filtrar en todas las consultas (cada olvido mezcla
+dinero inventado con el real); dibujar gráficas ficticias (no cuadran con tickets ni Registros).
+
+**Consecuencias.** El espejo es una organización más para auditoría, terminales y folios. Su terminal
+copia el hash del dispositivo del real para no cambiar la cookie de nadie. `espejo.integracion.test.ts`
+prueba preparar, encender, entrar, apagar, reencender y la huella intacta del real.
+
+## D-55 · 21-10-2026 · El dominio canónico es `www`
+
+**Contexto.** El apex redirige (308) a `www.pos-mh-astral-systems.com`, que no estaba entre los
+orígenes de escritura: el PIN contestaba 403 en el dominio.
+
+**Decisión.** En producción, `APP_URL=https://www.pos-mh-astral-systems.com` y
+`APP_URL_ALTERNAS` con los dos orígenes exactos restantes (apex y `morphiqpos-kappa.vercel.app`).
+El QR se genera con el origen de `APP_URL` (`<html data-url-publica>`), no con el de la pestaña.
+
+**Alternativas.** Aceptar el `Host` de la petición (rompe R-17); comodines (abren la escritura a
+despliegues ajenos).

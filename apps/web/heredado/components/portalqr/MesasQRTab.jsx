@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useMemo } from 'react';
 import { api } from '@/api/cliente';
+import { claves } from '~/cliente/claves-de-consulta';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -20,10 +21,18 @@ export default function MesasQRTab({ config }) {
   const [busqueda, setBusqueda] = useState('');
   const [mesaActiva, setMesaActiva] = useState(null);
 
-  const { data: mesas = [], isLoading } = useQuery({
-    queryKey: ['mesas_qr_admin'],
-    queryFn: () => api.entidades.Mesa.list('orden', 200),
-    initialData: [],
+  // Las mesas OPERATIVAS: una mesa quitada del mapa no tiene QR que repartir. La clave cuelga
+  // de `['mesas']` para que crear, editar, quitar o reactivar una mesa en Configuración —que
+  // invalida ese prefijo— se vea aquí sin recargar. Sin `initialData`: con él la consulta
+  // nacía «cargada» y vacía, y la pantalla decía «No hay mesas configuradas» mientras llegaban.
+  const {
+    data: mesas = [],
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
+    queryKey: claves.mesas.qrOperativos(),
+    queryFn: () => api.entidades.Mesa.filter({ activo: true }, 'orden', 200),
   });
 
   // Mesas sin token: las inicializa con uno automáticamente la primera vez que
@@ -33,7 +42,7 @@ export default function MesasQRTab({ config }) {
   const asegurarToken = async (mesa) => {
     if (!mesa?.id || mesa.qr_token) return mesa;
     const token = await generarTokenMesa(mesa.id);
-    queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
+    queryClient.invalidateQueries({ queryKey: claves.mesas.raiz() });
     return { ...mesa, qr_token: token };
   };
 
@@ -45,7 +54,7 @@ export default function MesasQRTab({ config }) {
       // que se guardaron, así que el toast decía «Tokens generados (12)» con
       // doce mesas sin QR. Si una falla, falla el lote y se dice.
       await Promise.all(pendientes.map((m) => generarTokenMesa(m.id)));
-      queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
+      queryClient.invalidateQueries({ queryKey: claves.mesas.raiz() });
       toast.success(`Tokens generados (${pendientes.length})`);
     } catch (err) {
       toast.error(err?.message || 'No se pudo generar tokens');
@@ -56,7 +65,7 @@ export default function MesasQRTab({ config }) {
     if (!mesa?.id) return;
     try {
       await api.entidades.Mesa.update(mesa.id, { qr_activo: !!value });
-      queryClient.invalidateQueries({ queryKey: ['mesas_qr_admin'] });
+      queryClient.invalidateQueries({ queryKey: claves.mesas.raiz() });
     } catch (err) {
       toast.error(err?.message || 'No se pudo actualizar');
     }
@@ -102,10 +111,30 @@ export default function MesasQRTab({ config }) {
       </div>
 
       {isLoading && (
-        <p className="text-sm text-muted-foreground text-center py-6">Cargando mesas...</p>
+        <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" aria-busy="true">
+          {[0, 1, 2, 3, 4, 5].map((i) => (
+            <div key={i} className="rounded-xl border bg-card p-4 flex gap-3 items-start">
+              <div className="w-[82px] h-[82px] rounded-lg bg-muted animate-pulse shrink-0" />
+              <div className="flex-1 space-y-2">
+                <div className="h-4 w-24 rounded bg-muted animate-pulse" />
+                <div className="h-3 w-32 rounded bg-muted animate-pulse" />
+                <div className="h-6 w-28 rounded bg-muted animate-pulse" />
+              </div>
+            </div>
+          ))}
+        </div>
       )}
 
-      {!isLoading && filtradas.length === 0 && (
+      {isError && (
+        <div className="text-center py-8 text-sm space-y-2">
+          <p>No se pudieron cargar las mesas.</p>
+          <Button size="sm" variant="outline" onClick={() => refetch()}>
+            Reintentar
+          </Button>
+        </div>
+      )}
+
+      {!isLoading && !isError && filtradas.length === 0 && (
         <div className="text-center py-12 text-sm text-muted-foreground">
           <QrCode className="w-10 h-10 mx-auto mb-2 opacity-40" />
           <p>No hay mesas configuradas.</p>

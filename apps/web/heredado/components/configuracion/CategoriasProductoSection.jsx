@@ -72,11 +72,17 @@ export default function CategoriasProductoSection() {
     initialData: [],
   });
 
-  const { data: productos = [] } = useQuery({
+  // `['productos_all']` la comparten Productos y Recetas, que distinguen «todavía no llegó» de
+  // «no hay» con `isPending`: sembrar aquí un `[]` con `initialData` les ponía la lista vacía
+  // como si ya hubiera respondido. Sin siembra, esta sección usa su relleno sólo en su pintura.
+  const { data: productosLeidos } = useQuery({
     queryKey: ['productos_all'],
     queryFn: () => api.entidades.ProductoTerminado.filter({ activo: true }),
-    initialData: [],
   });
+  const productos = useMemo(
+    () => (Array.isArray(productosLeidos) ? productosLeidos : []),
+    [productosLeidos],
+  );
 
   const { data: estaciones = [] } = useQuery({
     queryKey: ['estaciones_preparacion'],

@@ -36,7 +36,8 @@
     "./ferreteria": "./src/ferreteria/index.ts",
     "./salon": "./src/salon/index.ts",
     "./cartera": "./src/cartera/index.ts",
-    "./reportes": "./src/reportes/index.ts"
+    "./reportes": "./src/reportes/index.ts",
+    "./presentacion": "./src/presentacion/index.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",

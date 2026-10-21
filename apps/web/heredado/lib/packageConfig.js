@@ -420,10 +420,16 @@ export function navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso) {
       // plantilla —Café Jacaranda— las nombra con el suyo: «Baristas», «Barras».
       pluralPropio: PLURAL_DEL_RESTAURANTE[item.path],
     }));
-    const vistas = new Set(anteriores.map((item) => item.ruta));
-    entradas = ['dueno', 'administrador'].includes(rol)
-      ? [...anteriores, ...entradas.filter((item) => !vistas.has(item.ruta))]
-      : anteriores;
+    // SIN «VISTAS ADICIONALES» (21-10, D-52): Miguel no quiere un segundo menú con las
+    // mismas pantallas. Del juego nuevo sólo entra al menú lo que no tiene par en el
+    // recorrido heredado —el cierre del día con su PDF—; la mesa activa (dividir, unir,
+    // cambiar, separar) y la precuenta se abren desde «Mesas y pedidos», y las demás quedan
+    // fuera de la navegación visible (siguen abriendo por permiso: `rutaPermitidaParaElPuesto`).
+    const delDia = entradas
+      .filter((item) => DEL_RESTAURANTE_EN_EL_MENU.has(item.ruta))
+      .map((item) => ({ ...item, etiqueta: ETIQUETA_EN_EL_MENU[item.ruta] ?? item.etiqueta }));
+    // El cierre del día lo ve quien tiene su permiso: dirección y la caja que cierra.
+    entradas = [...anteriores, ...delDia];
   }
   if (typeof tienePermiso !== 'function') return entradas;
   return entradas.filter((entrada) => tienePermiso(rol, entrada.permiso));
@@ -453,6 +459,15 @@ export function inicioDeLaSesion(rol, paqueteModo, tienePermiso) {
 /** Rutas con permiso que NO están en el menú: se llega por botón o tecleándolas. */
 const PERMISO_FUERA_DEL_MENU = { '/pos': 'ver_pos', '/mesas': 'ver_mesas' };
 
+/** Lo único de las vistas nuevas que va en el menú del restaurante (D-52). */
+const DEL_RESTAURANTE_EN_EL_MENU = new Set(['/restaurante/cierre-diario-y-arqueo']);
+const ETIQUETA_EN_EL_MENU = { '/restaurante/cierre-diario-y-arqueo': 'Cierre del día' };
+const VISTAS_POR_PERMISO = new Set([
+  '/restaurante/mesa-activa',
+  '/restaurante/precuenta',
+  '/restaurante/cierre-diario-y-arqueo',
+]);
+
 /**
  * ¿Puede ESTA persona abrir esta ruta? (cierre del restaurante, 21-10)
  *
@@ -472,9 +487,13 @@ export function rutaPermitidaParaElPuesto(ruta, rol, paqueteModo, tienePermiso) 
   const fueraDelMenu = PERMISO_FUERA_DEL_MENU[ruta];
   if (fueraDelMenu) return tienePermiso(rol, fueraDelMenu);
   if (ruta.startsWith('/restaurante/') && !rutaDeModeloSinSesion(ruta)) {
-    return navegacionParaRolYPlantilla(rol, paqueteModo, tienePermiso).some(
-      (entrada) => entrada.ruta === ruta,
-    );
+    // Fuera del menú (D-52). Las vistas con una función que el recorrido heredado no tiene
+    // —la mesa activa (dividir, unir, cambiar, separar), la precuenta y el cierre del día— se
+    // abren con el permiso de su puesto: la mesera llega a ellas desde sus mesas y la caja a su
+    // cierre. Las que duplican una pantalla del recorrido siguen siendo sólo de dirección.
+    const vista = navegacionDePlantilla('restaurante').find((entrada) => entrada.ruta === ruta);
+    if (vista === undefined || tienePermiso(rol, vista.permiso) !== true) return false;
+    return VISTAS_POR_PERMISO.has(ruta) || ['dueno', 'administrador'].includes(rol);
   }
   return true;
 }

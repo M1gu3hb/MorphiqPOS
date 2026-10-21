@@ -31,13 +31,29 @@
 //  3) Preferimos voces locales del sistema (localService: true) — suelen ser
 //     más claras y no dependen de red.
 //  4) Cacheamos la voz elegida por idioma en localStorage (mh_voice_picked).
-//  5) El usuario puede sobreescribir manualmente con `setPreferredVoice(name)`.
+//  5) El usuario puede sobreescribir manualmente con `setPreferredVoice(name)`: la
+//     pantalla `ConfiguracionDeVoz` lista las voces en español que ESTE dispositivo
+//     tiene y guarda la elegida. La preferencia es del dispositivo (localStorage), no
+//     del negocio. Si la voz elegida ya no existe aquí (otro teléfono, voz
+//     desinstalada), se cae a la selección inteligente de los puntos 2 y 3, que es
+//     lo que se hacía antes de poder elegir.
 //  6) Si nada coincide, fallback a la voz por defecto del navegador.
+//
+// La lectura y escritura de la preferencia (voz y velocidad) vive en
+// `~/voz/preferencia-de-voz`, y la lógica de qué voces ofrecer y cómo encontrarlas, en
+// `~/voz/voces`: son TypeScript puro, con sus pruebas. Este archivo sólo las usa.
+
+import {
+  leerVelocidad,
+  leerVozElegida,
+  guardarVelocidad,
+  guardarVozElegida,
+} from '~/voz/preferencia-de-voz';
+import { encontrarVoz, puedeSonar } from '~/voz/voces';
 
 const KEY_MESERO = 'mh_mesero_alert_config';
 const KEY_COCINA = 'mh_cocina_voz_config';
 const KEY_VOICE_CACHE = 'mh_voice_picked'; // { [lang]: voiceName }
-const KEY_VOICE_MANUAL = 'mh_voice_manual'; // voiceName elegido a mano (override)
 
 const DEFAULT_MESERO = {
   modo: 'sonido_voz', // silencio | sonido | voz | sonido_voz
@@ -118,20 +134,25 @@ function writeVoiceCache(map) {
   } catch {}
 }
 
-/** Voz elegida manualmente por el usuario (override). */
+/** Voz elegida manualmente por el usuario en ESTE dispositivo (override). '' = automática. */
 export function getPreferredVoiceName() {
-  try {
-    return localStorage.getItem(KEY_VOICE_MANUAL) || '';
-  } catch {
-    return '';
-  }
+  return leerVozElegida();
 }
-/** Fija manualmente la voz por nombre. Pasa '' para volver a auto. */
+/**
+ * Fija manualmente la voz por nombre. Pasa '' para volver a auto.
+ * Devuelve si quedó guardada (false: el navegador no dejó escribir en localStorage).
+ */
 export function setPreferredVoice(name) {
-  try {
-    if (name) localStorage.setItem(KEY_VOICE_MANUAL, name);
-    else localStorage.removeItem(KEY_VOICE_MANUAL);
-  } catch {}
+  return guardarVozElegida(name || '');
+}
+
+/** Velocidad de la voz de este dispositivo (1 = normal). Es un ajuste, no otra voz. */
+export function getVoiceRate() {
+  return leerVelocidad();
+}
+/** Guarda la velocidad (acotada a 0.7–1.3) y devuelve la que quedó. */
+export function setVoiceRate(valor) {
+  return guardarVelocidad(valor);
 }
 
 /** Lista plana de voces disponibles. Vacío si aún no cargaron. */
@@ -241,12 +262,31 @@ export function pickBestVoice(targetLang = 'es-MX') {
   const voices = listVoices();
   if (!voices.length) return null;
 
-  const manualName = getPreferredVoiceName();
-  if (manualName) {
-    const manual = voices.find((v) => v.name === manualName);
-    if (manual) return manual;
-  }
+  const manual = vozElegidaQuePuedeSonar(voices);
+  if (manual) return manual;
 
+  return pickAutomaticVoice(targetLang, voices);
+}
+
+/**
+ * La voz que se eligió en este dispositivo, si este dispositivo la tiene Y puede sonar ahora.
+ * Una voz de la nube sin internet no suena: en vez de dejar un aviso mudo, se cae a la
+ * automática hasta que vuelva la conexión (la elección sigue guardada).
+ */
+function vozElegidaQuePuedeSonar(voices) {
+  const manual = encontrarVoz(voices, getPreferredVoiceName());
+  if (!manual) return null;
+  const enLinea = typeof navigator === 'undefined' ? undefined : navigator.onLine;
+  return puedeSonar(manual, enLinea) ? manual : null;
+}
+
+/**
+ * La mejor voz según la selección inteligente, IGNORANDO la que se fijó a mano.
+ * Es "la voz actual" de siempre: lo que suena si nadie eligió otra, y lo que la pantalla
+ * de voz llama «Automática».
+ */
+export function pickAutomaticVoice(targetLang = 'es-MX', voices = listVoices()) {
+  if (!voices.length) return null;
   const sorted = [...voices].sort((a, b) => scoreVoice(b, targetLang) - scoreVoice(a, targetLang));
   return sorted[0] || null;
 }
@@ -260,11 +300,10 @@ export function getBestVoice(targetLang = 'es-MX') {
   const voices = listVoices();
   if (!voices.length) return null;
 
-  const manualName = getPreferredVoiceName();
-  if (manualName) {
-    const manual = voices.find((v) => v.name === manualName);
-    if (manual) return manual;
-  }
+  // La voz que esta persona eligió, si ESTE dispositivo la tiene. Si no (otro teléfono, voz
+  // desinstalada), sigue la selección de siempre: el cache y, si no hay, la mejor.
+  const manual = vozElegidaQuePuedeSonar(voices);
+  if (manual) return manual;
 
   const cache = readVoiceCache();
   const cachedName = cache[targetLang];
@@ -332,7 +371,7 @@ function processVoiceQueue() {
     const utter = new window.SpeechSynthesisUtterance(next.text);
     utter.lang = next.lang;
     utter.volume = next.volume;
-    utter.rate = 1;
+    utter.rate = getVoiceRate();
     utter.pitch = 1;
     if (next.voice) {
       try {
@@ -362,6 +401,75 @@ export function clearVoiceQueue() {
     window.speechSynthesis.cancel();
   } catch {}
   isSpeaking = false;
+}
+
+// =====================================================
+// MUESTRA — para escuchar una voz antes de elegirla
+// =====================================================
+
+/**
+ * Dice una MUESTRA ya, sin pasar por la cola ni por el modo de alerta (un mesero en
+ * «silencio» también tiene que poder escuchar la voz que está eligiendo).
+ *
+ * ── DEBE LLAMARSE DENTRO DEL GESTO DEL USUARIO ──────────────────────────
+ * iOS Safari y Chrome en Android sólo dejan sonar la voz si el primer `speak()` ocurre en
+ * la misma pila de llamadas que un toque o un clic. Por eso esta función es SÍNCRONA: no
+ * hay `await`, `setTimeout` ni `then` entre el clic y `speechSynthesis.speak()`. Llamarla
+ * desde un efecto o tras una petición (sin toque) deja la muestra en silencio sin error.
+ *
+ * @param {string} text
+ * @param {object} [opts]
+ * @param {string} [opts.voiceName]  Voz a usar. Ausente o '': la automática.
+ * @param {number} [opts.rate]       Velocidad; ausente: la de este dispositivo.
+ * @param {string} [opts.lang]       Idioma si no hay voz; por omisión es-MX.
+ * @param {() => void} [opts.onStart]
+ * @param {() => void} [opts.onEnd]
+ * @param {(code: string) => void} [opts.onError]  Código de la Web Speech API
+ *        («synthesis-failed», «not-allowed», …); «interrupted» y «canceled» NO se
+ *        reportan: son lo normal cuando otra muestra toma el turno.
+ * @returns {boolean} true si se mandó a hablar.
+ */
+export function speakSample(text, opts = {}) {
+  if (!text || !isVoiceSupported()) return false;
+  try {
+    const synth = window.speechSynthesis;
+    // Sólo se corta lo que está sonando. Un `cancel()` sin nada en curso, seguido de un
+    // `speak()` en la misma pila, descarta la muestra en algunos Chrome.
+    if (synth.speaking || synth.pending) synth.cancel();
+
+    const lang = opts.lang || 'es-MX';
+    const voices = listVoices();
+    // La que se pidió; y si este dispositivo no la tiene, la automática —la de siempre—
+    // en vez de dejar que el sistema escoja una cualquiera.
+    const voice =
+      (opts.voiceName ? encontrarVoz(voices, opts.voiceName) : null) ||
+      pickAutomaticVoice(lang, voices);
+
+    const utter = new window.SpeechSynthesisUtterance(text);
+    utter.lang = (voice && voice.lang) || lang;
+    const cfg = getAlertConfig();
+    utter.volume = Number.isFinite(cfg.volumen) ? cfg.volumen : 0.9;
+    utter.rate = Number.isFinite(opts.rate) ? opts.rate : getVoiceRate();
+    utter.pitch = 1;
+    if (voice) {
+      try {
+        utter.voice = voice;
+      } catch {}
+    }
+    utter.onstart = () => opts.onStart && opts.onStart();
+    utter.onend = () => opts.onEnd && opts.onEnd();
+    utter.onerror = (event) => {
+      const code = (event && event.error) || 'synthesis-failed';
+      if (code === 'interrupted' || code === 'canceled') return;
+      if (opts.onError) opts.onError(code);
+    };
+    synth.speak(utter);
+    return true;
+  } catch (err) {
+    console.warn('[voiceAlert] speakSample fallo:', err);
+    if (opts.onError) opts.onError('synthesis-failed');
+    return false;
+  }
 }
 
 // =====================================================

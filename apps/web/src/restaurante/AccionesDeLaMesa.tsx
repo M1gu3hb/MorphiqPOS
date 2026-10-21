@@ -183,7 +183,13 @@ function useSalon(): {
   const [fallo, setFallo] = useState<string | null>(null);
   useEffect(() => {
     const control = new AbortController();
-    consultarPuente<MesaElegible>('Mesa', { limite: 200, signal: control.signal })
+    // Sólo el salón EN SERVICIO: una mesa dada de baja sigue «libre», y sin el filtro se
+    // ofrecía como destino de «Cambiar de mesa» una mesa que ya no existe para el mesero.
+    consultarPuente<MesaElegible>('Mesa', {
+      filtro: { activo: true },
+      limite: 200,
+      signal: control.signal,
+    })
       .then((filas) => {
         if (!control.signal.aborted) setMesas(filas);
       })

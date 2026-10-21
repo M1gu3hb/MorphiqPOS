@@ -8,6 +8,7 @@ import {
 } from '@morphiqpos/app/http';
 import {
   cambiarNegocioDePresentacion,
+  empleoRaizDePresentacion,
   entrarConPin,
   negociosDePresentacion,
 } from '@morphiqpos/app/identidad';
@@ -43,9 +44,24 @@ export async function GET(peticion: Request) {
     entorno.SESSION_SECRET,
     negocios.map((n) => n.organizacionId),
   );
+  // Entró ya delegado (el restaurante en presentación o en otro modelo) y todavía no desbloquea:
+  // es el dueño general, así que se le pide su PIN en vez de tratarlo como un dueño cualquiera.
+  const sesion =
+    opciones.length > 0
+      ? null
+      : await resolverSesion({
+          token: leerCookie(cookie, NOMBRE_COOKIE),
+          secreto: entorno.SESSION_SECRET,
+        });
+  const esGeneral =
+    opciones.length > 0 || (sesion?.ok === true && sesion.sesion.presentador !== undefined);
   return json({
     ok: true,
-    datos: { negocios: opciones, desbloqueado: maestro !== undefined && opciones.length > 0 },
+    datos: {
+      negocios: opciones,
+      desbloqueado: maestro !== undefined && opciones.length > 0,
+      esGeneral,
+    },
   });
 }
 
@@ -77,9 +93,12 @@ export async function POST(peticion: Request) {
       );
     const origen = await resolverSesion({ token, secreto: entorno.SESSION_SECRET });
     if (!origen.ok) return json({ ok: false }, 401);
+    // Desde una sesión delegada —otro modelo, o el restaurante en presentación— el PIN es el
+    // de la cuenta raíz del dueño general, no el de su empleo en el destino (21-10).
+    const raiz = await empleoRaizDePresentacion(origen.sesion);
     const acceso = await entrarConPin({
-      empleoId: origen.sesion.empleoId,
-      organizacionId: origen.sesion.organizacionId,
+      empleoId: raiz.empleoId,
+      organizacionId: raiz.organizacionId,
       pin: entrada.data.pin,
       deviceToken: '',
       pimienta: entorno.PIN_PEPPER,

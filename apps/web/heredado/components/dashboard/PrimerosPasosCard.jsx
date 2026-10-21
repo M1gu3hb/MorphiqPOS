@@ -1,6 +1,7 @@
 'use client';
 import React, { useState, useEffect, useMemo } from 'react';
 import { Link } from '@/enrutado';
+import { usePOSAuth } from '@/lib/POSAuthContext';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { CheckCircle2, Circle, Sparkles, ArrowRight, X } from 'lucide-react';
@@ -48,7 +49,16 @@ const readFlag = (key) => {
   }
 };
 
+/**
+ * ¿Todavía puede aparecer la card? Falso cuando el admin la cerró o ya se completó: entonces
+ * el tablero no necesita ni pedir los datos con los que ella decide.
+ */
+export function primerosPasosVigente() {
+  return !readFlag(DISMISSED_KEY) && !readFlag(COMPLETED_KEY);
+}
+
 export default function PrimerosPasosCard({ progreso, ready = true }) {
+  const { posUser } = usePOSAuth();
   // Lectura síncrona en el primer render: evita flash.
   const [dismissed, setDismissed] = useState(() => readFlag(DISMISSED_KEY));
   const [completedPersisted, setCompletedPersisted] = useState(() => readFlag(COMPLETED_KEY));
@@ -85,6 +95,9 @@ export default function PrimerosPasosCard({ progreso, ready = true }) {
   // 2. Los 8 pasos ya se marcaron como completados (persistido).
   // 3. El Dashboard aún no terminó el primer fetch (ready=false) — evita flash.
   // 4. El cálculo actual indica que todo está listo.
+  // En presentación al cliente (21-10) la guía de configuración es un control interno: no se
+  // enseña. Fuera de ella, sigue igual.
+  if (posUser?.enPresentacion === true) return null;
   if (dismissed) return null;
   if (completedPersisted) return null;
   if (!ready) return null;

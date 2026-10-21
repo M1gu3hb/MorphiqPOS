@@ -1,6 +1,7 @@
 'use client';
 import React from 'react';
 import { formatCurrency, formatPercent } from '@/utils/financialUtils';
+import { economiaDelProducto, lineaTieneCosto } from '~/inventario/costo-del-platillo';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import {
@@ -9,6 +10,7 @@ import {
   mlPorPorcionEfectivo,
   unidadBaseDesdeMostrada,
 } from '@/utils/tipoVentaUtils';
+import { MARCA_DE_PLATAFORMA } from '~/marca/nombre-visible';
 
 /**
  * Printable product breakdown / cost sheet.
@@ -38,22 +40,25 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
   }
 
   // ============ FICHA CLÁSICA (precio_fijo) ============
-  const costoTotal = (lineas || []).reduce((s, l) => s + (l.costo_linea_calculado || 0), 0);
-  const utilidad = (producto.precio_venta || 0) - costoTotal;
-  const margen = producto.precio_venta > 0 ? (utilidad / producto.precio_venta) * 100 : 0;
+  // Sin receta, o con un insumo sin costo, el costo es DESCONOCIDO: la ficha lo dice con
+  // palabras y deja la utilidad y el margen en «—». Antes sumaba con `|| 0` e imprimía
+  // «Costo $0.00 · Margen 100 %» en la ficha de un platillo sin receta.
+  const eco = economiaDelProducto(producto, lineas);
 
   return (
     <div
       className="ticket-printable letter-doc printable-doc bg-superficie text-texto p-6 mx-auto"
       style={{
         width: '500px',
+        // En pantalla de teléfono la ficha se encoge al ancho del diálogo en vez de salirse.
+        maxWidth: '100%',
         fontFamily: 'system-ui, sans-serif',
         background: '#ffffff',
         color: '#000000',
       }}
     >
       <div className="text-center border-b-2 border-borde-fuerte pb-3 mb-4">
-        <h1 className="text-xl font-bold">{config?.nombre_negocio || 'AZECAFE'}</h1>
+        <h1 className="text-xl font-bold">{config?.nombre_negocio || MARCA_DE_PLATAFORMA}</h1>
         <p className="text-xs text-texto-sutil">FICHA DE PRODUCTO · {fecha}</p>
       </div>
 
@@ -65,22 +70,28 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
         {producto.descripcion && <p className="text-sm mt-1">{producto.descripcion}</p>}
       </div>
 
-      <div className="grid grid-cols-4 gap-2 mb-4 text-sm">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4 text-sm">
         <div className="border p-2 rounded text-center">
           <p className="text-xs text-texto-sutil">Precio venta</p>
-          <p className="font-bold">{formatCurrency(producto.precio_venta)}</p>
+          <p className="font-bold tabular-nums">{formatCurrency(producto.precio_venta)}</p>
         </div>
         <div className="border p-2 rounded text-center">
           <p className="text-xs text-texto-sutil">Costo</p>
-          <p className="font-bold">{formatCurrency(costoTotal)}</p>
+          <p className="font-bold tabular-nums">
+            {eco.costo === null ? eco.etiqueta : formatCurrency(eco.costo)}
+          </p>
         </div>
         <div className="border p-2 rounded text-center">
           <p className="text-xs text-texto-sutil">Utilidad</p>
-          <p className="font-bold">{formatCurrency(utilidad)}</p>
+          <p className="font-bold tabular-nums">
+            {eco.utilidad === null ? '—' : formatCurrency(eco.utilidad)}
+          </p>
         </div>
         <div className="border p-2 rounded text-center">
           <p className="text-xs text-texto-sutil">Margen</p>
-          <p className="font-bold">{formatPercent(margen)}</p>
+          <p className="font-bold tabular-nums">
+            {eco.margen === null ? '—' : formatPercent(eco.margen)}
+          </p>
         </div>
       </div>
 
@@ -99,13 +110,15 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
           {(lineas || []).map((l, i) => (
             <tr key={i} className="border-b border-dashed">
               <td className="py-1">{l.ingrediente_nombre}</td>
-              <td className="py-1 text-right">{l.cantidad_usada}</td>
-              <td className="py-1 text-right">{l.unidad_usada}</td>
               <td className="py-1 text-right">
-                {formatCurrency(l.costo_unitario_base_snapshot || 0)}
+                {l.cantidad_usada ?? l.cantidad_convertida_unidad_base}
               </td>
-              <td className="py-1 text-right font-medium">
-                {formatCurrency(l.costo_linea_calculado || 0)}
+              <td className="py-1 text-right">{l.unidad_usada ?? l.unidad}</td>
+              <td className="py-1 text-right tabular-nums">
+                {lineaTieneCosto(l) ? formatCurrency(l.costo_unitario_base_snapshot) : 'Sin costo'}
+              </td>
+              <td className="py-1 text-right font-medium tabular-nums">
+                {lineaTieneCosto(l) ? formatCurrency(l.costo_linea_calculado) : '—'}
               </td>
             </tr>
           ))}
@@ -115,10 +128,18 @@ export default function ProductoDesglose({ producto, lineas, config, ingrediente
             <td colSpan={4} className="py-1">
               TOTAL COSTO PRODUCCIÓN
             </td>
-            <td className="py-1 text-right">{formatCurrency(costoTotal)}</td>
+            <td className="py-1 text-right tabular-nums">
+              {eco.costo === null ? '—' : formatCurrency(eco.costo)}
+            </td>
           </tr>
         </tfoot>
       </table>
+
+      {eco.pista && (
+        <p className="text-xs text-texto-sutil border border-dashed p-2 rounded mb-3">
+          Aviso: {eco.pista}.
+        </p>
+      )}
 
       <p className="text-xs text-center text-texto-sutil border-t pt-2">
         Documento interno · Costos estimados según receta actual
@@ -225,7 +246,7 @@ function FichaVariable({ producto, ingrediente, config, fecha }) {
       }}
     >
       <div className="text-center border-b-2 border-borde-fuerte pb-3 mb-4">
-        <h1 className="text-xl font-bold">{config?.nombre_negocio || 'AZECAFE'}</h1>
+        <h1 className="text-xl font-bold">{config?.nombre_negocio || MARCA_DE_PLATAFORMA}</h1>
         <p className="text-xs text-texto-sutil">FICHA DE PRODUCTO · {fecha}</p>
       </div>
 

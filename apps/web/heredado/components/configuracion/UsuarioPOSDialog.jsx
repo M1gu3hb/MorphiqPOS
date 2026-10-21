@@ -36,6 +36,7 @@ import { ROLE_LABELS_SELECTABLE, ROLES } from '@/lib/constants';
 import { useConfig } from '@/lib/ConfigContext';
 import { toast } from 'sonner';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
+import { claves } from '~/cliente/claves-de-consulta';
 
 // Paleta sugerida para colores de usuario
 const COLORES = [
@@ -106,7 +107,7 @@ export default function UsuarioPOSDialog({ open, onClose, user, onSave }) {
 
   // Usuarios activos — para detectar duplicado de color por rol.
   const { data: usuariosAll = [] } = useQuery({
-    queryKey: ['usuarios_pos_all'],
+    queryKey: claves.usuarios.activos(),
     queryFn: () => api.entidades.UsuarioPOS.filter({ activo: true }),
     initialData: [],
     enabled: open,

@@ -45,6 +45,9 @@ const ACCESOS = [
 export function AccesosDelDueno() {
   const { posUser } = usePOSAuth();
   if (!posUser || !['administrador', 'dueno'].includes(posUser.rol)) return null;
+  // En presentación al cliente el tablero va limpio: estos accesos son de Miguel, no del
+  // cliente que mira (21-10). Ocultarlos no quita permisos; el servidor sigue decidiendo.
+  if (posUser.enPresentacion === true) return null;
   return (
     <Superficie como="section" aria-label="Control del restaurante" className="md:p-(--espacio-5)">
       <div className="mb-(--espacio-4) flex flex-wrap items-center justify-between gap-2">
