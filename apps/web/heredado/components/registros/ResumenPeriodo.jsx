@@ -29,6 +29,7 @@ import { es } from 'date-fns/locale';
 import { useConfig } from '@/lib/ConfigContext';
 import { canAccessModule } from '@/lib/packageConfig';
 import { sumarPropinas } from '@/utils/tipsUtils';
+import { EsqueletoDeBloque, EsqueletoDeCifras } from '~/cliente/EstadosDeCarga';
 
 const PERIODOS = [
   { id: 'today', label: 'Hoy' },
@@ -39,7 +40,14 @@ const PERIODOS = [
   { id: 'custom', label: 'Personalizado' },
 ];
 
-export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [], onPDF }) {
+export default function ResumenPeriodo({
+  ventas = [],
+  compras = [],
+  gastos = [],
+  onPDF,
+  // Ventas, compras o gastos todavía no llegan: los importes serían los de un periodo vacío.
+  cargando = false,
+}) {
   const { config, paquete_modo } = useConfig();
   const colorize = config?.colorear_importes_monetarios !== false;
   const sinCostos = !canAccessModule('costos_basicos', paquete_modo);
@@ -142,47 +150,53 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
         </div>
       )}
 
-      <div className={`grid grid-cols-2 ${sinCostos ? 'lg:grid-cols-3' : 'lg:grid-cols-5'} gap-3`}>
-        <Stat
-          icon={DollarSign}
-          label="Ingresos"
-          value={formatCurrency(totals.ingresos)}
-          sub={`${totals.nVentas} ventas`}
-          color={colorize ? 'text-primary' : 'text-foreground'}
-        />
-        <Stat
-          icon={Receipt}
-          label="Ticket promedio"
-          value={formatCurrency(totals.nVentas > 0 ? totals.ingresos / totals.nVentas : 0)}
-          color={colorize ? 'text-primary' : 'text-foreground'}
-        />
-        <Stat
-          icon={Heart}
-          label="Propinas"
-          value={formatCurrency(totals.propinas)}
-          sub="Separadas de ventas"
-          color={colorize ? 'text-peligro' : 'text-foreground'}
-        />
-        {!sinCostos && (
-          <>
-            <Stat
-              icon={TrendingUp}
-              label="Utilidad bruta"
-              value={formatCurrency(totals.utilidad)}
-              sub={`${(Number.isFinite(Number(margen)) ? Number(margen) : 0).toFixed(1)}% margen`}
-              color={colorize ? 'text-exito' : 'text-foreground'}
-            />
-            <Stat
-              icon={ShoppingBag}
-              label="Compras"
-              value={formatCurrency(totals.compras)}
-              color={colorize ? 'text-advertencia' : 'text-foreground'}
-            />
-          </>
-        )}
-      </div>
+      {cargando ? (
+        <EsqueletoDeCifras cantidad={sinCostos ? 3 : 5} />
+      ) : (
+        <div className={`grid grid-cols-2 ${sinCostos ? 'lg:grid-cols-3' : 'lg:grid-cols-5'} gap-3`}>
+          <Stat
+            icon={DollarSign}
+            label="Ingresos"
+            value={formatCurrency(totals.ingresos)}
+            sub={`${totals.nVentas} ventas`}
+            color={colorize ? 'text-primary' : 'text-foreground'}
+          />
+          <Stat
+            icon={Receipt}
+            label="Ticket promedio"
+            value={formatCurrency(totals.nVentas > 0 ? totals.ingresos / totals.nVentas : 0)}
+            color={colorize ? 'text-primary' : 'text-foreground'}
+          />
+          <Stat
+            icon={Heart}
+            label="Propinas"
+            value={formatCurrency(totals.propinas)}
+            sub="Separadas de ventas"
+            color={colorize ? 'text-peligro' : 'text-foreground'}
+          />
+          {!sinCostos && (
+            <>
+              <Stat
+                icon={TrendingUp}
+                label="Utilidad bruta"
+                value={formatCurrency(totals.utilidad)}
+                sub={`${(Number.isFinite(Number(margen)) ? Number(margen) : 0).toFixed(1)}% margen`}
+                color={colorize ? 'text-exito' : 'text-foreground'}
+              />
+              <Stat
+                icon={ShoppingBag}
+                label="Compras"
+                value={formatCurrency(totals.compras)}
+                color={colorize ? 'text-advertencia' : 'text-foreground'}
+              />
+            </>
+          )}
+        </div>
+      )}
 
-      {!sinCostos && (
+      {cargando && <EsqueletoDeBloque conSeparacion etiqueta="Cargando el neto del periodo" />}
+
+      {!cargando && !sinCostos && (
         <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 flex justify-between items-center">
           <div>
             <p className="text-xs text-muted-foreground">
@@ -201,7 +215,7 @@ export default function ResumenPeriodo({ ventas = [], compras = [], gastos = [],
           </p>
         </div>
       )}
-      {sinCostos && (
+      {!cargando && sinCostos && (
         <div className="mt-4 p-3 rounded-lg bg-gradient-to-r from-primary/5 to-primary/10 border border-primary/20 flex justify-between items-center">
           <div>
             <p className="text-xs text-muted-foreground">Total cobrado en el periodo</p>

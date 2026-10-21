@@ -2,7 +2,6 @@ import { describe, expect, it } from 'vitest';
 
 import { claves } from './claves-de-consulta.ts';
 import {
-  FILTRO_DE_MESAS_ACTIVAS,
   LIENZO,
   ZONA_POR_OMISION,
   caeSobreAlgunaMesa,
@@ -96,7 +95,13 @@ describe('el plano de una zona', () => {
       ...salonDelDueno(),
       { id: 'o1', zona: 'Otro', posicion_x: 100, posicion_y: 100, activo: false },
     ];
-    const zonas = zonasConMesas(conBajasSolamente, ['Interior', 'Exterior', 'Terraza', 'Barra', 'Otro']);
+    const zonas = zonasConMesas(conBajasSolamente, [
+      'Interior',
+      'Exterior',
+      'Terraza',
+      'Barra',
+      'Otro',
+    ]);
     expect(zonas).toEqual([
       { zona: 'Interior', cuantas: 6 },
       { zona: 'Terraza', cuantas: 3 },
@@ -126,9 +131,10 @@ describe('el plano de una zona', () => {
 
 describe('la lectura del salón y su clave van de la mano', () => {
   it('el mapa pide sólo las activas y su clave lo dice', () => {
-    expect(FILTRO_DE_MESAS_ACTIVAS).toEqual({ activo: true });
-    expect(claves.mesas.activas()[1]).toEqual(FILTRO_DE_MESAS_ACTIVAS);
-    expect(claves.mesas.todas()[1]).not.toEqual(FILTRO_DE_MESAS_ACTIVAS);
+    // La clave de «activas» lleva el mismo filtro con el que se pide al puente
+    // (`Mesa.filter({ activo: true })`), y la de «todas» no: son dos preguntas.
+    expect(claves.mesas.activas()[1]).toEqual({ activo: true });
+    expect(claves.mesas.todas()[1]).not.toEqual({ activo: true });
   });
 });
 
@@ -153,9 +159,9 @@ describe('dónde nace una mesa nueva', () => {
     // en x = 60 + (3 % 8) * 90 = 330, y = 60 sin mirar dónde estaban: encima de la de x = 316.
     const delDueno = mesasDelPlano(salonDelDueno(), 'Interior').slice(0, 3);
     const casillaDeLaFormulaVieja = { x: 60 + (3 % 8) * 90, y: 60 + Math.floor(3 / 8) * 100 };
-    expect(
-      caeSobreAlgunaMesa(casillaDeLaFormulaVieja.x, casillaDeLaFormulaVieja.y, delDueno),
-    ).toBe(true);
+    expect(caeSobreAlgunaMesa(casillaDeLaFormulaVieja.x, casillaDeLaFormulaVieja.y, delDueno)).toBe(
+      true,
+    );
 
     const nueva = siguientePosicionLibre(delDueno);
     expect(caeSobreAlgunaMesa(nueva.x, nueva.y, delDueno)).toBe(false);

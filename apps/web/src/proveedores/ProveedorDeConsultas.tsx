@@ -99,7 +99,11 @@ export function ProveedorDeConsultas({ children }: { readonly children: ReactNod
  * Va dentro de `ConfigProvider`, que es quien sabe la plantilla.
  */
 export function GuardiaDePlantilla() {
-  const { config, paquete_modo: plantilla, isLoading } = useConfig() as unknown as ConfiguracionDelNegocio;
+  const {
+    config,
+    paquete_modo: plantilla,
+    isLoading,
+  } = useConfig() as unknown as ConfiguracionDelNegocio;
   const cliente = useQueryClient();
   const asentada = useRef<string | null>(null);
 

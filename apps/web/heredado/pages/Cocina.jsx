@@ -16,6 +16,7 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
+import { ErrorDeLectura } from '~/cliente/EstadosDeCarga';
 
 const ESTADOS = ['nuevo', 'en_preparacion', 'listo'];
 const ESTADO_LABELS = { nuevo: 'Nuevos', en_preparacion: 'En preparación', listo: 'Listos' };
@@ -114,7 +115,12 @@ export default function Cocina() {
   // La clave ya no lleva `all`/`legacy`: las dos variantes pedían EXACTAMENTE lo mismo, y
   // cambiar `estaciones_preparacion_activas` en Configuración tiraba el caché y volvía a
   // pedir las 500 comandas sin que nada hubiera cambiado.
-  const { data: pedidos, isPending: pedidosLoading } = useQuery({
+  const {
+    data: pedidos,
+    isPending: pedidosLoading,
+    isError: pedidosFallaron,
+    refetch: releerPedidos,
+  } = useQuery({
     queryKey: ['pedidos_cocina'],
     queryFn: () => api.entidades.PedidoPreparacion.list('-created_date', 500),
     placeholderData: (prev) => prev,
@@ -122,6 +128,9 @@ export default function Cocina() {
     refetchInterval: 2000,
   });
   const cargandoPedidos = pedidosLoading && !pedidos;
+  // Falló y no hay ninguna lectura anterior: «Sin pedidos» sería falso, y en una cocina es lo
+  // más caro que se puede decir. Se dice que no se pudo leer.
+  const noSePudoLeerLosPedidos = pedidosFallaron && pedidos === undefined;
 
   // Conocer si la estación del usuario es "Cocina general" (es_general:true).
   // Si lo es, también debe ver pedidos legacy sin estacion_preparacion_id
@@ -365,7 +374,11 @@ export default function Cocina() {
       </div>
 
       {/* Watcher local: reproduce voz/sonido SOLO para pedidos NUEVOS, nunca para "listo". */}
-      <CocinaNuevoPedidoWatcher pedidos={pedidosFiltrados} />
+      <CocinaNuevoPedidoWatcher pedidos={pedidosFiltrados} cargando={cargandoPedidos} />
+
+      {noSePudoLeerLosPedidos && (
+        <ErrorDeLectura queNoSePudoLeer="los pedidos" alReintentar={() => releerPedidos()} />
+      )}
 
       {/* F3.1: vista "tipo llaves" SOLO cuando estaciones activas + modo all.
           En el resto de casos (estación específica, legacy) se renderiza la
@@ -459,6 +472,7 @@ export default function Cocina() {
                       />
                     ))}
                 {pedidosCol.length === 0 &&
+                  !noSePudoLeerLosPedidos &&
                   (cargandoPedidos ? (
                     <div
                       className="text-center py-8 text-sm opacity-60"

@@ -20,9 +20,6 @@
 /** La zona de una mesa que no la declara, tal como la pintaban el mapa y el editor. */
 export const ZONA_POR_OMISION = 'Interior';
 
-/** El filtro con el que el puente sirve el salón en servicio. */
-export const FILTRO_DE_MESAS_ACTIVAS = { activo: true } as const;
-
 /** Lo mínimo que estas reglas leen de una mesa: el resto de sus campos les da igual. */
 export interface MesaDelPlano {
   readonly id: string;
@@ -106,9 +103,10 @@ export const LIENZO = {
  * Si la rejilla visible está llena, cae donde caía antes (por la cuenta), fuera de la vista,
  * y el dueño la arrastra.
  */
-export function siguientePosicionLibre(
-  mesasDeLaZona: readonly MesaDelPlano[],
-): { readonly x: number; readonly y: number } {
+export function siguientePosicionLibre(mesasDeLaZona: readonly MesaDelPlano[]): {
+  readonly x: number;
+  readonly y: number;
+} {
   const puestas = soloMesasEnServicio(mesasDeLaZona);
   const filasVisibles = Math.floor((LIENZO.alto - LIENZO.margen) / LIENZO.pasoY);
   for (let indice = 0; indice < filasVisibles * LIENZO.columnas; indice += 1) {
@@ -123,11 +121,7 @@ export function siguientePosicionLibre(
 }
 
 /** ¿Una mesa nueva puesta en (x, y) quedaría encima de alguna de estas? */
-export function caeSobreAlgunaMesa(
-  x: number,
-  y: number,
-  mesas: readonly MesaDelPlano[],
-): boolean {
+export function caeSobreAlgunaMesa(x: number, y: number, mesas: readonly MesaDelPlano[]): boolean {
   return mesas.some((otra) => {
     const ox = otra.posicion_x ?? 100;
     const oy = otra.posicion_y ?? 100;

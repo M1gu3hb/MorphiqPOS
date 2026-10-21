@@ -16,13 +16,18 @@ import { RAICES_CON_VARIANTES, claves, type ClaveDeConsulta } from './claves-de-
  * dependencia directa de la app (pnpm no lo expone), por eso se resuelve DESDE react-query,
  * que sí lo tiene. El tipo sí viene de react-query: es el mismo.
  */
-const desdeReactQuery = createRequire(createRequire(import.meta.url).resolve('@tanstack/react-query'));
+const desdeReactQuery = createRequire(
+  createRequire(import.meta.url).resolve('@tanstack/react-query'),
+);
 const { QueryClient: ClienteReal } = desdeReactQuery('@tanstack/query-core') as {
   readonly QueryClient: new () => QueryClient;
 };
 
 /** Cada constructor de claves, con la raíz a la que dice pertenecer. */
-function todasLasVariantes(): readonly { readonly raiz: string; readonly clave: ClaveDeConsulta }[] {
+function todasLasVariantes(): readonly {
+  readonly raiz: string;
+  readonly clave: ClaveDeConsulta;
+}[] {
   return [
     { raiz: 'mesas', clave: claves.mesas.activas() },
     { raiz: 'mesas', clave: claves.mesas.todas() },

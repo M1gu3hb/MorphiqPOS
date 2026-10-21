@@ -70,7 +70,10 @@ export const claves = {
      * TODAS, también las dadas de baja: `Mesa.list('-created_date', 500)`. Sólo el editor
      * de mesas la necesita (para ofrecer «Reactivar»); nada que PINTE un mapa debe usarla.
      */
-    todas: (): ClaveDeConsulta => ['mesas', { activo: 'todas', orden: '-created_date', limite: 500 }],
+    todas: (): ClaveDeConsulta => [
+      'mesas',
+      { activo: 'todas', orden: '-created_date', limite: 500 },
+    ],
   },
 
   gastos: {

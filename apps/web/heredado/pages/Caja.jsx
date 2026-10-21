@@ -206,7 +206,7 @@ export default function Caja() {
   const ventasPendientes = pendientesLeidas ?? SIN_FILAS;
 
   const { data: pagadasLeidas, isPending: cargandoPagadas } = useQuery({
-    queryKey: ['ventas_pagadas_caja'],
+    queryKey: ['ventas_hoy'],
     queryFn: () => api.entidades.Venta.filter({ estado: 'pagada' }),
   });
   const ventasHoy = pagadasLeidas ?? SIN_FILAS;
@@ -755,7 +755,6 @@ export default function Caja() {
 
       // Invalidar TODO lo que se refleja en Caja, Ventas, Registros y Dashboard.
       queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
-      queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_all'] }); // ← FIX: query de pages/Ventas.jsx
@@ -847,7 +846,6 @@ export default function Caja() {
     queryClient.invalidateQueries({ queryKey: ['cortes_historial'] });
     queryClient.invalidateQueries({ queryKey: ['registros_cortes'] });
     queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
-    queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
     queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
     queryClient.invalidateQueries({ queryKey: ['gastos_hoy'] });
     queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
@@ -1044,7 +1042,6 @@ export default function Caja() {
       }
 
       invalidarCajaQueries();
-      queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
 
       // El folio lo asigna el SERVIDOR al cerrar, así que sale de `arqueo` —la

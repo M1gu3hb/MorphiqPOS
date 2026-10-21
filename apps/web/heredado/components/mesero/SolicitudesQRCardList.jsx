@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,8 @@ export default function SolicitudesQRCardList() {
   const { posUser } = usePOSAuth();
   const { config } = useConfig();
   const queryClient = useQueryClient();
+  // La solicitud que se está atendiendo: sus botones esperan a que el servidor conteste.
+  const [accionandoId, setAccionandoId] = useState(null);
 
   const { data: solicitudesRaw = [] } = useQuery({
     queryKey: ['solicitudes_qr_mesero'],
@@ -57,7 +59,8 @@ export default function SolicitudesQRCardList() {
   if (activas.length === 0) return null;
 
   const accion = async (s, accionTipo) => {
-    if (!s?.id) return;
+    if (!s?.id || accionandoId !== null) return;
+    setAccionandoId(s.id);
     try {
       // Mismo cambio que en SolicitudesQRPanel, que es este mismo componente en
       // versión panel: `atendido_por_id` y `atendido_por_nombre` NO se mandan.
@@ -85,6 +88,8 @@ export default function SolicitudesQRCardList() {
     } catch (err) {
       console.error('[SolicitudesQRCardList] accion:', err);
       toast.error(err?.message || 'No se pudo actualizar');
+    } finally {
+      setAccionandoId(null);
     }
   };
 
@@ -150,6 +155,7 @@ export default function SolicitudesQRCardList() {
                     size="sm"
                     variant="outline"
                     className="h-7 text-xs flex-1"
+                    disabled={accionandoId !== null}
                     onClick={() => accion(s, 'atender')}
                   >
                     Atender
@@ -158,6 +164,7 @@ export default function SolicitudesQRCardList() {
                 <Button
                   size="sm"
                   className="h-7 text-xs flex-1"
+                  disabled={accionandoId !== null}
                   onClick={() => accion(s, 'resolver')}
                 >
                   <CheckCircle2 className="w-3 h-3 mr-1" /> Resuelto

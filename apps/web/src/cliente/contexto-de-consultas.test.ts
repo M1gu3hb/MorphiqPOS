@@ -13,7 +13,9 @@ import {
 } from './contexto-de-consultas.ts';
 
 // `query-core` se resuelve desde react-query por la misma razón que en `claves-de-consulta.test.ts`.
-const desdeReactQuery = createRequire(createRequire(import.meta.url).resolve('@tanstack/react-query'));
+const desdeReactQuery = createRequire(
+  createRequire(import.meta.url).resolve('@tanstack/react-query'),
+);
 const { QueryClient: ClienteReal } = desdeReactQuery('@tanstack/query-core') as {
   readonly QueryClient: new () => QueryClient;
 };
