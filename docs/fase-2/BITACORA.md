@@ -6645,17 +6645,19 @@ rojo, con su causa y no con su síntoma:
   `portal/carrera.integracion.test.ts` corre las dos carreras en paralelo de verdad: rojas sin
   el cambio, verdes tres veces seguidas con él.
 - *El segundo CI* (`89f0130`, corrida 39323347137) ya pasó el rastreo en los cinco modelos y la
-  matriz de permisos, y destapó cuatro cosas más, todas de las pruebas y de su orden, ninguna
-  del producto: (1) el aislamiento caía con 429 en `/api/auth/empleados` —medido con el contador
-  vacío: la matriz gastaba 53 de 60 y las dos juntas 65, porque `entrar()` pedía la lista por su
-  cuenta además de la pantalla y la precondición se repetía antes de cada prueba; ahora 29 y
-  44—; (2) la suite del salón truncaba la comisión esperada y el sistema la redondea bien
-  ($620.688 → $620.69), y tres comentarios llamaban «D-36» a esa regla, un número que nunca se
-  escribió y que hoy es la frontera: citan `dinero/redondeo.ts`; (3) la suite de la ferretería
-  cerraba el turno con la nota del corte de material sin cobrar, y el muro del cierre de
-  `0178217` lo impide con razón: ahora la cobra; (4) las suites de modelo corrían sobre lo que
-  el rastreo dejó: CI vuelve a sembrar la demo antes. La galería (seis a diez por ciento de
-  píxeles en el cobro y las mesas) es el menú de D-34, el «Mixto» de C.5 y el «Casco» que la
+  matriz de permisos, y destapó tres cosas más, todas de las pruebas, ninguna del producto: (1)
+  el aislamiento caía con 429 en `/api/auth/empleados` —medido con el contador vacío: la matriz
+  gastaba 53 de 60 y las dos juntas 65, porque `entrar()` pedía la lista por su cuenta además
+  de la pantalla y la precondición se repetía antes de cada prueba; ahora 29 y 44—; (2) la
+  suite del salón truncaba la comisión esperada y el sistema la redondea bien ($620.688 →
+  $620.69), y tres comentarios llamaban «D-36» a esa regla, un número que nunca se escribió y
+  que hoy es la frontera: citan `dinero/redondeo.ts`; (3) la suite de la ferretería cerraba el
+  turno con la nota del corte de material sin cobrar, y el muro del cierre de `0178217` lo
+  impide con razón: ahora la cobra. Creí ver una cuarta —que la suite de cada modelo corría
+  sobre lo que el rastreo dejó— y `2178203` agregó a CI una siembra antes de la suite. Era
+  falsa: «La demostración, otra vez» ya sembraba justo ahí, y la nota que paró a la ferretería
+  era la de su propio corte. La siembra duplicada se quitó. La galería (seis a diez por ciento
+  de píxeles en el cobro y las mesas) es el menú de D-34, el «Mixto» de C.5 y el «Casco» que la
   2.4 agregó sin regenerar los retratos: se regeneran por CI con las integraciones.
 - *El preview de esta rama, desde fuera:* con el enlace compartido de Vercel, las cinco demos
   servidas y los cuatro negocios reales en 404 igual que uno que no existe; sin hash ni PIN en
@@ -6676,3 +6678,244 @@ rojo, con su causa y no con su síntoma:
 
 **En qué voy:** integrar lo de los dos subagentes cuando entreguen; el PR contra `main`; el CI
 sobre el SHA del PR; el preview; `07-ESTADO.md` y el reporte 020.
+
+## 20-10-2026 · Etapa 2.4 · El restaurante, presentable, y CI otra vez en verde tras la intervención
+
+Se retoma con `CONTINUAR-CLAUDE-2026-10-20.md`. Lo que dejó la intervención de Codex/ChatGPT
+(autorizada por Miguel) ya está en la rama por la fusión de `main` (`df25286`): el recorrido
+heredado del restaurante como principal, la entrada central y la cuenta «Miguel, Dueño
+general» (A-52/D-42), y las migraciones 181/182 aplicadas en producción. Producción = `main` =
+`5a5bf6f`. Prioridad: que el restaurante se pueda operar, recorrer y presentar.
+
+**El día completo del restaurante, por el recorrido que se presenta** (`d395560`). CI llamaba a
+`dia-completo-restaurante` y el archivo no existía. Ahora vive el día por las pantallas
+heredadas, cada quien en su aparato y con su terminal, en **PC, tableta y teléfono** (los tres
+en CI): cada puesto entra a SU inicio y la mesera sólo ve «Mesas y pedidos»; Rosa abre con
+$1,500; tres mesas con comanda a cocina y barra, preparación, entrega, precuenta con 10 %, 15 %
+y sin propina; cobro en efectivo con cambio, tarjeta y mixto; corte de turno, cierre a ciegas
+con $10 de faltante y su PDF; la dueña lee ventas y propinas en su teléfono; el dinero cuadra
+al centavo contra el servidor y con un centavo de más NO; el almacén baja lo de las recetas; y
+tras recargar y volver a entrar por el acceso central, el día sigue ahí. `vigilarFallos` tumba el
+día ante cualquier 4xx/5xx de la API.
+
+**Lo que el recorrido destapó en el producto, cada cosa arreglada antes de escribirla como
+prueba:**
+- La mesera no podía pedir la cuenta: el corte era 403 para su rol (`771be9a`, el puente le deja
+  saber si hay caja y ni un importe del corte).
+- La barra no la veía nadie: la cocina sólo pedía el área `cocina` (`977a5cd`).
+- La cajera veía la caja de OTRA terminal como suya y cada cobro le contestaba «Abre la caja»
+  (`977a5cd`, `useCajaAbierta({ deEstaTerminal })`).
+- La cajera en `/` veía el tablero de la dueña con lecturas en 403; la mesera que teclea `/caja`,
+  la pantalla de cobro (`1a7ffca`); y la guarda decidía con la configuración de omisión mientras
+  cargaba (`5c2162c`).
+- El cierre de la cajera no daba PDF: tres lecturas de costos en 403 tumbaban el `Promise.all`
+  (`5c2162c`).
+- El botón del menú del teléfono y la tableta era invisible en 11 de los 16 estilos (contraste
+  1.0–1.4, entre ellos «noche», el de la demo): `text-primario-texto` sobre la barra desde C.16
+  (`1759aa5`, excepción de color declarada; el día lo mide en los 16).
+- «Guardar para el negocio» en Apariencia contestaba 403 desde la 2.35: su `fetch` iba sin la
+  cabecera propia (`86659a2`, contrato nuevo: toda escritura del navegador la lleva).
+- Caja anunciaba «No hay caja abierta» medio segundo con la caja abierta (`fcac47a`).
+- Resetear la demo del restaurante le reponía el PIN público a la cuenta general de Miguel y le
+  borraba la concesión de los modelos (`19d32d2`, con prueba contra Postgres vista roja de las
+  dos maneras).
+
+**La presentación, comprobada en la base desechable** con una cuenta de prueba de dueño general
+(no la de Miguel): entra por `/login-pos` con su nombre preseleccionado, abre «Modelos de
+negocio», cambia entre los cinco modelos sin volver a teclear el PIN, y en cada uno cada pantalla
+del menú pinta sin un solo 4xx; sale, y Lupita, Rosa, Toño, Beatriz y Nacho caen cada quien en su
+inicio con su menú. En PC y en teléfono. El tablero de la dueña, el mapa con su color por estado,
+el editor de mesas (crear, arrastrar —la posición se guarda—, que la mesera la vea) y el cambio de
+estilo (ahora sí se guarda y lo ve la mesera en su aparato).
+
+**Lo que la intervención dejó rojo en CI y no se veía** (la corrida de `main` en `5a5bf6f`, leída
+trabajo por trabajo): las puertas de tokens, adopción y cobertura por dos componentes nuevos y
+un huérfano (`937f262`); la fusión `c1ada17` perdió `useState(deModelo)` y la barra abría a 240
+px en las pantallas de modelo —la tienda y la ferretería cayeron en tableta— (`eaeee33`); D-42
+le quitó a Café Jacaranda «Baristas» y «Barras» del menú (`5b9fbd2`); y «Cobrar» del salón leía
+las citas una sola vez (la CITA-1 que no aparecía; parte del parche del subagente de estética).
+
+**El rastreo del restaurante, rojo en `main` en los ocho estilos** (21.3 % sin alcance, techo 15 %;
+`8082229`). Desde D-42 el recorrido principal son las pantallas heredadas, y dos supuestos del rastreo
+dejaron de cumplirse. Recargar no volvía al estado inicial: la X de «Primeros pasos» guarda
+`mh_primeros_pasos_dismissed` en `localStorage`, la guía desaparecía y 17 caminos `nth-child` del
+tablero dejaban de existir; ahora cada recarga repone lo que la pantalla tenía guardado al enumerarla.
+Y dentro de un diálogo, un toque que agrega piezas («Agregar grupo», «Agregar otra línea») corría de
+lugar a «Guardar», «Cancelar» y la X —198 piezas—; ahora la capa se vuelve a enumerar y cada pieza se
+busca alineando las firmas (`packages/testing/src/reubicar.ts`, con pruebas). Mismo techo. En CI:
+14.1 min, verde. De paso, la tienda: su rastreo caía en siete de ocho estilos porque el Enter del
+buscador del conteo no contestaba nada (`c78ea6e`).
+
+**El esquema, contra producción, sólo leyendo** (`15724db`). Ledger de `wyqmzhliurwyxuyxznpb`: 114
+filas, la última la 182 (aplicadas el 19-10 a las 22:36 UTC), y el md5 de la lista `versión:hash` es el
+mismo que el de los 114 archivos. Y el esquema es EXACTAMENTE el de las 182 migraciones más un índice
+que ninguna crea, `mesas_numero_unico` (único por negocio y parcial, `where activa`): llegó fuera del
+ledger, como el de la 052, y una base nueva —la de CI— aceptaba dos «Mesa 5» activas en el mismo
+restaurante. La **183** lo crea con `if not exists` (en producción no cambia nada), con precondición y
+poscondición; vista por sus cuatro caminos en una base aparte, y con las 183 aplicadas desde cero el
+resumen del esquema (1727 columnas, 1362 restricciones, 439 índices) es idéntico al de producción.
+`scripts/esquema-esperado.json` se había parchado a mano para la 181 y no tenía la 182: ahora es
+producción. Con la llave nueva de la 182 se regeneró el orden de limpieza de las demos. **La 183 no se
+aplicó**: va por `pnpm db:migrate` cuando Miguel acepte.
+
+**Lo que destapó la primera corrida del PR #13** (`dd4dbb8`, corrida 39423569015), arreglado:
+`verify:mutaciones-backend` —«logout limitado a borrar la cookie» sobrevivía desde `c1ada17` porque la
+ruta de salir revoca ahora DOS sesiones y la prueba sólo buscaba el texto una vez; y la mutación del
+fondo de la caja (mía, `771be9a`) no podía caer por el arnés— (`46b3d2b`); `verify:matriz` no conocía
+`/api/presentacion` ni el `servicioId` de la cabina (`e42cd77`); y la suite del restaurante esperaba
+«Meseros» y «Cocinas» en el menú, el de antes de D-42 (`b819b0c`). En `main` las tres puertas ya
+estaban rojas o no llegaban a correr. Las cinco jornadas, los permisos y el aislamiento pasaron; la del
+restaurante, en PC, tableta y teléfono (47.9 s, 47.5 s, 41.1 s).
+
+**La segunda corrida del PR** (`b819b0c`, corrida 39427748961): formato, lint, tipos, unitarias,
+integración, build y cabeceras en vivo; contratos y mutaciones; adopción; las cinco jornadas; permisos
+y aislamiento; y el rastreo de los cinco: en verde. Lo único rojo, la galería, que compara contra
+retratos anteriores al menú de D-34, al «Mixto» de C.5 y al «Casco»: se regeneraron con el flujo a mano
+(`actualizar_galeria`, corrida 39427772118) y se revisan antes de subirlos; queda la corrida del PR
+sobre el SHA que los lleve.
+
+**La galería, revisada y fijada** (`eece673`, `e5cdd5d` y el commit que trae esta entrada). La corrida
+a mano 39427772118 (`b819b0c`) pasó **51 de 51**: el rastreo en los ocho estilos de los cinco modelos,
+las suites, las jornadas, permisos y aislamiento, y la galería regenerada. Cada modelo se tomó de SU
+artefacto y se comparó retrato por retrato contra el anterior: 173 cambian y 32 son nuevos —el riel
+del menú plegado (D-34) en todos; el tablero de D-42 y las cuatro heredadas del menú del restaurante
+(mesero, compras, portal-qr y configuración) en los ocho estilos; el corte de la tienda con «Entregar
+el turno»; el cobro de la cafetería con «Descuento» y «Tarjeta, mixto o propina»; la rejilla de la
+agenda de la estética—. Revisándolos salió un defecto: la columna «Opciones» de los Productos de la
+cafetería listaba los grupos de cada bebida «en el orden en que llegan», y el puente ordena
+`Modificador` por el `orden` de la opción DENTRO de su grupo: el empate entre grupos lo decidía el plan
+de la vista, que ordena por los ids —aleatorios en cada siembra—. En la base desechable, cuatro
+resiembras dieron dos órdenes distintos, y la galería del 08-10 y la de la corrida 39427772118 traían
+órdenes distintos. `eece673` ordena por la jerarquía que el diálogo del cobro ya usaba (Leche · Tamaño ·
+Temperatura · Extras), también en los dos listados de Recetas, con cinco pruebas que fallan sin el
+arreglo. Los otros 232 retratos subieron en `e5cdd5d`; los 8 de productos, regenerados sobre ese código
+por la corrida a mano 39433226973 (`e5cdd5d`, **51 de 51**), en el commit siguiente.
+
+La corrida del PR sobre `9f2d64a` (39429193282) dio 11 de 16, y los cinco rojos fueron sólo el paso de
+la galería, que aún comparaba contra los retratos viejos. La del PR sobre `e5cdd5d` (39433228870), 15 de
+16: las galerías de restaurante, tienda, ferretería y estética compararon en verde contra retratos de
+OTRA corrida, y la de la cafetería pasó cobro, inicio, inventario y barra en los ocho estilos y cayó,
+como debía, en `cafeteria-productos-morphiq`, el retrato viejo. Entre las dos regeneraciones
+independientes, de esos 232 retratos 208 son idénticos y 24 difieren en ruido de suavizado (1 o 2
+niveles por canal; hasta 23 en «cristal», que desenfoca), que la comparación no cuenta. La corrida del
+PR sobre el commit que trae los 8 de productos es la que vale para el SHA entregado; su resultado queda
+en el PR #13.
+
+**La tienda, colgada una vez en la tableta** (corrida 39423569015): a los 109 s, en la entrada de
+Jesica, la página dejó de pintarse con el teclado ya en pantalla —el último cuadro de la traza lo
+enseña— y el «3» no llegó a resolverse. El clic falló a los 20 s; los veinte minutos se fueron en
+`equipo.cerrar()`, que no puede cerrar un contexto con la página colgada. No se reprodujo en dos
+corridas locales en tableta ni en la corrida siguiente de CI. No lo llamo «intermitente» como
+explicación: queda con su traza, y si vuelve hay que cerrar los contextos con un tiempo máximo para que
+caiga en segundos.
+
+**El preview, desde fuera** (`morphiqpos-84zrxu8sp-mh-astral-systems.vercel.app` = `dd4dbb8`): sirve la
+entrada central con sus seis vistas y las seis personas del restaurante (`/api/auth/empleados` 200).
+Entrar NO: `POST /api/auth/entrar` contesta 403 de la frontera de escritura, por el despliegue y por el
+alias de la rama, porque el `APP_URL_ALTERNAS` de Preview no incluye esta rama (`VERCEL-ENTORNO.md`
+§9). La sesión no tiene permiso para leer ni crear variables del proyecto (la API de Vercel contesta
+403). Bloqueado hasta que Miguel cree la variable; no se corrió ninguna suite contra el preview, que
+escribe en la base de producción.
+
+**La sesión se reinició dos veces** a media corrida (se cayeron Docker, la base desechable y el
+servidor local); se retomó desde el árbol cada vez, sin perder commits.
+
+**No resuelto, para decidir:**
+- Aplicar la 183 en producción (no-op: el índice ya está) con el respaldo de siempre
+  (`MIGRACIONES-181-182.md` §5–§7).
+- La variable de Preview para esta rama, para entrar al preview desde fuera.
+- Del parche del subagente de estética se integró lo que el día necesitaba (`Cobrar` al día, la cabina
+  al agendar, los costos y la lista de espera por rol). El resto —mejoras de fórmula, expediente,
+  walk-in, no-show, «sin llegar», kardex y existencias de cabina— no se revisó línea por línea y no
+  entra a este PR: queda en `docs/fase-2/pendientes/estetica-subagente-2026-10-20.patch`.
+- Eliminar una mesa la apaga (`activa = false`, borrado suave del puente) y el editor la sigue
+  enseñando: «eliminada» e «inactiva» son el mismo campo. Borrarla de verdad arrastraría su
+  bitácora (`eventos_mesa` en cascada). Opciones: una columna `eliminada_en` con su migración, o
+  que el editor distinga las inactivas. Decisión de Miguel.
+
+## 20-10-2026 (noche) · Cierre del restaurante para el 21-10 · EN CURSO (punto de control)
+
+Encargo: cerrar y PUBLICAR el restaurante (Miguel autorizó integrar a `main` y desplegar cuando
+cumpla los criterios técnicos). Estado revalidado al empezar: `main` = producción = `5a5bf6f`; PR #13
+en `5e6e0b4` con CI 16/16 (corrida 39441062022); 181/182 en el ledger de producción (aplicadas por el
+conector de Supabase, `apply_migration` del 19-10 22:36 UTC, con la tanda del migrador); 183 sin
+registrar. Las otras ramas remotas ya están en `main` o son ajenas y viejas (`carril-b`).
+
+Hecho y en la rama:
+- `a3a2407` · la cuenta con tarjeta y la propina SÓLO en efectivo (184 `pago_solo_de_propina`,
+  `repartirPagos`, tope de la propina contra la cuenta, «La propina se pagó con» en la pantalla nueva
+  con cualquier método, la caja heredada ya no se come la propina). Integración contra Postgres; con
+  el `check` anterior cae con 23514.
+- `de72d19` · el dueño general vuelve a entrar después de dos reseteos (su PIN sí, el publicado no,
+  su concesión autoriza los destinos). Mutación: reponerle el PIN lo pone en rojo.
+- `c098b59` · un preview de Vercel acepta escrituras desde sus hostnames EXACTOS (`VERCEL_URL`,
+  `VERCEL_BRANCH_URL`, sólo con `VERCEL_ENV=preview`).
+- Jornada: mesas 4 (tarjeta + propina en billete, mixto heredado) y 5 (transferencia) — sin commit
+  hasta verla en verde en local.
+
+Pendiente, en orden: auditoría de rutas y permisos por puesto (`/pos` fuera del control de
+`NAV_ITEMS`), cruces que faltan en la jornada (cambiar/unir/dividir, descuento con supervisor,
+anulación/cancelación/devolución, portal QR con mesa reutilizada, concurrencia, persistencia),
+diseño en tres aparatos y ocho estilos, 183+184 en producción por el proceso (ensayo local, ensayo
+con `rollback` en producción, respaldo de `pagos`/`mesas` DENTRO de la base, aplicación con la
+tanda de `migrar.mjs --emitir`, verificación), fusión a `main`, despliegue, comprobación del SHA y
+ensayo no destructivo en producción.
+
+### Punto de control · 20-10 22:40 UTC (después del reinicio del contenedor)
+
+En la rama, con CI: `c7336df` (verde, corrida 39474081863) y `a8b138a` (en curso).
+- `c7336df` · mesas: la zona se guarda (`zona_id`), una mesa en servicio no se quita del mapa
+  (guarda `apagarSoloSi` del puente) y «Quitar del mapa» / «Mesas desactivadas» / «Reactivar».
+- `e064b9b` · permisos: rutas por puesto en `AppLayout` (`/pos`, `/mesas`, `/restaurante/*`),
+  `establecer_pin` con `PUEDE_OTORGAR`, `venta.estado` sin costos para caja y mesero,
+  `venta.devolver` sólo en cafetería, `alta_rapida` sólo en tienda y sin mesero, cocina sin
+  gramaje ni importes de cuentas.
+- `8cebd23` · mesas unidas recogidas enteras al cobrar o cancelar; cuenta dividida con descuento
+  o IVA fuera del precio cobrable; descuento a una parte; candado de la última parte.
+- `a8b138a` · suites e2e del portal QR (dos grupos) y de concurrencia en CI; la caja heredada dice
+  en español que el cobro pudo hacerse; la mesera con sus mesas sólo en «Barra» llega a ellas.
+
+PRODUCCIÓN (`wyqmzhliurwyxuyxznpb`), 22:2x UTC: **183 y 184 APLICADAS** por el proceso.
+Ledger 114/182 = disco (huella `fd37c99c…`); precondiciones en cero; ensayo con `rollback` sin
+residuo; respaldo `respaldo_183_184` (pagos 15 filas, mesas 24) con restauración ensayada (md5
+iguales); aplicación con `apply_migration` («morphiq_183_numero_de_mesa_unico_184_pago_solo_de_propina»);
+después: ledger 116/184 con huella `2b4ba333…` igual a una base migrada de cero, restricciones
+de `pagos` como las exige la 184, datos con el mismo md5, y el contrato de esquema (1,724
+columnas, 1,360 restricciones, 438 índices) idéntico al de una base 1–184.
+**Pendiente:** `drop schema respaldo_183_184 cascade` después del ensayo post-despliegue.
+
+En curso: dos agentes (Sonnet) terminan las suites de operaciones por las vistas adicionales y
+de estilos/contraste de estados de mesa. Después: integración a `main`, despliegue y ensayo.
+
+### Punto de control · 20-10 23:35 UTC · el ensayo del preview destapó una carrera al entrar
+
+- `acb94b9` (contraste de los estados de mesa en claro y en el teléfono; la jornada espera la
+  entrega antes del clic): **CI verde**, corrida 39510224126.
+- **Ensayo de sólo lectura del preview de `acb94b9`** (enlace compartido, un solo navegador, huella
+  de la base antes y después; proceso en el §9.1 de `VERCEL-ENTORNO.md`). Encontró un defecto: Toño,
+  de la cocina, entró con su PIN y **se quedó en `/abarrotes/cobrar`**. La pantalla de acceso recarga
+  la página entera hacia la casa del puesto y, a la vez, su efecto de «ya hay sesión» navegaba con la
+  configuración de la pantalla de acceso —sin sesión, la de omisión: `tienda`—. Reproducido en local
+  con el documento de la casa retrasado 2.5 s: cocina, caja y mesera rebotaban entre
+  `/abarrotes/cobrar` y el mapa de mesas hasta que llegaba la recarga.
+- `b3fc9fb` · el efecto ya no navega mientras se entra con el PIN, y usa la plantilla de la sesión.
+  Prueba nueva en `restaurante.spec.ts` con la red lenta: roja sin el arreglo, verde con él en PC,
+  tableta y teléfono; la suite del modelo, 3 de 3.
+- **Ensayo del preview de `b3fc9fb`:** login central con 26 tarjetas (7 del restaurante, 1 de dueño
+  general); el dueño entra al tablero, recarga y conserva la sesión, abre las 12 pantallas del menú
+  heredado y las 11 vistas del restaurante (`/corte-caja` → `/caja` y `/mesas` → `/mesero` son
+  redirecciones heredadas a propósito); Lupita, Toño y Rosa llegan a `/mesero`, `/cocina` y `/caja`,
+  y cada dirección ajena tecleada los regresa a la suya; el servidor niega a la mesera y a la cocina
+  los movimientos de caja y a la mesera y la cajera los insumos (403 `PUENTE_SIN_PERMISO`); cada uno
+  sale por «Salir» al mismo login y la sesión deja de responder (401). Sin 5xx.
+- **La base, antes y después** (`demo-acople-restaurante`): mesas, órdenes, existencias,
+  configuración, sesiones de caja y empleos con el mismo md5; pagos, movimientos de caja y de stock,
+  comandas y eventos de mesa con las mismas filas. Se movieron: sesiones (+11, una por entrada),
+  auditoría y bitácora de comandos (+95: `caja/estado` y `restaurante/limpiar-solicitudes`, que la
+  app llama sola al cargar el marco) y **una terminal, «Caja 17»**, la del navegador del ensayo,
+  cuyo token se reusa en los siguientes.
+- Hallazgo menor, sin arreglar en este cierre: `limpiar_solicitudes` audita aunque no borre nada y
+  corre en cada carga del marco: ruido en la auditoría, no un fallo.
+
+Siguiente: CI de `b3fc9fb`, las suites de los dos agentes, la integración a `main`, el despliegue,
+el ensayo en producción y el borrado del respaldo `respaldo_183_184`.

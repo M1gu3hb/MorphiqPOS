@@ -4984,6 +4984,17 @@
       "generada": null
     },
     {
+      "clave": "public.devoluciones.documento_credito_id",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "columna": "documento_credito_id",
+      "tipo": "uuid",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
       "clave": "public.devoluciones.empleado_id",
       "esquema": "public",
       "tabla": "devoluciones",
@@ -22751,12 +22762,34 @@
       "diferidaInicialmente": false
     },
     {
+      "clave": "public.devoluciones.devolucion_a_cuenta_con_documento",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devolucion_a_cuenta_con_documento",
+      "tipo": "check",
+      "definicion": "CHECK ((metodo = ANY (ARRAY['fiado'::text, 'credito'::text])) = (documento_credito_id IS NOT NULL))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
       "clave": "public.devoluciones.devolucion_en_efectivo_con_caja",
       "esquema": "public",
       "tabla": "devoluciones",
       "nombre": "devolucion_en_efectivo_con_caja",
       "tipo": "check",
       "definicion": "CHECK (metodo <> 'efectivo'::text OR sesion_caja_id IS NOT NULL)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.devoluciones.devoluciones_documento_misma_org",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_documento_misma_org",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (documento_credito_id, organizacion_id) REFERENCES documentos_credito(id, organizacion_id) ON DELETE RESTRICT",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -22800,7 +22833,7 @@
       "tabla": "devoluciones",
       "nombre": "devoluciones_metodo_check",
       "tipo": "check",
-      "definicion": "CHECK (metodo = ANY (ARRAY['efectivo'::text, 'tarjeta'::text, 'transferencia'::text]))",
+      "definicion": "CHECK (metodo = ANY (ARRAY['efectivo'::text, 'tarjeta'::text, 'transferencia'::text, 'fiado'::text, 'credito'::text]))",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -23021,6 +23054,17 @@
       "nombre": "documentos_credito_empleado_id_fkey",
       "tipo": "foreign_key",
       "definicion": "FOREIGN KEY (empleado_id) REFERENCES empleos(id) ON DELETE SET NULL",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.documentos_credito.documentos_credito_id_org_unica",
+      "esquema": "public",
+      "tabla": "documentos_credito",
+      "nombre": "documentos_credito_id_org_unica",
+      "tipo": "unique",
+      "definicion": "UNIQUE (id, organizacion_id)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -28625,6 +28669,17 @@
       "diferidaInicialmente": false
     },
     {
+      "clave": "public.pagos.pago_con_venta_o_propina",
+      "esquema": "public",
+      "tabla": "pagos",
+      "nombre": "pago_con_venta_o_propina",
+      "tipo": "check",
+      "definicion": "CHECK (monto_centavos > 0 OR propina_centavos > 0)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
       "clave": "public.pagos.pago_efectivo_recibido_suficiente",
       "esquema": "public",
       "tabla": "pagos",
@@ -28674,7 +28729,7 @@
       "tabla": "pagos",
       "nombre": "pagos_monto_centavos_check",
       "tipo": "check",
-      "definicion": "CHECK (monto_centavos > 0)",
+      "definicion": "CHECK (monto_centavos >= 0)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -35090,6 +35145,16 @@
       "definicion": "CREATE INDEX devoluciones_por_dia ON public.devoluciones USING btree (organizacion_id, created_at DESC)"
     },
     {
+      "clave": "public.devoluciones.devoluciones_por_documento",
+      "esquema": "public",
+      "tabla": "devoluciones",
+      "nombre": "devoluciones_por_documento",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX devoluciones_por_documento ON public.devoluciones USING btree (organizacion_id, documento_credito_id) WHERE (documento_credito_id IS NOT NULL)"
+    },
+    {
       "clave": "public.devoluciones.devoluciones_por_orden",
       "esquema": "public",
       "tabla": "devoluciones",
@@ -35138,6 +35203,16 @@
       "primario": false,
       "valido": true,
       "definicion": "CREATE INDEX devoluciones_lineas_por_linea ON public.devoluciones_lineas USING btree (organizacion_id, orden_linea_id)"
+    },
+    {
+      "clave": "public.documentos_credito.documentos_credito_id_org_unica",
+      "esquema": "public",
+      "tabla": "documentos_credito",
+      "nombre": "documentos_credito_id_org_unica",
+      "unico": true,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX documentos_credito_id_org_unica ON public.documentos_credito USING btree (id, organizacion_id)"
     },
     {
       "clave": "public.documentos_credito.documentos_credito_organizacion_id_folio_key",

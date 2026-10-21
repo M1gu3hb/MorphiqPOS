@@ -102,13 +102,27 @@ async function pedir<T>(ruta: string, cuerpo: unknown, clave?: string): Promise<
   };
   if (clave !== undefined) cabeceras['idempotency-key'] = clave;
 
-  const respuesta = await fetch(ruta, {
-    method: 'POST',
-    headers: cabeceras,
-    body: JSON.stringify(cuerpo),
-    // La cookie de sesión es `HttpOnly`: la adjunta el navegador, no el script.
-    credentials: 'same-origin',
-  });
+  let respuesta: Response;
+  try {
+    respuesta = await fetch(ruta, {
+      method: 'POST',
+      headers: cabeceras,
+      body: JSON.stringify(cuerpo),
+      // La cookie de sesión es `HttpOnly`: la adjunta el navegador, no el script.
+      credentials: 'same-origin',
+    });
+  } catch {
+    // SIN RESPUESTA (cierre del 21-10): la caja enseñaba el texto del navegador —«Failed to
+    // fetch»— cuando lo único que importa es que pudo hacerse y que repetir es seguro (la
+    // clave de idempotencia es la misma mientras el diálogo siga abierto). Mismo texto que las
+    // pantallas nuevas (`ErrorSinRespuesta`, `src/cliente/api.ts`).
+    throw new ErrorPuente(
+      'SIN_RESPUESTA',
+      'No llegó la respuesta del servidor y puede que sí se haya hecho. Vuelve a tocar el ' +
+        'mismo botón: si ya estaba hecho, no se repite.',
+      0,
+    );
+  }
 
   const datos: unknown = await respuesta.json().catch(() => null);
   if (typeof datos !== 'object' || datos === null || (datos as { ok?: unknown }).ok !== true) {

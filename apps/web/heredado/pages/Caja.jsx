@@ -159,7 +159,14 @@ export default function Caja() {
   const [showPropinaCaja, setShowPropinaCaja] = useState(false);
 
   // Caja abierta global (fuente única de verdad)
-  const { cajaAbierta, hayCaja, fondoEsperado } = useCajaAbierta();
+  // Mientras carga, `hayCaja` es falso: el aviso amarillo de «No hay caja abierta» y «Abrir
+  // caja» habilitado aparecían medio segundo con la caja ya abierta (el día del restaurante).
+  const {
+    cajaAbierta,
+    hayCaja,
+    fondoEsperado,
+    isLoading: cargandoCaja,
+  } = useCajaAbierta({ deEstaTerminal: true });
 
   // Clave de idempotencia del cobro: se genera al ABRIR el diálogo de cobro y
   // se reusa mientras siga abierto (F1-02 §8, trampa T5). Es lo que impide que
@@ -605,9 +612,12 @@ export default function Caja() {
     const pagos = [];
     const agregarPago = (metodo, ventaPesos, propinaPesos, recibidoPesos) => {
       const montoCentavos = aCentavos(ventaPesos);
-      if (montoCentavos <= 0) return;
-      const pago = { metodo, montoCentavos };
       const propinaCentavos = aCentavos(propinaPesos);
+      // Un renglón sin venta PERO con propina es un pago (cierre del restaurante, 2.4): la
+      // cuenta entera con tarjeta y la propina en billete. Antes se descartaba con todo y
+      // propina —el cobro salía sin ella y nadie lo notaba—; sólo se omite el vacío.
+      if (montoCentavos <= 0 && propinaCentavos <= 0) return;
+      const pago = { metodo, montoCentavos: Math.max(montoCentavos, 0) };
       if (propinaCentavos > 0) pago.propinaCentavos = propinaCentavos;
       // El «Recibido» sólo se manda si de verdad cubre venta + propina: es de
       // donde el servidor saca el cambio, y si no alcanza rechaza el cobro. El
@@ -1084,7 +1094,7 @@ export default function Caja() {
           <Button
             size="sm"
             onClick={() => setShowAbrirCaja(true)}
-            disabled={hayCaja}
+            disabled={hayCaja || cargandoCaja}
             variant={hayCaja ? 'outline' : 'default'}
             title={hayCaja ? 'Ya hay una caja abierta' : 'Abrir caja para comenzar operación'}
             className="px-2"
@@ -1127,7 +1137,7 @@ export default function Caja() {
       </div>
 
       {/* Aviso si NO hay caja abierta */}
-      {!hayCaja && (
+      {!hayCaja && !cargandoCaja && (
         <div className="px-4 py-3 rounded-xl bg-advertencia/10 border-2 border-advertencia/30 text-sm text-advertencia flex items-start gap-3">
           <AlertTriangle className="w-5 h-5 shrink-0 mt-0.5 text-advertencia" />
           <div className="flex-1">
@@ -1549,6 +1559,31 @@ export default function Caja() {
                     />
                   </div>
                 </div>
+                {/* Los tres importes son la VENTA por método, sin la propina: la propina se
+                    desglosa abajo. Decirlo aquí evita el «El pago excede el total» de quien
+                    teclea la tarjeta con la propina dentro. */}
+                {(() => {
+                  const venta = Number(ventaSeleccionada?.total) || 0;
+                  const desglosada =
+                    (parseFloat(montoEfectivo) || 0) +
+                    (parseFloat(montoTarjeta) || 0) +
+                    (parseFloat(montoTransferencia) || 0);
+                  const diferencia = Math.round((venta - desglosada) * 100) / 100;
+                  if (diferencia === 0) {
+                    return (
+                      <p className="text-[11px] font-semibold text-exito">
+                        {`✓ La venta (${formatCurrency(venta)}) queda cubierta.`}
+                      </p>
+                    );
+                  }
+                  return (
+                    <p className="text-[11px] font-semibold text-muted-foreground">
+                      {diferencia > 0
+                        ? `Venta sin propina: ${formatCurrency(venta)}. Faltan ${formatCurrency(diferencia)} por desglosar.`
+                        : `Venta sin propina: ${formatCurrency(venta)}. Sobran ${formatCurrency(-diferencia)}: la propina va abajo.`}
+                    </p>
+                  );
+                })()}
 
                 {/* ¿Cómo se pagó la propina? — exacta, no proporcional */}
                 {(Number(ventaSeleccionada?.propina_monto) || 0) > 0 && (

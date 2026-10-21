@@ -85,21 +85,34 @@ export const PISO_PROPINA_CENTAVOS = 100_000;
 
 const centavosNoNegativos = z.number().int().nonnegative().max(Number.MAX_SAFE_INTEGER);
 
-/** Un renglón de pago que además lleva su propina, exacta para ese método. */
+/** El tope relativo de una propina: diez veces su base, con el piso de mil pesos. */
+function topeDePropina(baseCentavos: number): number {
+  return Math.max(baseCentavos * FACTOR_PROPINA_SOBRE_VENTA, PISO_PROPINA_CENTAVOS);
+}
+
+const MENSAJE_DESPROPORCIONADA = (metodo: string): string =>
+  `La propina de este pago es desproporcionada respecto a lo que se cobra por ${metodo}. ` +
+  'Revisa el importe antes de cobrar.';
+
+/**
+ * Un renglón de pago que además lleva su propina, exacta para ese método.
+ *
+ * Un renglón SIN venta y con propina es legítimo (2.4, cierre del restaurante): la cuenta
+ * entera con tarjeta y la propina en billete. Su propina no se mide aquí contra su venta
+ * —que es cero y la daría por desproporcionada en cuanto pasa del piso—, sino en el cobro
+ * completo contra la cuenta (`entradaCobrarOrdenConPropina`). El tope absoluto sí aplica.
+ */
 export const entradaPagoConPropina = entradaPago
   .extend({
     propinaCentavos: centavosNoNegativos.max(MAXIMO_PROPINA_CENTAVOS).optional(),
   })
   .superRefine((pago, ctx) => {
     const propina = pago.propinaCentavos ?? 0;
-    const tope = Math.max(pago.montoCentavos * FACTOR_PROPINA_SOBRE_VENTA, PISO_PROPINA_CENTAVOS);
-    if (propina <= tope) return;
+    if (pago.montoCentavos === 0 || propina <= topeDePropina(pago.montoCentavos)) return;
     ctx.addIssue({
       code: 'custom',
       path: ['propinaCentavos'],
-      message:
-        `La propina de este pago es desproporcionada respecto a lo que se cobra por ` +
-        `${pago.metodo}. Revisa el importe antes de cobrar.`,
+      message: MENSAJE_DESPROPORCIONADA(pago.metodo),
     });
   });
 
@@ -111,12 +124,27 @@ export const entradaPagoConPropina = entradaPago
  * SIN propina — si la pantalla mandara el total inflado, `exigirTotalVigente`
  * rechaza el cobro en vez de cobrar otro número en silencio.
  */
-export const entradaCobrarOrdenConPropina = entradaCobrarOrden.extend({
-  pagos: z.array(entradaPagoConPropina).min(1).max(5),
-  propinaPuntosBase: puntosBase.optional(),
-  propinaTipo: z.enum(TIPOS_DE_PROPINA).optional(),
-  propinaOrigen: z.enum(ORIGENES_DE_PROPINA).optional(),
-});
+export const entradaCobrarOrdenConPropina = entradaCobrarOrden
+  .extend({
+    pagos: z.array(entradaPagoConPropina).min(1).max(5),
+    propinaPuntosBase: puntosBase.optional(),
+    propinaTipo: z.enum(TIPOS_DE_PROPINA).optional(),
+    propinaOrigen: z.enum(ORIGENES_DE_PROPINA).optional(),
+  })
+  .superRefine((cobro, ctx) => {
+    // La propina de un renglón sin venta se mide contra la CUENTA: es la de la mesa entera.
+    const cuenta = cobro.pagos.reduce((suma, pago) => suma + pago.montoCentavos, 0);
+    cobro.pagos.forEach((pago, indice) => {
+      if (pago.montoCentavos !== 0 || (pago.propinaCentavos ?? 0) <= topeDePropina(cuenta)) {
+        return;
+      }
+      ctx.addIssue({
+        code: 'custom',
+        path: ['pagos', indice, 'propinaCentavos'],
+        message: MENSAJE_DESPROPORCIONADA(pago.metodo),
+      });
+    });
+  });
 
 /**
  * Liquidar.

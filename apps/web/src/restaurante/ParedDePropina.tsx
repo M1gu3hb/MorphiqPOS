@@ -21,17 +21,31 @@ const PROPINAS = [1000, 1250, 1500, 0];
 
 export function ParedDePropina({
   venta,
+  delComensal = null,
   alElegir,
 }: {
   /** La venta sin propina, en centavos: la base de cada porcentaje. */
   readonly venta: number;
+  /**
+   * Lo que el comensal escribió en su teléfono, en centavos y aproximado (`propinaDelComensal`).
+   * Se DICE, no se prellena: la que confirma la propina es quien cobra.
+   */
+  readonly delComensal?: number | null;
   readonly alElegir: (propinaCentavos: number) => void;
 }) {
   /** La propina tecleada en «otra cantidad», antes de usarla. */
   const [otraPropina, setOtraPropina] = useState<number | null>(null);
   return (
     <div role="group" aria-label="Propina" className="flex flex-col gap-(--espacio-2)">
-      <Aviso tono="atencion" titulo="Confirma la propina antes de cobrar." />
+      <Aviso tono="atencion" titulo="Confirma la propina antes de cobrar.">
+        {delComensal === null ? null : (
+          <p className="text-sm text-texto-sutil">
+            El comensal escribió su propina en su teléfono: cerca de{' '}
+            <Dinero centavos={delComensal} tamano="sm" />. Pregúntale cuánto es y escríbela en «Otra
+            cantidad».
+          </p>
+        )}
+      </Aviso>
       <ul className="grid grid-cols-2 gap-(--espacio-2) sm:grid-cols-4">
         {PROPINAS.map((puntos) => {
           const importe = Math.round((venta * puntos) / 10000);

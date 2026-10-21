@@ -1,1 +1,6 @@
-export { useApariencia, atributosPrevisualizacion, type Apariencia } from './useApariencia';
+export {
+  useApariencia,
+  atributosPrevisualizacion,
+  type Apariencia,
+  type AparienciaInicial,
+} from './useApariencia';

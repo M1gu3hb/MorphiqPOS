@@ -8,7 +8,13 @@
  * de efectivo con importe CERO y el servidor rechazaba el cobro.
  *
  * Ahora quien cobra dice CON QUÉ se pagó la propina, y la propina sale de ese método.
- * Si ese método no alcanza a cubrir la propina y algo de la venta, se dice antes de mandar.
+ * Si lo que entra por ese método no alcanza ni para la propina, se dice antes de mandar.
+ *
+ * Y la operación más normal de un restaurante —la cuenta entera con tarjeta y la propina
+ * SÓLO en billete— se rechazaba aquí: se exigía que el efectivo cubriera «la propina y
+ * algo de la cuenta». Ahora ese renglón viaja como lo que es, sólo propina, sin inventarle
+ * un centavo de venta; el servidor y la base lo admiten desde la 184. Con un solo método,
+ * la propina también puede irse por otro sin pasar por «Mixto».
  */
 
 import { aplicarPorcentaje, centavos } from '@morphiqpos/domain/dinero';
@@ -33,10 +39,21 @@ export function problemaDeLaPropina(
 ): string | null {
   if (propina <= 0) return null;
   const importe = partes[metodoDePropina] ?? 0;
-  if (importe <= propina) {
-    return `La propina va con ${metodoDePropina}: ese importe tiene que cubrir la propina y algo de la cuenta.`;
+  if (importe < propina) {
+    return `La propina se pagó con ${metodoDePropina}, y lo que entra por ${metodoDePropina} no alcanza para ella.`;
   }
   return null;
+}
+
+/** Lo que el billete de «Recibido» tiene que cubrir: la venta, más la propina si va en efectivo. */
+export function aCubrirEnEfectivo(
+  metodo: Metodo,
+  venta: number,
+  propina: number,
+  metodoDePropina: MetodoBase,
+): number {
+  if (metodo !== 'efectivo') return 0;
+  return venta + (metodoDePropina === 'efectivo' ? propina : 0);
 }
 
 export function renglonesDePago(
@@ -52,7 +69,14 @@ export function renglonesDePago(
       metodo === 'efectivo' && recibido !== null && recibido > 0
         ? { recibidoCentavos: recibido }
         : {};
-    return [{ metodo, montoCentavos: venta, propinaCentavos: propina, ...enMano }];
+    if (propina <= 0 || metodoDePropina === metodo) {
+      return [{ metodo, montoCentavos: venta, propinaCentavos: propina, ...enMano }];
+    }
+    // La cuenta por un método y la propina por otro: el renglón de la propina no lleva venta.
+    return [
+      { metodo, montoCentavos: venta, propinaCentavos: 0, ...enMano },
+      { metodo: metodoDePropina, montoCentavos: 0, propinaCentavos: propina },
+    ];
   }
   return BASES.map((base) => {
     const importe = partes[base] ?? 0;
@@ -102,6 +126,39 @@ export function propinaPorConfirmar(cuenta: PropinaDeLaCuenta): boolean {
   if (PROPINA_SIN_DECIDIR.includes(cuenta.tipo ?? '')) return true;
   return cuenta.tipo === 'monto_manual' && cuenta.origen !== 'caja';
 }
+
+/**
+ * LO QUE EL COMENSAL ESCRIBIÓ EN SU TELÉFONO (día completo del restaurante, 2.4).
+ *
+ * Un comensal que escribe «otro monto» en el portal deja `monto_manual` con origen `portal_qr`.
+ * La orden no guarda el importe —no tiene dónde—, sólo los puntos base que salen de él
+ * (`portal.pedir_cuenta`), y el muro de la caja se ponía, bien, pero A CIEGAS: la cajera no veía
+ * qué había escrito el comensal y tenía que preguntárselo de memoria. El cobro heredado enseñaba
+ * el importe «para que el cajero lo confirme» (`Caja.jsx`, `propinaDerivada`); aquí se DICE, sin
+ * prellenar nada: la que confirma es la cajera, y lo que se cobra es lo que ella teclea.
+ *
+ * Es una CIFRA APROXIMADA, y la pantalla lo dice («cerca de»): los puntos base son enteros, así
+ * que un importe a mano que no es un porcentaje redondo vuelve con unos centavos de diferencia
+ * —$50.00 sobre $1,210.00 vuelve como $49.97—. El importe exacto vive sólo en el aviso al mesero
+ * (`solicitudes_qr.propina_sugerida_centavos`), que no siempre existe: arreglarlo de raíz es una
+ * columna en `ordenes`, fuera de esta pantalla.
+ *
+ * `null` cuando no hay nada fiable que decir: no es un monto del portal, no hay puntos base, o los
+ * puntos llegan al tope de 100 % —el portal recorta ahí la propina que supera la cuenta, y ese
+ * número ya no es lo que el comensal escribió—.
+ */
+export function propinaDelComensal(
+  ventaCentavos: number,
+  cuenta: PropinaDeLaCuenta,
+): number | null {
+  if (cuenta.tipo !== 'monto_manual' || cuenta.origen !== 'portal_qr') return null;
+  const puntosBase = Math.round((cuenta.porcentaje ?? 0) * 100);
+  if (puntosBase <= 0 || puntosBase >= PUNTOS_BASE_DE_LA_CUENTA || ventaCentavos <= 0) return null;
+  return Number(aplicarPorcentaje(centavos(ventaCentavos), puntosBase));
+}
+
+/** El tope de los puntos base de una orden: la cuenta entera (`check … between 0 and 10000`). */
+const PUNTOS_BASE_DE_LA_CUENTA = 10_000;
 
 /**
  * La propina que va en el cobro si la caja no eligió otra: la ya pagada, o el porcentaje

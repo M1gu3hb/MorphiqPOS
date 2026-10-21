@@ -235,8 +235,8 @@
       "ruta": "/api/catalogo/alta-rapida",
       "comando": "catalogo.alta_rapida",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
-      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+      "roles": ["administrador", "cajero", "dueno", "gerente"],
+      "paquetes": ["tienda"]
     },
     {
       "ruta": "/api/catalogo/archivar",
@@ -1426,7 +1426,7 @@
       "comando": "venta.devolver",
       "escribe": true,
       "roles": ["administrador", "cajero", "cocina", "dueno", "gerente"],
-      "paquetes": ["cafeteria", "estetica", "ferreteria", "restaurante", "tienda"]
+      "paquetes": ["cafeteria"]
     },
     {
       "ruta": "/api/venta/en-espera",
@@ -1770,6 +1770,10 @@
     },
     {
       "ruta": "/api/mantenimiento/vaciar-mesas",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/presentacion",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
     { "ruta": "/api/productos/[id]/abrir", "razon": "lleva un segmento dinámico en la dirección" },

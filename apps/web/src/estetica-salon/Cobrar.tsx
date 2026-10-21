@@ -38,6 +38,7 @@ import {
 } from './cobro-de-cita';
 import { DescuentoDelCobro } from './DescuentoDelCobro';
 import { HistorialDePagos } from './HistorialDePagos';
+import { MS_ENTRE_LECTURAS, avisoDeListaVieja, cambioLaLista } from './lista-por-cobrar';
 import { PagoDelCobro } from './PagoDelCobro';
 import { PropinaDelCobro } from './PropinaDelCobro';
 
@@ -263,6 +264,8 @@ export function Cobrar({
   ]);
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   const [recarga, setRecarga] = useState(0);
+  /** Latidos de la lista que fallaron SEGUIDOS: con varios, la lista puede estar vieja. */
+  const [fallosDelLatido, setFallosDelLatido] = useState(0);
   const [citaId, setCitaId] = useState<string | null>(null);
   const [descuentoBp, setDescuentoBp] = useState(0);
   /** La cotización con la clave de lo que cotizó: una vieja no se cobra por error. */
@@ -320,6 +323,7 @@ export function Cobrar({
         setServicios(lineas);
         setProfesionales(equipoDelSalon);
         setOtrosNombres([...catalogo, ...clientes]);
+        setFallosDelLatido(0);
       })
       .catch((fallo: unknown) => {
         if (!sigueMontada()) return;
@@ -331,6 +335,47 @@ export function Cobrar({
       control.abort();
     };
   }, [citasIniciales, recarga]);
+
+  /**
+   * LA LISTA SE MANTIENE AL DÍA SOLA (`lista-por-cobrar.ts`).
+   *
+   * Quien tiene esta pantalla abierta todo el día es la recepción, y quien termina las citas
+   * es la estilista, en su teléfono: sin esto la tablet seguía diciendo «ninguna cita está
+   * lista para cobrar» con la clienta ya parada en el mostrador. Cada pocos segundos se
+   * pregunta SÓLO cuáles son las terminadas, y la lectura completa se repite únicamente si
+   * esa lista cambió. Mientras se cobra una cita no se pregunta nada: la pantalla no se
+   * mueve bajo la mano de quien teclea. Con la pestaña oculta tampoco.
+   */
+  const alLatir = useEffectEvent(async (señal: AbortSignal): Promise<void> => {
+    if (citas === null || document.visibilityState !== 'visible') return;
+    try {
+      const leidas = await consultarPuente<CitaPorCobrar>('Cita', {
+        filtro: { estado: 'terminada' },
+        limite: 40,
+        signal: señal,
+      });
+      if (señal.aborted) return;
+      setFallosDelLatido(0);
+      if (cambioLaLista(citas, leidas)) setRecarga((previa) => previa + 1);
+    } catch {
+      // Un latido que falla no vacía la pantalla —lo que enseña sigue siendo cierto— pero se
+      // cuenta: con varios seguidos la franja dice que la lista puede estar vieja.
+      if (!señal.aborted) setFallosDelLatido((previos) => previos + 1);
+    }
+  });
+  const listaALaVista =
+    citas !== null && citaId === null && citasIniciales === undefined && enLinea;
+  useEffect(() => {
+    if (!listaALaVista) return;
+    const control = new AbortController();
+    const reloj = setInterval(() => {
+      void alLatir(control.signal);
+    }, MS_ENTRE_LECTURAS);
+    return () => {
+      clearInterval(reloj);
+      control.abort();
+    };
+  }, [listaALaVista]);
 
   const claveDeCotizacion =
     citaId === null ? null : `${citaId}:${String(descuentoBp)}:${String(recotizar)}`;
@@ -488,6 +533,9 @@ export function Cobrar({
     };
   }, []);
 
+  /** La franja de «la lista puede estar vieja», o nada mientras los latidos van bien. */
+  const listaVieja = avisoDeListaVieja(fallosDelLatido);
+
   const banda =
     error === null ? null : (
       <Aviso tono="peligro" titulo={error}>
@@ -571,6 +619,27 @@ export function Cobrar({
           </Aviso>
         )}
         {banda}
+        {listaVieja === null ? null : (
+          <Aviso
+            tono="atencion"
+            titulo={listaVieja}
+            {...(citas.length === 0
+              ? {}
+              : {
+                  accion: (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setRecarga((previa) => previa + 1);
+                      }}
+                    >
+                      Volver a mirar
+                    </Button>
+                  ),
+                })}
+          />
+        )}
         {citas.length === 0 ? (
           // El vacío ENSEÑA: dice por qué está vacío y qué hacer, no se disculpa.
           <Superficie relleno={6}>

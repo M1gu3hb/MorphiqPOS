@@ -70,8 +70,15 @@ export default function MesaGridMobile({ mesas, onMesaClick, getResponsable, loa
         const respGlow = respColor ? `, 0 0 0 1.5px ${respColor}33, 0 0 12px ${respColor}44` : '';
         const finalShadow = `${baseShadow}${glowShadow}${respGlow}`;
 
-        // Chip de estado: en dark un fondo más sólido y borde del color, no white/40.
-        const chipBg = isDark ? 'rgba(0,0,0,0.45)' : 'rgba(255,255,255,0.55)';
+        // Chip de estado: en dark un fondo más sólido y borde del color, no white/40. En claro,
+        // el chip blanco detrás de texto blanco daba ~1.4:1 (cierre del 21-10): con texto
+        // blanco el chip es oscuro, y blanco sólo cuando el texto es oscuro.
+        const textoBlanco = String(cfg.text).toLowerCase() === '#ffffff';
+        const chipBg = isDark
+          ? 'rgba(0,0,0,0.45)'
+          : textoBlanco
+            ? 'rgba(0,0,0,0.35)'
+            : 'rgba(255,255,255,0.55)';
         const chipBorder = isDark ? cfg.stroke : 'transparent';
         const chipText = isDark ? cfg.text : cfg.text;
 

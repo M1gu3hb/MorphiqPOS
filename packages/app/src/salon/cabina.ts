@@ -137,6 +137,20 @@ export const entradaAlcanzaCabina = z.object({
     )
     .max(200)
     .optional(),
+  /**
+   * El servicio que se va a agendar: «¿alcanza el material para ESTE?» (F-107, D.1 de la 2.4).
+   *
+   * Al elegir el servicio, `Agendar` leía su receta por el puente (`RecetaEscandallo`) para
+   * armar el `consumoEsperado` —y el puente la sirve sólo a quien lleva el inventario—, así
+   * que la recepcionista, que es quien agenda, recibía un 403 en cada servicio que elegía, la
+   * pantalla se tragaba el fallo y el aviso «te faltará oxidante» NO SALÍA NUNCA para quien
+   * más lo necesita. La receta la lee el SERVIDOR: aquí viaja sólo el servicio, y lo que
+   * vuelve —nombres, unidades, lo que hay y lo que hará falta— no trae un solo costo.
+   *
+   * Si viene `consumoEsperado`, manda éste; si no, la receta de este servicio; y sin ninguno
+   * de los dos, el consumo de las citas de hoy.
+   */
+  servicioId: z.uuid().optional(),
 });
 
 export interface ResultadoApertura {
@@ -355,6 +369,9 @@ export const alcanzaLaCabina = definirComando<
       readonly servicios: number | null;
     }[] =
       entrada.consumoEsperado?.map((e) => ({ ...e, servicios: null })) ??
+      (entrada.servicioId === undefined
+        ? undefined
+        : await consumoDelServicio(ctx, entrada.servicioId)) ??
       (await ctx.paso('consumo_del_dia', async () => {
         const filas = await ctx.tx
           .selectFrom('citas')
@@ -416,6 +433,54 @@ export const alcanzaLaCabina = definirComando<
     return { alcanza: faltantes.length === 0, faltantes, insumos };
   },
 });
+
+/**
+ * Lo que gasta UN servicio de la cabina, de su receta: sumado por insumo y a cuatro decimales
+ * exactos (enteros escalados, nunca coma flotante).
+ *
+ * El servicio tiene que ser de ESTE negocio: con el id de otro, la receta saldría vacía y el
+ * aviso diría «alcanza» sobre un servicio que aquí no existe.
+ */
+async function consumoDelServicio(
+  ctx: ContextoComando<Transaccion>,
+  servicioId: string,
+): Promise<
+  readonly { readonly insumoId: string; readonly cantidadBase: string; readonly servicios: null }[]
+> {
+  const { organizacionId } = ctx.ambito;
+  const servicio = await ctx.paso('leer_servicio', () =>
+    ctx.tx
+      .selectFrom('productos')
+      .select('id')
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', servicioId)
+      .executeTakeFirst(),
+  );
+  if (servicio === undefined) {
+    throw new ErrorDominio('PRODUCTO_NO_ENCONTRADO', 'Ese servicio no está en este catálogo.');
+  }
+  const lineas = await ctx.paso('leer_receta_del_servicio', () =>
+    ctx.tx
+      .selectFrom('recetas')
+      .select(['insumo_id', 'cantidad'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('producto_id', '=', servicioId)
+      .where('activa', '=', true)
+      .execute(),
+  );
+  const porInsumo = new Map<string, bigint>();
+  for (const linea of lineas) {
+    porInsumo.set(
+      linea.insumo_id,
+      (porInsumo.get(linea.insumo_id) ?? 0n) + aEscala(linea.cantidad),
+    );
+  }
+  return [...porInsumo].map(([insumoId, cantidad]) => ({
+    insumoId,
+    cantidadBase: deEscala(cantidad),
+    servicios: null,
+  }));
+}
 
 /**
  * Para cuántos servicios alcanza lo que hay, con el gasto PROMEDIO de los de hoy: si

@@ -62,7 +62,9 @@ export const MESA_STATUS_CONFIG = {
     text: '#1F4D2C',
   },
   pedido_enviado: { label: 'Pedido enviado', fill: '#3B82F6', stroke: '#1E5FCF', text: '#FFFFFF' },
-  en_preparacion: { label: 'En preparación', fill: '#FB8C2A', stroke: '#C25E10', text: '#FFFFFF' },
+  // Texto oscuro (cierre del 21-10): blanco sobre este naranja da 2.36:1 y no se leía ni el
+  // número de la mesa; así da 5.5:1 con el mismo relleno.
+  en_preparacion: { label: 'En preparación', fill: '#FB8C2A', stroke: '#C25E10', text: '#2B1403' },
   en_espera_entrega: {
     label: 'Esperando entrega',
     fill: '#16A34A',
@@ -80,6 +82,17 @@ export const MESA_STATUS_CONFIG = {
   pagada: { label: 'Pagada', fill: '#D4D4D4', stroke: '#909090', text: '#404040' },
   cancelada: { label: 'Cancelada', fill: '#7A1F28', stroke: '#4D131A', text: '#FFFFFF' },
 };
+
+/**
+ * El fondo y el texto de una INSIGNIA de estado de mesa: texto chico sobre el color del estado.
+ * Con texto blanco el fondo es el tono oscuro de la misma familia (`stroke`): sobre el relleno
+ * vivo, el blanco de 12 px bajaba a 3.3:1 (cierre del 21-10); así queda arriba de 5.4:1.
+ */
+export function insigniaDeEstadoDeMesa(cfg) {
+  if (!cfg) return {};
+  const blanco = String(cfg.text).toLowerCase() === '#ffffff';
+  return { background: blanco ? cfg.stroke : cfg.fill, color: cfg.text };
+}
 
 export const PREP_STATUS_CONFIG = {
   nuevo: { label: 'Nuevo', color: 'bg-info/15 text-info border-info/30' },

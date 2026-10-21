@@ -1,4 +1,4 @@
-import { agendaDelDia } from '@morphiqpos/app/salon';
+import { agendaDelDia, listaDeEspera } from '@morphiqpos/app/salon';
 
 /**
  * ¿La casa de esta persona, en un salón, es la AGENDA? (D.1 de la 2.4)
@@ -11,4 +11,15 @@ import { agendaDelDia } from '@morphiqpos/app/salon';
  */
 export function abreEnLaAgenda(rol: string): boolean {
   return (agendaDelDia.roles as readonly string[]).includes(rol);
+}
+
+/**
+ * ¿Lee esta persona la LISTA DE ESPERA? (D.1 de la 2.4)
+ *
+ * La agenda la pintaba para todo el que la abre, y la estilista —que abre la agenda pero no
+ * la lista, que es de la recepción— recibía un 403 en cada apertura. Como `abreEnLaAgenda`:
+ * de los roles del comando que la lee (`lista_espera_citas.lista`), no de otra lista.
+ */
+export function veLaListaDeEspera(rol: string): boolean {
+  return (listaDeEspera.roles as readonly string[]).includes(rol);
 }

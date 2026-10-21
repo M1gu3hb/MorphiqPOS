@@ -92,13 +92,11 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import {
   HUECOS_QUE_CABEN,
   conOtraPersona as primerosConOtraPersona,
-  consumoDeLaReceta,
   diaIso,
   huecosParaOfrecer,
   minutosDelServicio,
   type Hueco,
   type HuecoDelServidor,
-  type LineaDeReceta,
   type ServicioConTiempos,
 } from './agendar-huecos.ts';
 import type { AsignacionGuardada } from './quien-da-el-servicio.ts';
@@ -303,6 +301,8 @@ export function Agendar({
   const [falloDeHuecos, setFalloDeHuecos] = useState<string | null>(null);
   /** Los materiales de cabina que no alcanzan para el servicio elegido. */
   const [faltaEnCabina, setFaltaEnCabina] = useState<readonly string[]>([]);
+  /** No se pudo comprobar si el material alcanza: se dice, no se calla. */
+  const [falloDeCabina, setFalloDeCabina] = useState<string | null>(null);
   /** Si se llegó desde la lista de espera: la espera que esta cita cumple. */
   const [esperaId, setEsperaId] = useState<string | null>(null);
 
@@ -415,32 +415,35 @@ export function Agendar({
     };
   }, [servicioId, serviciosIniciales]);
 
-  // ¿Alcanza el material de cabina para este servicio? (F-107)
+  /**
+   * ¿ALCANZA EL MATERIAL DE CABINA PARA ESTE SERVICIO? (F-107)
+   *
+   * La receta la lee el SERVIDOR (`cabina.alcanza` con el `servicioId`): esta pantalla la
+   * pedía al puente, que la sirve sólo a quien lleva el inventario, y la recepcionista —que
+   * es quien agenda— recibía un 403 con cada servicio que elegía. El aviso «te faltará
+   * oxidante» no salía nunca para quien más lo necesita, y el fallo se tragaba en silencio.
+   * Si no se pudo saber, se DICE: callar deja pensar que sí alcanza.
+   */
   useEffect(() => {
     if (servicioId === null || serviciosIniciales !== undefined) return;
-    let vigente = true;
-    consultarPuente<LineaDeReceta>('RecetaEscandallo', {
-      filtro: { producto_id: servicioId },
-      limite: 60,
-    })
-      .then((lineas) => {
-        const consumo = consumoDeLaReceta(lineas);
-        if (consumo.length === 0) return { insumos: [] };
-        return invocarComando<{
-          readonly insumos: readonly { readonly nombre: string | null; readonly falta: boolean }[];
-        }>('/api/inventario/cabina/alcanza', { consumoEsperado: consumo });
-      })
+    const control = new AbortController();
+    invocarComando<{
+      readonly insumos: readonly { readonly nombre: string | null; readonly falta: boolean }[];
+    }>('/api/inventario/cabina/alcanza', { servicioId }, { signal: control.signal })
       .then((salida) => {
-        if (vigente)
-          setFaltaEnCabina(
-            salida.insumos.filter((i) => i.falta).map((i) => i.nombre ?? 'un material'),
-          );
+        if (control.signal.aborted) return;
+        setFalloDeCabina(null);
+        setFaltaEnCabina(
+          salida.insumos.filter((i) => i.falta).map((i) => i.nombre ?? 'un material'),
+        );
       })
-      .catch(() => {
-        if (vigente) setFaltaEnCabina([]);
+      .catch((fallo: unknown) => {
+        if (control.signal.aborted) return;
+        setFaltaEnCabina([]);
+        setFalloDeCabina(mensajeDe(fallo));
       });
     return () => {
-      vigente = false;
+      control.abort();
     };
   }, [servicioId, serviciosIniciales]);
 
@@ -882,6 +885,14 @@ export function Agendar({
               <Aviso tono="atencion" titulo="El material de cabina no alcanza para este servicio.">
                 Falta {faltaEnCabina.join(', ')}. Se puede agendar; ábrelo del anaquel antes de la
                 cita.
+              </Aviso>
+            )}
+            {falloDeCabina === null ? null : (
+              <Aviso
+                tono="atencion"
+                titulo="No se pudo comprobar si el material de cabina alcanza."
+              >
+                {falloDeCabina} Se puede agendar igual.
               </Aviso>
             )}
           </section>

@@ -975,3 +975,168 @@ de datos mezcla cajas/stock y no es necesario. Se elige una entrada común y con
 operativos separados. La mutación de las tres pruebas del acceso central falló contra la
 ruta anterior (404 inicial y encierro por cookie/terminal); los enlaces acotados conservan
 sus pruebas de rechazo para slugs no servidos.
+
+## D-43 · 20-10-2026 · El restaurante vive su día en los tres aparatos (enmienda D-39)
+
+**Contexto.** D-39 dejó al restaurante en la tableta, y CI llamaba a
+`dia-completo-restaurante`, un archivo que no existía. El recorrido que Miguel presenta es el
+heredado (D-42), desde su teléfono y su PC; el `04-INTERFAZ` del restaurante declara el
+teléfono para la cocina chica, para el dueño que cobra una mesa y para el cierre. Y en el
+teléfono la mesera no tiene el diálogo de la mesa: «Enviar a Cocina» y «Solicitar cuenta»
+viven en su carrito flotante. Es justo donde se escondían los fallos: el botón del menú era
+invisible en 11 de los 16 estilos (contraste 1.0–1.4, entre ellos «noche», el de la demo).
+
+**Decisión.** El restaurante corre su día en PC, tableta y teléfono, uno tras otro sobre el
+mismo negocio y cada uno desde su propio reseteo (`--workers=1`, `--retries=0`). En el
+teléfono el día mide además que el botón del menú se lea (3:1 contra la barra) en los ocho
+estilos, claro y oscuro. Los demás modelos siguen como dice D-39.
+
+**Alternativas.** Sólo la tableta (deja sin probar el carrito flotante, que es lo que usa la
+mesera en su teléfono); una suite aparte para el teléfono (repetiría el día con otra
+receta y se separaría de él).
+
+**Consecuencias.** El trabajo del restaurante tarda unos tres minutos más. La regla de
+abarrotes —«el dueño no cobra desde el teléfono»— sigue en pie para la tienda: el teléfono
+entra al día completo sólo donde el `04-INTERFAZ` del modelo lo declara.
+
+## D-44 · 20-10-2026 · Lo que cada puesto pide lo decide el servidor con los permisos reales
+
+**Contexto.** Recorrer los días por las pantallas de cada rol destapó pantallas que pedían a
+la API lecturas que su rol no tiene, y se tragaban el 403: la mesera pedía el corte para
+saber si había caja (y no podía pedir la cuenta); la cajera en `/` recibía el tablero de la
+dueña; su cierre pedía tres lecturas de costos y el `Promise.all` caía sin PDF; la estilista
+pedía la receta con su costo y la cotización en cada «Cita en curso»; la agenda pedía la lista
+de espera a todos, y «Agendar» leía la receta que la recepción no lee. Un 403 tragado es un
+botón muerto o un aviso que no sale («te faltará oxidante»).
+
+**Decisión.** La pantalla no adivina el rol. La página del servidor calcula qué se puede
+pedir con los mismos permisos que guardan la API —el `rolesLectura` del puente y los `roles`
+del comando— y se lo pasa como prop obligatoria (`quienVeElCosto`, `veLaListaDeEspera`,
+`abreEnLaAgenda`); en lo heredado, `hasPermission(rol, 'ver_costos')` decide si se piden
+costos. Cuando el puesto necesita un dato y no su fuente, el comando responde sólo el dato
+(`cabina.alcanza` con `servicioId`: si alcanza, sin un solo costo), y el corte le dice a la
+mesera si hay caja sin un solo importe. Las jornadas tumban el día ante cualquier 4xx/5xx de la
+API y dicen en qué pantalla llegó (`vigilarFallos`).
+
+**Alternativas.** Callar el 403 en el cliente (escondería los permisos rotos de verdad);
+darle a cada rol las lecturas que pide (abriría costos y listas a quien no debe verlos).
+
+**Consecuencias.** Una pantalla nueva que lea algo con rol necesita su bandera del servidor;
+si no la tiene, el día del modelo cae en la pantalla que la pidió.
+
+## D-45 · 20-10-2026 · El reseteo de la demo del restaurante conserva al dueño general
+
+**Contexto.** La cuenta «Miguel, Dueño general» (D-42) vive en `demo-acople-restaurante`, y su
+concesión —qué negocios abre— en `presentacion_dueno_empleo` y `presentacion_destinos` de la
+configuración de esa demo. El reseteo reescribía la configuración entera y reponía el PIN
+publicado de la demo a todos los dueños: tras un reseteo la cuenta general entraba con el PIN
+que todos conocen y ya no abría los demás modelos.
+
+**Decisión.** Antes de reponer nada, el reseteo lee quién es el dueño general; no le repone el
+PIN ni lo desactiva, y al reescribir la configuración conserva las dos llaves de la concesión
+(`packages/app/src/demostracion/dueno-general.ts`). Todo lo demás de la demo se repone como
+siempre, también el PIN del dueño de la demo.
+
+**Alternativas.** Mover la cuenta general a un negocio propio (es un cambio de datos en
+producción que no hace falta todavía); prohibir el reseteo de esa demo (la demo deja de ser
+reseteable justo donde más se presenta).
+
+**Consecuencias.** `dueno-general.integracion.test.ts` corre el comando real contra Postgres y
+se vio rojo de las dos maneras (reponiéndole el PIN y sin conservar la concesión).
+
+## D-46 · 20-10-2026 · La cuenta con un método y la propina con otro: el renglón sólo de propina
+
+**Contexto.** Lo más normal en una mesa —la cuenta entera con tarjeta y la propina en billete—
+no se podía cobrar: la base exigía `monto_centavos > 0` en cada pago, `repartirPagos` rechazaba
+un renglón sin venta, la pantalla nueva pedía «cubrir la propina y algo de la cuenta» y la caja
+heredada cobraba sin la propina, sin avisar.
+
+**Decisión.** Un renglón de pago puede ser SÓLO propina (184: `monto_centavos >= 0` y
+`pago_con_venta_o_propina`). La venta por método no se toca: la tarjeta lleva la cuenta entera y
+el efectivo sólo la propina, que entra al cajón como movimiento `propina`. Sigue rechazado el
+renglón vacío, la venta negativa y la propina que «paga» la venta. El tope relativo de la propina
+de un renglón sin venta se mide contra la cuenta entera.
+
+**Alternativas.** Inventarle un centavo de venta al efectivo (descuadra la venta por método:
+prohibido por el encargo); obligar a cobrar como «Mixto» (no es lo que pasó y el reporte lo
+diría mal).
+
+**Consecuencias.** 184 aplicada en producción el 20-10 por el proceso (ensayo con `rollback`,
+respaldo dentro de la base, `apply_migration`, contrato de esquema idéntico a una base 1–184).
+La integración cobra por el comando real y mira pagos por método, cajón, arqueo y corte.
+
+## D-47 · 20-10-2026 · Un preview de Vercel acepta escrituras desde SUS hostnames exactos
+
+**Contexto.** En el preview de cualquier rama que no fuera `fase-2`, la frontera de escritura
+(R-17) contestaba 403 a todo, empezando por el PIN (§9 de `VERCEL-ENTORNO.md`): no había forma
+de verificar un preview desde fuera sin crear una variable por rama.
+
+**Decisión.** Con `VERCEL_ENV=preview`, `validarEntorno` agrega a los orígenes alternos los dos
+hostnames EXACTOS que inyecta Vercel (`VERCEL_URL`, `VERCEL_BRANCH_URL`). Es configuración de la
+plataforma, no el `Host` de la petición. Un valor que no es un hostname completo (comodín,
+esquema, ruta, puerto) se ignora. Producción conserva su lista escrita; la protección de Vercel
+del preview no se toca.
+
+**Alternativas.** Una variable `APP_URL_ALTERNAS` por rama (trabajo manual en cada rama);
+aceptar `*.vercel.app` (abre la escritura a cualquier despliegue ajeno).
+
+**Consecuencias.** El preview se verifica con el enlace compartido de Vercel (credencial
+temporal que no se guarda en el repositorio). El preview escribe en la MISMA base que
+producción: sólo se ensaya en él lo que no escribe.
+
+## D-48 · 20-10-2026 · Quitar una mesa del mapa es desactivarla, y sólo si no está en servicio
+
+**Contexto.** «Eliminar» desactivaba la mesa y la dejaba en el editor; el puente apagaba `activo`
+sin mirar la cuenta, así que una mesa en servicio quedaba dada de baja con su cuenta colgando. Y
+la zona elegida no se guardaba: viajaba como `zona`, un derivado de sólo lectura.
+
+**Decisión.** Borrado suave con candado en el servidor: `apagarSoloSi` del mapa del puente pone
+la condición en el `where` del mismo `update` (estado libre, limpieza, pagada o cancelada, y sin
+`orden_activa_id`) y contesta `MESA_YA_ABIERTA` con qué hacer. La pantalla dice «Quitar del
+mapa», enseña «Mesas desactivadas» con «Reactivar», y la zona se traduce por nombre a su
+`zona_id`.
+
+**Alternativas.** Borrar de verdad (rompe el historial de cuentas y eventos de la mesa); validar
+sólo en la pantalla (otra pestaña o un reintento la saltan).
+
+**Consecuencias.** Cualquier entidad del puente puede declarar su propio `apagarSoloSi`.
+
+## D-49 · 20-10-2026 · Cada puesto abre sólo sus pantallas, y el servidor niega lo demás
+
+**Contexto.** `AppLayout` sólo miraba las doce rutas del menú heredado: la mesera abría el
+mostrador (`/pos`) y la cocina el cobro y las recetas del restaurante tecleando la dirección. En
+el servidor, la auditoría de rutas encontró lecturas de costos para caja y mesero (`venta.estado`,
+importes de renglones y del QR para la cocina), `establecer_pin` sin tope por puesto y comandos de
+otros modelos abiertos al restaurante.
+
+**Decisión.** La pantalla se decide con LA MISMA tabla que pinta el menú
+(`rutaPermitidaParaElPuesto`): una ruta del menú pide su permiso; `/pos` y `/mesas` el suyo; una
+vista `/restaurante/...` es de quien la tiene en su menú (hoy, dirección). En el servidor:
+`establecer_pin` sólo para puestos que el rol puede otorgar (`PUEDE_OTORGAR`) o el propio;
+`venta.estado` sin costos para caja y mesero; importes de renglones y del QR sólo para sala y
+caja; `PAQUETES_BARRA` (`venta.devolver`) y `PAQUETES_TIENDA` (`alta_rapida`, sin mesero).
+
+**Alternativas.** Esconder sólo los botones (la ruta tecleada se sigue pintando); una tabla de
+rutas aparte del menú (dos fuentes que se separan).
+
+**Consecuencias.** Las vistas adicionales del restaurante no tienen entrada de menú para mesero
+ni caja: es decisión de producto, no defecto. Quedan documentados los huecos P2/P3 de la
+auditoría que no entran en este cierre (ver el reporte 021).
+
+## D-50 · 20-10-2026 · El grupo de mesas se recoge entero y la cuenta dividida cobra lo que enseña
+
+**Contexto.** Al cobrar un grupo de mesas unidas, sólo la principal pasaba a limpieza: las demás
+quedaban «ocupadas» sin cuenta. Al dividir una cuenta con descuento o con IVA fuera del precio,
+cada parte se calculaba con el precio de lista y la suma no cuadraba con la cuenta madre (el
+disparador diferido `division_cuadra` lo rechazaba, o cobraba de más).
+
+**Decisión.** `cerrarElGrupoDeLaMesa` cierra la unión y lleva a cada mesa al mismo destino que la
+principal (cobro → limpieza; cancelación → libre). Cada parte de una división toma sus totales de
+`cotizar` —descuento, impuestos, costo— y la madre se ajusta a la suma de sus partes vivas; un
+descuento a una parte también la ajusta. La madre se bloquea antes de contar partes.
+
+**Alternativas.** Repartir el total de la madre en proporción a los renglones (deja centavos
+huérfanos con descuento por renglón); impedir dividir cuentas con descuento (lo pide la sala).
+
+**Consecuencias.** Cinco pruebas de integración contra Postgres (cambio y unión con cobro,
+cierre de caja con mesa abierta, cobro simultáneo de partes, división y cobro).

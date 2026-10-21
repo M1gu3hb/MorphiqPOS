@@ -104,32 +104,6 @@ export function conOtraPersona(
   return salida;
 }
 
-export interface LineaDeReceta {
-  readonly ingrediente_id: string;
-  readonly cantidad_convertida_unidad_base: number | null;
-}
-
-/**
- * Lo que el servicio gasta de la cabina, en la forma de `cabina.alcanza`: para avisar al
- * agendar si el material no alcanza (F-107). Sumado por insumo, con cuatro decimales.
- */
-export function consumoDeLaReceta(
-  lineas: readonly LineaDeReceta[],
-): { readonly insumoId: string; readonly cantidadBase: string }[] {
-  const porInsumo = new Map<string, number>();
-  for (const linea of lineas) {
-    if (linea.cantidad_convertida_unidad_base === null) continue;
-    porInsumo.set(
-      linea.ingrediente_id,
-      (porInsumo.get(linea.ingrediente_id) ?? 0) + linea.cantidad_convertida_unidad_base,
-    );
-  }
-  return [...porInsumo].map(([insumoId, cantidad]) => ({
-    insumoId,
-    cantidadBase: cantidad.toFixed(4),
-  }));
-}
-
 /** `AAAA-MM-DD` en la hora local: lo que `agenda.huecos` pide como día. */
 export function diaIso(fecha: Date): string {
   return `${String(fecha.getFullYear())}-${String(fecha.getMonth() + 1).padStart(2, '0')}-${String(fecha.getDate()).padStart(2, '0')}`;

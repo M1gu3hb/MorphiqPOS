@@ -117,6 +117,22 @@ export const PAQUETES_OPERATIVOS = PAQUETES;
 export const PAQUETES_RESTAURANTE = ['restaurante'] as const;
 
 /**
+ * La BARRA de la cafetería: el barista que cierra el turno con un pedido cobrado que nadie
+ * recogió y lo devuelve (`venta.devolver`). Era `PAQUETES_OPERATIVOS`, y con eso la COCINA
+ * de un restaurante podía reembolsar una venta cobrada y sacar efectivo del cajón (cierre
+ * del 21-10). En el restaurante, las devoluciones son de caja y dirección, por su comando.
+ */
+export const PAQUETES_BARRA = ['cafeteria'] as const;
+
+/**
+ * El MOSTRADOR DE LA TIENDA: la cajera que da de alta, con el cliente esperando, el producto
+ * que no estaba (`catalogo.alta_rapida`, pantalla `/abarrotes/alta-rapida-de-producto`, que
+ * sólo abre la plantilla `tienda`). Era `PAQUETES_MOSTRADOR`, y con eso el mesero y la caja
+ * de un restaurante creaban productos con precio, costo y existencias (cierre del 21-10).
+ */
+export const PAQUETES_TIENDA = ['tienda'] as const;
+
+/**
  * Donde el cliente puede PEDIR desde el QR de su mesa.
  *
  * Era `PAQUETES_OPERATIVOS` —las tres de entonces— y con cinco plantillas eso

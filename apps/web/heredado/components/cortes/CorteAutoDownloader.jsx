@@ -3,6 +3,9 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { api } from '@/api/cliente';
 import { useConfig } from '@/lib/ConfigContext';
+import { canAccessModule } from '@/lib/packageConfig';
+import { usePOSAuth } from '@/lib/POSAuthContext';
+import { hasPermission } from '@/lib/permissions';
 import { getStockStatus } from '@/utils/inventoryUtils';
 import { downloadNodeAsPDF, safeFileName } from '@/lib/pdfDownload';
 import { format } from 'date-fns';
@@ -16,7 +19,12 @@ import CorteTicket from '@/components/tickets/CorteTicket';
  * Si el navegador bloquea, expone un botón visible para reintentar.
  */
 export default function CorteAutoDownloader({ corte, onDone }) {
-  const { config } = useConfig();
+  const { config, paquete_modo } = useConfig();
+  const { posUser } = usePOSAuth();
+  const veCostos = hasPermission(posUser?.rol, 'ver_costos');
+  // La misma regla que el visor del corte: sin el módulo o sin el permiso, la hoja va sin costos.
+  const sinCostos = !canAccessModule('costos_basicos', paquete_modo) || !veCostos;
+  const haySala = canAccessModule('mesero', paquete_modo);
   const ref = useRef(null);
   const [data, setData] = useState(null);
   const [downloading, setDownloading] = useState(false);
@@ -43,9 +51,13 @@ export default function CorteAutoDownloader({ corte, onDone }) {
           await Promise.all([
             api.entidades.Venta.list('-fecha_cierre', 2000),
             api.entidades.GastoOperativo.list('-created_date', 500),
-            api.entidades.DescuentoInventarioVenta.list('-created_date', 3000),
-            api.entidades.Ingrediente.list(),
-            api.entidades.RecetaEscandallo.list('-created_date', 2000),
+            // Lo de costos e inventario sólo lo lee quien lo puede ver (restaurante, 20-10-2026):
+            // para la cajera, que es quien cierra, esas tres lecturas eran 403, el `Promise.all`
+            // caía y el corte del día se quedaba SIN PDF. Ahora su hoja sale sin costos —el
+            // ticket ya sabe hacerlo (`sinCostos`)— en vez de no salir.
+            veCostos ? api.entidades.DescuentoInventarioVenta.list('-created_date', 3000) : [],
+            veCostos ? api.entidades.Ingrediente.list() : [],
+            veCostos ? api.entidades.RecetaEscandallo.list('-created_date', 2000) : [],
           ]);
 
         const matchVenta = (v) => {
@@ -157,7 +169,7 @@ export default function CorteAutoDownloader({ corte, onDone }) {
     return () => {
       cancelled = true;
     };
-  }, [corte]);
+  }, [corte, veCostos]);
 
   const triggerDownload = async () => {
     if (!ref.current || !data) return;
@@ -241,6 +253,8 @@ export default function CorteAutoDownloader({ corte, onDone }) {
               cancelaciones={data.cancelaciones}
               alertas={data.alertas}
               config={config}
+              sinCostos={sinCostos}
+              haySala={haySala}
             />
           </div>,
           document.body,

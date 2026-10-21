@@ -1,6 +1,7 @@
 import { expect, test } from '@playwright/test';
 
 import { enPesos, exigirElPdfDelCorte } from './ayudantes/corte.ts';
+import { opcionesDelProyecto, personaDe } from './ayudantes/roles.ts';
 
 import {
   abrirCajaPorLaRuta,
@@ -154,12 +155,13 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
         // `producto` y `linea_orden` al mismo término a propósito: lo que se vende y
         // lo que se apunta en la cuenta son la misma cosa en este giro.
         ['producto', 'Platillos'],
-        // `responsable` → «mesero/meseros». Es la entrada `/mesero`, que sólo existe
-        // porque esta plantilla incluye el módulo.
-        ['responsable', 'Meseros'],
-        // `preparacion` → «cocina/cocinas». En una cafetería la misma entrada dice
-        // «Barras», y en una tienda no existe: está APAGADA en su diccionario.
-        ['preparacion', 'Cocinas'],
+        // `responsable` y `preparacion`: desde D-42 el restaurante nombra su sala con el
+        // recorrido que Miguel presenta —«Mesas y pedidos» y «Cocina»— y no con el plural
+        // del diccionario («Meseros», «Cocinas»). Las dos entradas sólo existen porque esta
+        // plantilla incluye la sala. Otro giro con esta plantilla sí las nombra con el suyo
+        // —Café Jacaranda: «Baristas», «Barras»— (`inicio-del-restaurante.test.ts`).
+        ['responsable', 'Mesas y pedidos'],
+        ['preparacion', 'Cocina'],
       ],
       ajenos: [
         'Materiales',
@@ -178,18 +180,17 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     // nombre. Aquí se afirma lo que NO puede faltarle a esta plantilla y sí les
     // falta a las otras dos, con la ruta a la vista.
     await expect(
-      menu.getByRole('link', { name: 'Meseros', exact: true }),
+      menu.getByRole('link', { name: 'Mesas y pedidos', exact: true }),
       'La plantilla `restaurante` es la única con el bloque de sala de ' +
         '`MODULOS_POR_PLANTILLA`. Sin la entrada de mesero, esta plantilla no se ' +
         'distingue de `cafeteria`.',
     ).toHaveAttribute('href', '/mesero');
-    // «Cocinas» lleva a la pantalla DEL MODELO y no a la heredada `/cocina`. Las
-    // dos existen y las dos gobierna el módulo `cocina`; el menú ofrece una
-    // entrada por módulo y gana la del modelo. La heredada sigue respondiendo en
-    // su ruta, y es la que el menú ofrece en una plantilla que no trae la nueva.
-    await expect(menu.getByRole('link', { name: 'Cocinas', exact: true })).toHaveAttribute(
+    // «Cocina» lleva a la cocina HEREDADA, `/cocina`: desde D-42 el menú del restaurante
+    // es el recorrido que se presenta, primero sus pantallas de siempre. La del modelo,
+    // `/restaurante/cocina`, sigue respondiendo en su ruta (se abre en el punto 4).
+    await expect(menu.getByRole('link', { name: 'Cocina', exact: true })).toHaveAttribute(
       'href',
-      '/restaurante/cocina',
+      '/cocina',
     );
 
     // ── 3 · SU DASHBOARD ─────────────────────────────────────────────────
@@ -433,5 +434,196 @@ test.describe('restaurante · su vocabulario, sus pantallas y su dashboard', () 
     });
 
     exigirSinFallos();
+  });
+
+  /**
+   * LAS MESAS SE CONFIGURAN DESDE CONFIGURACIÓN, y el resultado se entiende (cierre del 21-10).
+   *
+   * Crear, editar, acomodar y guardar la posición, quitar del mapa y reactivar, mirando la base
+   * después de cada paso —no el aviso—. «Eliminar» desactiva (borrado suave: el historial se
+   * conserva) y antes la mesa SEGUÍA en el mapa con el aviso «Mesa eliminada»; ahora sale del
+   * mapa, aparece en «Mesas desactivadas» con «Reactivar», y la mesera no la ve.
+   *
+   * En el teléfono el editor es una LISTA —sin mapa libre ni arrastre; cada mesa se abre con su
+   * lápiz—, con el mismo corte que la pantalla (`useIsMobile`, menos de 768 px): ahí se prueba
+   * todo menos acomodar.
+   */
+  test('el dueño crea, edita, acomoda, quita del mapa y reactiva una mesa', async ({ page }) => {
+    const exigirSinFallos = vigilarFallos(page);
+    await entrar(page);
+    const conMapa = (page.viewportSize()?.width ?? 0) >= 768;
+
+    interface MesaConfigurada extends MesaDelPuente {
+      readonly nombre?: string | null;
+      readonly capacidad?: number | null;
+      readonly zona?: string | null;
+      readonly activo?: boolean | null;
+      readonly posicion_x?: number | null;
+      readonly posicion_y?: number | null;
+    }
+    const leerMesa = async (numero: number): Promise<MesaConfigurada | undefined> => {
+      const todas = await consultarPuente<MesaConfigurada>(page, 'Mesa', { limite: 100 });
+      return todas.find((m) => m.numero === numero);
+    };
+    const enElEditor = (numero: number) =>
+      conMapa
+        ? page
+            .locator('span.font-heading')
+            .filter({ hasText: new RegExp(`^${String(numero)}$`) })
+            .first()
+        : page.getByRole('button', { name: `Editar mesa ${String(numero)}`, exact: true });
+    const dialogo = page.getByRole('dialog').filter({ hasText: 'Nombre visible' });
+
+    const pestanaDeZona = (zona: string) =>
+      page.getByRole('button', { name: new RegExp(`^${zona} \\(\\d+\\)$`) });
+
+    await page.goto('/configuracion?tab=mesas');
+    // Se crea desde la pestaña «Terraza», y nace en la Terraza. Antes la zona no viajaba
+    // —`zona` es un derivado; lo que se guarda es `zona_id`— y la mesa caía en «Interior».
+    await pestanaDeZona('Terraza').click();
+    await page.getByRole('button', { name: 'Nueva mesa' }).click();
+    await expect(dialogo).toBeVisible({ timeout: 30_000 });
+    // El número lo propone el editor: el siguiente al mayor.
+    const numero = Number(await dialogo.getByRole('spinbutton').first().inputValue());
+    expect(numero, 'El editor no propuso un número de mesa.').toBeGreaterThan(0);
+    await dialogo.getByPlaceholder('Opcional').fill('Terraza norte');
+    await dialogo.getByRole('button', { name: 'Crear mesa' }).click();
+    await expect(dialogo).toBeHidden({ timeout: 30_000 });
+    await expect(enElEditor(numero)).toBeVisible({ timeout: 30_000 });
+    expect(await leerMesa(numero)).toMatchObject({
+      nombre: 'Terraza norte',
+      zona: 'Terraza',
+      activo: true,
+    });
+
+    // Editar: el nombre, la capacidad y la ZONA se guardan; la mesa se va a su pestaña nueva.
+    await enElEditor(numero).click();
+    await expect(dialogo).toBeVisible();
+    await dialogo.getByPlaceholder('Opcional').fill('Terraza norte · sombra');
+    await dialogo.getByRole('spinbutton').nth(1).fill('6');
+    // El primer selector del diálogo es la zona (luego forma, tamaño y mesero).
+    await dialogo.getByRole('combobox').first().click();
+    await page.getByRole('option', { name: 'Exterior', exact: true }).click();
+    await dialogo.getByRole('button', { name: 'Guardar cambios' }).click();
+    await expect(dialogo).toBeHidden({ timeout: 30_000 });
+    await expect
+      .poll(async () => (await leerMesa(numero))?.nombre, { timeout: 15_000 })
+      .toBe('Terraza norte · sombra');
+    expect(await leerMesa(numero)).toMatchObject({ capacidad: 6, zona: 'Exterior' });
+    await expect(enElEditor(numero)).toBeHidden();
+    await pestanaDeZona('Exterior').click();
+    await expect(enElEditor(numero)).toBeVisible();
+
+    // Acomodar: se arrastra y la posición se guarda al soltar, y sobrevive a la recarga.
+    if (conMapa) {
+      const antes = await leerMesa(numero);
+      const caja = await enElEditor(numero).boundingBox();
+      if (caja === null) throw new Error('La mesa nueva no tiene caja en el editor.');
+      const guardada = page.waitForResponse(
+        (r) =>
+          new URL(r.url()).pathname === '/api/datos/escribir' && r.request().method() === 'POST',
+      );
+      await page.mouse.move(caja.x + caja.width / 2, caja.y + caja.height / 2);
+      await page.mouse.down();
+      await page.mouse.move(caja.x + caja.width / 2 + 90, caja.y + caja.height / 2 + 60, {
+        steps: 8,
+      });
+      await page.mouse.up();
+      expect((await guardada).ok(), 'La posición no se guardó al soltar la mesa.').toBe(true);
+      await expect
+        .poll(async () => (await leerMesa(numero))?.posicion_x, { timeout: 15_000 })
+        .not.toBe(antes?.posicion_x);
+      const movida = await leerMesa(numero);
+      await page.reload();
+      // La recarga vuelve a la pestaña «Interior»: la mesa está en «Exterior».
+      await pestanaDeZona('Exterior').click();
+      await expect(enElEditor(numero)).toBeVisible({ timeout: 30_000 });
+      expect(await leerMesa(numero)).toMatchObject({
+        posicion_x: movida?.posicion_x,
+        posicion_y: movida?.posicion_y,
+      });
+    }
+
+    // Quitar del mapa: se desactiva, sale del mapa y aparece en «Mesas desactivadas».
+    await enElEditor(numero).click();
+    await expect(dialogo).toBeVisible();
+    await dialogo.getByRole('button', { name: 'Quitar del mapa' }).click();
+    await page.getByRole('button', { name: 'Sí, quitar del mapa' }).click();
+    await expect(page.getByText(`Mesa ${String(numero)} quitada del mapa`).first()).toBeVisible({
+      timeout: 30_000,
+    });
+    const desactivadas = page.getByLabel('Mesas desactivadas');
+    await expect(desactivadas).toContainText(`Mesa ${String(numero)}`);
+    await expect(enElEditor(numero)).toBeHidden();
+    expect((await leerMesa(numero))?.activo).toBe(false);
+
+    // Reactivar: vuelve al mapa.
+    await desactivadas
+      .getByRole('listitem')
+      .filter({ hasText: `Mesa ${String(numero)}` })
+      .getByRole('button', { name: 'Reactivar' })
+      .click();
+    await expect(enElEditor(numero)).toBeVisible({ timeout: 30_000 });
+    expect((await leerMesa(numero))?.activo).toBe(true);
+
+    // Se deja como estaba la demo: la mesa de la prueba, fuera del mapa.
+    await enElEditor(numero).click();
+    await dialogo.getByRole('button', { name: 'Quitar del mapa' }).click();
+    await page.getByRole('button', { name: 'Sí, quitar del mapa' }).click();
+    await expect(enElEditor(numero)).toBeHidden({ timeout: 30_000 });
+
+    exigirSinFallos();
+  });
+
+  /**
+   * CADA PUESTO LLEGA A SU PANTALLA, Y SIN PASAR POR OTRO MODELO (cierre del 21-10).
+   *
+   * En el preview, Toño entró con su PIN y se quedó en `/abarrotes/cobrar`. La pantalla de
+   * acceso recarga la página entera hacia la casa del puesto y, a la vez, un efecto navegaba
+   * con la configuración de la pantalla de acceso —sin sesión es la de omisión, `tienda`—: la
+   * cocina, la caja y la mesera rebotaban entre abarrotes y el mapa de mesas hasta que llegaba
+   * la recarga. En local la recarga gana casi siempre; aquí se le da la red del preview: el
+   * documento de la casa del puesto tarda 2.5 s. Sin el arreglo, los tres pasan por
+   * `/abarrotes/cobrar`.
+   */
+  test('cocina, caja y mesera llegan a su pantalla aunque la recarga tarde, sin pasar por otro modelo', async ({
+    browser,
+  }, info) => {
+    const slug = process.env['MORPHIQPOS_ORG_DEMO'] ?? 'demo-acople-restaurante';
+    for (const [rol, casa] of [
+      ['cocina', '/cocina'],
+      ['cajero', '/caja'],
+      ['mesero', '/mesero'],
+    ] as const) {
+      // Un aparato por persona, como en el restaurante: cada una entra en el suyo.
+      const contexto = await browser.newContext(opcionesDelProyecto(info));
+      const pagina = await contexto.newPage();
+      const visitas: string[] = [];
+      pagina.on('framenavigated', (marco) => {
+        if (marco === pagina.mainFrame()) visitas.push(new URL(marco.url()).pathname);
+      });
+      await pagina.route(
+        (url) => url.pathname === casa,
+        async (ruta) => {
+          if (ruta.request().resourceType() === 'document') {
+            await new Promise((listo) => setTimeout(listo, 2_500));
+          }
+          await ruta.continue();
+        },
+      );
+
+      const persona = personaDe(slug, rol);
+      await entrar(pagina, persona);
+      await expect(pagina, `${persona.nombre} (${rol}) no llegó a ${casa}`).toHaveURL(
+        new RegExp(`${casa}$`),
+        { timeout: 20_000 },
+      );
+      const ajenas = visitas.filter((ruta) => !ruta.endsWith('/login-pos') && ruta !== casa);
+      expect(
+        ajenas,
+        `${persona.nombre} (${rol}) pasó por pantallas ajenas antes de ${casa}`,
+      ).toEqual([]);
+      await contexto.close();
+    }
   });
 });

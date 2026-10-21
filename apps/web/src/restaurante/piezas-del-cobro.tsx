@@ -31,13 +31,17 @@ export function bloqueoDe(
   suma: number,
   ilegibles: Ilegibles,
   voc: Vocabulario,
+  /** Lo que el billete tiene que cubrir: el total, salvo que la propina se pague por otro lado. */
+  enEfectivo: number = total,
 ): ReactNode {
   if (pendiente) return 'Confirma la propina antes de cobrar.';
   if (total <= 0) return `${voc.conDeterminante('este', 'orden')} no tiene importe que cobrar.`;
   if (metodo === 'efectivo') {
     // Ilegible no es vacío: sin esto, «15OO» cobraba como si hubiera pagado exacto.
     if (ilegibles.recibido) return 'Lo recibido no es un importe.';
-    return recibido !== null && recibido > 0 && recibido < total ? 'Lo recibido no alcanza.' : null;
+    return recibido !== null && recibido > 0 && recibido < enEfectivo
+      ? 'Lo recibido no alcanza.'
+      : null;
   }
   if (metodo !== 'mixto') return null;
   // Antes que la suma: un campo ilegible contaría como cero y el «Faltan» mentiría.

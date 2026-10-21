@@ -284,10 +284,12 @@ function resolverClaves(expresion, llamada, visitados = new Set()) {
   }
 
   if (ts.isCallExpression(actual)) {
+    // El segundo argumento (las zonas del negocio) sólo traduce el nombre de la zona a
+    // `zona_id`, que ya está en la lista blanca: las claves posibles no cambian.
     if (
       ts.isIdentifier(actual.expression) &&
       actual.expression.text === 'soloCamposEditablesMesa' &&
-      actual.arguments.length === 1
+      (actual.arguments.length === 1 || actual.arguments.length === 2)
     ) {
       return { claves: new Set(CAMPOS_SANITIZADOS_MESA), opacos: [] };
     }

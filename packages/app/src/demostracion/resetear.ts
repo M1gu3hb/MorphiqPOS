@@ -10,6 +10,7 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import { definirComando } from '../comando.ts';
 import { Rechazo } from '../fallos.ts';
 import { hashearPin } from '../identidad/pin.ts';
+import { configuracionRepuesta, duenoGeneralDe } from './dueno-general.ts';
 import { recalcularCostosRecetas } from '../inventario/recetas.ts';
 import { sembrarArranque, type ResumenArranque } from './arranque.ts';
 import {
@@ -64,16 +65,17 @@ async function reponerConfiguracion(
   giro: keyof typeof APARIENCIA_DE_DEMO,
   pimienta: string,
 ): Promise<void> {
-  const valores = {
+  const fila = await tx
+    .selectFrom('configuracion')
+    .select(['id', 'version', 'valores'])
+    .where('organizacion_id', '=', organizacionId)
+    .executeTakeFirst();
+  // Todo se repone menos la concesión del dueño general (`dueno-general.ts`).
+  const valores = configuracionRepuesta(fila?.valores, {
     impuesto: { ...IMPUESTO_DE_DEMO },
     apariencia: { ...APARIENCIA_DE_DEMO[giro] },
     presentacion_password_hash: await hashearPin(CONTRASENA_DE_PRESENTACION_DEMO, pimienta),
-  };
-  const fila = await tx
-    .selectFrom('configuracion')
-    .select(['id', 'version'])
-    .where('organizacion_id', '=', organizacionId)
-    .executeTakeFirst();
+  });
 
   if (fila === undefined) {
     await tx
@@ -96,9 +98,14 @@ async function reponerConfiguracion(
  * dueño con el suyo, y cualquiera que una prueba haya dado de alta, desactivado.
  *
  * Al dueño no se le toca el rol ni se le desactiva: es quien resetea. Sólo se le
- * repone el PIN publicado y se le desbloquea.
+ * repone el PIN publicado y se le desbloquea. Al dueño general, ni eso (D-42).
  */
-async function reponerDueno(tx: Transaccion, organizacionId: string, pimienta: string) {
+async function reponerDueno(
+  tx: Transaccion,
+  organizacionId: string,
+  pimienta: string,
+  general: string | null,
+) {
   const duenos = await tx
     .selectFrom('empleos')
     .select(['id', 'persona_id as personaId'])
@@ -106,6 +113,9 @@ async function reponerDueno(tx: Transaccion, organizacionId: string, pimienta: s
     .where('rol', '=', 'dueno')
     .execute();
   for (const dueno of duenos) {
+    // La cuenta del dueño general no es de la demo: conserva su PIN —el que pidió su
+    // titular— y sigue como esté. Su id va en la lista igual, para no desactivarla.
+    if (dueno.id === general) continue;
     await tx.updateTable('empleos').set({ activo: true }).where('id', '=', dueno.id).execute();
     await reponerPin(tx, dueno.personaId, PIN_DEL_DUENO_DE_DEMO, pimienta);
   }
@@ -184,6 +194,16 @@ export const resetearDemo = definirComando<
     // a los `await` que hay en medio, y sin esto el giro llega como `string` a
     // `sembrarEquipo`.
     const giro = organizacion.giro;
+    // Quién es el dueño general de esta demo, si hay uno, ANTES de reponer nada.
+    const general = duenoGeneralDe(
+      (
+        await ctx.tx
+          .selectFrom('configuracion')
+          .select('valores')
+          .where('organizacion_id', '=', ctx.ambito.organizacionId)
+          .executeTakeFirst()
+      )?.valores,
+    );
     const sucursalId = ctx.ambito.sucursalId;
     if (sucursalId === null)
       throw new ErrorDominio(
@@ -438,7 +458,7 @@ export const resetearDemo = definirComando<
       sembrarEquipo(ctx.tx, ctx.ambito.organizacionId, sucursalId, giro, pimienta),
     );
     const duenos = await ctx.paso('reponer_dueno', () =>
-      reponerDueno(ctx.tx, ctx.ambito.organizacionId, pimienta),
+      reponerDueno(ctx.tx, ctx.ambito.organizacionId, pimienta, general),
     );
     // Quien no es del equipo sembrado ni dueño, lo dio de alta una prueba: se desactiva
     // (no se borra: sus ventas ya no existen, pero su rastro en la auditoría sí).

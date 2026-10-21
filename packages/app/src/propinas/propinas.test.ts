@@ -187,6 +187,82 @@ describe('reglas 1 y 2 · la propina no entra en la venta', () => {
     ).toBe('PAGO_NO_CUADRA');
   });
 
+  it('la cuenta entera con tarjeta y la propina SÓLO en efectivo: un renglón que es sólo propina', () => {
+    // Lo normal en un restaurante: el comensal paga los $200 con tarjeta y deja $30 en
+    // billete. El renglón de efectivo no lleva venta —inventarle un centavo para que pase
+    // descuadraría la venta por método— y lleva toda la propina.
+    const pagos = repartirPagos(
+      [
+        { metodo: 'tarjeta', montoCentavos: 20000 },
+        { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 3000, recibidoCentavos: 5000 },
+      ],
+      20000n,
+    );
+
+    expect(pagos.map((p) => [p.metodo, p.montoCentavos, p.propinaCentavos])).toEqual([
+      ['tarjeta', 20000n, 0n],
+      ['efectivo', 0n, 3000n],
+    ]);
+    // El billete de $50 por una propina de $30: $20 de cambio.
+    expect(pagos[1]?.cambioCentavos).toBe(2000n);
+  });
+
+  it('un renglón sólo de propina tiene que traer billete suficiente para ella', () => {
+    expect(
+      codigoDe(() =>
+        repartirPagos(
+          [
+            { metodo: 'tarjeta', montoCentavos: 20000 },
+            {
+              metodo: 'efectivo',
+              montoCentavos: 0,
+              propinaCentavos: 3000,
+              recibidoCentavos: 2000,
+            },
+          ],
+          20000n,
+        ),
+      ),
+    ).toBe('EFECTIVO_INSUFICIENTE');
+  });
+
+  it('un renglón sin venta y sin propina no es un pago', () => {
+    expect(
+      codigoDe(() =>
+        repartirPagos(
+          [
+            { metodo: 'tarjeta', montoCentavos: 20000 },
+            { metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 0 },
+          ],
+          20000n,
+        ),
+      ),
+    ).toBe('PAGO_NO_CUADRA');
+  });
+
+  it('una propina no paga la venta aunque venga en su propio renglón', () => {
+    // Sólo propina y ninguna venta: la cuenta de $200 queda sin cubrir.
+    expect(
+      codigoDe(() =>
+        repartirPagos([{ metodo: 'efectivo', montoCentavos: 0, propinaCentavos: 20000 }], 20000n),
+      ),
+    ).toBe('PAGO_NO_CUADRA');
+  });
+
+  it('una venta negativa no se compensa con propina', () => {
+    expect(
+      codigoDe(() =>
+        repartirPagos(
+          [
+            { metodo: 'tarjeta', montoCentavos: 20100 },
+            { metodo: 'efectivo', montoCentavos: -100, propinaCentavos: 3000 },
+          ],
+          20000n,
+        ),
+      ),
+    ).toBe('PAGO_NO_CUADRA');
+  });
+
   it('las ventas del desglose nunca llevan propina dentro', () => {
     const desglose = desglosarPagos([
       { metodo: 'efectivo', montoCentavos: 700n, propinaCentavos: 50n },

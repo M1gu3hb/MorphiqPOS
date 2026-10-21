@@ -24,6 +24,8 @@ export interface VentaDelDia {
   readonly monto_transferencia: number | null;
   readonly usuario_mesero_nombre: string | null;
   readonly fecha_apertura: string | null;
+  /** Lo que nombra a una parte de una cuenta dividida: «Mesa 5 · cuenta 1 de 2». */
+  readonly cliente_nombre?: string | null;
 }
 
 export interface GastoDelDia {

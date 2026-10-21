@@ -27,8 +27,16 @@ describe('POST /api/auth/salir', () => {
     expect(codigo).toMatch(
       /peticionDeEscrituraValida\(peticion, entorno\.APP_URL, entorno\.APP_URL_ALTERNAS\)/,
     );
-    expect(codigo).toContain('leerCookie(peticion.headers.get');
-    expect(codigo).toContain('await cerrarSesion(');
+    // Revoca LAS DOS sesiones, cada una por su cookie: la del puesto y la de presentación
+    // del dueño general (D-42). Con un solo `toContain('await cerrarSesion(')`, quitar la
+    // primera llamada pasaba —la segunda seguía en el archivo— y la mutación de
+    // `verify:mutaciones-backend` sobrevivía desde c1ada17.
+    expect(codigo).toMatch(
+      /await cerrarSesion\(\s*leerCookie\(peticion\.headers\.get\('cookie'\), NOMBRE_COOKIE\)/,
+    );
+    expect(codigo).toMatch(
+      /await cerrarSesion\(\s*leerCookie\(peticion\.headers\.get\('cookie'\), COOKIE_PRESENTACION\)/,
+    );
     expect(codigo).toContain('cookieDeCierre(');
   });
 });

@@ -84,7 +84,12 @@ export default function MesaListMobile({ mesas, onEdit, onReorder }) {
               </span>
             )}
           </div>
-          <Button size="icon" variant="ghost" onClick={() => onEdit(m)}>
+          <Button
+            size="icon"
+            variant="ghost"
+            onClick={() => onEdit(m)}
+            aria-label={`Editar mesa ${m.numero}`}
+          >
             <Pencil className="w-4 h-4" />
           </Button>
         </Card>

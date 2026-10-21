@@ -36,6 +36,7 @@ import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import { MovimientosDeCaja } from './MovimientosDeCaja';
+import { rotuloDeLaCuenta } from './cuenta-de-la-caja.ts';
 import type { Vocabulario } from '@morphiqpos/domain/vocabulario';
 import { ChevronRight, CircleCheckBig, Search, SearchX, TriangleAlert } from 'lucide-react';
 
@@ -88,6 +89,8 @@ export interface FilaDeCaja {
   /** El código impreso que el comensal lleva a la caja: M05-4821. */
   readonly codigo_caja: string | null;
   readonly mesa_numero: number | null;
+  /** Lo que nombra a una parte de una cuenta dividida, que no tiene mesa: «Mesa 5 · cuenta 1 de 2». */
+  readonly cliente_nombre: string | null;
   readonly usuario_mesero_nombre: string | null;
   readonly personas: number | null;
   /** En PESOS, como la base lo escribe. Se lee sólo por `totalDe`, que lo da en centavos. */
@@ -142,6 +145,16 @@ export interface CajaProps {
 
 /** Desde este ancho la lista es la tabla del cajero; por debajo, tarjetas. */
 const PC = '(min-width: 1280px)';
+/**
+ * Cada cuánto se relee la caja mientras la pantalla está abierta.
+ *
+ * La caja vive abierta todo el turno y lo que el mesero pide a las 14:05 tiene que llegar sin
+ * que la cajera recargue la página: leída una sola vez al montar, la cuenta nueva no aparecía
+ * jamás y «la caja es la lista de mesas que ya pidieron cuenta» (`00-FICHA §3`) se quedaba en la
+ * lista de la mañana. Lo encontró el día completo: Rosa abre su caja, Lupita pide la cuenta de
+ * la mesa 1 y la lista de Rosa no la tenía.
+ */
+const CADA_CUANTO_SE_RELEE = 5_000;
 /** En teléfono sobreviven Pendientes y Buscar: lo demás es trabajo de mostrador. */
 const SOLO_PC = 'hidden md:inline-flex';
 
@@ -168,10 +181,11 @@ function totalCentavos(fila: FilaDeCaja): number {
   return totalDe(fila) ?? 0;
 }
 
-function rotulo(numero: number | null, voc: Vocabulario): string {
-  return numero === null
-    ? `Sin ${voc.singular('unidad_servicio')}`
-    : `${voc.titulo('unidad_servicio')} ${String(numero)}`;
+function rotulo(fila: FilaDeCaja, voc: Vocabulario): string {
+  return rotuloDeLaCuenta(fila, {
+    mesa: voc.titulo('unidad_servicio'),
+    sinMesa: `Sin ${voc.singular('unidad_servicio')}`,
+  });
 }
 
 function mesero(fila: FilaDeCaja, voc: Vocabulario): string {
@@ -203,7 +217,7 @@ function importe(fila: FilaDeCaja, cifra: ReactNode): ReactNode {
  * y sin nombre la acción principal de la caja se anunciaba como «fila».
  */
 function etiquetaDeCobro(fila: FilaDeCaja, voc: Vocabulario): string {
-  return `Cobrar ${rotulo(fila.mesa_numero, voc)} · ${dineroEnTexto(totalCentavos(fila))}`;
+  return `Cobrar ${rotulo(fila, voc)} · ${dineroEnTexto(totalCentavos(fila))}`;
 }
 
 /** La tabla del cajero en la PC: densa, cada columna alineada, el total a la derecha. */
@@ -225,7 +239,7 @@ function columnasDeTabla(
     {
       clave: 'mesa',
       titulo: voc.titulo('unidad_servicio'),
-      celda: (f) => <span className="font-semibold">{rotulo(f.mesa_numero, voc)}</span>,
+      celda: (f) => <span className="font-semibold">{rotulo(f, voc)}</span>,
     },
     { clave: 'mesero', titulo: voc.titulo('responsable'), celda: (f) => mesero(f, voc) },
     {
@@ -261,7 +275,7 @@ function columnasDeTabla(
             variant="ghost"
             size="icon-sm"
             tabIndex={-1}
-            aria-label={`Cobrar ${rotulo(f.mesa_numero, voc)}`}
+            aria-label={`Cobrar ${rotulo(f, voc)}`}
             className="text-texto-sutil"
             onClick={() => {
               alCobrar(f.id);
@@ -287,7 +301,7 @@ function columnasDeTarjeta(voc: Vocabulario, ahora: number): readonly ColumnaDeT
       titulo: voc.titulo('unidad_servicio'),
       celda: (f) => (
         <span className="flex items-baseline justify-between gap-(--espacio-3)">
-          <span className="text-lg font-semibold md:text-2xl">{rotulo(f.mesa_numero, voc)}</span>
+          <span className="text-lg font-semibold md:text-2xl">{rotulo(f, voc)}</span>
           <span>
             {importe(
               f,
@@ -327,23 +341,24 @@ function useEsPC(): boolean {
 }
 
 /**
- * `Mesa` dice QUIÉN pidió la cuenta y `Venta` trae el dinero, que el puente sólo
- * abre a caja: ninguna basta sola, y unirlas aquí evita inventar una ruta de API
- * que el documento no nombra. Sale ordenado por espera, de más a menos.
+ * Las cuentas que ya pidieron cobro: `Venta` en «cuenta solicitada», con el dinero que el
+ * puente sólo abre a caja. Sale ordenado por espera, de más a menos.
+ *
+ * ── Por cuenta y no por mesa ───────────────────────────────────────────────
+ * Esto se armaba con las MESAS en «cuenta solicitada» y de ahí su cuenta activa. Una cuenta
+ * DIVIDIDA no cabe: cada parte se cobra por separado y ninguna es la activa de la mesa —la
+ * conserva la madre, que ya no se cobra—, así que quien dividía la cuenta de una mesa grande
+ * se quedaba sin saber dónde cobrar lo que acababa de partir: la lista decía «ninguna mesa
+ * está esperando pagar» con dos cuentas pedidas. Preguntar por las cuentas pedidas trae las
+ * dos cosas, y es lo mismo que ya hace la pantalla de cobro para elegir la que sigue.
  */
 async function leerPendientes(signal: AbortSignal): Promise<readonly FilaDeCaja[]> {
-  const [mesas, ventas] = await Promise.all([
-    consultarPuente<{ venta_activa_id: string | null }>('Mesa', {
-      filtro: { estado: 'cuenta_solicitada' },
-      limite: 200,
-      signal,
-    }),
-    consultarPuente<FilaDeCaja>('Venta', { limite: 300, signal }),
-  ]);
-  const esperando = new Set(mesas.map((mesa) => mesa.venta_activa_id));
-  return ventas
-    .filter((venta) => esperando.has(venta.id))
-    .sort((a, b) => (a.fecha_apertura ?? '').localeCompare(b.fecha_apertura ?? ''));
+  const ventas = await consultarPuente<FilaDeCaja>('Venta', {
+    filtro: { estado: 'cuenta_solicitada' },
+    limite: 300,
+    signal,
+  });
+  return [...ventas].sort((a, b) => (a.fecha_apertura ?? '').localeCompare(b.fecha_apertura ?? ''));
 }
 
 export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
@@ -355,6 +370,8 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   const [falloDeCarga, setFalloDeCarga] = useState<string | null>(null);
   /** Se leyó, y un comando falló: la lista se queda con el último dato. */
   const [error, setError] = useState<string | null>(null);
+  /** La relectura periódica falló: se queda lo último que se leyó, y se dice. */
+  const [falloDeRefresco, setFalloDeRefresco] = useState<string | null>(null);
   const [intento, setIntento] = useState(0);
   const [pestana, setPestana] = useState('pendientes');
   const [busqueda, setBusqueda] = useState('');
@@ -401,8 +418,35 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           setFalloDeCarga(fallo instanceof Error ? fallo.message : 'No se pudo leer la caja.');
         });
     }
+    // Se relee SIN vaciar lo que se ve y sin encimar lecturas: si la anterior sigue en vuelo, la
+    // que toca se salta. Con `filasIniciales` —las pruebas de la pantalla— no hay red que releer.
+    let leyendo = false;
+    const refresco =
+      filasIniciales === undefined
+        ? setInterval(() => {
+            if (leyendo) return;
+            leyendo = true;
+            leerCaja(control.signal)
+              .then(({ pendientes, estado }) => {
+                if (control.signal.aborted) return;
+                setFilas(pendientes);
+                setTurno(estado);
+                setFalloDeRefresco(null);
+              })
+              .catch((fallo: unknown) => {
+                if (control.signal.aborted) return;
+                setFalloDeRefresco(
+                  fallo instanceof Error ? fallo.message : 'No se pudo releer la caja.',
+                );
+              })
+              .finally(() => {
+                leyendo = false;
+              });
+          }, CADA_CUANTO_SE_RELEE)
+        : null;
     return () => {
       clearInterval(reloj);
+      if (refresco !== null) clearInterval(refresco);
       control.abort();
     };
   }, [filasIniciales, leerCaja, intento]);
@@ -430,8 +474,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
   const visibles = useMemo(() => {
     const aguja = busqueda.trim().toLowerCase();
     if (aguja === '') return filas ?? [];
-    const texto = (f: FilaDeCaja) =>
-      `${f.codigo_caja ?? ''} ${rotulo(f.mesa_numero, voc)} ${quien(f, voc)}`;
+    const texto = (f: FilaDeCaja) => `${f.codigo_caja ?? ''} ${rotulo(f, voc)} ${quien(f, voc)}`;
     return (filas ?? []).filter((f) => texto(f).toLowerCase().includes(aguja));
   }, [filas, busqueda, voc]);
 
@@ -682,6 +725,11 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
           La lista quedó congelada con el último dato conocido.
         </Aviso>
       )}
+      {falloDeRefresco === null ? null : (
+        <Aviso tono="atencion" titulo={falloDeRefresco}>
+          No se pudo releer la caja: se muestra el último dato conocido y se vuelve a intentar sola.
+        </Aviso>
+      )}
 
       <Tabs value={pestana} onValueChange={setPestana}>
         <TabsList>
@@ -749,14 +797,14 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
                     className="flex flex-wrap items-center justify-between gap-(--espacio-2)"
                   >
                     <span className="font-medium text-texto">
-                      {rotulo(fila.mesa_numero, voc)} · {fila.codigo_caja ?? '—'}
+                      {rotulo(fila, voc)} · {fila.codigo_caja ?? '—'}
                     </span>
                     {/* El nombre EMPIEZA por lo que se lee en el botón: quien lo pide
                         por voz dice «Eliminar ticket» (WCAG 2.5.3). */}
                     <Button
                       variant="outline"
                       size="sm"
-                      aria-label={`Eliminar ticket sin consumo de ${rotulo(fila.mesa_numero, voc)}`}
+                      aria-label={`Eliminar ticket sin consumo de ${rotulo(fila, voc)}`}
                       onClick={(evento) => {
                         disparador.current = evento.currentTarget;
                         setAEliminar(fila);
@@ -778,7 +826,7 @@ export function Caja({ filasIniciales, turnoInicial, onCobrar }: CajaProps) {
         queSeBorra={
           aEliminar === null
             ? ''
-            : `el ticket sin consumo de ${rotulo(aEliminar.mesa_numero, voc)} · ${aEliminar.codigo_caja ?? 'sin código'}`
+            : `el ticket sin consumo de ${rotulo(aEliminar, voc)} · ${aEliminar.codigo_caja ?? 'sin código'}`
         }
         alConfirmar={() => {
           if (aEliminar !== null) eliminarVacio(aEliminar.id);

@@ -48,6 +48,7 @@ import {
   type VisitaConFormula,
 } from './cita-en-curso.ts';
 import { CostoDelServicio } from './CostoDelServicio.tsx';
+import type { QuienVeElCosto } from './costo-del-servicio.ts';
 import { FotosDeLaCita } from './FotosDeLaCita.tsx';
 import { GaleriaDeLaClienta } from './GaleriaDeLaClienta.tsx';
 import { NotaDeLaCita } from './NotaDeLaCita.tsx';
@@ -163,6 +164,8 @@ export interface CitaAbierta {
 }
 
 export interface CitaEnCursoProps {
+  /** Qué parte de «lo que le cuesta al salón» puede pedir quien entra (`quienVeElCosto`). */
+  readonly costos: QuienVeElCosto;
   /** Cuando llega, la pantalla no consulta: es lo que usan las pruebas. */
   readonly citaInicial?: CitaAbierta;
   readonly visitasIniciales?: readonly VisitaConFormula[];
@@ -573,6 +576,7 @@ function EsqueletoDeLaCita({ etiqueta }: { readonly etiqueta: string }) {
 }
 
 export function CitaEnCurso({
+  costos,
   citaInicial,
   visitasIniciales,
   serviciosIniciales,
@@ -912,6 +916,7 @@ export function CitaEnCurso({
                   </h2>
                   <CostoDelServicio
                     citaId={cita.id}
+                    costos={costos}
                     servicioIds={servicios
                       .map((s) => s.servicio_id)
                       .filter((id): id is string => id !== undefined)}

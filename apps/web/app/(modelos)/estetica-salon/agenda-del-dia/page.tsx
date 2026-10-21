@@ -1,4 +1,6 @@
 import { AgendaDelDia } from '~/estetica-salon/AgendaDelDia';
+import { sesionDelServidor } from '~/servidor/http';
+import { veLaListaDeEspera } from '~/servidor/inicio-del-salon';
 
 /**
  * La pantalla de inicio del salón: el día completo, para todo el equipo.
@@ -8,6 +10,8 @@ import { AgendaDelDia } from '~/estetica-salon/AgendaDelDia';
  */
 export const dynamic = 'force-dynamic';
 
-export default function Pagina() {
-  return <AgendaDelDia />;
+export default async function Pagina() {
+  // Lo que puede pedir quien entra se decide aquí, en el servidor (`inicio-del-salon`).
+  const sesion = await sesionDelServidor();
+  return <AgendaDelDia veLaEspera={veLaListaDeEspera(sesion?.rol ?? '')} />;
 }

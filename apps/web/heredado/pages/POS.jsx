@@ -153,7 +153,7 @@ export default function POS() {
   const { config, canAccessModule } = useConfig();
   const queryClient = useQueryClient();
   const showCost = hasPermission(posUser?.rol, 'ver_costos');
-  const { hayCaja } = useCajaAbierta();
+  const { hayCaja } = useCajaAbierta({ deEstaTerminal: true });
 
   const { data: productos = [] } = useQuery({
     queryKey: ['productos_pos'],

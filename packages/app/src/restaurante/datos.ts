@@ -121,6 +121,14 @@ export async function ordenDeMesa(
     // conocer un id ajeno basta para leer la cuenta de otro negocio (BOLA).
     .where('organizacion_id', '=', organizacionId)
     .where('id', '=', ordenId)
+    // EL CANDADO DE LA CUENTA (día completo del restaurante, 2.4). Quien carga una cuenta
+    // para escribirle —mandar un pedido, pedir la cuenta, cancelarla— la toma `for update`:
+    // dos meseros que comandan en la MISMA mesa a la vez leían los dos «la cuenta vale $X»,
+    // cada uno sumaba SUS platos y escribía su total, y el segundo en confirmar pisaba al
+    // primero: la cuenta decía $165 con $823 de platos dentro, y esa cifra es la que la caja
+    // lee. Con el candado el segundo espera al primero y cotiza sobre lo que éste ya guardó.
+    // Es el mismo candado que `venta.cobrar` toma sobre la orden (`bloquear_orden`).
+    .forUpdate()
     .executeTakeFirst();
 
   if (fila === undefined) {

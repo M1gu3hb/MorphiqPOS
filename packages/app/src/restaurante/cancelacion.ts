@@ -6,7 +6,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { definirComando } from '../definicion.ts';
 import { mesaOperable, ordenDeMesa } from './datos.ts';
 import { entradaCancelarOrden } from './esquemas.ts';
-import { cerrarOrdenCancelada, limpiarMesa } from './mesas-escrituras.ts';
+import { cerrarElGrupoDeLaMesa, cerrarOrdenCancelada, limpiarMesa } from './mesas-escrituras.ts';
 import { propagarAItems } from './propagacion.ts';
 import { ESTADOS_COMANDA_ACTIVOS } from './transiciones.ts';
 
@@ -146,6 +146,16 @@ export const cancelarOrden = definirComando<
           ahora: ctx.ahora,
         }),
       );
+      // La cuenta de un grupo de mesas unidas vive en la principal: cancelarla suelta el grupo
+      // entero, o las demás se quedaban ocupadas en un grupo sin cuenta.
+      await ctx.paso('soltar_el_grupo', () =>
+        cerrarElGrupoDeLaMesa(ctx.tx, organizacionId, mesaId, {
+          estado: 'libre',
+          ordenId: orden.id,
+          empleoId,
+          ahora: ctx.ahora,
+        }),
+      );
     }
 
     ctx.auditar({
@@ -180,6 +190,22 @@ async function cancelarComandasVivas(
   organizacionId: string,
   ordenId: string,
 ): Promise<readonly string[]> {
+  // Las cuentas que esta absorbió al unir mesas. Sus LÍNEAS pasaron a esta cuenta, pero cada
+  // comanda sigue colgada de la cuenta absorbida: cancelar sólo las de aquí dejaba el plato de la
+  // mesa unida vivo en la cocina, para una mesa ya libre (D-7, cierre del 21-10).
+  const absorbidas = await tx
+    .selectFrom('union_mesa_miembros')
+    .innerJoin('uniones_mesa', 'uniones_mesa.id', 'union_mesa_miembros.union_id')
+    .select('union_mesa_miembros.orden_absorbida_id as ordenId')
+    .where('uniones_mesa.organizacion_id', '=', organizacionId)
+    .where('uniones_mesa.orden_id', '=', ordenId)
+    .where('union_mesa_miembros.orden_absorbida_id', 'is not', null)
+    .execute();
+  const ordenes = [
+    ordenId,
+    ...absorbidas.flatMap((fila) => (fila.ordenId === null ? [] : [fila.ordenId])),
+  ];
+
   const filas = await tx
     .updateTable('comandas')
     // Sólo el estado: `comandas` no tiene columna de cancelación, y fabricar un
@@ -188,7 +214,7 @@ async function cancelarComandasVivas(
     // de `preparacion-escrituras.ts`, que para 'cancelado' devuelve `{}`.
     .set({ estado: 'cancelado' })
     .where('organizacion_id', '=', organizacionId)
-    .where('orden_id', '=', ordenId)
+    .where('orden_id', 'in', ordenes)
     .where('estado', 'in', [...ESTADOS_COMANDA_ACTIVOS])
     .returning('id')
     .execute();

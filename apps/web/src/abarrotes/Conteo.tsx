@@ -38,6 +38,7 @@ import {
   useMotivosDeMerma,
   type MotivoDeMerma,
 } from './conteo/MotivoDeLaDiferencia.tsx';
+import { buscarEnLaZona } from './conteo/buscar-en-la-zona.ts';
 import { ZonasDelAnaquel } from './conteo/ZonasDelAnaquel.tsx';
 
 /**
@@ -528,6 +529,8 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
   const [conteos, setConteos] = useState<Readonly<Record<string, number>>>({});
   const [idActual, setIdActual] = useState<string | null>(null);
   const [busqueda, setBusqueda] = useState('');
+  /** Lo que contestó el último Enter del buscador, si no eligió un producto. */
+  const [avisoDeBusqueda, setAvisoDeBusqueda] = useState<string | null>(null);
   const [cajas, setCajas] = useState('');
   const [piezas, setPiezas] = useState('');
   const [enResumen, setEnResumen] = useState(false);
@@ -600,11 +603,22 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
     setPiezas('');
   }
 
-  /** El escáner teclea el código y manda Enter: eso tiene que bastar. */
+  /**
+   * El escáner teclea el código y manda Enter: eso tiene que bastar. Y si no encuentra —el
+   * código es de otra zona, o el Enter llegó solo— lo DICE (`conteo/buscar-en-la-zona.ts`).
+   */
   function buscar(): void {
-    const texto = busqueda.trim().toLowerCase();
-    if (texto === '') return;
-    elegir((filas ?? []).find((f) => f.codigo === texto || f.nombre.toLowerCase().includes(texto)));
+    const resultado = buscarEnLaZona(busqueda, filas ?? []);
+    if (resultado.tipo === 'encontrado') {
+      setAvisoDeBusqueda(null);
+      elegir(resultado.producto);
+      return;
+    }
+    setAvisoDeBusqueda(
+      resultado.tipo === 'vacia'
+        ? `Escanea o escribe ${voc.enFraseCon('un', 'producto')} de esta zona.`
+        : `«${resultado.texto}» no está en esta zona.`,
+    );
   }
 
   function registrar(): void {
@@ -900,9 +914,13 @@ export function Conteo({ filasIniciales, zonaInicial, diasSinContar }: ConteoPro
                 className={`${TACTIL} pl-(--espacio-10) text-lg md:text-lg`}
                 onChange={(evento) => {
                   setBusqueda(evento.target.value);
+                  setAvisoDeBusqueda(null);
                 }}
               />
             </div>
+            <p aria-live="polite" className="text-sm text-texto-sutil">
+              {avisoDeBusqueda}
+            </p>
           </form>
 
           {actual === null ? (

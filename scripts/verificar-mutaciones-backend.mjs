@@ -420,6 +420,20 @@ comprobarMutacion({
   prueba: PRUEBA_SALIR,
   transformar: (codigo) => codigo.replace('await cerrarSesion(', 'await Promise.resolve('),
 });
+// La sesión de presentación del dueño general (D-42) es la que abre los demás modelos: salir
+// tiene que revocarla también, no sólo la del puesto.
+comprobarMutacion({
+  nombre: 'logout deja viva la sesión de presentación',
+  origen: SALIR,
+  archivoTemporal: 'route.ts',
+  variable: 'MORPHIQPOS_SALIR_ROUTE_PATH',
+  prueba: PRUEBA_SALIR,
+  transformar: (codigo) =>
+    codigo.replace(
+      /await cerrarSesion\((\s*leerCookie\(peticion\.headers\.get\('cookie'\), COOKIE_PRESENTACION\))/,
+      'await Promise.resolve($1',
+    ),
+});
 comprobarMutacion({
   nombre: 'roles de entidad otra vez opcionales',
   origen: TIPOS_PUENTE,
@@ -452,8 +466,20 @@ comprobarMutacion({
   prueba: PRUEBA_AUTORIZACION_PUENTE,
   transformar: (codigo) =>
     codigo.replace(
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...CAJA]",
-      "CorteCaja: {\n    tabla: 'sesiones_caja',\n    sucursal: DE_SU_SUCURSAL,\n    rolesLectura: [...TODOS_LOS_ROLES]",
+      "Cocina sigue sin leerlo.\n     */\n    rolesLectura: [...CAJA, 'mesero'],",
+      'Cocina sigue sin leerlo.\n     */\n    rolesLectura: [...TODOS_LOS_ROLES],',
+    ),
+});
+comprobarMutacion({
+  nombre: 'el fondo de la caja visible al mesero',
+  origen: MAPA_PUENTE,
+  archivoTemporal: 'mapa.ts',
+  variable: 'MORPHIQPOS_MAPA_SOURCE_PATH',
+  prueba: PRUEBA_AUTORIZACION_PUENTE,
+  transformar: (codigo) =>
+    codigo.replace(
+      "        columna: 'fondo_inicial_centavos',\n        conversion: 'dinero',\n        escribible: false,\n        rolesLectura: [...CAJA],",
+      "        columna: 'fondo_inicial_centavos',\n        conversion: 'dinero',\n        escribible: false,",
     ),
 });
 comprobarMutacion({

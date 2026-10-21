@@ -51,8 +51,15 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
   it('el mapa mantiene explícitas las restricciones sensibles', () => {
     const codigo = readFileSync(FUENTE_MAPA, 'utf8');
     // El corte es de la caja Y de su sucursal (D-36): el gerente del centro no lee el del norte.
+    // El mesero entra sólo a preguntar si hay caja (los importes, abajo).
     expect(codigo).toMatch(
-      /CorteCaja:\s*{\s*tabla: 'sesiones_caja',\s*sucursal: DE_SU_SUCURSAL,\s*rolesLectura: \[\.\.\.CAJA\]/,
+      /CorteCaja:\s*{\s*tabla: 'sesiones_caja',\s*sucursal: DE_SU_SUCURSAL,[\s\S]{0,1500}?rolesLectura: \[\.\.\.CAJA, 'mesero'\]/,
+    );
+    // Y el fondo de apertura sigue siendo de la caja, en el FUENTE: la prueba de abajo mira el
+    // módulo ya importado y el arnés de mutaciones cambia una copia del archivo, así que sin
+    // esto la mutación «el fondo de la caja visible al mesero» sobrevivía.
+    expect(codigo).toMatch(
+      /efectivo_inicial_contado:\s*\{\s*columna: 'fondo_inicial_centavos',\s*conversion: 'dinero',\s*escribible: false,\s*rolesLectura: \[\.\.\.CAJA\],/,
     );
     expect(codigo).toMatch(/qr_token:\s*\{\s*rolesLectura: \[\.\.\.DIRECCION\]/);
     expect(codigo).toMatch(/IntegrationSyncLog:\s*\{[\s\S]{0,200}?escritura: 'lectura'/);
@@ -72,7 +79,6 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
 
   it.each([
     ['CorteCaja', 'cocina'],
-    ['CorteCaja', 'mesero'],
     ['GastoOperativo', 'cocina'],
     ['GastoOperativo', 'mesero'],
     ['CompraInsumo', 'cocina'],
@@ -90,6 +96,35 @@ describe('B-4 · autorización explícita del puente de lectura', () => {
     await expect(promesa).rejects.toMatchObject<Partial<ErrorDominio>>({
       codigo: 'PUENTE_SIN_PERMISO',
     });
+  });
+
+  it('CorteCaja le dice al mesero si hay caja, y ni un importe, nota ni persona', () => {
+    // `useCajaAbierta` (heredado) busca `estado` y `tipo_corte`, y ordena por la fecha: es
+    // todo lo que la tableta del mesero necesita para saber si la cuenta se puede cobrar.
+    const DEL_MESERO = [
+      'created_date',
+      'estado',
+      'fecha_apertura',
+      'fecha_cierre',
+      'id',
+      'tipo_corte',
+      'updated_date',
+    ];
+    const mapa = entidadMapeada('CorteCaja');
+    expect(mapa?.rolesLectura).toContain('mesero');
+    expect(mapa?.rolesLectura).not.toContain('cocina');
+    const todos = [
+      ...Object.keys(mapa?.campos ?? {}),
+      ...Object.keys(mapa?.derivados ?? {}),
+      ...Object.keys(mapa?.calculados ?? {}),
+    ];
+    const roles = (campo: string) => rolesDelCampo('CorteCaja', campo);
+    // Un campo sin `rolesLectura` lo ve quien lee la entidad: también el mesero.
+    const losVeElMesero = todos.filter((c) => roles(c).length === 0 || roles(c).includes('mesero'));
+    expect(losVeElMesero.sort()).toEqual(DEL_MESERO);
+    for (const campo of todos.filter((c) => !DEL_MESERO.includes(c))) {
+      expect(roles(campo), `CorteCaja.${campo}`).toContain('cajero');
+    }
   });
 
   it('Venta no selecciona importes para cocina ni mesero', () => {

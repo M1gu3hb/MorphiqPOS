@@ -534,15 +534,6 @@ jobs:
         if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
         run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
 
-      # LA DEMO, COMO NUEVA, PARA SU SUITE. El rastreo toca cada botón —manda notas a la
-      # caja, abre y cierra turnos— y deja lo que tocó. La suite del modelo cierra su turno, y
-      # el muro del cierre (`caja/sesion.ts`, 0178217) se niega con razón ante una nota que el
-      # rastreo mandó y nadie cobró: la ferretería caía ahí. Cada suite empieza de un estado
-      # conocido; es la misma siembra que la galería pide, por la misma razón.
-      - name: La demostración, como nueva para su suite
-        if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
-        run: node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
-
       - name: La suite de su modelo
         if: matrix.estilo == 'reducido' || matrix.estilo == 'morphiq'
         env:
@@ -612,6 +603,10 @@ jobs:
   # corte en el suyo (un Pixel 7 aparte que entra con su PIN), y la estilista ve su día.
   # Correr el día entero en un teléfono probaría algo que el producto declara que no hace:
   # «el dueño no cobra desde el teléfono» (abarrotes, `00-FICHA-Y-EJES`).
+  # El RESTAURANTE corre en los tres: su `04-INTERFAZ` declara el teléfono para la cocina
+  # chica, para el dueño que cobra una mesa y para el cierre, la mesera tiene en él su
+  # carrito flotante (donde viven «Enviar a Cocina» y «Solicitar cuenta»), y es el recorrido
+  # que Miguel presenta desde su teléfono y su PC (D-42).
   #
   # Los tres aparatos se emulan sobre Chromium (`playwright.config.ts`). WebKit y Firefox
   # no corren aquí, y está dicho: el iPad real entra con su pantalla de mesero; hasta
@@ -642,7 +637,7 @@ jobs:
             aparatos: --project=escritorio --project=tablet
           - modelo: restaurante
             suite: dia-completo-restaurante
-            aparatos: --project=tablet
+            aparatos: --project=escritorio --project=tablet --project=telefono
           - modelo: estetica
             suite: dia-completo-estetica
             aparatos: --project=tablet
@@ -725,6 +720,34 @@ jobs:
       # Playwright construye y levanta el servidor él mismo (`webServer`), con este entorno.
       - name: El día completo, en los aparatos de quien lo opera
         run: pnpm test:e2e pruebas/e2e/${{ matrix.suite }}.spec.ts ${{ matrix.aparatos }} --workers=1 --retries=0
+
+      # LO QUE EL DÍA FELIZ NO RECORRE, en el restaurante (cierre del 21-10): el portal del
+      # comensal con dos grupos en la misma mesa —el segundo no hereda los avisos del primero—,
+      # y lo que se repite, se duplica o se pierde: doble clic al enviar y al cobrar, la
+      # respuesta perdida y su aviso, dos tabletas sobre una cuenta y el cajón cuadrado al final.
+      # Cada una resetea la demo al empezar; van después del día, en el mismo servidor.
+      - name: El portal del comensal y la concurrencia
+        if: matrix.modelo == 'restaurante'
+        run: pnpm test:e2e pruebas/e2e/restaurante-concurrencia.spec.ts pruebas/e2e/restaurante-portal-qr.spec.ts --project=escritorio --workers=1 --retries=0
+
+      # EL ESTILO DEL NEGOCIO Y LOS ESTADOS DE MESA (cierre del 21-10): cada uno de los ocho
+      # estilos —y una perilla— se elige, se guarda, sobrevive a recargar y lo ve otro aparato; y
+      # cada estado de mesa se lee, con su palabra y su contraste medido sobre el peor píxel, en
+      # los ocho estilos. La demo se vuelve a sembrar antes: los estados se ponen sobre mesas
+      # libres, y la concurrencia deja mesas usadas.
+      - name: El estilo del negocio y los estados de mesa
+        if: matrix.modelo == 'restaurante'
+        run: |
+          node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-${{ matrix.modelo }}"
+          pnpm test:e2e pruebas/e2e/estilos-del-negocio.spec.ts pruebas/e2e/estados-de-mesa.spec.ts --project=escritorio --workers=1 --retries=0
+
+      # LAS OPERACIONES DE MESA POR LAS VISTAS ADICIONALES (cierre del 21-10): dividir y cobrar
+      # las partes, el descuento con el PIN de un supervisor, anular, cancelar, cambiar, unir y
+      # separar mesas, con lo persistido afirmado en el servidor y el cajón cuadrado al centavo.
+      # Va la última: deja cuentas divididas, y el reseteo con ellas es una de sus pruebas (D-6).
+      - name: Las operaciones de mesa
+        if: matrix.modelo == 'restaurante'
+        run: pnpm test:e2e pruebas/e2e/restaurante-operaciones.spec.ts --project=escritorio --workers=1 --retries=0
 
       - name: Las trazas del día
         if: always()

@@ -65,18 +65,24 @@ export function repartirPagos(
 
   for (const pago of entrantes) {
     const monto = BigInt(pago.montoCentavos);
-    if (monto <= 0n) {
-      throw new ErrorDominio('PAGO_NO_CUADRA', 'Cada forma de pago debe ser mayor que cero.');
+    const propina = pago.propinaCentavos === undefined ? 0n : BigInt(pago.propinaCentavos);
+    if (propina < 0n) {
+      throw new ErrorDominio('PAGO_NO_CUADRA', 'Una propina no puede ser negativa.');
+    }
+    // Cada renglón lleva venta, o es SÓLO propina (cierre del restaurante, 2.4): la cuenta
+    // entera con tarjeta y la propina en billete. Inventarle un centavo de venta al
+    // efectivo para que pase descuadraría la venta por método; un renglón sin nada, o con
+    // venta negativa, no es un pago.
+    if (monto < 0n || (monto === 0n && propina === 0n)) {
+      throw new ErrorDominio(
+        'PAGO_NO_CUADRA',
+        'Cada forma de pago lleva un importe de la cuenta o una propina, y ninguno negativo.',
+      );
     }
     // La propina NO entra en `suma`. Es la regla 1 de `F1-01` §3 escrita como
     // código: si contara para cubrir la venta, una propina de 100 dejaría pasar
     // un cobro de 100 menos, y el total quedaría inflado por esa diferencia.
     suma += monto;
-
-    const propina = pago.propinaCentavos === undefined ? 0n : BigInt(pago.propinaCentavos);
-    if (propina < 0n) {
-      throw new ErrorDominio('PAGO_NO_CUADRA', 'Una propina no puede ser negativa.');
-    }
 
     const recibido = pago.recibidoCentavos === undefined ? null : BigInt(pago.recibidoCentavos);
 

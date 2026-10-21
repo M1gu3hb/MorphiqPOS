@@ -10,6 +10,8 @@ import { POSAuthProvider } from '@/lib/POSAuthContext';
 import { queryClientInstance } from '@/lib/query-client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 
+import type { AparienciaInicial } from '@morphiqpos/ui/hooks';
+
 import { ProveedorDeApariencia } from './Apariencia';
 
 /**
@@ -43,15 +45,15 @@ import { ProveedorDeApariencia } from './Apariencia';
 export function Proveedores({
   children,
   conSesion,
-  estilo,
+  apariencia,
 }: {
   readonly children: ReactNode;
   readonly conSesion: boolean;
-  /** El estilo que el servidor ya puso en el `<html>`. Aquí se vuelve estado. */
-  readonly estilo: string;
+  /** La apariencia que el servidor ya puso en el `<html>`, perillas incluidas. Aquí se vuelve estado. */
+  readonly apariencia: AparienciaInicial;
 }) {
   return (
-    <ProveedorDeApariencia estiloInicial={estilo}>
+    <ProveedorDeApariencia aparienciaInicial={apariencia}>
       <ThemeProvider>
         <QueryClientProvider client={queryClientInstance}>
           <POSAuthProvider conSesion={conSesion}>

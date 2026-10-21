@@ -69,6 +69,14 @@ async function codigoDe(fn: () => Promise<unknown>): Promise<string> {
 }
 
 describe('F-201 · el alta rápida', () => {
+  it('es del mostrador de la TIENDA, y el mesero no da de alta productos', () => {
+    // Con todas las plantillas y el mesero en la lista, la sala de un restaurante creaba
+    // productos con precio, costo y existencias (cierre del 21-10).
+    expect(altaRapida.paquetes).toEqual(['tienda']);
+    expect(altaRapida.roles).not.toContain('mesero');
+    expect(altaRapida.roles).toContain('cajero');
+  });
+
   it('nace con lo mínimo y DICE QUÉ LE FALTA', async () => {
     const base = baseDe();
     const { ctx } = contextoFalso(base.tx, ambitoDe('cajero'), AHORA);

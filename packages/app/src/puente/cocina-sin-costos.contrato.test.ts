@@ -48,6 +48,52 @@ describe('el puente · cocina nunca ve costos', () => {
     expect(costosQueVeCocina()).toEqual([]);
   });
 
+  it('ni el gramaje de la receta: la cocina ve los ingredientes, no la cantidad (F1-04 §36.4)', () => {
+    // Se colaba porque su nombre no dice «costo»: `recetas.cantidad` con su unidad es la
+    // receta entera a la vista (cierre del 21-10).
+    const receta = MAPA['RecetaEscandallo'];
+    if (receta === undefined) throw new Error('RecetaEscandallo ya no está en el mapa.');
+    const queVeCocina = Object.entries(receta.campos)
+      .filter(([, campo]) => (campo.rolesLectura ?? receta.rolesLectura).includes('cocina'))
+      .map(([nombre]) => nombre);
+    expect(receta.rolesLectura).toContain('cocina');
+    expect(queVeCocina).toContain('ingrediente_id');
+    for (const gramaje of [
+      'cantidad_usada',
+      'cantidad_convertida_unidad_base',
+      'unidad_usada',
+      'unidad',
+      'merma_porcentaje',
+    ]) {
+      expect(queVeCocina, `la cocina lee «${gramaje}» de la receta`).not.toContain(gramaje);
+    }
+  });
+
+  it('ni los importes de las cuentas: ningún precio, ningún total (F1-04 §36.4)', () => {
+    // La suma de las líneas por cuenta reconstruía el total que `Venta` le cierra.
+    const importes: Readonly<Record<string, readonly string[]>> = {
+      DetalleVenta: [
+        'precio_unitario_snapshot',
+        'descuento',
+        'subtotal',
+        'total',
+        'precio_por_unidad_snapshot',
+      ],
+      SolicitudQR: ['subtotal_consumo', 'propina_monto_sugerida', 'propina_porcentaje_sugerido'],
+    };
+    for (const [entidad, campos] of Object.entries(importes)) {
+      const mapa = MAPA[entidad];
+      if (mapa === undefined) throw new Error(`${entidad} ya no está en el mapa.`);
+      for (const nombre of campos) {
+        const campo = mapa.campos[nombre];
+        expect(campo, `${entidad}.${nombre} ya no existe`).toBeDefined();
+        const roles = campo?.rolesLectura ?? mapa.rolesLectura;
+        expect(roles, `la cocina lee ${entidad}.${nombre}`).not.toContain('cocina');
+        expect(roles, `la sala dejó de leer ${entidad}.${nombre}`).toContain('mesero');
+      }
+    }
+  });
+
   it('la búsqueda encuentra campos de costo (si no, no mira nada)', () => {
     const conCosto = Object.values(MAPA).flatMap((m) =>
       [...Object.keys(m.campos), ...Object.keys(m.calculados ?? {})].filter((c) =>

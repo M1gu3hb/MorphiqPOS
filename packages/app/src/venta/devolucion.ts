@@ -1,6 +1,6 @@
 import 'server-only';
 
-import { ErrorDominio, PAQUETES_OPERATIVOS } from '@morphiqpos/contracts';
+import { ErrorDominio, PAQUETES_BARRA } from '@morphiqpos/contracts';
 import { repoCaja, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
@@ -78,7 +78,9 @@ export const devolverPedido = definirComando<
   entidad: 'orden',
   escribe: true,
   roles: [...CIERRA_TURNO],
-  paquetes: PAQUETES_OPERATIVOS,
+  // Sólo la barra de la cafetería (ver `PAQUETES_BARRA`): con todas, la cocina de un
+  // restaurante reembolsaba ventas cobradas.
+  paquetes: PAQUETES_BARRA,
   sucursal: { pedidoId: 'ordenes' },
   entrada: entradaDevolverPedido,
   async ejecutar(ctx, entrada) {

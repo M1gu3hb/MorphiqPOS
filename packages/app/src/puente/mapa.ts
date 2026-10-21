@@ -98,6 +98,13 @@ const INVENTARIO = [...DIRECCION, 'almacen'] as const;
 const VE_FIADO = [...DIRECCION, 'cajero'] as const;
 const OPERACION_RESTAURANTE = [...DIRECCION, 'cajero', 'mesero', 'cocina'] as const;
 const PREPARACION = [...DIRECCION, 'cocina'] as const;
+/**
+ * Quien ve los IMPORTES de una cuenta: la sala y la caja. La cocina prepara —ve platillos,
+ * cantidades y notas—, y F1-04 §36.4 le dice «ningún precio, ningún total». Con los importes
+ * de las líneas legibles, la suma por cuenta reconstruía el total que `Venta` le cierra
+ * (cierre del 21-10).
+ */
+const SALA_Y_CAJA = [...DIRECCION, 'cajero', 'mesero'] as const;
 
 /**
  * LA FRONTERA POR SUCURSAL de cada entidad (cierre de la 2.4, D-36). Lo operativo —ventas,
@@ -547,7 +554,15 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'decimal',
         escribible: false,
       },
-      unidad_usada: { columna: 'unidad_capturada', conversion: 'texto', escribible: false },
+      // El gramaje no es de la cocina (F1-04 §36.4: «sin `cantidad`, sin `merma`, sin
+      // `costo_*`»): su ficha enseña los INGREDIENTES por nombre (`CocinaProductoDialog`),
+      // y la cantidad con la unidad era la receta entera a la vista (cierre del 21-10).
+      unidad_usada: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'unidad_capturada',
+        conversion: 'texto',
+        escribible: false,
+      },
       // Lo CONVERTIDO, que es lo que consume el inventario. Que sean dos
       // columnas distintas es lo que cierra el error de 1000×: hoy
       // `RecetaFormDialog.jsx:225` guarda la cantidad sin convertir y la unidad
@@ -556,11 +571,17 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       // hace `guardarReceta` en el servidor, y lanza si las dimensiones no
       // coinciden en vez de dejar pasar el valor.
       cantidad_convertida_unidad_base: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
         columna: 'cantidad',
         conversion: 'decimal',
         escribible: false,
       },
-      unidad: { columna: 'unidad', conversion: 'texto', escribible: false },
+      unidad: {
+        rolesLectura: [...VE_COSTOS_DE_INSUMO],
+        columna: 'unidad',
+        conversion: 'texto',
+        escribible: false,
+      },
       merma_porcentaje: {
         rolesLectura: [...VE_COSTOS_DE_INSUMO],
         columna: 'merma_bp',
@@ -930,6 +951,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       // `tipo_venta_snapshot` y cinco `ingrediente_base_id_snapshot`: llamarlos
       // como uno querría dejaría a los quince viendo `undefined`.
       precio_unitario_snapshot: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'precio_unitario_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -940,9 +962,24 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         conversion: 'dinero',
         escribible: false,
       },
-      descuento: { columna: 'descuento_centavos', conversion: 'dinero', escribible: false },
-      subtotal: { columna: 'subtotal_centavos', conversion: 'dinero', escribible: false },
-      total: { columna: 'total_centavos', conversion: 'dinero', escribible: false },
+      descuento: {
+        rolesLectura: [...SALA_Y_CAJA],
+        columna: 'descuento_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      subtotal: {
+        rolesLectura: [...SALA_Y_CAJA],
+        columna: 'subtotal_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
+      total: {
+        rolesLectura: [...SALA_Y_CAJA],
+        columna: 'total_centavos',
+        conversion: 'dinero',
+        escribible: false,
+      },
       utilidad: {
         rolesLectura: [...VE_MARGENES],
         columna: 'utilidad_centavos',
@@ -1003,6 +1040,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         escribible: false,
       },
       precio_por_unidad_snapshot: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'precio_por_unidad_centavos',
         conversion: 'dinero',
         escribible: false,
@@ -1110,7 +1148,18 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   CorteCaja: {
     tabla: 'sesiones_caja',
     sucursal: DE_SU_SUCURSAL,
-    rolesLectura: [...CAJA],
+    /**
+     * EL MESERO PREGUNTA SI HAY CAJA, y nada más (restaurante, 20-10-2026).
+     *
+     * Antes de pedir la cuenta, `Mesero.jsx` mira `useCajaAbierta`: si no hay caja que
+     * cobre, la precuenta no sirve. Con el corte cerrado a la caja, su lectura volvía 403,
+     * el hook entendía «no hay caja» y la mesera leía «No se puede solicitar cuenta porque
+     * la caja está cerrada» con la caja abierta: ninguna mesa podía pedir su cuenta desde
+     * la tableta del mesero. Ahora lee el ESTADO del corte —abierto o cerrado, y desde
+     * cuándo— y ningún importe, nota ni persona: esos campos llevan `rolesLectura` de caja
+     * y ni siquiera se seleccionan para él. Cocina sigue sin leerlo.
+     */
+    rolesLectura: [...CAJA, 'mesero'],
     escritura: 'comando',
     ordenPorOmision: '-created_date',
     campos: {
@@ -1141,23 +1190,31 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       },
       // Sus nombres. Dieciséis archivos leen `fecha_apertura` y tres
       // `efectivo_inicial_contado`.
-      serie: { columna: 'serie', conversion: 'texto', escribible: false },
-      folio: { columna: 'folio', conversion: 'texto', escribible: false },
+      serie: { columna: 'serie', conversion: 'texto', escribible: false, rolesLectura: [...CAJA] },
+      folio: { columna: 'folio', conversion: 'texto', escribible: false, rolesLectura: [...CAJA] },
       efectivo_inicial_contado: {
         columna: 'fondo_inicial_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       fondo_esperado_apertura: {
         columna: 'fondo_esperado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
-      notas_apertura: { columna: 'notas_apertura', conversion: 'texto', escribible: false },
+      notas_apertura: {
+        columna: 'notas_apertura',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
       efectivo_contado: {
         columna: 'efectivo_contado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       /**
        * LO RETIRADO al cerrar, que es lo que la columna guarda. Aquí iba
@@ -1169,6 +1226,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         columna: 'efectivo_retirado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       /**
        * EL ESPERADO Y LA DIFERENCIA DEL CORTE (C.4 de la 2.4).
@@ -1186,17 +1244,34 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         columna: 'efectivo_esperado_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       diferencia_al_cerrar: {
         columna: 'diferencia_centavos',
         conversion: 'dinero',
         escribible: false,
+        rolesLectura: [...CAJA],
       },
       fecha_apertura: { columna: 'abierta_en', conversion: 'fecha', escribible: false },
       fecha_cierre: { columna: 'cerrada_en', conversion: 'fecha', escribible: false },
-      usuario_apertura_id: { columna: 'empleado_abre_id', conversion: 'texto', escribible: false },
-      usuario_cajero_id: { columna: 'empleado_cierra_id', conversion: 'texto', escribible: false },
-      notas: { columna: 'notas_cierre', conversion: 'texto', escribible: false },
+      usuario_apertura_id: {
+        columna: 'empleado_abre_id',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
+      usuario_cajero_id: {
+        columna: 'empleado_cierra_id',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
+      notas: {
+        columna: 'notas_cierre',
+        conversion: 'texto',
+        escribible: false,
+        rolesLectura: [...CAJA],
+      },
     },
     derivados: {
       usuario_apertura_nombre: {
@@ -1204,17 +1279,23 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
         porColumna: 'empleado_abre_id',
         columna: 'nombre',
         conversion: 'texto',
+        rolesLectura: [...CAJA],
       },
       usuario_cajero_nombre: {
         tabla: 'empleados_visibles',
         porColumna: 'empleado_cierra_id',
         columna: 'nombre',
         conversion: 'texto',
+        rolesLectura: [...CAJA],
       },
     },
     calculados: {
       // El fondo de mañana. `useCajaAbierta` lo lee como el fondo esperado de la apertura.
-      dinero_dejado_en_caja: { formula: 'dineroDejadoEnCaja', conversion: 'dinero' },
+      dinero_dejado_en_caja: {
+        formula: 'dineroDejadoEnCaja',
+        conversion: 'dinero',
+        rolesLectura: [...CAJA],
+      },
     },
   },
 
@@ -2891,6 +2972,16 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
     escritura: 'directa',
     // `mesas.sucursal_id` es `not null`: la pone el servidor desde la sesión.
     conSucursal: true,
+    // Quitar del mapa una mesa en servicio dejaba su cuenta colgando de una mesa dada de baja.
+    // Los estados son los que la pantalla deja quitar (`MesaEditDialog.jsx`, `ESTADOS_OCUPADA`):
+    // una mesa unida a otra no tiene cuenta propia, pero lleva el estado de la principal.
+    apagarSoloSi: {
+      columnaEstado: 'estado',
+      estados: ['libre', 'limpieza', 'pagada', 'cancelada'],
+      vacias: ['orden_activa_id'],
+      codigo: 'MESA_YA_ABIERTA',
+      mensaje: 'Esa mesa está en servicio: cóbrala o cancela su cuenta antes de quitarla del mapa.',
+    },
     ordenPorOmision: 'numero',
     campos: {
       ...AUTO,
@@ -3150,16 +3241,19 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       },
       notas: { columna: 'notas', conversion: 'texto', escribible: false },
       subtotal_consumo: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'subtotal_consumo_centavos',
         conversion: 'dinero',
         escribible: false,
       },
       propina_monto_sugerida: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'propina_sugerida_centavos',
         conversion: 'dinero',
         escribible: false,
       },
       propina_porcentaje_sugerido: {
+        rolesLectura: [...SALA_Y_CAJA],
         columna: 'propina_sugerida_bp',
         conversion: 'puntos_base',
         escribible: false,
