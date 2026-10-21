@@ -67,6 +67,14 @@ import {
   // tercera copia del mismo dato que envejecía sola.
 } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
+import { claves } from '~/cliente/claves-de-consulta';
+import { mesasDelPlano, zonasConMesas } from '~/cliente/mesas-del-mapa';
+import {
+  ErrorDeLectura,
+  ErrorDelPlano,
+  EsqueletoDeFilas,
+  EsqueletoDePestanas,
+} from '~/cliente/EstadosDeCarga';
 
 const MAP_HEIGHT = 600;
 // Hook simple para detectar móvil
@@ -186,8 +194,20 @@ function Mesero() {
   const claveCuentaRef = useRef(null);
 
   // Sin initialData:[] (evita "no hay mesas" antes del primer fetch).
-  const { data: mesasRaw, isPending: mesasLoading } = useQuery({
-    queryKey: ['mesas'],
+  //
+  // La clave dice QUÉ se pide: el salón EN SERVICIO. Antes era `['mesas']` a secas, la
+  // misma que Cocina y Configuración usaban para pedir TODAS —también las dadas de baja—, así
+  // que al llegar aquí desde Cocina la primera pintada salía del caché de la otra pregunta, con
+  // las inactivas dibujadas encima de las activas (comparten coordenadas) hasta que terminara
+  // la lectura buena. `mesasDelPlano` es el segundo cerrojo: aunque llegara una lista con
+  // bajas, el plano no las pinta.
+  const {
+    data: mesasRaw,
+    isPending: mesasLoading,
+    isError: mesasFallaron,
+    refetch: releerMesas,
+  } = useQuery({
+    queryKey: claves.mesas.activas(),
     queryFn: () => api.entidades.Mesa.filter({ activo: true }),
     refetchInterval: 5000,
     placeholderData: (prev) => prev,
@@ -195,6 +215,8 @@ function Mesero() {
   });
   const mesasRawSafe = Array.isArray(mesasRaw) ? mesasRaw : [];
   const cargandoMesas = mesasLoading && !mesasRaw;
+  // La lectura falló y no hay ningún plano anterior: se dice, no se pinta un salón vacío.
+  const noSePudoLeerElSalon = mesasFallaron && mesasRaw === undefined;
 
   // Filtro por asignación: admin ve todas, mesero ve sus asignadas si está activo.
   const mesas = useMemo(
@@ -265,11 +287,13 @@ function Mesero() {
     [detallesVenta],
   );
 
-  const mesasZona = (mesas || []).filter((m) => (m?.zona || 'Interior') === zonaActiva);
-  const zonasConCount = ZONAS_MESA.map((z) => ({
-    zona: z,
-    count: (mesas || []).filter((m) => (m?.zona || 'Interior') === z).length,
-  })).filter((z) => z.count > 0);
+  // El plano pinta UNA zona a la vez y sólo mesas en servicio: las coordenadas se repiten entre
+  // zonas y entre activas e inactivas, así que mezclarlas las encima.
+  const mesasZona = mesasDelPlano(mesas || [], zonaActiva);
+  const zonasConCount = zonasConMesas(mesas || [], ZONAS_MESA).map(({ zona, cuantas }) => ({
+    zona,
+    count: cuantas,
+  }));
 
   // La zona vigente sale de las zonas que esta persona SÍ tiene (cierre del 21-10): con la
   // asignación encendida, una mesera con sus mesas sólo en «Barra» abría en «Interior» —sin
@@ -976,6 +1000,7 @@ function Mesero() {
       </div>
 
       {/* Zone tabs */}
+      {cargandoMesas && <EsqueletoDePestanas />}
       {zonasConCount.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           {zonasConCount.map(({ zona, count }) => (
@@ -1016,12 +1041,16 @@ function Mesero() {
               : 'inset 0 2px 6px rgba(0,0,0,0.1)',
           }}
         >
-          <MesaGridMobile
-            mesas={mesasZona}
-            onMesaClick={onMesaClick}
-            getResponsable={getResponsable}
-            loading={cargandoMesas}
-          />
+          {noSePudoLeerElSalon ? (
+            <ErrorDeLectura queNoSePudoLeer="las mesas" alReintentar={() => releerMesas()} />
+          ) : (
+            <MesaGridMobile
+              mesas={mesasZona}
+              onMesaClick={onMesaClick}
+              getResponsable={getResponsable}
+              loading={cargandoMesas}
+            />
+          )}
         </div>
       ) : (
         <div
@@ -1049,7 +1078,8 @@ function Mesero() {
               />
             );
           })}
-          {mesasZona.length === 0 && !sinMesasAsignadas && !cargandoMesas && (
+          {noSePudoLeerElSalon && <ErrorDelPlano alReintentar={() => releerMesas()} />}
+          {mesasZona.length === 0 && !sinMesasAsignadas && !cargandoMesas && !noSePudoLeerElSalon && (
             <div className="absolute inset-0 flex items-center justify-center text-muted-foreground/60">
               <div className="text-center">
                 <UtensilsCrossed className="w-10 h-10 mx-auto mb-2 opacity-40" />
@@ -1280,6 +1310,10 @@ function Mesero() {
             </div>
 
             <div className="hidden md:flex w-full md:w-72 flex-col shrink-0">
+              {/* La cuenta de la mesa todavía no llega: se reserva su lugar, no se pinta «sin pedido». */}
+              {loading && mesaActiva?.venta_activa_id && ventaActiva === null && (
+                <EsqueletoDeFilas filas={2} />
+              )}
               {(detallesVenta || []).length > 0 && (
                 <div className="px-4 py-3 border-b bg-muted/20">
                   <p className="text-xs font-semibold text-muted-foreground mb-2">PEDIDO ACTUAL</p>

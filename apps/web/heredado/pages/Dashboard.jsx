@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo } from 'react';
+import React, { useMemo, useState } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery } from '@tanstack/react-query';
 import { useConfig } from '@/lib/ConfigContext';
@@ -35,8 +35,10 @@ import { useCajaAbierta } from '@/lib/useCajaAbierta';
 import PropinasDashboardSection from '@/components/propinas/PropinasDashboardSection';
 import { tipsEnabled } from '@/utils/tipsUtils';
 import LoadingState from '@/components/common/LoadingState';
-import PrimerosPasosCard from '@/components/dashboard/PrimerosPasosCard';
+import PrimerosPasosCard, { primerosPasosVigente } from '@/components/dashboard/PrimerosPasosCard';
 import { AccesosDelDueno } from '~/restaurante/AccesosDelDueno';
+import { claves } from '~/cliente/claves-de-consulta';
+import { EsqueletoDeCifras, EsqueletoDeFilas } from '~/cliente/EstadosDeCarga';
 
 /**
  * Un negocio de mostrador: cobra en Caja, sin mesas de por medio.
@@ -69,14 +71,14 @@ export default function Dashboard() {
     placeholderData: (prev) => prev,
     staleTime: 5000,
   });
-  const { data: ingredientes } = useQuery({
+  const { data: ingredientes, isPending: ingredientesLoading } = useQuery({
     queryKey: ['ingredientes_all'],
     queryFn: () => api.entidades.Ingrediente.filter({ activo: true }),
     placeholderData: (prev) => prev,
     staleTime: 5000,
   });
   const { data: gastos, isPending: gastosLoading } = useQuery({
-    queryKey: ['gastos_hoy'],
+    queryKey: claves.gastos.recientes(),
     queryFn: () => api.entidades.GastoOperativo.list(),
     placeholderData: (prev) => prev,
     staleTime: 5000,
@@ -89,29 +91,44 @@ export default function Dashboard() {
   // IMPORTANTE: NO usar initialData:[] aquí — necesitamos saber cuándo
   // terminó realmente el primer fetch para no mostrar "Primeros pasos"
   // con datos vacíos falsos (eso causa el flash).
+  //
+  // SÓLO se piden mientras la card puede aparecer. Una vez que el admin la cierra con la X, o
+  // que los ocho pasos se completaron, la card no vuelve a pintarse jamás (lo dicen
+  // `mh_primeros_pasos_dismissed` y `mh_primeros_pasos_completed`), pero estas cinco lecturas
+  // —entre ellas las 500 mesas— seguían saliendo en CADA visita al tablero, para nada.
+  //
+  // Usuarios y mesas comparten clave con las demás pantallas que piden EXACTAMENTE lo mismo
+  // (`claves-de-consulta.ts`): el caché ya no se mezcla porque cada pregunta tiene la suya.
+  const [onboardingVigente] = useState(primerosPasosVigente);
   const { data: usuarios, isFetched: usuariosFetched } = useQuery({
-    queryKey: ['onboarding_usuarios'],
+    queryKey: claves.usuarios.activos(),
     queryFn: () => api.entidades.UsuarioPOS.filter({ activo: true }),
+    enabled: onboardingVigente,
   });
   const { data: mesasAll, isFetched: mesasFetched } = useQuery({
-    queryKey: ['onboarding_mesas'],
+    queryKey: claves.mesas.todas(),
     queryFn: () => api.entidades.Mesa.list('-created_date', 500),
+    enabled: onboardingVigente,
   });
   const { data: categoriasProd, isFetched: categoriasFetched } = useQuery({
     queryKey: ['onboarding_categorias'],
     queryFn: () => api.entidades.CategoriaProducto.filter({ activo: true }),
+    enabled: onboardingVigente,
   });
   const { data: productosAll, isFetched: productosFetched } = useQuery({
     queryKey: ['onboarding_productos'],
     queryFn: () => api.entidades.ProductoTerminado.filter({ activo: true }),
+    enabled: onboardingVigente,
   });
   const { data: cortesAll, isFetched: cortesFetched } = useQuery({
     queryKey: ['onboarding_cortes'],
     queryFn: () => api.entidades.CorteCaja.list('-created_date', 5),
+    enabled: onboardingVigente,
   });
   // El onboarding solo está "listo" cuando TODOS los queries terminaron su
   // primer fetch. Hasta ese momento, la card no se renderiza.
   const onboardingReady =
+    onboardingVigente &&
     !!config &&
     !cajaLoading &&
     usuariosFetched &&
@@ -310,6 +327,15 @@ export default function Dashboard() {
         <LoadingState label="Sincronizando datos del dashboard…" compact />
       )}
 
+      {/* Y el lugar de las cifras queda RESERVADO mientras llegan: sin esto la pantalla crecía
+          dos filas de golpe al terminar la lectura, y lo que se veía en medio era un hueco. */}
+      {dashboardCargando && (
+        <>
+          <EsqueletoDeCifras cantidad={showCostos ? 4 : 2} />
+          <EsqueletoDeCifras cantidad={showCostos ? 5 : 3} />
+        </>
+      )}
+
       {/* Main stats — colored, skeuomorphic.
           Las cards SIEMPRE conservan su identidad visual (fondo/borde/icono).
           Solo el color del MONTO se neutraliza si colorear_importes_monetarios=false
@@ -417,6 +443,8 @@ export default function Dashboard() {
         showInventario={showInventario}
         paymentData={paymentData}
         alertIngredients={alertIngredients}
+        cargandoVentas={dashboardCargando}
+        cargandoInventario={ingredientesLoading && !ingredientes}
       />
 
       {/* Cortes de caja — Dashboard muestra solo los 7 más recientes.
@@ -444,7 +472,13 @@ export default function Dashboard() {
 }
 
 /** Fila de charts con dark-mode awareness y reflejo premium en cards. */
-function ChartsRow({ showInventario, paymentData, alertIngredients }) {
+function ChartsRow({
+  showInventario,
+  paymentData,
+  alertIngredients,
+  cargandoVentas = false,
+  cargandoInventario = false,
+}) {
   const isDark = useIsDark();
   const cardBg = isDark
     ? 'linear-gradient(135deg, hsl(222 40% 11%) 0%, hsl(222 40% 9%) 100%)'
@@ -462,7 +496,7 @@ function ChartsRow({ showInventario, paymentData, alertIngredients }) {
           <CardTitle className="text-sm font-heading">Métodos de pago — hoy</CardTitle>
         </CardHeader>
         <CardContent>
-          <PaymentDonut paymentData={paymentData} />
+          <PaymentDonut paymentData={paymentData} cargando={cargandoVentas} />
         </CardContent>
       </Card>
 
@@ -482,7 +516,9 @@ function ChartsRow({ showInventario, paymentData, alertIngredients }) {
             </Link>
           </CardHeader>
           <CardContent>
-            {alertIngredients.length > 0 ? (
+            {cargandoInventario ? (
+              <EsqueletoDeFilas filas={3} />
+            ) : alertIngredients.length > 0 ? (
               <div className="space-y-2 max-h-60 overflow-y-auto">
                 {alertIngredients.map((ing) => (
                   <div
@@ -512,8 +548,10 @@ function ChartsRow({ showInventario, paymentData, alertIngredients }) {
   );
 }
 
-function PaymentDonut({ paymentData }) {
+function PaymentDonut({ paymentData, cargando = false }) {
   const isDark = useIsDark();
+  // Sin las ventas todavía no hay «sin ventas»: se espera, con el alto que tendrá la dona.
+  if (cargando) return <EsqueletoDeFilas filas={5} />;
   if (paymentData.length === 0) {
     return <p className="text-sm text-muted-foreground text-center py-8">Sin ventas hoy</p>;
   }

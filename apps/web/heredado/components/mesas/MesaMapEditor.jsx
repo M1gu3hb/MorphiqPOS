@@ -6,6 +6,7 @@ import { Button } from '@/components/ui/button';
 import { TAMANOS_MESA } from '@/lib/constants';
 import { useConfig } from '@/lib/ConfigContext';
 import { responsableColor, responsableTexto } from '@/lib/asignacionMesas';
+import { EsperaDelPlano } from '~/cliente/EstadosDeCarga';
 
 const MAP_HEIGHT = 600;
 
@@ -20,6 +21,9 @@ export default function MesaMapEditor({
   onPositionChange,
   onCreateFirst,
   selectedId,
+  // La primera lectura todavía no llega: no se sabe si hay mesas, así que ni se dice que no
+  // hay ni se ofrece «Crear primera mesa».
+  cargando = false,
 }) {
   const { config } = useConfig();
   const containerRef = useRef(null);
@@ -187,7 +191,9 @@ export default function MesaMapEditor({
         );
       })}
 
-      {mesas.length === 0 && (
+      {mesas.length === 0 && cargando && <EsperaDelPlano />}
+
+      {mesas.length === 0 && !cargando && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
           <div className="text-center pointer-events-auto">
             <UtensilsCrossed className="w-12 h-12 mx-auto mb-3 text-advertencia/40" />

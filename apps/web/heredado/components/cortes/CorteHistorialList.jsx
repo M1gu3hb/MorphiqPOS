@@ -10,6 +10,11 @@ import { Input } from '@/components/ui/input';
 import { Card } from '@/components/ui/card';
 import { FileText, Eye, Calendar, DoorOpen, Scissors, Lock } from 'lucide-react';
 import CorteViewerDialog from './CorteViewerDialog';
+import { claves } from '~/cliente/claves-de-consulta';
+import { EsqueletoDeFilas } from '~/cliente/EstadosDeCarga';
+
+/** Los cortes de «todavía no llegó nada»: una lista única, para que el `useMemo` no se invalide. */
+const SIN_CORTES = [];
 
 // Etiquetas + estilos por tipo de corte
 const TIPO_CONFIG = {
@@ -46,12 +51,17 @@ export default function CorteHistorialList({
 }) {
   // limit: cuánto trae de BD (para tener variedad si hay turnos vs cierres).
   // maxVisible: tope visual aplicado DESPUÉS del filtro (para Dashboard usar 7).
-  const { data: cortes = [] } = useQuery({
-    queryKey: ['cortes_historial'],
-    queryFn: () =>
-      api.entidades.CorteCaja.list('-created_date', Math.max(limit, maxVisible || 0) || 50),
-    initialData: [],
+  //
+  // El límite ES parte de la pregunta (el tablero pide 7; Caja, 100) y va en la clave: con la
+  // misma clave para las dos, el historial de Caja se pintaba con los 7 del tablero.
+  //
+  // Sin `initialData: []`: con él, «Sin cortes en este rango» salía mientras llegaban los cortes.
+  const limiteDeLectura = Math.max(limit, maxVisible || 0) || 50;
+  const { data: cortesLeidos, isPending: cargandoCortes } = useQuery({
+    queryKey: claves.cortes.historial(limiteDeLectura),
+    queryFn: () => api.entidades.CorteCaja.list('-created_date', limiteDeLectura),
   });
+  const cortes = cortesLeidos ?? SIN_CORTES;
 
   const [selected, setSelected] = useState(null);
   const [from, setFrom] = useState('');
@@ -113,7 +123,9 @@ export default function CorteHistorialList({
         </div>
       )}
 
-      {filtered.length === 0 ? (
+      {cargandoCortes ? (
+        <EsqueletoDeFilas filas={compact ? 3 : 4} />
+      ) : filtered.length === 0 ? (
         <p className="text-center text-muted-foreground py-6 text-sm">Sin cortes en este rango</p>
       ) : (
         <div className="space-y-2">

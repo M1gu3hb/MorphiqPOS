@@ -21,6 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { ZONAS_MESA, FORMAS_MESA, TAMANOS_MESA, ROLES } from '@/lib/constants';
+import { claves } from '~/cliente/claves-de-consulta';
 import { Trash2, AlertTriangle, UserCircle2 } from 'lucide-react';
 import {
   AlertDialog,
@@ -70,7 +71,7 @@ export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }
 
   // Meseros activos para el selector. Solo se carga cuando el diálogo está abierto.
   const { data: meseros = [] } = useQuery({
-    queryKey: ['usuarios_pos_meseros'],
+    queryKey: claves.usuarios.meseros(),
     queryFn: () => api.entidades.UsuarioPOS.filter({ activo: true, rol: ROLES.WAITER }),
     initialData: [],
     enabled: open,

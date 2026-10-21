@@ -7,6 +7,7 @@ import { LayoutGrid, PartyPopper, TriangleAlert } from 'lucide-react';
 import { ViewTransition, useEffect, useMemo, useState, type ReactNode } from 'react';
 
 import { consultarPuente } from '~/cliente/api';
+import { soloMesasEnServicio } from '~/cliente/mesas-del-mapa';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -151,6 +152,8 @@ export interface MesaDelMapa {
   readonly mesero_asignado_color: string | null;
   readonly celebracion_especial: boolean;
   readonly notas_alergias: string | null;
+  /** `false`: la mesa está dada de baja. Opcional: el puente la sirve, las pruebas no la ponen. */
+  readonly activo?: boolean | null;
 }
 
 export interface MapaDeMesasProps {
@@ -243,9 +246,12 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   useEffect(() => {
     if (mesasIniciales !== undefined) return;
     let vivo = true;
-    consultarPuente<MesaDelMapa>('Mesa', { limite: 200 })
+    // Sólo el salón EN SERVICIO, pedido al puente y, por si algo lo ignorara, filtrado otra vez
+    // aquí: las mesas dadas de baja conservan número y zona, y sin el filtro se pintaban como
+    // mesas vivas —repetidas, con el número de otra—, y se podía abrir cuenta en una.
+    consultarPuente<MesaDelMapa>('Mesa', { filtro: { activo: true }, limite: 200 })
       .then((filas) => {
-        if (vivo) setMesas(filas);
+        if (vivo) setMesas(soloMesasEnServicio(filas));
       })
       .catch((error: unknown) => {
         // El mapa se lee UNA vez, al montarse (volver de una mesa lo monta otra

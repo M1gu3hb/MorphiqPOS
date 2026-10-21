@@ -36,6 +36,7 @@ import {
   sumarPropinas,
 } from '@/utils/tipsUtils';
 import LiquidarPropinasDialog from '@/components/propinas/LiquidarPropinasDialog';
+import { claves } from '~/cliente/claves-de-consulta';
 
 const RANGOS = [
   { id: 'today', label: 'Hoy' },
@@ -60,14 +61,16 @@ export default function PropinasRegistros() {
   const [showLiquidar, setShowLiquidar] = useState(false);
   const [verHistorial, setVerHistorial] = useState(false);
 
+  // El orden y el límite son parte de la pregunta: Registros pide 1 000 por fecha de creación
+  // bajo la misma raíz, y con la clave sola esta pestaña recibía SU lista.
   const { data: ventas = [] } = useQuery({
-    queryKey: ['registros_ventas'],
+    queryKey: claves.registrosVentas.porOrden('-fecha_cierre', 2000),
     queryFn: () => api.entidades.Venta.list('-fecha_cierre', 2000),
     initialData: [],
   });
 
   const { data: meseros = [] } = useQuery({
-    queryKey: ['usuarios_pos_meseros'],
+    queryKey: claves.usuarios.activos(),
     queryFn: () => api.entidades.UsuarioPOS.filter({ activo: true }),
     initialData: [],
   });

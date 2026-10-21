@@ -9,6 +9,7 @@ import { canAccessModule } from '@/lib/packageConfig';
 import { playReady } from '@/lib/sounds';
 import { speak, fraseListoCocina, getAlertConfig } from '@/lib/voiceAlert';
 import { toast } from 'sonner';
+import { claves } from '~/cliente/claves-de-consulta';
 import {
   asignacionActiva,
   debeEscucharAudio,
@@ -62,29 +63,42 @@ export default function PedidoListoWatcher() {
   const firstLoadRef = useRef(true);
   const notifiedRef = useRef(loadSet());
 
-  const { data: pedidosListos = [] } = useQuery({
+  // SIN `initialData: []`: con él, el primer pasaje del efecto veía una lista vacía, la daba por
+  // «la primera carga» y la siguiente lectura —con los pedidos que YA estaban listos al entrar—
+  // salía como NOVEDAD: toast y voz por cada uno, en cada pestaña nueva. El primer dato de
+  // verdad es el que se toma de referencia.
+  const { data: pedidosListos } = useQuery({
     queryKey: ['pedidos_listos_watcher'],
     queryFn: () => api.entidades.PedidoPreparacion.filter({ estado: 'listo' }),
-    initialData: [],
     refetchInterval: 6000,
     enabled: watch,
   });
 
-  const { data: mesas = [] } = useQuery({
-    queryKey: ['mesas_listo_watcher'],
-    queryFn: () => api.entidades.Mesa.list('-created_date', 500),
-    initialData: [],
-    refetchInterval: 15000,
-    enabled: watch,
+  // Las mesas sólo hacen falta para saber QUIÉN atiende un pedido que acaba de quedar listo. Antes
+  // se descargaban TODAS (500 filas, las inactivas incluidas) cada 15 s en cada pantalla, hubiera
+  // algo que avisar o no. Ahora se piden cuando hay un aviso por dar, con la clave del salón en
+  // servicio: en el mapa del mesero —que ya la sondea cada 5 s— no cuesta ni una petición más.
+  const hayAvisosPorDar =
+    watch &&
+    Array.isArray(pedidosListos) &&
+    !firstLoadRef.current &&
+    pedidosListos.some((p) => !notifiedRef.current.has(p.id));
+  const {
+    data: mesas,
+    isError: mesasFallaron,
+    isFetching: mesasActualizando,
+  } = useQuery({
+    queryKey: claves.mesas.activas(),
+    queryFn: () => api.entidades.Mesa.filter({ activo: true }),
+    enabled: hayAvisosPorDar,
+    staleTime: 4000,
   });
 
   useEffect(() => {
     if (!watch) return;
-    const todos = Array.isArray(pedidosListos) ? pedidosListos : [];
-    const mesasMap = {};
-    (Array.isArray(mesas) ? mesas : []).forEach((m) => {
-      if (m?.id) mesasMap[m.id] = m;
-    });
+    // Sin la primera lectura no hay nada que comparar.
+    if (!Array.isArray(pedidosListos)) return;
+    const todos = pedidosListos;
 
     if (firstLoadRef.current) {
       todos.forEach((p) => notifiedRef.current.add(p.id));
@@ -95,6 +109,17 @@ export default function PedidoListoWatcher() {
 
     const nuevos = todos.filter((p) => !notifiedRef.current.has(p.id));
     if (nuevos.length === 0) return;
+    // A quién le toca se sabe por la mesa, y la mesa tiene que estar AL DÍA: se espera a que
+    // termine su lectura (si el caché del mapa ya está fresco no hay nada que esperar). Si la
+    // lectura falló, se avisa igual —sin responsable, como cuando la lista llegaba vacía— antes
+    // que no avisar.
+    if (mesasActualizando) return;
+    if (!Array.isArray(mesas) && !mesasFallaron) return;
+
+    const mesasMap = {};
+    (Array.isArray(mesas) ? mesas : []).forEach((m) => {
+      if (m?.id) mesasMap[m.id] = m;
+    });
 
     const asign = asignacionActiva(config);
     const audioOk = debeEscucharAudio(posUser, config);
@@ -173,7 +198,7 @@ export default function PedidoListoWatcher() {
         });
       }, 280);
     }
-  }, [pedidosListos, mesas, watch, posUser, config]);
+  }, [pedidosListos, mesas, mesasFallaron, mesasActualizando, watch, posUser, config]);
 
   return null;
 }

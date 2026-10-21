@@ -38,12 +38,16 @@ export default function SolicitudesQRPanel() {
   const { config } = useConfig();
   const queryClient = useQueryClient();
   const [showAlertas, setShowAlertas] = useState(false);
+  // La solicitud que se está atendiendo: sus botones esperan a que el servidor conteste.
+  const [accionandoId, setAccionandoId] = useState(null);
 
+  // Misma clave y misma lectura que `SolicitudesQRCardList`, que está SIEMPRE montada debajo del
+  // mapa y ya la sondea cada 5 s: con su propio `refetchInterval` este panel, abierto, duplicaba
+  // la petición cada ciclo.
   const { data: solicitudesRaw = [] } = useQuery({
     queryKey: ['solicitudes_qr_mesero'],
     queryFn: () => api.entidades.SolicitudQR.list('-created_date', 100),
     initialData: [],
-    refetchInterval: 5000,
   });
 
   // Filtramos según rol/asignación, luego dejamos solo las activas.
@@ -57,7 +61,8 @@ export default function SolicitudesQRPanel() {
   const asign = asignacionActiva(config);
 
   const accion = async (s, accionTipo) => {
-    if (!s?.id) return;
+    if (!s?.id || accionandoId !== null) return;
+    setAccionandoId(s.id);
     try {
       // `atendido_por_id` y `atendido_por_nombre` YA NO VIAJAN en el cuerpo.
       // Los mandaba el navegador, así que cualquiera podía atribuirse el
@@ -92,6 +97,8 @@ export default function SolicitudesQRPanel() {
     } catch (err) {
       console.error('[SolicitudesQRPanel] accion:', err);
       toast.error(err?.message || 'No se pudo actualizar');
+    } finally {
+      setAccionandoId(null);
     }
   };
 
@@ -197,6 +204,7 @@ export default function SolicitudesQRPanel() {
                       size="sm"
                       variant="outline"
                       className="h-7 text-xs flex-1"
+                      disabled={accionandoId !== null}
                       onClick={() => accion(s, 'atender')}
                     >
                       Atender
@@ -205,6 +213,7 @@ export default function SolicitudesQRPanel() {
                   <Button
                     size="sm"
                     className="h-7 text-xs flex-1"
+                    disabled={accionandoId !== null}
                     onClick={() => accion(s, 'resolver')}
                   >
                     <CheckCircle2 className="w-3 h-3 mr-1" /> Resuelto

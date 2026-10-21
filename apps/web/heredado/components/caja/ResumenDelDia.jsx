@@ -15,6 +15,7 @@ import {
   BarChart3,
 } from 'lucide-react';
 import StatCard from '@/components/common/StatCard';
+import { EsqueletoDeCifras } from '~/cliente/EstadosDeCarga';
 
 /**
  * Resumen del día — vista unificada para la pestaña "Resumen" de Caja.
@@ -34,6 +35,9 @@ export default function ResumenDelDia({
   cajaAbierta = null,
   ventasPendientes = [],
   colorearImportes = true,
+  // La caja, las ventas o los gastos todavía no llegaron: no hay resumen que decir. Sin esto
+  // la pantalla enseñaba «No hay caja abierta» o un día en `$0.00` durante la primera lectura.
+  cargando = false,
 }) {
   const safeResumen = resumen || {};
   const totalGeneral = Number(safeResumen.totalGeneral) || 0;
@@ -87,6 +91,8 @@ export default function ResumenDelDia({
   const propinasPorMesero = Array.isArray(safeResumen.propinasPorMesero)
     ? safeResumen.propinasPorMesero
     : [];
+
+  if (cargando) return <EsqueletoDeCifras cantidad={4} etiqueta="Cargando el resumen del día" />;
 
   if (!cajaAbierta) {
     return (

@@ -48,6 +48,14 @@ const readFlag = (key) => {
   }
 };
 
+/**
+ * ¿Todavía puede aparecer la card? Falso cuando el admin la cerró o ya se completó: entonces
+ * el tablero no necesita ni pedir los datos con los que ella decide.
+ */
+export function primerosPasosVigente() {
+  return !readFlag(DISMISSED_KEY) && !readFlag(COMPLETED_KEY);
+}
+
 export default function PrimerosPasosCard({ progreso, ready = true }) {
   // Lectura síncrona en el primer render: evita flash.
   const [dismissed, setDismissed] = useState(() => readFlag(DISMISSED_KEY));

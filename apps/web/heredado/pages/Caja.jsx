@@ -72,6 +72,8 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { safeFormatDate } from '@/lib/safeFormat';
 import StatCard from '@/components/common/StatCard';
+import { claves } from '~/cliente/claves-de-consulta';
+import { ErrorDeLectura, EsqueletoDeFilas } from '~/cliente/EstadosDeCarga';
 
 const METODOS = [
   {
@@ -117,6 +119,9 @@ const TIPOS_DE_PROPINA = [
   'decidir_en_caja',
 ];
 const ORIGENES_DE_PROPINA = ['mesero', 'caja', 'tradicional', 'portal_qr', 'pendiente_portal_qr'];
+
+/** La lista vacía de «todavía no llegó nada»: una sola, para que los `useMemo` no se invaliden. */
+const SIN_FILAS = [];
 
 export default function Caja() {
   const { posUser } = usePOSAuth();
@@ -181,31 +186,40 @@ export default function Caja() {
 
   // BLOQUE 0: refetch cada 2s para que QR/Mesero → Caja sea casi en vivo.
   // Sin esto, una cuenta solicitada podía tardar hasta 6s en aparecer en Caja.
-  const { data: ventasPendientes = [] } = useQuery({
+  //
+  // Las tres lecturas de abajo NO llevan `initialData: []`. Con él, la pantalla las daba por
+  // respondidas desde el primer pintado: «Sin cobros pendientes», «0 cobros pendientes» y un
+  // resumen en `$0.00` mientras la red iba por el primer byte, y —peor— el corte de turno y
+  // el cierre diario guardaban SUS TOTALES de ese resumen vacío si se tocaban a tiempo.
+  // Sin dato todavía, la pantalla espera (`cargandoPendientes`, `cargandoResumen`).
+  const {
+    data: pendientesLeidas,
+    isPending: cargandoPendientes,
+    isError: fallaronLasPendientes,
+    refetch: releerPendientes,
+  } = useQuery({
     queryKey: ['ventas_pendientes_caja'],
     queryFn: () => api.entidades.Venta.filter({ estado: 'cuenta_solicitada' }),
-    initialData: [],
     refetchInterval: 2000,
     staleTime: 1000,
   });
+  const ventasPendientes = pendientesLeidas ?? SIN_FILAS;
 
-  const { data: ventasHoy = [] } = useQuery({
-    queryKey: ['ventas_pagadas_caja'],
+  const { data: pagadasLeidas, isPending: cargandoPagadas } = useQuery({
+    queryKey: ['ventas_hoy'],
     queryFn: () => api.entidades.Venta.filter({ estado: 'pagada' }),
-    initialData: [],
   });
+  const ventasHoy = pagadasLeidas ?? SIN_FILAS;
 
-  const { data: gastos = [] } = useQuery({
-    queryKey: ['gastos_hoy'],
+  const { data: gastosLeidos, isPending: cargandoGastos } = useQuery({
+    queryKey: claves.gastos.recientes(100),
     queryFn: () => api.entidades.GastoOperativo.list('-created_date', 100),
-    initialData: [],
   });
+  const gastos = gastosLeidos ?? SIN_FILAS;
 
-  const { data: cortes = [] } = useQuery({
-    queryKey: ['cortes'],
-    queryFn: () => api.entidades.CorteCaja.list('-created_date', 20),
-    initialData: [],
-  });
+  // El resumen del día necesita la caja, las ventas pagadas y los gastos: sin alguno, sus
+  // cifras serían las de un día vacío.
+  const cargandoResumen = cargandoCaja || cargandoPagadas || cargandoGastos;
 
   // corteAbierto = alias del cierre_diario abierto (single source of truth)
   const corteAbierto = cajaAbierta;
@@ -741,7 +755,6 @@ export default function Caja() {
 
       // Invalidar TODO lo que se refleja en Caja, Ventas, Registros y Dashboard.
       queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
-      queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_all'] }); // ← FIX: query de pages/Ventas.jsx
@@ -833,7 +846,6 @@ export default function Caja() {
     queryClient.invalidateQueries({ queryKey: ['cortes_historial'] });
     queryClient.invalidateQueries({ queryKey: ['registros_cortes'] });
     queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
-    queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
     queryClient.invalidateQueries({ queryKey: ['ventas_pendientes_caja'] });
     queryClient.invalidateQueries({ queryKey: ['gastos_hoy'] });
     queryClient.invalidateQueries({ queryKey: ['ingredientes_all'] });
@@ -1030,7 +1042,6 @@ export default function Caja() {
       }
 
       invalidarCajaQueries();
-      queryClient.invalidateQueries({ queryKey: ['ventas_pagadas_caja'] });
       queryClient.invalidateQueries({ queryKey: ['ventas_hoy'] });
 
       // El folio lo asigna el SERVIDOR al cerrar, así que sale de `arqueo` —la
@@ -1080,11 +1091,15 @@ export default function Caja() {
           <div className="min-w-0">
             <h1 className="text-xl font-heading font-bold">Caja</h1>
             <p className="text-xs text-muted-foreground truncate">
-              {hayCaja
-                ? isCajaDirecta
-                  ? 'Punto de venta directo'
-                  : `${ventasPendientes.length} cobros pendientes`
-                : 'Caja cerrada'}
+              {cargandoCaja
+                ? 'Verificando caja…'
+                : hayCaja
+                  ? isCajaDirecta
+                    ? 'Punto de venta directo'
+                    : cargandoPendientes
+                      ? 'Cargando cobros…'
+                      : `${ventasPendientes.length} cobros pendientes`
+                  : 'Caja cerrada'}
             </p>
           </div>
         </div>
@@ -1107,7 +1122,7 @@ export default function Caja() {
             size="sm"
             variant="outline"
             onClick={() => setShowCorteTurno(true)}
-            disabled={!hayCaja}
+            disabled={!hayCaja || cargandoResumen}
             title={!hayCaja ? 'Necesitas una caja abierta' : 'Corte parcial de turno'}
             className="px-2"
           >
@@ -1118,7 +1133,7 @@ export default function Caja() {
           <Button
             size="sm"
             onClick={intentarAbrirCierreDiario}
-            disabled={!hayCaja || verificandoMesas}
+            disabled={!hayCaja || verificandoMesas || cargandoResumen}
             title={!hayCaja ? 'Necesitas una caja abierta' : 'Cierre final del día'}
             className="px-2"
             style={
@@ -1176,7 +1191,7 @@ export default function Caja() {
           </Link>
           <button
             onClick={intentarAbrirCierreDiario}
-            disabled={verificandoMesas}
+            disabled={verificandoMesas || cargandoResumen}
             className="w-full p-5 rounded-2xl border-2 border-border bg-card text-left transition-all hover:bg-muted active:scale-[0.99] disabled:opacity-60 disabled:cursor-not-allowed"
             style={{
               boxShadow: '0 2px 0 rgba(255,255,255,0.9) inset, 0 6px 18px rgba(0,0,0,0.06)',
@@ -1214,7 +1229,7 @@ export default function Caja() {
         <TabsList className="mb-4 flex w-full overflow-x-auto justify-start no-scrollbar">
           {!isCajaDirecta && (
             <TabsTrigger value="cobros" className="shrink-0">
-              Pendientes ({ventasPendientes.length})
+              Pendientes ({cargandoPendientes ? '…' : ventasPendientes.length})
             </TabsTrigger>
           )}
           <TabsTrigger value="buscar" className="shrink-0">
@@ -1231,7 +1246,14 @@ export default function Caja() {
         {/* COBROS PENDIENTES (solo con sala: el módulo `mesas`) */}
         {!isCajaDirecta && (
           <TabsContent value="cobros">
-            {ventasPendientes.length === 0 ? (
+            {cargandoPendientes ? (
+              <EsqueletoDeFilas filas={3} />
+            ) : fallaronLasPendientes && pendientesLeidas === undefined ? (
+              <ErrorDeLectura
+                queNoSePudoLeer="los cobros pendientes"
+                alReintentar={() => releerPendientes()}
+              />
+            ) : ventasPendientes.length === 0 ? (
               <div className="text-center py-16 text-muted-foreground">
                 <CheckCircle2 className="w-12 h-12 mx-auto mb-3 text-exito" />
                 <p className="font-medium">Sin cobros pendientes</p>
@@ -1363,6 +1385,7 @@ export default function Caja() {
             cajaAbierta={cajaAbierta}
             ventasPendientes={ventasPendientes}
             colorearImportes={config?.colorear_importes_monetarios !== false}
+            cargando={cargandoResumen}
           />
         </TabsContent>
 
