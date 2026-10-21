@@ -14,6 +14,29 @@ Rama: `claude/restaurante-dominio-qr-presentacion` (sale de `main` = `cc92c66`).
 | Menú sin «Modelos de negocio» ni «Vistas adicionales»; switch en Configuración → Presentación. | D-52; `rutas-por-puesto.test.ts`, `inicio-del-restaurante.test.ts`. |
 | Imágenes de 26 platillos (Commons, licencias CC0/CC BY/CC BY-SA). | `apps/web/public/platillos/` con `CREDITOS.md` y `manifiesto.json`. Falta «Refresco de toronja» (no hay foto genérica con licencia válida). |
 
+## Corte por límite de uso (21-10, ~00:30 hora MX)
+
+Los seis subagentes se DETUVIERON a medias por el límite de uso. Su trabajo está en sus worktrees
+(`.claude/worktrees/agent-*`, ramas `worktree-agent-*`), en su mayoría SIN commit: revisar cada
+diff antes de integrar, nada se integró todavía salvo las imágenes.
+
+| Worktree | Encargo | Estado al cortar |
+| --- | --- | --- |
+| `agent-ac84d977660b33d42` | Caché, esqueletos, mesas encimadas | 1 commit `wip` + cambios sin commit |
+| `agent-a2a2eb40892216220` | Recetas/Platillos/Inventario alineados, costo desconocido, imagen con alternativa | cambios sin commit (Recetas, Productos, Inventario, esqueletos, `ImagenDePlatillo`) |
+| `agent-a4cedbde9cb04d426` | Separar mesas, entregado en grupo, supervisor atado, cierre de caja C10, comandas colgadas | cambios sin commit (supervisor, caja/sesion, MesaActiva…) |
+| `agent-a62cc4272781e4bcd` | Historial de 30 días `packages/app/src/presentacion/historial.ts` | sin commit; conectar a `preparar` en `/api/presentacion/modo` (devolver `pendientes`) |
+| `agent-a402002f1362c7ccf` | Marca Morphiq (estilo inicial), nombres visibles, voces | 4 commits (marca, estilo `morphiq`, voz por dispositivo, `docs/fase-2/VOCES.md`); falta montar `ConfiguracionDeVoz` en Configuración |
+| `agent-ab2b222208ee9e9c6` | Prueba concurrente de 12 mesas | apenas empezaba |
+
+Suite unitaria completa de esta rama (con la máquina saturada por los subagentes): 4,296 bien,
+13 mal en 7 archivos ajenos a estos cambios (`tomas-inventario`, `traspasos`, `unidades`…);
+probablemente tiempos agotados por carga. **Re-correr esos archivos solos antes de integrar.**
+
+Base local de verificación lista: `morphiq_e2e` (restaurante y cafetería sembrados, dueño general de
+prueba con PIN 24680 sólo local; `.work/verificacion/dueno-general-local.mjs`). Guion de producción:
+`.work/verificacion/produccion.mjs` (línea base del 21-10: `www` → 403 y nombre técnico visible).
+
 ## En curso (subagentes Sonnet en worktrees `.claude/worktrees/agent-*`)
 
 - Caché, esqueletos y mesas encimadas (pantallas heredadas).
