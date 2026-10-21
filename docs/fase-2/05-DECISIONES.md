@@ -1171,15 +1171,17 @@ además «Modelos de negocio» y un segundo menú, «Vistas adicionales», con l
 (contrato `DEMOS` y dato en producción). `mh-restaurante` sale de `ORGANIZACION` en producción: no se
 lista ni se abre, y sus datos y su cuenta «Miguel» quedan intactos (volver a ponerlo en la variable
 lo recupera). «Modelos de negocio» deja el menú: vive en Configuración → Presentación detrás del PIN
-del dueño general. Las vistas `/restaurante/*` dejan el menú salvo el cierre del día; cada una se
-abre con el permiso de su puesto (`rutaPermitidaParaElPuesto`), y la mesa activa —dividir, unir,
-cambiar, separar— se llega desde «Mesas y pedidos».
+del dueño general. Las vistas `/restaurante/*` dejan el menú salvo el cierre del día. Las que traen
+una función que el recorrido heredado no tiene —la mesa activa (dividir, unir, cambiar, separar),
+la precuenta y el cierre del día— se abren con el permiso de su puesto (la mesera llega desde
+«Mesas y pedidos», la caja a su cierre); las que duplican una pantalla siguen siendo de dirección
+(`rutaPermitidaParaElPuesto`).
 
 **Alternativas.** Mover la configuración de Miguel a `mh-restaurante` (mezclaría catálogos y
 operaciones de dos organizaciones); borrar la demo o `mh-restaurante` (prohibido: datos y cuentas).
 
-**Consecuencias.** Supera la regla de D-49 «una vista `/restaurante/...` es de quien la tiene en su
-menú»: ahora es de quien tiene su permiso. El servidor sigue negando cada comando por rol.
+**Consecuencias.** Matiza D-49: una vista con función propia es de quien tiene su permiso; las
+duplicadas, de dirección. El servidor sigue negando cada comando por rol.
 
 ## D-53 · 21-10-2026 · El QR dice su negocio, dentro de lo que sirve el despliegue
 
