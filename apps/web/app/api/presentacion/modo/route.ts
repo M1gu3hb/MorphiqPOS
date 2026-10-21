@@ -56,7 +56,8 @@ async function contexto(peticion: Request) {
     token: leerCookie(cookie, NOMBRE_COOKIE),
     secreto: entorno.SESSION_SECRET,
   });
-  if (!actual.ok) return { entorno, cookie, restaurante: null, general: null } as const;
+  if (!actual.ok)
+    return { entorno, cookie, restaurante: null, general: null, duenoLocal: null } as const;
   const restaurante = await restauranteDelContexto(actual.sesion.organizacionId);
   const maestro = leerCookie(cookie, COOKIE_PRESENTACION);
   const raiz = await resolverSesion({ token: maestro, secreto: entorno.SESSION_SECRET });
@@ -75,7 +76,15 @@ async function contexto(peticion: Request) {
     raiz.ok && destinos.length > 0 && empleoEnElRestaurante !== null && maestro !== undefined
       ? { sesion: raiz.sesion, token: maestro, empleoEnElRestaurante }
       : null;
-  return { entorno, cookie, restaurante, general } as const;
+  // Un dueño del propio restaurante puede PREPARAR la presentación (sembrar el contexto y su
+  // historial, sin tocar sus datos); encenderla y apagarla es sólo del dueño general.
+  const duenoLocal =
+    restaurante !== null &&
+    actual.sesion.rol === 'dueno' &&
+    actual.sesion.organizacionId === restaurante
+      ? actual.sesion.empleoId
+      : null;
+  return { entorno, cookie, restaurante, general, duenoLocal } as const;
 }
 
 export async function GET(peticion: Request) {
@@ -95,19 +104,23 @@ export async function GET(peticion: Request) {
 }
 
 export async function POST(peticion: Request) {
-  const { entorno, cookie, restaurante, general } = await contexto(peticion);
+  const { entorno, cookie, restaurante, general, duenoLocal } = await contexto(peticion);
   if (!peticionDeEscrituraValida(peticion, entorno.APP_URL, entorno.APP_URL_ALTERNAS))
     return negado('Petición rechazada.');
   if (!cuerpoDentroDelLimite(peticion.headers)) return json({ ok: false }, 413);
   const entrada = Entrada.safeParse(await peticion.json().catch(() => null));
   if (!entrada.success) return negado('Revisa los datos.', 400);
   if (restaurante === null) return negado('El modo presentación es del restaurante.', 400);
-  if (general === null) return negado('Desbloquea la presentación con el PIN del dueño general.');
+  const quienPrepara = general?.empleoEnElRestaurante ?? duenoLocal;
+  if (entrada.data.accion === 'preparar' && quienPrepara === null)
+    return negado('Sólo el dueño prepara la presentación.');
+  if (entrada.data.accion !== 'preparar' && general === null)
+    return negado('Desbloquea la presentación con el PIN del dueño general.');
 
   const seguro = entorno.NODE_ENV === 'production';
   try {
-    if (entrada.data.accion === 'preparar') {
-      const espejo = await asegurarEspejo(restaurante, general.empleoEnElRestaurante);
+    if (entrada.data.accion === 'preparar' && quienPrepara !== null) {
+      const espejo = await asegurarEspejo(restaurante, quienPrepara);
       const estado = await estadoDePresentacion(restaurante);
       return json({
         ok: true,
@@ -118,6 +131,8 @@ export async function POST(peticion: Request) {
         },
       });
     }
+
+    if (general === null) return negado('Desbloquea la presentación con el PIN del dueño general.');
 
     if (entrada.data.accion === 'encender') {
       await cambiarModoDePresentacion(restaurante, true);

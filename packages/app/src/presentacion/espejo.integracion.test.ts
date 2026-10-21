@@ -322,3 +322,87 @@ describe('el modo presentación del restaurante', () => {
     expect(await huellaDelReal()).toEqual(huellaInicial);
   });
 });
+
+describe('la presentación que prepara otro dueño y enciende el dueño general', () => {
+  it('el general entra delegado aunque no la haya preparado él', async () => {
+    // Un restaurante aparte, con dos dueños: «Demo», que prepara, y el general con su PIN.
+    const org = randomUUID();
+    const sucursal = randomUUID();
+    const demo = { persona: randomUUID(), identidad: randomUUID(), empleo: randomUUID() };
+    const gral = { persona: randomUUID(), identidad: randomUUID(), empleo: randomUUID() };
+    await conTransaccion(async (tx) => {
+      await tx
+        .insertInto('organizaciones')
+        .values({
+          id: org,
+          nombre: 'Restaurante de la prueba',
+          slug: `prueba-presentacion-${org.slice(0, 8)}`,
+          giro: 'restaurante',
+          paquete: 'restaurante',
+        })
+        .execute();
+      await tx
+        .insertInto('sucursales')
+        .values({ id: sucursal, organizacion_id: org, nombre: 'Centro' })
+        .execute();
+      for (const [ids, nombre] of [
+        [demo, 'Demo'],
+        [gral, 'Miguel'],
+      ] as const) {
+        await tx
+          .insertInto('personas')
+          .values({ id: ids.persona, organizacion_id: org, nombre })
+          .execute();
+        await tx
+          .insertInto('identidades')
+          .values({ id: ids.identidad, persona_id: ids.persona })
+          .execute();
+        await tx
+          .insertInto('empleos')
+          .values({
+            id: ids.empleo,
+            persona_id: ids.persona,
+            organizacion_id: org,
+            sucursal_id: sucursal,
+            rol: 'dueno',
+          })
+          .execute();
+      }
+      await tx
+        .insertInto('credenciales_pin')
+        .values({ identidad_id: gral.identidad, pin_hash: await hashearPin('70707', PIMIENTA) })
+        .execute();
+      await sql`
+        insert into configuracion (organizacion_id, valores, version)
+        values (${org}, ${JSON.stringify({
+          presentacion_dueno_empleo: gral.empleo,
+          presentacion_destinos: [{ empleoId: gral.empleo, organizacionId: org }],
+        })}::jsonb, 1)
+      `.execute(tx);
+    });
+
+    const { espejoId } = await asegurarEspejo(org, demo.empleo);
+    await cambiarModoDePresentacion(org, true);
+    const acceso = await entrarConPin({
+      empleoId: gral.empleo,
+      pin: '70707',
+      deviceToken: '',
+      organizacionId: org,
+      pimienta: PIMIENTA,
+      secretoSesion: SECRETO,
+    });
+    if (!acceso.ok) throw new Error(acceso.motivo);
+    const enEspejo = await sesionDePresentacion({
+      organizacionId: org,
+      empleoId: gral.empleo,
+      tokenReal: acceso.token,
+      deviceToken: acceso.deviceToken ?? '',
+      pimienta: PIMIENTA,
+      secreto: SECRETO,
+    });
+    const sesion = await resolverSesion({ token: enEspejo?.token, secreto: SECRETO });
+    expect(sesion.ok && sesion.sesion.organizacionId).toBe(espejoId);
+    expect(sesion.ok && sesion.sesion.presentador?.empleoId).toBe(gral.empleo);
+    await cambiarModoDePresentacion(org, false);
+  }, 120_000);
+});

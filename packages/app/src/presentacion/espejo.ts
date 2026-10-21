@@ -425,6 +425,60 @@ async function copiarDelReal(
  * nuevo con su nombre y su puesto. Nadie entra al espejo con PIN: entra al real y la sesión
  * se abre en su gemelo, así que el gemelo no necesita credencial.
  */
+/** Un empleo nuevo en el espejo con el nombre y el puesto de alguien del real. */
+async function crearGemelo(
+  tx: Transaccion,
+  origenId: string,
+  espejoId: string,
+  empleoOrigenId: string,
+): Promise<string | null> {
+  const real = await tx
+    .selectFrom('empleos')
+    .innerJoin('personas', 'personas.id', 'empleos.persona_id')
+    .select(['empleos.rol', 'personas.nombre', 'personas.apellidos'])
+    .where('empleos.id', '=', empleoOrigenId)
+    .where('empleos.organizacion_id', '=', origenId)
+    .where('empleos.activo', '=', true)
+    .executeTakeFirst();
+  if (real === undefined) return null;
+  const sucursal = await tx
+    .selectFrom('sucursales')
+    .select('id')
+    .where('organizacion_id', '=', espejoId)
+    .orderBy('created_at', 'asc')
+    .executeTakeFirst();
+  const personaId = randomUUID();
+  const gemeloId = randomUUID();
+  await tx
+    .insertInto('personas')
+    .values({
+      id: personaId,
+      organizacion_id: espejoId,
+      nombre: real.nombre,
+      apellidos: real.apellidos,
+    })
+    .execute();
+  await tx.insertInto('identidades').values({ persona_id: personaId }).execute();
+  await tx
+    .insertInto('empleos')
+    .values({
+      id: gemeloId,
+      persona_id: personaId,
+      organizacion_id: espejoId,
+      sucursal_id: sucursal?.id ?? null,
+      rol: real.rol,
+      ve_todas_las_estaciones: true,
+    })
+    .execute();
+  await mezclar(tx, espejoId, {
+    presentacion_gemelos: {
+      ...gemelosDe(await valoresDe(tx, espejoId)),
+      [empleoOrigenId]: gemeloId,
+    },
+  });
+  return gemeloId;
+}
+
 async function emparejarPersonal(
   tx: Transaccion,
   origenId: string,
@@ -461,6 +515,13 @@ async function emparejarPersonal(
     }
   }
   await mezclar(tx, espejoId, { presentacion_gemelos: gemelos });
+  // Quien no tiene pareja en la siembra —el dueño general, un mesero dado de alta por Miguel—
+  // recibe su gemelo ya, no hasta que entre: así todos tienen dónde caer al encender.
+  for (const real of reales) {
+    if (gemelos[real.id] !== undefined) continue;
+    const nuevo = await crearGemelo(tx, origenId, espejoId, real.id);
+    if (nuevo !== null) gemelos[real.id] = nuevo;
+  }
   return gemelos;
 }
 
@@ -600,53 +661,21 @@ export async function gemeloEnPresentacion(
   const espejoId = lectura;
   return conTransaccion(async (tx) => {
     await bloquear(tx, origenId);
-    let gemeloId = gemelosDe(await valoresDe(tx, espejoId))[empleoOrigenId];
-    if (gemeloId === undefined) {
-      const real = await tx
+    let gemeloId: string | null = gemelosDe(await valoresDe(tx, espejoId))[empleoOrigenId] ?? null;
+    const vivo =
+      gemeloId !== null &&
+      (await tx
         .selectFrom('empleos')
-        .innerJoin('personas', 'personas.id', 'empleos.persona_id')
-        .select(['empleos.rol', 'personas.nombre', 'personas.apellidos'])
-        .where('empleos.id', '=', empleoOrigenId)
-        .where('empleos.organizacion_id', '=', origenId)
-        .where('empleos.activo', '=', true)
-        .executeTakeFirst();
-      if (real === undefined) return null;
-      const sucursal = await tx
-        .selectFrom('sucursales')
         .select('id')
+        .where('id', '=', gemeloId)
         .where('organizacion_id', '=', espejoId)
-        .orderBy('created_at', 'asc')
-        .executeTakeFirst();
-      const personaId = randomUUID();
-      gemeloId = randomUUID();
-      await tx
-        .insertInto('personas')
-        .values({
-          id: personaId,
-          organizacion_id: espejoId,
-          nombre: real.nombre,
-          apellidos: real.apellidos,
-        })
-        .execute();
-      await tx.insertInto('identidades').values({ persona_id: personaId }).execute();
-      await tx
-        .insertInto('empleos')
-        .values({
-          id: gemeloId,
-          persona_id: personaId,
-          organizacion_id: espejoId,
-          sucursal_id: sucursal?.id ?? null,
-          rol: real.rol,
-          ve_todas_las_estaciones: true,
-        })
-        .execute();
-      await mezclar(tx, espejoId, {
-        presentacion_gemelos: {
-          ...gemelosDe(await valoresDe(tx, espejoId)),
-          [empleoOrigenId]: gemeloId,
-        },
-      });
-    }
+        .where('activo', '=', true)
+        .executeTakeFirst()) !== undefined;
+    if (!vivo) gemeloId = await crearGemelo(tx, origenId, espejoId, empleoOrigenId);
+    if (gemeloId === null) return null;
+    // El dueño general entra delegado: su gemelo tiene que estar en su concesión aunque la
+    // presentación la haya preparado otro dueño.
+    await concederElEspejo(tx, origenId, espejoId, { [empleoOrigenId]: gemeloId });
     const fila = await tx
       .selectFrom('empleos')
       .innerJoin('identidades', 'identidades.persona_id', 'empleos.persona_id')
