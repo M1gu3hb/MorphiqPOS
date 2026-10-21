@@ -1,5 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
+import { nombreVisibleDelNegocio } from '../../apps/web/src/marca/nombre-visible.ts';
+
 import {
   existenciaDe,
   exigirQueCuadre,
@@ -82,7 +84,11 @@ const FONDO_CENTAVOS = 150_000;
 const MESA = 6;
 const ZONA = 'Interior';
 const MESERO = 'Lupita';
-const NEGOCIO = 'Demo del acople · restaurante';
+/**
+ * El negocio como lo LEE el comensal en el encabezado del portal: la base guarda «Demo del
+ * acople · restaurante» y la pantalla imprime el nombre sin ese prefijo.
+ */
+const NEGOCIO = nombreVisibleDelNegocio('Demo del acople · restaurante');
 
 /** Lo que consume el primer grupo: $329 + 2 × $55 = $439.00. */
 const PEDIDO_UNO: readonly PlatilloPedido[] = [
@@ -253,7 +259,7 @@ test.describe('el portal del comensal', () => {
         // Desde aquí el teléfono se vigila: el 401 de arriba fue a propósito.
         fallos.push(vigilarFallos(telefono));
 
-        await expect(telefono.getByText(NEGOCIO)).toBeVisible();
+        await expect(telefono.getByText(NEGOCIO, { exact: true })).toBeVisible();
         await expect(
           telefono.getByText(new RegExp(`^Mesa ${String(MESA)}\\b`)).first(),
         ).toBeVisible();
@@ -525,7 +531,7 @@ test.describe('el portal del comensal', () => {
         fallos.push(vigilarFallos(telefono));
 
         // Nada del grupo anterior en su pantalla: ni «cuenta solicitada» ni «tu mesero ya vio».
-        await expect(telefono.getByText(NEGOCIO)).toBeVisible();
+        await expect(telefono.getByText(NEGOCIO, { exact: true })).toBeVisible();
         await expect(telefono.getByText('Tu cuenta fue solicitada')).toHaveCount(0);
         await expect(telefono.getByText('Tu mesero ya vio la solicitud')).toHaveCount(0);
         // Ni un aviso vivo en el servidor: los del primer grupo están resueltos.

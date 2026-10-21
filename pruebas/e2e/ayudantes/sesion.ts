@@ -7,6 +7,7 @@ import {
   demoPorSlug,
   negocioReal,
 } from '../../../packages/contracts/src/negocios/index.ts';
+import { nombreVisibleDelNegocio } from '../../../apps/web/src/marca/nombre-visible.ts';
 
 /**
  * El ayudante que comparten las cinco pruebas de plantilla (F2.3-REGLAS §8, condición 6).
@@ -598,7 +599,11 @@ export async function entrar(page: Page, quien?: QuienEntra): Promise<string> {
   const conNegocio =
     elegido.negocio === undefined || elegido.negocio === ''
       ? conNombre
-      : conNombre.filter({ has: page.getByText(elegido.negocio, { exact: true }) });
+      : conNombre.filter({
+          // La tarjeta imprime el negocio como se LEE (sin «Demo del acople · …»), no como
+          // está en la base: el texto exacto que se busca es el que ve la persona.
+          has: page.getByText(nombreVisibleDelNegocio(elegido.negocio), { exact: true }),
+        });
   const tarjeta = (await conNegocio.count()) === 1 ? conNegocio : conNombre;
 
   await expect(

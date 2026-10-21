@@ -349,6 +349,24 @@ export const SIN_ESTADO = [
       'Los ocho estilos y sus perillas son constantes del sistema de diseño (ESTILOS, PERILLAS), no datos de la red: no hay ninguna lista que pueda llegar vacía.',
   },
   {
+    pantalla: 'marca/MarcaMorphiq',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es la firma de la plataforma —la palabra «Morphiq» o su logo— que acaba un acceso, un ticket, un PDF o el portal. No lista nada que pueda llegar vacío.',
+  },
+  {
+    pantalla: 'marca/MarcaMorphiq',
+    estado: 'cargando',
+    razon:
+      'No lee nada: la marca es una constante del código (o el archivo del logo, que es estático). No hay espera que enseñar.',
+  },
+  {
+    pantalla: 'marca/MarcaMorphiq',
+    estado: 'error',
+    razon:
+      'No puede fallar al leer: no lee. Si el logo oficial no cargara, el navegador deja el texto alternativo «Morphiq», que es la propia marca.',
+  },
+  {
     pantalla: 'cliente/en-linea',
     estado: 'vacio',
     razon:

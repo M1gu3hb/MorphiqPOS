@@ -5,6 +5,8 @@ import { es } from 'date-fns/locale';
 import { formatCurrency, formatPercent } from '@/utils/financialUtils';
 import { desgloseMetodosPagoConPropinas } from '@/utils/tipsUtils';
 import { formatearCantidadVariable } from '@/utils/tipoVentaUtils';
+import { MarcaMorphiq } from '~/marca/MarcaMorphiq';
+import { MARCA_DE_PLATAFORMA, nombreVisibleDelSistema } from '~/marca/nombre-visible';
 
 /**
  * Internal printable corte de caja PDF/document.
@@ -132,7 +134,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
         )}
         <div className="flex-1">
           <h1 className="text-3xl font-heading font-black tracking-wider">
-            {config?.nombre_negocio || 'MH Astral Systems'}
+            {config?.nombre_negocio || MARCA_DE_PLATAFORMA}
           </h1>
           {config?.direccion && <p className="text-xs">{config.direccion}</p>}
           {config?.telefono && <p className="text-xs">Tel: {config.telefono}</p>}
@@ -144,7 +146,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
             Folio: <span className="font-mono font-bold">{corte?.folio || '—'}</span>
           </p>
           <p className="text-[10px] text-texto-sutil mt-1">
-            {config?.platform_brand || 'MH Astral Systems'}
+            <MarcaMorphiq variante="documento" nombre={config?.platform_brand} />
           </p>
         </div>
       </div>
@@ -596,7 +598,7 @@ const CorteTicket = React.forwardRef(function CorteTicket(
       )}
       <p className="text-center text-[10px] text-texto-sutil mt-6">
         Documento interno ·{' '}
-        {config?.nombre_sistema || config?.platform_brand || 'MH Astral Systems'} · Generado{' '}
+        {nombreVisibleDelSistema(config?.nombre_sistema || config?.platform_brand)} · Generado{' '}
         {format(new Date(), 'd MMM yyyy HH:mm', { locale: es })}
       </p>
     </div>

@@ -1,6 +1,7 @@
 import { expect, type Page, test } from '@playwright/test';
 
 import { conciliarElDia } from '../../packages/testing/src/conciliacion.ts';
+import { nombreVisibleDelNegocio } from '../../apps/web/src/marca/nombre-visible.ts';
 
 import {
   exigirQueCuadre,
@@ -340,6 +341,12 @@ async function esperadoDelCajon(page: Page): Promise<number> {
   };
   return Number(cuerpo.datos?.efectivoEsperadoCentavos ?? Number.NaN);
 }
+
+/**
+ * El nombre de la demo como se LEE en la pantalla de acceso: la base guarda «Demo del acople ·
+ * restaurante» y la pantalla lo imprime sin ese prefijo (`nombreVisibleDelNegocio`).
+ */
+const NEGOCIO_VISIBLE = nombreVisibleDelNegocio('Demo del acople · restaurante');
 
 const ESTILOS = ['morphiq', 'cristal', 'relieve', 'taller', 'bloque', 'terminal', 'papel', 'noche'];
 
@@ -753,13 +760,11 @@ test.describe('el día completo del restaurante', () => {
           await expect(modelos.or(suTarjeta).first()).toBeVisible({ timeout: 30_000 });
           const variosModelos = (await modelos.count()) > 0;
           if (variosModelos) {
-            await modelos.selectOption({ label: 'Demo del acople · restaurante' });
+            await modelos.selectOption({ label: NEGOCIO_VISIBLE });
           }
           await suTarjeta.first().click();
           if (variosModelos) {
-            await expect(deNuevo.getByText(/^Iniciando como:/)).toContainText(
-              'Demo del acople · restaurante',
-            );
+            await expect(deNuevo.getByText(/^Iniciando como:/)).toContainText(NEGOCIO_VISIBLE);
           }
           for (const digito of laDuena.pin) {
             await deNuevo.getByRole('button', { name: digito, exact: true }).click();

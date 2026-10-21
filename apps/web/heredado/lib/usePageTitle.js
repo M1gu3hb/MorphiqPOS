@@ -1,8 +1,9 @@
 'use client';
 import { useEffect } from 'react';
 import { useLocation } from '@/enrutado';
+import { NOMBRE_DEL_SISTEMA } from '~/marca/nombre-visible';
 
-const BRAND = 'MH Astral POS';
+const BRAND = NOMBRE_DEL_SISTEMA;
 
 const ROUTE_TITLES = {
   '/': `Dashboard | ${BRAND}`,

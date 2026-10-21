@@ -8,12 +8,21 @@ import {
   getPackageFeatures,
   canAccessModule as canAccessModuleHelper,
 } from '@/lib/packageConfig';
+import { LOGO_POR_OMISION } from '~/marca/logo';
+import {
+  MARCA_DE_PLATAFORMA,
+  NOMBRE_DEL_SISTEMA,
+  marcaVisibleDePlataforma,
+  nombreVisibleDelNegocio,
+  nombreVisibleDelSistema,
+} from '~/marca/nombre-visible';
 
-// Logo oficial por defecto de la plataforma MH Astral Systems
-export const MH_LOGO_URL = '';
+// Logo oficial por defecto de la plataforma Morphiq. Vive en un solo sitio:
+// `apps/web/src/marca/logo.ts` (vacío mientras no se entregue el archivo oficial).
+export const MH_LOGO_URL = LOGO_POR_OMISION;
 
-const PLATFORM_BRAND = 'MH Astral Systems';
-const DEFAULT_SYSTEM_NAME = 'MH Astral POS';
+const PLATFORM_BRAND = MARCA_DE_PLATAFORMA;
+const DEFAULT_SYSTEM_NAME = NOMBRE_DEL_SISTEMA;
 
 const DEFAULT_CONFIG = {
   nombre_negocio: PLATFORM_BRAND,
@@ -77,9 +86,12 @@ export function ConfigProvider({ children }) {
   const config = {
     ...DEFAULT_CONFIG,
     ...stored,
-    nombre_negocio: stored.nombre_negocio || PLATFORM_BRAND,
-    nombre_sistema: stored.nombre_sistema || DEFAULT_SYSTEM_NAME,
-    platform_brand: stored.platform_brand || PLATFORM_BRAND,
+    // Lo que se IMPRIME de los tres nombres, no lo que se guarda: la base conserva el dato
+    // tal cual (el formulario de Identidad edita el valor crudo) y aquí se le quita lo que
+    // un cliente no debe leer — «Demo del acople · …» y la marca anterior de la plataforma.
+    nombre_negocio: nombreVisibleDelNegocio(stored.nombre_negocio || PLATFORM_BRAND),
+    nombre_sistema: nombreVisibleDelSistema(stored.nombre_sistema || DEFAULT_SYSTEM_NAME),
+    platform_brand: marcaVisibleDePlataforma(stored.platform_brand || PLATFORM_BRAND),
     logo_url: logoPrincipal,
     logo_ticket_url: stored.logo_ticket_url || logoPrincipal,
     logo_pdf_url: stored.logo_pdf_url || logoPrincipal,
