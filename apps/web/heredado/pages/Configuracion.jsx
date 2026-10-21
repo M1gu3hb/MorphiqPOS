@@ -1,5 +1,5 @@
 'use client';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import PageHeader from '@/components/common/PageHeader';
@@ -60,6 +60,12 @@ import IdentidadNegocio from '@/components/configuracion/IdentidadNegocio';
 import UsuarioPOSDialog from '@/components/configuracion/UsuarioPOSDialog';
 import { useConfig } from '@/lib/ConfigContext';
 import { soloCamposEditablesMesa } from '@/utils/mesaConfigUtils';
+import { claves } from '~/cliente/claves-de-consulta';
+import {
+  mesasDelPlano,
+  siguientePosicionLibre,
+  soloMesasEnServicio,
+} from '~/cliente/mesas-del-mapa';
 import { Pencil, Phone, Mail } from 'lucide-react';
 
 const useIsMobile = () => {
@@ -101,16 +107,22 @@ export default function Configuracion() {
   });
 
   const { data: usuarios = [] } = useQuery({
-    queryKey: ['usuarios_pos'],
+    queryKey: claves.usuarios.activos(),
     queryFn: () => api.entidades.UsuarioPOS.filter({ activo: true }),
     initialData: [],
   });
 
-  const { data: mesas = [] } = useQuery({
-    queryKey: ['mesas'],
+  // TODAS las mesas, también las dadas de baja (el editor ofrece «Reactivar»). Su clave lo dice:
+  // la del mapa del mesero es otra (`claves.mesas.activas()`).
+  //
+  // Sin `initialData: []`: con él, el editor se pintaba como «No hay mesas configuradas» —y con
+  // el botón «Crear primera mesa»— durante toda la lectura, que con red lenta se lee como si
+  // el negocio hubiera perdido su mapa. `cargandoMesas` distingue la primera lectura del vacío.
+  const { data: mesasLeidas, isPending: cargandoMesas } = useQuery({
+    queryKey: claves.mesas.todas(),
     queryFn: () => api.entidades.Mesa.list('-created_date', 500),
-    initialData: [],
   });
+  const mesas = useMemo(() => (Array.isArray(mesasLeidas) ? mesasLeidas : []), [mesasLeidas]);
 
   // HOTFIX: cfg seguro. Si la query aún no respondió, cfg queda null
   // (no {} con defaults) para que los useEffects de los hijos NO se hidraten
@@ -267,8 +279,8 @@ export default function Configuracion() {
       //   vacío eso no se veía: las escrituras fallaban todas, en silencio, y
       //   el color «se sincronizaba» sin que nada se sincronizara.
 
+      // La raíz alcanza a todas las variantes (activos, meseros): `claves-de-consulta.ts`.
       queryClient.invalidateQueries({ queryKey: ['usuarios_pos'] });
-      queryClient.invalidateQueries({ queryKey: ['usuarios_pos_all'] });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       setShowUserForm(false);
       setEditingUser(null);
@@ -294,7 +306,6 @@ export default function Configuracion() {
         activo: false,
       });
       queryClient.invalidateQueries({ queryKey: ['usuarios_pos'] });
-      queryClient.invalidateQueries({ queryKey: ['usuarios_pos_all'] });
       toast.success('Usuario desactivado');
     } catch (e) {
       // «Tu puesto no puede modificar a un dueno», «No puedes darte de baja a
@@ -395,8 +406,9 @@ export default function Configuracion() {
 
   const openNew = () => {
     const maxNum = mesas.reduce((m, x) => Math.max(m, x.numero || 0), 0);
-    // Crear mesa en la zona activa (no mezclar zonas).
-    const mesasZona = mesas.filter((m) => (m.zona || 'Interior') === zonaFiltro);
+    // Crear mesa en la zona activa (no mezclar zonas), en el primer hueco libre del lienzo: la
+    // posición ya no sale de CUÁNTAS mesas hay, sino de DÓNDE están (`siguientePosicionLibre`).
+    const posicion = siguientePosicionLibre(mesasDelPlano(mesas, zonaFiltro));
     setEditingMesa({
       numero: maxNum + 1,
       nombre: '',
@@ -404,18 +416,19 @@ export default function Configuracion() {
       capacidad: 4,
       forma: 'redonda',
       tamano: 'mediana',
-      posicion_x: 60 + (mesasZona.length % 8) * 90,
-      posicion_y: 60 + Math.floor(mesasZona.length / 8) * 100,
+      posicion_x: posicion.x,
+      posicion_y: posicion.y,
       activo: true,
       estado: 'libre',
     });
     setShowMesaDialog(true);
   };
 
-  // El mapa y la lista son de las mesas ACTIVAS; las desactivadas van aparte, con «Reactivar».
-  const mesasActivas = mesas.filter((m) => m.activo !== false);
+  // El mapa y la lista son de las mesas ACTIVAS de la zona que se mira; las desactivadas van
+  // aparte, con «Reactivar». Comparten coordenadas con las activas: nunca al mismo lienzo.
+  const mesasActivas = soloMesasEnServicio(mesas);
   const mesasDesactivadas = mesas.filter((m) => m.activo === false);
-  const mesasFiltradas = mesasActivas.filter((m) => (m.zona || 'Interior') === zonaFiltro);
+  const mesasFiltradas = mesasDelPlano(mesas, zonaFiltro);
 
   const reactivarMesa = async (mesa) => {
     try {
@@ -970,7 +983,7 @@ export default function Configuracion() {
                     >
                       {z}{' '}
                       <span className="opacity-60">
-                        ({mesasActivas.filter((m) => (m.zona || 'Interior') === z).length})
+                        ({cargandoMesas ? '…' : mesasDelPlano(mesasActivas, z).length})
                       </span>
                     </button>
                   ))}
@@ -981,6 +994,7 @@ export default function Configuracion() {
                   <>
                     <MesaListMobile
                       mesas={mesasFiltradas}
+                      cargando={cargandoMesas}
                       onEdit={(m) => {
                         setEditingMesa(m);
                         setShowMesaDialog(true);
@@ -996,6 +1010,7 @@ export default function Configuracion() {
                   <>
                     <MesaMapEditor
                       mesas={mesasFiltradas}
+                      cargando={cargandoMesas}
                       selectedId={editingMesa?.id}
                       onMesaClick={(m) => {
                         setEditingMesa(m);

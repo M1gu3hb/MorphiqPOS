@@ -67,6 +67,8 @@ import {
   // tercera copia del mismo dato que envejecía sola.
 } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
+import { claves } from '~/cliente/claves-de-consulta';
+import { mesasDelPlano, zonasConMesas } from '~/cliente/mesas-del-mapa';
 
 const MAP_HEIGHT = 600;
 // Hook simple para detectar móvil
@@ -186,8 +188,15 @@ function Mesero() {
   const claveCuentaRef = useRef(null);
 
   // Sin initialData:[] (evita "no hay mesas" antes del primer fetch).
+  //
+  // La clave dice QUÉ se pide: el salón EN SERVICIO. Antes era `['mesas']` a secas, la
+  // misma que Cocina y Configuración usaban para pedir TODAS —también las dadas de baja—, así
+  // que al llegar aquí desde Cocina la primera pintada salía del caché de la otra pregunta, con
+  // las inactivas dibujadas encima de las activas (comparten coordenadas) hasta que terminara
+  // la lectura buena. `mesasDelPlano` es el segundo cerrojo: aunque llegara una lista con
+  // bajas, el plano no las pinta.
   const { data: mesasRaw, isPending: mesasLoading } = useQuery({
-    queryKey: ['mesas'],
+    queryKey: claves.mesas.activas(),
     queryFn: () => api.entidades.Mesa.filter({ activo: true }),
     refetchInterval: 5000,
     placeholderData: (prev) => prev,
@@ -265,11 +274,13 @@ function Mesero() {
     [detallesVenta],
   );
 
-  const mesasZona = (mesas || []).filter((m) => (m?.zona || 'Interior') === zonaActiva);
-  const zonasConCount = ZONAS_MESA.map((z) => ({
-    zona: z,
-    count: (mesas || []).filter((m) => (m?.zona || 'Interior') === z).length,
-  })).filter((z) => z.count > 0);
+  // El plano pinta UNA zona a la vez y sólo mesas en servicio: las coordenadas se repiten entre
+  // zonas y entre activas e inactivas, así que mezclarlas las encima.
+  const mesasZona = mesasDelPlano(mesas || [], zonaActiva);
+  const zonasConCount = zonasConMesas(mesas || [], ZONAS_MESA).map(({ zona, cuantas }) => ({
+    zona,
+    count: cuantas,
+  }));
 
   // La zona vigente sale de las zonas que esta persona SÍ tiene (cierre del 21-10): con la
   // asignación encendida, una mesera con sus mesas sólo en «Barra» abría en «Interior» —sin

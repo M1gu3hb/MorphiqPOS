@@ -27,13 +27,11 @@ const ESTADO_LABELS = { nuevo: 'Nuevos', en_preparacion: 'En preparación', list
  * "huérfano fantasma" cuando la query de ventas refetchea más lento que la
  * query de pedidos):
  *
- *  1. Si tiene venta_id Y la venta existe en BD → NO es huérfano.
- *  2. Si tiene venta_id pero la venta aún no aparece en el map cargado →
- *     NO marcamos huérfano. Puede ser un pedido recién creado mientras el
- *     map de ventas todavía no se refrescó. Damos un margen razonable.
- *  3. Si tiene mesa_id o mesa_numero → NO es huérfano: viene de una mesa real,
+ *  1. Si tiene venta_id → NO es huérfano, exista o no la venta en el snapshot
+ *     local. Puede ser un pedido recién creado.
+ *  2. Si tiene mesa_id o mesa_numero → NO es huérfano: viene de una mesa real,
  *     aunque por carga lenta la venta aún no esté en el snapshot local.
- *  4. Si NO tiene venta_id, NI mesa_id, NI mesa_numero, NI mesa_nombre → entonces
+ *  3. Si NO tiene venta_id, NI mesa_id, NI mesa_numero, NI mesa_nombre → entonces
  *     sí es realmente huérfano (no hay forma de relacionarlo con nada).
  *
  * NO marcamos huérfano por:
@@ -41,12 +39,15 @@ const ESTADO_LABELS = { nuevo: 'Nuevos', en_preparacion: 'En preparación', list
  *   - mesa.venta_activa_id distinto.
  *   - mesa borrada.
  *   - pedido listo/entregado pendiente de cierre.
+ *
+ * Esta pantalla ya NO descarga las ventas (500 filas cada 10 s) ni las mesas (500 cada
+ * 30 s) para decidirlo: la guarda «la venta está en el mapa» iba ANTES de «tiene venta_id»
+ * y daba lo mismo en los dos casos, así que las dos lecturas no cambiaban ni un solo
+ * resultado. Costaban 600 filas por minuto por cocina abierta, y la de mesas compartía
+ * clave con el mapa del mesero (ver `claves-de-consulta.ts`).
  */
-function detectarHuerfano(pedido, ventasMap) {
+function detectarHuerfano(pedido) {
   if (!pedido) return false;
-
-  // 1) Venta existente en map → NO huérfano.
-  if (pedido.venta_id && ventasMap && ventasMap[pedido.venta_id]) return false;
 
   // 2 y 3) Cualquier identificador de mesa o venta → NO huérfano.
   if (pedido.venta_id) return false;
@@ -109,47 +110,18 @@ export default function Cocina() {
   // HOTFIX 6A.3: bajado a 2000ms para que cocina quite los entregados rápido
   // cuando Mesero marca "Entregado" en su lado. Las acciones manuales
   // además usan optimistic update + refetch inmediato, así que esto es un seguro.
+  //
+  // La clave ya no lleva `all`/`legacy`: las dos variantes pedían EXACTAMENTE lo mismo, y
+  // cambiar `estaciones_preparacion_activas` en Configuración tiraba el caché y volvía a
+  // pedir las 500 comandas sin que nada hubiera cambiado.
   const { data: pedidos, isPending: pedidosLoading } = useQuery({
-    queryKey: ['pedidos_cocina', estacionesActivas ? 'all' : 'legacy'],
+    queryKey: ['pedidos_cocina'],
     queryFn: () => api.entidades.PedidoPreparacion.list('-created_date', 500),
     placeholderData: (prev) => prev,
     staleTime: 1000,
     refetchInterval: 2000,
   });
   const cargandoPedidos = pedidosLoading && !pedidos;
-
-  const { data: ventas } = useQuery({
-    queryKey: ['ventas_para_cocina'],
-    queryFn: () => api.entidades.Venta.list('-created_date', 500),
-    placeholderData: (prev) => prev,
-    staleTime: 5000,
-    refetchInterval: 10000,
-  });
-
-  const { data: mesas } = useQuery({
-    queryKey: ['mesas'],
-    queryFn: () => api.entidades.Mesa.list('-created_date', 500),
-    placeholderData: (prev) => prev,
-    staleTime: 20000,
-    refetchInterval: 30000,
-  });
-
-  const ventasMap = useMemo(() => {
-    const m = {};
-    (Array.isArray(ventas) ? ventas : []).forEach((v) => {
-      if (v?.id) m[v.id] = v;
-    });
-    return m;
-  }, [ventas]);
-
-  // eslint-disable-next-line no-unused-vars
-  const mesasMap = useMemo(() => {
-    const m = {};
-    (Array.isArray(mesas) ? mesas : []).forEach((x) => {
-      if (x?.id) m[x.id] = x;
-    });
-    return m;
-  }, [mesas]);
 
   // Conocer si la estación del usuario es "Cocina general" (es_general:true).
   // Si lo es, también debe ver pedidos legacy sin estacion_preparacion_id
@@ -384,7 +356,9 @@ export default function Cocina() {
               </span>
             )}
           </h1>
-          <p className="text-xs text-muted-foreground">{activos.length} pedido(s) activos</p>
+          <p className="text-xs text-muted-foreground">
+            {cargandoPedidos ? '…' : activos.length} pedido(s) activos
+          </p>
         </div>
         <CocinaVozControl />
         <SoundUnlockButton />
@@ -457,7 +431,7 @@ export default function Cocina() {
                   className="ml-auto px-2 py-0.5 rounded-full text-xs font-bold"
                   style={{ background: colors.border, color: 'white' }}
                 >
-                  {pedidosCol.length}
+                  {cargandoPedidos ? '…' : pedidosCol.length}
                 </span>
               </div>
               <div className="space-y-2">
@@ -477,7 +451,7 @@ export default function Cocina() {
                         pedido={pedido}
                         onIniciar={iniciarPedido}
                         onListo={marcarListo}
-                        isHuerfano={detectarHuerfano(pedido, ventasMap)}
+                        isHuerfano={detectarHuerfano(pedido)}
                         onQuitarListo={quitarPedidoListo}
                         // En estación específica con estaciones activas no
                         // mostramos badge (el usuario ya sabe su estación).

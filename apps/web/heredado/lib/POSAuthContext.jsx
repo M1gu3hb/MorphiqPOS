@@ -2,12 +2,23 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 
 import { api, ErrorPuente } from '@/api/cliente';
+import { claveDeContexto } from '~/cliente/contexto-de-consultas';
 
 /** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, paquete?: string, organizacionId?: string}} UsuarioDePOS */
-/** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
+/** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, sesion: number, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
 const POSAuthContext = createContext(null);
 
 const CLAVE = 'posUser';
+
+/**
+ * Cada cuánto, como mínimo, se vuelve a preguntar quién está dentro al regresar a la pestaña.
+ *
+ * La cookie de sesión es del NAVEGADOR, no de la pestaña: si en otra pestaña entra otra
+ * persona (o el dueño general cambia de demostración), esta sigue pintando al usuario
+ * anterior mientras sus peticiones ya viajan como el nuevo. Un minuto basta para que eso
+ * dure poco, y es una sola lectura ligera por regreso, no un sondeo.
+ */
+const REVALIDAR_DESPUES_DE_MS = 60_000;
 
 function leerGuardado() {
   try {
@@ -45,6 +56,9 @@ function leerGuardado() {
 export function POSAuthProvider({ children, conSesion = true }) {
   const [posUser, setPosUser] = useState(/** @type {UsuarioDePOS | null} */ (null));
   const [isLoading, setIsLoading] = useState(true);
+  // Cuántas entradas y salidas EXPLÍCITAS ha habido. El caché de consultas parte de cero con
+  // cada una (`ProveedorDeConsultas`), aunque vuelva a entrar el mismo empleo.
+  const [sesion, setSesion] = useState(0);
   const version = useRef(0);
 
   useEffect(() => {
@@ -95,8 +109,59 @@ export function POSAuthProvider({ children, conSesion = true }) {
     };
   }, [conSesion]);
 
+  /**
+   * AL REGRESAR A LA PESTAÑA se confirma que sigue dentro quien se pintaba.
+   *
+   * Sin esto la pregunta de arriba sólo se hace al montar, y una pestaña que lleva horas
+   * abierta nunca se enteraba de que la cookie ya era de otra persona, ni de que la sesión
+   * venció o se revocó. Distingue lo mismo que `me()`: 401/403 saca; un fallo de red no.
+   * Si contesta OTRA identidad, se adopta —las peticiones ya viajan como ella— y el caché de
+   * consultas se descarta con el cambio de contexto.
+   */
+  useEffect(() => {
+    if (!conSesion) return undefined;
+    let vigente = true;
+    let ultimaPregunta = Date.now();
+    const alVolver = () => {
+      if (document.visibilityState !== 'visible') return;
+      if (Date.now() - ultimaPregunta < REVALIDAR_DESPUES_DE_MS) return;
+      ultimaPregunta = Date.now();
+      const alPreguntar = version.current;
+      api.auth
+        .me()
+        .then((delServidor) => {
+          if (!vigente || version.current !== alPreguntar) return;
+          setPosUser((actual) =>
+            claveDeContexto(actual) === claveDeContexto(delServidor) ? actual : delServidor,
+          );
+          try {
+            sessionStorage.setItem(CLAVE, JSON.stringify(delServidor));
+          } catch {
+            // Sin almacenamiento (modo privado) la sesión sigue en la cookie.
+          }
+        })
+        .catch((fallo) => {
+          if (!vigente || version.current !== alPreguntar) return;
+          if (fallo instanceof ErrorPuente && (fallo.estado === 401 || fallo.estado === 403)) {
+            setPosUser(null);
+            try {
+              sessionStorage.removeItem(CLAVE);
+            } catch {
+              // Nada que borrar.
+            }
+          }
+        });
+    };
+    document.addEventListener('visibilitychange', alVolver);
+    return () => {
+      vigente = false;
+      document.removeEventListener('visibilitychange', alVolver);
+    };
+  }, [conSesion]);
+
   const login = (user) => {
     version.current += 1;
+    setSesion((n) => n + 1);
     setPosUser(user);
     setIsLoading(false);
     try {
@@ -109,6 +174,7 @@ export function POSAuthProvider({ children, conSesion = true }) {
   const logout = async () => {
     await api.auth.salir();
     version.current += 1;
+    setSesion((n) => n + 1);
     setPosUser(null);
     try {
       sessionStorage.removeItem(CLAVE);
@@ -119,7 +185,7 @@ export function POSAuthProvider({ children, conSesion = true }) {
   };
 
   return (
-    <POSAuthContext.Provider value={{ posUser, login, logout, isLoading }}>
+    <POSAuthContext.Provider value={{ posUser, login, logout, isLoading, sesion }}>
       {children}
     </POSAuthContext.Provider>
   );

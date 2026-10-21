@@ -21,6 +21,7 @@ import { toast } from 'sonner';
 import { DollarSign, Receipt, TrendingUp, Scissors, FileText } from 'lucide-react';
 import { safeFormatDate } from '@/lib/safeFormat';
 import CorteViewerDialog from '@/components/cortes/CorteViewerDialog';
+import { claves } from '~/cliente/claves-de-consulta';
 
 export default function CorteCaja() {
   const queryClient = useQueryClient();
@@ -39,7 +40,7 @@ export default function CorteCaja() {
   });
 
   const { data: gastos = [] } = useQuery({
-    queryKey: ['gastos_hoy'],
+    queryKey: claves.gastos.recientes(100),
     queryFn: () => api.entidades.GastoOperativo.list('-created_date', 100),
     initialData: [],
   });

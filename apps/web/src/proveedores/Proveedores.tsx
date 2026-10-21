@@ -1,25 +1,24 @@
 'use client';
 
-import { QueryClientProvider } from '@tanstack/react-query';
 import type { ReactNode } from 'react';
 import { Toaster as SonnerToaster } from 'sonner';
 
 import { Toaster } from '@/components/ui/toaster';
 import { ConfigProvider } from '@/lib/ConfigContext';
 import { POSAuthProvider } from '@/lib/POSAuthContext';
-import { queryClientInstance } from '@/lib/query-client';
 import { ThemeProvider } from '@/lib/ThemeContext';
 
 import type { AparienciaInicial } from '@morphiqpos/ui/hooks';
 
 import { ProveedorDeApariencia } from './Apariencia';
+import { GuardiaDePlantilla, ProveedorDeConsultas } from './ProveedorDeConsultas';
 
 /**
  * Los proveedores de la aplicación — los SUYOS, en su orden.
  *
  * Es su `App.jsx` sin el enrutador y sin `AuthProvider`. Lo demás está igual:
- * su `ThemeProvider` fuera, su `queryClientInstance` con sus opciones, su
- * `POSAuthProvider`, su `ConfigProvider`, su `<Toaster/>` de shadcn y su
+ * su `ThemeProvider` fuera, su `QueryClient` con sus opciones (ahora uno por contexto),
+ * su `POSAuthProvider`, su `ConfigProvider`, su `<Toaster/>` de shadcn y su
  * `<SonnerToaster/>` con las mismas cinco props.
  *
  * `AuthProvider` no se porta: era la autenticación de la plataforma que
@@ -55,10 +54,24 @@ export function Proveedores({
   return (
     <ProveedorDeApariencia aparienciaInicial={apariencia}>
       <ThemeProvider>
-        <QueryClientProvider client={queryClientInstance}>
-          <POSAuthProvider conSesion={conSesion}>
-            {conSesion ? <ConfigProvider>{children}</ConfigProvider> : children}
-          </POSAuthProvider>
+        <POSAuthProvider conSesion={conSesion}>
+          {/*
+            El caché de consultas cuelga de QUIÉN está dentro, y por eso va DEBAJO de la
+            sesión: cada contexto —negocio, empleo y plantilla— tiene el suyo, y cambiar de
+            contexto lo descarta entero, con sus consultas en vuelo
+            (`ProveedorDeConsultas`). Los avisos quedan fuera de él: que un aviso siga en
+            pantalla al cambiar de contexto es justo lo que se quiere.
+          */}
+          <ProveedorDeConsultas>
+            {conSesion ? (
+              <ConfigProvider>
+                <GuardiaDePlantilla />
+                {children}
+              </ConfigProvider>
+            ) : (
+              children
+            )}
+          </ProveedorDeConsultas>
           <Toaster />
           <SonnerToaster
             richColors
@@ -68,7 +81,7 @@ export function Proveedores({
             visibleToasts={4}
             swipeDirections={['top', 'right']}
           />
-        </QueryClientProvider>
+        </POSAuthProvider>
       </ThemeProvider>
     </ProveedorDeApariencia>
   );

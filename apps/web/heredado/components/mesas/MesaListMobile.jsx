@@ -3,12 +3,13 @@ import React from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Pencil, Users, ChevronUp, ChevronDown } from 'lucide-react';
+import { EsqueletoDeFilas } from '~/cliente/EstadosDeCarga';
 
 /**
  * Mobile-friendly editable list of tables for Configuración.
  * Allows reordering and editing without a giant canvas.
  */
-export default function MesaListMobile({ mesas, onEdit, onReorder }) {
+export default function MesaListMobile({ mesas, onEdit, onReorder, cargando = false }) {
   const sorted = [...mesas].sort(
     (a, b) => (a.orden || 0) - (b.orden || 0) || (a.numero || 0) - (b.numero || 0),
   );
@@ -20,6 +21,9 @@ export default function MesaListMobile({ mesas, onEdit, onReorder }) {
     [arr[idx], arr[target]] = [arr[target], arr[idx]];
     arr.forEach((m, i) => onReorder(m.id, i));
   };
+
+  // Sin la primera lectura no se sabe si hay mesas: ni «No hay mesas» ni una lista a medias.
+  if (mesas.length === 0 && cargando) return <EsqueletoDeFilas filas={4} />;
 
   if (mesas.length === 0) {
     return (
