@@ -163,6 +163,17 @@ export default function POSLogin() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [pin, loading, usuarios, selectedUser]);
 
+  // Llegó aquí porque el restaurante entró o salió del modo presentación (21-10): se dice por
+  // qué, una vez, y se limpia la dirección para que recargar no lo repita.
+  useEffect(() => {
+    const parametros = new URLSearchParams(window.location.search);
+    if (parametros.get('aviso') !== 'presentacion') return;
+    toast.info('El restaurante cambió de modo presentación. Entra con tu PIN para continuar.');
+    parametros.delete('aviso');
+    const resto = parametros.toString();
+    window.history.replaceState(null, '', `${window.location.pathname}${resto ? `?${resto}` : ''}`);
+  }, []);
+
   const keys = ['1', '2', '3', '4', '5', '6', '7', '8', '9', '', '0', '⌫'];
   const sistema = config.nombre_sistema || 'MH Astral Systems POS';
 
