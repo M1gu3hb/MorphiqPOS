@@ -2,7 +2,7 @@
 
 import { createContext, useContext, type ReactNode } from 'react';
 
-import { useApariencia } from '@morphiqpos/ui/hooks';
+import { useApariencia, type AparienciaInicial } from '@morphiqpos/ui/hooks';
 
 /**
  * LA APARIENCIA VIVA: el estilo y sus cuatro perillas, en el árbol de React.
@@ -39,13 +39,14 @@ export type AparienciaEnVivo = ReturnType<typeof useApariencia>;
 const Contexto = createContext<AparienciaEnVivo | null>(null);
 
 export function ProveedorDeApariencia({
-  estiloInicial,
+  aparienciaInicial,
   children,
 }: {
-  readonly estiloInicial: string;
+  /** La que el servidor ya pintó en el `<html>`, perillas incluidas. */
+  readonly aparienciaInicial: AparienciaInicial;
   readonly children: ReactNode;
 }) {
-  const vivo = useApariencia(estiloInicial);
+  const vivo = useApariencia(aparienciaInicial);
   return <Contexto.Provider value={vivo}>{children}</Contexto.Provider>;
 }
 

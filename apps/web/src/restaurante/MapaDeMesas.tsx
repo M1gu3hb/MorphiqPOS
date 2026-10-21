@@ -78,7 +78,7 @@ const ESTADOS = {
     etiqueta: 'En preparación',
     clase: 'border-primario/60 bg-primario/25 text-texto',
   },
-  esperando_entrega: {
+  en_espera_entrega: {
     etiqueta: 'Esperando entrega',
     clase: 'border-acento bg-acento-suave text-acento-suave-texto',
   },
@@ -107,7 +107,7 @@ const SIN_TINTE = 'border-borde bg-superficie text-texto-sutil';
  */
 const URGENCIA: readonly ClaveEstado[] = [
   'cuenta_solicitada',
-  'esperando_entrega',
+  'en_espera_entrega',
   'esperando_orden',
   'en_preparacion',
   'pedido_enviado',
@@ -345,8 +345,10 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
     );
   }
 
+  // En el teléfono, el botón flotante del menú tapaba la última fila de la leyenda: se le deja
+  // su hueco al pie (cierre del 21-10).
   return (
-    <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4)">
+    <div className="flex flex-col gap-(--espacio-4) p-(--espacio-4) pb-[calc(var(--espacio-12)*2)] lg:pb-(--espacio-4)">
       <Encabezado titulo={titulo}>
         {/*
           `aria-pressed` no es decoración: es lo ÚNICO que dice qué zona está puesta a
@@ -359,7 +361,7 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
         */}
         <nav
           aria-label="Zonas del salón"
-          className="flex gap-(--espacio-2) overflow-x-auto pb-(--espacio-1) xl:overflow-visible xl:pb-0"
+          className="flex w-0 min-w-full gap-(--espacio-2) overflow-x-auto pb-(--espacio-1) xl:w-auto xl:min-w-0 xl:overflow-visible xl:pb-0"
         >
           {[null, ...zonas].map((z) => (
             <Button

@@ -168,7 +168,7 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_DEL_MODO }} />
       </head>
       <body>
-        <Proveedores conSesion={conSesion} estilo={apariencia.estilo}>
+        <Proveedores conSesion={conSesion} apariencia={apariencia}>
           {children}
         </Proveedores>
       </body>

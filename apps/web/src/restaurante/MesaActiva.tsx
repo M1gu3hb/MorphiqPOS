@@ -105,6 +105,9 @@ import { useVocabulario } from '~/cliente/vocabulario';
 /** Para cuántas personas se puede abrir, como mucho. */
 const PERSONAS_MAXIMAS = 20;
 
+/** Los estados de una mesa que NO está en servicio (los mismos de `apagarSoloSi` del puente). */
+const FUERA_DE_SERVICIO: readonly string[] = ['libre', 'limpieza', 'pagada', 'cancelada'];
+
 const volverAlMapa = (): void => {
   window.history.back();
 };
@@ -226,10 +229,15 @@ export function MesaActiva(props: MesaActivaProps) {
     };
   }, [mesaInicial, voc, idDeLaDireccion, intento]);
 
-  const mesaLibre = mesa !== null && mesa.venta_activa_id === null;
+  // Una mesa UNIDA a otra no tiene cuenta propia —su consumo pasó a la principal— y el servidor
+  // la tiene en servicio: no está libre ni se abre. Decirle «libre» y ofrecer abrirla terminaba en
+  // un rechazo del servidor (D-4, cierre del 21-10).
+  const enGrupo =
+    mesa !== null && mesa.venta_activa_id === null && !FUERA_DE_SERVICIO.includes(mesa.estado);
+  const mesaLibre = mesa !== null && mesa.venta_activa_id === null && !enGrupo;
   // Cobrada y sin recoger: no hay comanda que levantar ni cuenta que pedir, sólo limpiarla.
   const porLimpiar = mesa !== null && mesa.estado === 'limpieza';
-  const comandaVisible = productos !== null && !mesaLibre && !porLimpiar;
+  const comandaVisible = productos !== null && !mesaLibre && !porLimpiar && !enGrupo;
 
   useEffect(() => {
     // Sólo con teclado físico (en la tablet el teclado en pantalla taparía el
@@ -640,6 +648,30 @@ export function MesaActiva(props: MesaActivaProps) {
     );
 
   /* ── MESA POR LIMPIAR · cobrada: lo único que se hace aquí es dejarla lista. ── */
+  const unida =
+    mesa === null ? null : (
+      <Superficie
+        como="section"
+        nivel={2}
+        relleno={6}
+        aria-label={`${voc.titulo('unidad_servicio')} unid${voc.terminacion('unidad_servicio')} a otra`}
+        className="mx-auto mt-(--espacio-6) flex max-w-md flex-col items-center gap-(--espacio-4) text-center"
+      >
+        <p className="text-xl font-semibold">
+          {voc.titulo('unidad_servicio')} {mesa.numero} está unid
+          {voc.terminacion('unidad_servicio')} a otra
+        </p>
+        <p className="text-sm text-texto-sutil">
+          Su consumo pasó a {voc.enFrase('orden')} de la principal del grupo: ahí se pide, se manda
+          a {voc.enFrase('preparacion')} y se cobra. Al cobrar o cancelar el grupo, vuelve a quedar
+          para quien sigue.
+        </p>
+        <Button variant="outline" size="lg" className="w-full" onClick={volverAlMapa}>
+          Volver al mapa
+        </Button>
+      </Superficie>
+    );
+
   const limpiar =
     mesa === null ? null : (
       <Superficie
@@ -782,6 +814,7 @@ export function MesaActiva(props: MesaActivaProps) {
       );
     }
     if (porLimpiar) return limpiar;
+    if (enGrupo) return unida;
     return mesaLibre ? abrir : comanda;
   })();
 

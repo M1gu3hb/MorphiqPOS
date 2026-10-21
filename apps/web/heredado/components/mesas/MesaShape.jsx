@@ -128,6 +128,9 @@ export default function MesaShape({
         style={{
           fontSize: dim.w < 75 ? 8 : 9,
           maxWidth: dim.w - 8,
+          // Con la letra de cuerpo y no la del estilo: en «terminal» (monoespaciada) «Cuenta
+          // solicitada» se salía del círculo de la mesa chica y pisaba el borde (cierre del 21-10).
+          fontFamily: 'var(--font-body)',
           // El estado se LEE (cierre del 21-10): en claro, el texto blanco de 8-9 px sobre el
           // relleno saturado bajaba hasta 3.3:1; una pastilla oscura detrás lo deja arriba de
           // 6.7:1 sin cambiar el color de la mesa. En oscuro ya pasaba.
