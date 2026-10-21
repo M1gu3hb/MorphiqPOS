@@ -300,7 +300,12 @@ async function ambitoDelDuenoEnElEspejo(
  * impuesto, portal QR…), la distribución de mesas con sus zonas, y precio, imagen y estado
  * de cada platillo por su nombre. Nada operativo: ni ventas, ni existencias, ni cortes.
  */
-async function copiarDelReal(tx: Transaccion, origenId: string, espejoId: string): Promise<void> {
+async function copiarDelReal(
+  tx: Transaccion,
+  origenId: string,
+  espejoId: string,
+  gemelos: Readonly<Record<string, string>>,
+): Promise<void> {
   const delReal = await valoresDe(tx, origenId);
   const copiables = Object.fromEntries(
     Object.entries(delReal).filter(([llave]) => !LLAVES_QUE_NO_SE_COPIAN.has(llave)),
@@ -371,6 +376,9 @@ async function copiarDelReal(tx: Transaccion, origenId: string, espejoId: string
           orden: m.orden,
           qr_activa: m.qr_activa,
           qr_token: randomBytes(24).toString('base64url'),
+          // La mesa asignada a alguien del real queda asignada a su gemelo.
+          empleado_asignado_id:
+            m.empleado_asignado_id === null ? null : (gemelos[m.empleado_asignado_id] ?? null),
         })),
       )
       .execute();
@@ -533,8 +541,8 @@ export async function asegurarEspejo(
 
   await conTransaccion(async (tx) => {
     await bloquear(tx, origenId);
-    await copiarDelReal(tx, origenId, fase.espejoId);
     const gemelos = await emparejarPersonal(tx, origenId, fase.espejoId);
+    await copiarDelReal(tx, origenId, fase.espejoId, gemelos);
     await concederElEspejo(tx, origenId, fase.espejoId, gemelos);
     await mezclar(tx, fase.espejoId, {
       presentacion_preparado: true,

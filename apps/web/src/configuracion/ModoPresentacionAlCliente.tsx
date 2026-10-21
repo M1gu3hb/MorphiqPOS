@@ -23,6 +23,7 @@ const EstadoSchema = z.object({
       activo: z.boolean().optional(),
       preparado: z.boolean().optional(),
       dias: z.number().optional(),
+      pendientes: z.number().optional(),
       destino: z.string().optional(),
     })
     .optional(),
@@ -60,6 +61,7 @@ function irA(destino: string | undefined) {
 export function ModoPresentacionAlCliente({ desbloqueado }: { desbloqueado: boolean }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [paso, setPaso] = useState<'' | 'preparando' | 'encendiendo' | 'apagando'>('');
+  const [avance, setAvance] = useState<{ dias: number; pendientes: number } | null>(null);
   const [error, setError] = useState('');
   const idTitulo = useId();
   const idDetalle = useId();
@@ -86,7 +88,13 @@ export function ModoPresentacionAlCliente({ desbloqueado }: { desbloqueado: bool
     try {
       if (encender) {
         setPaso('preparando');
-        await pedir('preparar');
+        // El historial se siembra por tramos: cada llamada deja hechos unos días y dice
+        // cuántos faltan. Con un tope para que un error del servidor no la deje girando.
+        for (let vuelta = 0; vuelta < 12; vuelta += 1) {
+          const preparado = await pedir('preparar');
+          setAvance({ dias: preparado.dias ?? 0, pendientes: preparado.pendientes ?? 0 });
+          if ((preparado.pendientes ?? 0) === 0) break;
+        }
         setPaso('encendiendo');
         irA((await pedir('encender')).destino);
       } else {
@@ -135,7 +143,9 @@ export function ModoPresentacionAlCliente({ desbloqueado }: { desbloqueado: bool
       )}
       {paso === 'preparando' && (
         <Aviso tono="info" titulo="Preparando la presentación…">
-          La primera vez se arma el restaurante con su historial; puede tardar un minuto.
+          {avance === null || avance.dias + avance.pendientes === 0
+            ? 'La primera vez se arma el restaurante con su historial; puede tardar un minuto.'
+            : `Historial: ${String(avance.dias)} de ${String(avance.dias + avance.pendientes)} días listos.`}
         </Aviso>
       )}
       {paso === 'encendiendo' && <Aviso tono="info" titulo="Encendiendo la presentación…" />}
