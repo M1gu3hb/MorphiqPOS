@@ -202,12 +202,15 @@ async function resolverDestinos(
     const estacion = estacionSiLaHay(deLaCategoria, estaciones);
     // Sin estación activa ni general: se queda fuera del mapa y cae al área.
     if (estacion === null) continue;
+    const area = areaDeComanda(item.areaPreparacion);
+    // Una comanda por estación Y área, como el mesero (`agruparEnComandas`): la bebida de la barra
+    // no viaja en la comanda de cocina aunque las dos sean de la misma estación.
     destinos.set(item.productoId, {
-      clave: `estacion:${estacion.id}`,
+      clave: `estacion:${estacion.id}:${area}`,
       estacionId: estacion.id,
       estacionNombre: estacion.nombre,
       estacionColor: estacion.color,
-      area: areaDeComanda(item.areaPreparacion),
+      area,
     });
   }
 

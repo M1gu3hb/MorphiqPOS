@@ -31,7 +31,7 @@ import { rotarQr } from './qr.ts';
  */
 
 const PIMIENTA = 'pimienta-de-la-prueba-de-estaciones-0123456789';
-type Platillo = 'taco' | 'agua' | 'flan' | 'tortillas';
+type Platillo = 'taco' | 'agua' | 'flan' | 'tortillas' | 'refresco';
 
 async function cocinaConPortal(estacionesActivas: boolean) {
   const negocio = await sembrarNegocio({
@@ -99,6 +99,8 @@ async function cocinaConPortal(estacionesActivas: boolean) {
     agua: await producto('Agua de jamaica', 'barra', categorias.aguas),
     flan: await producto('Flan napolitano', 'cocina', categorias.postres),
     tortillas: await producto('Tortillas extra', 'cocina', null),
+    // De la barra y sin categoría: va a la general, pero en SU comanda de barra, no en la de cocina.
+    refresco: await producto('Refresco de toronja', 'barra', null),
   };
   const banderas = {
     portal_qr_activo: true,
@@ -144,30 +146,34 @@ async function estacionDeCadaPlatillo(
   const filas = await obtenerDb()
     .selectFrom('comanda_items as i')
     .innerJoin('comandas as c', 'c.id', 'i.comanda_id')
-    .select(['i.producto_id', 'c.estacion_preparacion_id', 'c.estacion_nombre'])
+    .select(['i.producto_id', 'c.estacion_preparacion_id', 'c.estacion_nombre', 'c.area'])
     .where('c.orden_id', '=', ordenId ?? '')
     .execute();
   const nombreDe = new Map(Object.entries(caso.productos).map(([k, v]) => [v, k]));
   return Object.fromEntries(
     filas.map((f) => [
       nombreDe.get(f.producto_id ?? '') ?? '¿?',
-      [f.estacion_preparacion_id, f.estacion_nombre],
+      [f.estacion_preparacion_id, f.estacion_nombre, f.area],
     ]),
   );
 }
 
+/** La estación (id y nombre) y el ÁREA de la comanda de cada platillo. */
 function esperado(caso: Caso) {
-  const cocina = [caso.estaciones.cocina, 'Cocina'];
+  const cocina = [caso.estaciones.cocina, 'Cocina', 'cocina'];
   return {
     taco: cocina,
-    agua: [caso.estaciones.bebidas, 'Bebidas'],
+    agua: [caso.estaciones.bebidas, 'Bebidas', 'barra'],
     // Su estación está apagada, y el que no tiene categoría: a la general.
     flan: cocina,
     tortillas: cocina,
+    // A la general por no tener categoría, pero en una comanda de BARRA: una comanda por área y
+    // estación, como el mesero (`agruparEnComandas`).
+    refresco: [caso.estaciones.cocina, 'Cocina', 'barra'],
   };
 }
 
-const PLATILLOS: readonly Platillo[] = ['taco', 'agua', 'flan', 'tortillas'];
+const PLATILLOS: readonly Platillo[] = ['taco', 'agua', 'flan', 'tortillas', 'refresco'];
 
 describe.each([true, false])('estaciones encendidas: %s', (estacionesActivas) => {
   it('el mesero: cada platillo a la estación de su categoría', async () => {
