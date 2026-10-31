@@ -82,6 +82,56 @@ export async function exigirEspera(
   }
 }
 
+/** La clienta, el servicio y la profesional de una espera, si vienen, son de este negocio. */
+async function exigirReferencias(
+  ctx: ContextoComando<Transaccion>,
+  entrada: {
+    readonly clienteId: string;
+    readonly servicioId: string | null;
+    readonly profesionalId: string | null;
+  },
+): Promise<void> {
+  const organizacionId = ctx.ambito.organizacionId;
+  const cliente = await ctx.paso('leer_cliente', () =>
+    ctx.tx
+      .selectFrom('clientes')
+      .select(['id'])
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', entrada.clienteId)
+      .executeTakeFirst(),
+  );
+  if (cliente === undefined) {
+    throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Esa clienta no existe en este negocio.');
+  }
+  const { servicioId, profesionalId } = entrada;
+  if (servicioId !== null) {
+    const servicio = await ctx.paso('leer_servicio', () =>
+      ctx.tx
+        .selectFrom('servicios')
+        .select(['producto_id'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('producto_id', '=', servicioId)
+        .executeTakeFirst(),
+    );
+    if (servicio === undefined) {
+      throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Ese servicio no existe en este negocio.');
+    }
+  }
+  if (profesionalId !== null) {
+    const profesional = await ctx.paso('leer_profesional', () =>
+      ctx.tx
+        .selectFrom('profesionales')
+        .select(['id'])
+        .where('organizacion_id', '=', organizacionId)
+        .where('id', '=', profesionalId)
+        .executeTakeFirst(),
+    );
+    if (profesional === undefined) {
+      throw new ErrorDominio('PUENTE_NO_ENCONTRADO', 'Esa profesional no existe en este negocio.');
+    }
+  }
+}
+
 export const anotarEnEspera = definirComando<
   Transaccion,
   typeof entradaAnotarEnEspera,
@@ -98,6 +148,12 @@ export const anotarEnEspera = definirComando<
     const { organizacionId, sucursalId } = ctx.ambito;
     const desde = new Date(entrada.desde);
     const hasta = new Date(entrada.hasta);
+
+    // Lo que se anota tiene que ser de ESTE negocio (R16). Sin esto, el id de una clienta de otro
+    // negocio entraba como referencia (la llave foránea no mira el negocio), y uno que no existe
+    // reventaba como error interno (23503) en vez de decir qué no existe. Va ANTES de la ventana:
+    // así lo ajeno y lo inexistente responden igual, sea cual sea la ventana que traigan.
+    await exigirReferencias(ctx, entrada);
 
     // Una ventana vacía o invertida no es una preferencia: es un tecleo. Y el
     // `check` de la base la rechazaría con un 23514 sin decir cuál de las dos
