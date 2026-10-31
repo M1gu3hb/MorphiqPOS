@@ -28,7 +28,7 @@ import {
  * pantalla.
  */
 
-const SLUG = 'prueba-restaurante';
+const SLUG = 'demo-acople-restaurante';
 const MESA = 6;
 const ZONA = 'Interior';
 const MESERO = 'Lupita';
@@ -62,7 +62,7 @@ test.describe('el menú personalizado del portal QR', () => {
     try {
       const duena = await equipo.pagina(info, 'dueno');
       fallos.push(vigilarFallos(duena));
-      const reseteo = await duena.request.post('/api/pruebas/resetear', {
+      const reseteo = await duena.request.post('/api/catalogo/demostracion/resetear', {
         headers: cabecerasDeEscrituraDePrueba(),
         data: { confirmacion: 'RESETEAR' },
       });
@@ -168,7 +168,7 @@ test.describe('el menú personalizado del portal QR', () => {
       for (const exigirSinFallos of fallos) exigirSinFallos();
       // La mesa 6 queda con su cuenta abierta: se deja la demo en limpio para la que siga (el
       // cierre del día de `restaurante.spec.ts` no se deja hacer con una cuenta abierta).
-      const limpieza = await duena.request.post('/api/pruebas/resetear', {
+      const limpieza = await duena.request.post('/api/catalogo/demostracion/resetear', {
         headers: cabecerasDeEscrituraDePrueba(),
         data: { confirmacion: 'RESETEAR' },
       });

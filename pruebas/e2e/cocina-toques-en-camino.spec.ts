@@ -27,7 +27,7 @@ import {
  * «Listo» espera a que conteste su «Preparar», y los dos entran.
  */
 
-const SLUG = 'prueba-restaurante';
+const SLUG = 'demo-acople-restaurante';
 const MESA = 5;
 const RUTA = '/api/restaurante/transicionar-pedido';
 const DEMORA_MS = 3_000;
@@ -44,7 +44,7 @@ async function escribir(duena: Page, ruta: string, datos: Record<string, unknown
 }
 
 async function resetear(duena: Page): Promise<void> {
-  const respuesta = await duena.request.post('/api/pruebas/resetear', {
+  const respuesta = await duena.request.post('/api/catalogo/demostracion/resetear', {
     headers: cabecerasDeEscrituraDePrueba(),
     data: { confirmacion: 'RESETEAR' },
   });
