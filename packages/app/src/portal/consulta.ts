@@ -20,6 +20,7 @@ import {
   type SeccionDeMenu,
 } from './lista-blanca.ts';
 import { exigirPortalAbierto, leerContextoDelNegocio, puedeOrdenarDesdeQR } from './negocio.ts';
+import { opcionesDelMenu } from './opciones-publicas.ts';
 
 /**
  * `GET /api/publico/qr/:token` — el payload COMBINADO y FILTRADO (E7-1).
@@ -106,7 +107,10 @@ export async function payloadDelPortal(
   const puedeOrdenar = puedeOrdenarDesdeQR(negocio.paquete, banderas);
   const publica = await leerConfiguracion(ambito.organizacionId, { publica: true });
 
-  const usaCatalogo = banderas.modoMenu === 'productos_pos' || banderas.modoMenu === 'mixto';
+  // El menú SUBIDO también pide del catálogo cuando se puede ordenar (DP-5): cada página lleva
+  // debajo los platillos de las categorías que nombra, con su botón de pedir.
+  const usaCatalogo =
+    banderas.modoMenu === 'productos_pos' || banderas.modoMenu === 'mixto' || puedeOrdenar;
   const usaSecciones = banderas.modoMenu === 'menu_subido' || banderas.modoMenu === 'mixto';
 
   // Las dos banderas de presentación DECIDEN aquí, en el servidor, y no sólo
@@ -222,7 +226,12 @@ async function productosVisibles(
     .limit(TOPE_CATALOGO)
     .execute();
 
-  return filas.map((fila) => productoDeMenu(fila, conPrecios));
+  // Sus opciones, en UNA consulta para todos (DP-5): el sabor del pulque se elige desde el QR.
+  const opciones = await opcionesDelMenu(
+    organizacionId,
+    filas.map((fila) => fila.id),
+  );
+  return filas.map((fila) => productoDeMenu(fila, conPrecios, opciones.get(fila.id) ?? []));
 }
 
 async function categoriasVisibles(organizacionId: string): Promise<readonly CategoriaDeMenu[]> {

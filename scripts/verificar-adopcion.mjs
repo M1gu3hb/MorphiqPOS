@@ -377,6 +377,23 @@ export const SIN_ESTADO = [
       'Los ocho estilos y sus perillas son constantes del sistema de diseño (ESTILOS, PERILLAS), no datos de la red: no hay ninguna lista que pueda llegar vacía.',
   },
   {
+    pantalla: 'restaurante/PlatilloParaPedir',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es UN renglón bajo una página del menú personalizado del portal (DP-5). Sin platillos que pedir, la página no pinta la lista.',
+  },
+  {
+    pantalla: 'restaurante/PlatilloParaPedir',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el platillo ya leído por el portal, que enseña su propia espera.',
+  },
+  {
+    pantalla: 'restaurante/PlatilloParaPedir',
+    estado: 'error',
+    razon:
+      'No lee ni escribe: «Agregar» abre el diálogo del portal, que es quien envía y dice si falló.',
+  },
+  {
     pantalla: 'restaurante/RecetasPendientes',
     estado: 'vacio',
     razon:

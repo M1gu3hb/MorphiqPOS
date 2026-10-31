@@ -166,11 +166,26 @@ describe('el menú no lleva costos, márgenes ni receta', () => {
         // los botones desaparecieron sin que nada fallara.
         'presets_porcion_qr',
         'presets_variable_qr',
+        // Los grupos de opciones (DP-5): el sabor del pulque se elige desde el QR. Sólo nombres.
+        'modificadores',
         'tipo_venta',
         'unidad_venta',
         'unidad_variable',
       ].sort(),
     );
+  });
+
+  it('las opciones salen con su nombre y nada más: ni precio ni insumo (DP-5)', () => {
+    const grupo = {
+      nombre: 'Sabor (básico)',
+      obligatorio: true,
+      tipo: 'unica' as const,
+      opciones: [{ id: 'o-1', nombre: 'Avena' }],
+    };
+    const conOpciones = productoDeMenu(FILA_PRODUCTO, true, [grupo]);
+    expect(conOpciones.modificadores).toEqual([grupo]);
+    expect(JSON.stringify(conOpciones.modificadores)).not.toMatch(/precio|costo|insumo|centavos/);
+    expect(productoDeMenu(FILA_PRODUCTO, true).modificadores).toEqual([]);
   });
 
   it('los atajos no llevan precio, ni siquiera con los precios encendidos', () => {

@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Upload, Trash2, ImageIcon, Edit } from 'lucide-react';
 import { toast } from 'sonner';
+import { SEPARADOR_DE_CATEGORIAS, resumenDeLaPagina } from '~/restaurante/paginas-del-menu';
 
 const empty = { nombre: '', descripcion: '', imagen_url: '', orden: 0, activo: true };
 
@@ -27,6 +28,15 @@ export default function MenuQRTab() {
   const [editForm, setEditForm] = useState(null);
   const [uploading, setUploading] = useState(false);
 
+  // Para decir de cada página qué categorías pide (DP-5): su título las nombra.
+  const { data: categorias = [] } = useQuery({
+    queryKey: ['menu_qr_categorias'],
+    queryFn: () => api.entidades.CategoriaProducto.filter({ activo: true }),
+  });
+  const { data: platillos = [] } = useQuery({
+    queryKey: ['menu_qr_platillos'],
+    queryFn: () => api.entidades.ProductoTerminado.filter({ activo: true }),
+  });
   const { data: secciones = [] } = useQuery({
     queryKey: ['menu_qr_secciones'],
     queryFn: () => api.entidades.MenuQRSeccion.list('orden', 100),
@@ -140,6 +150,9 @@ export default function MenuQRTab() {
               {s.descripcion && (
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.descripcion}</p>
               )}
+              <p className="text-xs text-muted-foreground mt-1">
+                {resumenDeLaPagina(s, categorias, platillos)}
+              </p>
               <div className="flex gap-1 mt-2">
                 <Button
                   size="sm"
@@ -182,6 +195,10 @@ export default function MenuQRTab() {
                   onChange={(e) => setEditForm({ ...editForm, nombre: e.target.value })}
                   placeholder="Bebidas, Postres, Vinos..."
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  {resumenDeLaPagina(editForm, categorias, platillos)} Varias categorías, separadas
+                  por «{SEPARADOR_DE_CATEGORIAS}».
+                </p>
               </div>
               <div>
                 <Label className="text-xs">Descripción</Label>

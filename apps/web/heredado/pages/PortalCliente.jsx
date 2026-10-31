@@ -25,6 +25,8 @@ import ErrorBoundary from '@/components/common/ErrorBoundary';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { MarcaMorphiq } from '~/marca/MarcaMorphiq';
 import { nombreVisibleDelNegocio } from '~/marca/nombre-visible';
+import { PlatilloParaPedir } from '~/restaurante/PlatilloParaPedir';
+import { platillosDeLaPagina } from '~/restaurante/paginas-del-menu';
 
 /**
  * Vista pública del comensal (sin sidebar, sin POS).
@@ -563,26 +565,64 @@ function PortalCliente() {
           </section>
         )}
 
-        {/* MODO MENÚ SUBIDO */}
+        {/* MODO MENÚ SUBIDO — el menú que diseñó el negocio. Cada página lleva debajo los
+            platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú
+            de siempre (DP-5, `paginas-del-menu.ts`). */}
         {usarSecciones && seccionesUtiles.length > 0 && (
           <section className="space-y-3">
             {usarProductos && <h2 className="text-sm font-heading font-bold mt-4">Menús</h2>}
-            {seccionesUtiles.map((s) => (
-              <div
-                key={s.id}
-                className="rounded-2xl border bg-card text-card-foreground overflow-hidden shadow-sm"
-              >
-                {s.imagen_url && (
-                  <img src={s.imagen_url} alt={s.nombre} className="w-full h-auto object-cover" />
-                )}
-                <div className="p-3">
-                  <p className="font-heading font-bold text-base">{s.nombre}</p>
-                  {s.descripcion && (
-                    <p className="text-xs text-muted-foreground">{s.descripcion}</p>
+            {!usarProductos && seccionesUtiles.length > 1 && (
+              <nav aria-label="Páginas del menú" className="flex gap-1.5 overflow-x-auto pb-2">
+                {seccionesUtiles.map((s) => (
+                  <Pill
+                    key={`ir-${s.id}`}
+                    active={false}
+                    onClick={() =>
+                      document
+                        .getElementById(`pagina-${s.id}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                  >
+                    {s.nombre}
+                  </Pill>
+                ))}
+              </nav>
+            )}
+            {seccionesUtiles.map((s) => {
+              const paraPedir =
+                pedidosQRActivos && !cuentaYaSolicitada
+                  ? platillosDeLaPagina(s, categorias, productos)
+                  : [];
+              return (
+                <div
+                  key={s.id}
+                  id={`pagina-${s.id}`}
+                  className="rounded-2xl border bg-card text-card-foreground overflow-hidden shadow-sm scroll-mt-20"
+                >
+                  {s.imagen_url && (
+                    <img src={s.imagen_url} alt={s.nombre} className="w-full h-auto object-cover" />
+                  )}
+                  <div className="p-3">
+                    <p className="font-heading font-bold text-base">{s.nombre}</p>
+                    {s.descripcion && (
+                      <p className="text-xs text-muted-foreground">{s.descripcion}</p>
+                    )}
+                  </div>
+                  {paraPedir.length > 0 && (
+                    <ul aria-label={`Pedir de ${s.nombre}`} className="border-t px-3 divide-y">
+                      {paraPedir.map((p) => (
+                        <PlatilloParaPedir
+                          key={p.id}
+                          platillo={p}
+                          mostrarPrecios={mostrarPrecios}
+                          alPedir={() => handleClickProducto(p)}
+                        />
+                      ))}
+                    </ul>
                   )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </section>
         )}
 

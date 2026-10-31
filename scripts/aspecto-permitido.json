@@ -1140,6 +1140,47 @@
       "archivo": "apps/web/heredado/pages/Recetas.jsx",
       "porque": "Cierre del 21-10 (Miguel): la lista de recetas usa la rejilla de columnas fijas y distingue carga, vacío y error con «Reintentar».",
       "testigos": ["- label:Cargando recetas…", "+ clase:@container", "+ texto:Reintentar"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/PortalCliente.jsx",
+      "porque": "DP-5 (DP-D18): el menú personalizado (modo «menú subido») también pide. Cada página lleva debajo los platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú de siempre (renglones separados por divide-y bajo un border-t), y con más de una página hay una fila de accesos para saltar a cada una (nav «Páginas del menú»). La página guarda su ancla (scroll-mt-20) para no quedar bajo el encabezado fijo.",
+      "testigos": [
+        "+ clase:flex",
+        "+ clase:gap-1.5",
+        "+ clase:overflow-x-auto",
+        "+ clase:pb-2",
+        "+ clase:px-3",
+        "+ clase:scroll-mt-20",
+        "+ clase:border-t",
+        "+ clase:divide-y",
+        "+ label:Páginas del menú",
+        "+ aria-label:Páginas del menú"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/MenuQRTab.jsx",
+      "porque": "DP-5 (DP-D18): cada página del menú subido dice qué categorías pide y cuántos platillos («Se pide: …» o «Sólo imagen: …»), en la tarjeta y bajo el nombre del diálogo, para que el dueño sepa cómo ligarla a sus platillos.",
+      "testigos": [
+        "+ clase:text-muted-foreground",
+        "+ clase:text-muted-foreground",
+        "+ clase:text-xs",
+        "+ clase:text-xs",
+        "+ clase:mt-1",
+        "+ clase:mt-1"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/ProductoPlaceholder.jsx",
+      "porque": "DP-3 (DP-D11): el marcador de platillo sin foto deja el degradado de un color por tipo (la cerveza salía azul) y su brillo radial, y se pinta plano sobre la pizarra de la marca: ícono en el dorado de lo activo y la inicial en la letra de la barra. Don Poncho no tiene fotos, así que es lo que el comensal ve en cada platillo del portal.",
+      "testigos": [
+        "- clase:absolute",
+        "- clase:inset-0",
+        "- clase:opacity-15",
+        "- clase:text-white/80",
+        "- clase:text-white",
+        "+ clase:text-lateral-activo",
+        "+ clase:text-lateral-texto"
+      ]
     }
   ]
 }

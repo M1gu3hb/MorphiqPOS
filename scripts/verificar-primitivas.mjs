@@ -459,15 +459,6 @@ const PALETA_PERMITIDA_EN_EL_HEREDADO = new Map([
     },
   ],
   [
-    'components/portalqr/ProductoPlaceholder.jsx',
-    {
-      cuantas: 2,
-      porque:
-        'El marcador de producto sin foto va sobre un degradado elegido por categoría en tiempo de ' +
-        'ejecución (`MAPA`): el texto blanco es parte de ese dibujo.',
-    },
-  ],
-  [
     'components/propinas/PropinaDialog.jsx',
     {
       cuantas: 1,
