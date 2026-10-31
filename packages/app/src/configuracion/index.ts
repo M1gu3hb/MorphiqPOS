@@ -13,6 +13,15 @@ export {
 } from './apariencia.ts';
 
 export {
+  CLAVE_DE_EXPERIENCIA,
+  EXPERIENCIA,
+  EXPERIENCIA_POR_OMISION,
+  experienciaDe,
+  experienciaDeLaOrganizacion,
+  type Experiencia,
+} from './experiencia.ts';
+
+export {
   entradaGuardarConfiguracion,
   guardarConfiguracion,
   leerConfiguracion,

@@ -43,6 +43,7 @@ import DatosSection from '@/components/datos/DatosSection';
 import { PresentacionDelDueno } from '~/configuracion/PresentacionDelDueno';
 import ConfiguracionDeVoz from '@/components/configuracion/ConfiguracionDeVoz';
 import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
+import { MascotaDelNegocio } from '~/configuracion/MascotaDelNegocio';
 import { useLocation } from '@/enrutado';
 import { canAccessModule } from '@/lib/packageConfig';
 import ReiniciarSistemaSection from '@/components/configuracion/ReiniciarSistemaSection';
@@ -552,6 +553,8 @@ export default function Configuracion() {
         <TabsContent value="apariencia">
           <div className="space-y-6">
             <SelectorDeApariencia />
+            {/* DP-11.1: «Mascota Morfi», por negocio. */}
+            <MascotaDelNegocio />
             {/* La voz de los avisos es de ESTE dispositivo: la cocina o la tableta de la sala
                 eligen la suya entrando aquí desde ese equipo. */}
             <ConfiguracionDeVoz />

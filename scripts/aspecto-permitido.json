@@ -1308,8 +1308,32 @@
       "testigos": []
     },
     {
+      "archivo": "apps/web/heredado/components/common/AppLayout.jsx",
+      "porque": "DP-11.1 (DP-D38): la carga de pantalla completa (al entrar con el PIN o recargar) deja el círculo girando suelto y es la carga larga del sistema: una tarjeta que dice qué carga («Cargando tu caja», «Cargando las mesas») con su barra, y Morfi asomado detrás si el negocio lo tiene encendido. Nada se ve antes de 600 ms. Y el <main> lleva min-w-0: como hijo de flex medía lo que su contenido más ancho, y en el teléfono una fila que no se encoge estiraba la página entera a lo ancho (Configuración → Apariencia: 543 px en un teléfono de 412). No cambia nada en tableta ni PC.",
+      "testigos": [
+        "- clase:fixed",
+        "- clase:inset-0",
+        "- clase:flex",
+        "- clase:items-center",
+        "- clase:justify-center",
+        "- clase:w-8",
+        "- clase:h-8",
+        "- clase:border-4",
+        "- clase:border-borde",
+        "- clase:border-t-primary",
+        "- clase:rounded-full",
+        "- clase:animate-spin",
+        "+ clase:min-w-0"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/ConfiguracionDeVoz.jsx",
+      "porque": "DP-11.1: el fieldset de las voces lleva min-w-0. Un fieldset mide por omisión lo que su contenido, así que en el teléfono los renglones de voz no se encogían y la pestaña Apariencia entera se desbordaba a lo ancho (543 px en un teléfono de 412): el interruptor de «Mascota Morfi» y los selectores quedaban fuera de la pantalla. No cambia nada a la vista en tableta ni PC.",
+      "testigos": ["+ clase:min-w-0"]
+    },
+    {
       "archivo": "apps/web/heredado/pages/PortalCliente.jsx",
-      "porque": "DP-5 (DP-D18): el menú personalizado (modo «menú subido») también pide. Cada página lleva debajo los platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú de siempre (renglones separados por divide-y bajo un border-t), y con más de una página hay una fila de accesos para saltar a cada una (nav «Páginas del menú»). La página guarda su ancla (scroll-mt-20) para no quedar bajo el encabezado fijo. DP-9.7 (DP-D26): cada página del menú subido se pinta con `src/restaurante/menu-qr/PaginaConBotones` —los botones van ENCIMA de la imagen— y se va la lista repetida de platillos de abajo; el portal toma el estilo, la tipografía y el fondo que eligió el negocio. DP-10.3 (DP-D33): el QR de una mesa unida a otra dice «Esta mesa está unida a la mesa N» bajo el número de la principal.",
+      "porque": "DP-5 (DP-D18): el menú personalizado (modo «menú subido») también pide. Cada página lleva debajo los platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú de siempre (renglones separados por divide-y bajo un border-t), y con más de una página hay una fila de accesos para saltar a cada una (nav «Páginas del menú»). La página guarda su ancla (scroll-mt-20) para no quedar bajo el encabezado fijo. DP-9.7 (DP-D26): cada página del menú subido se pinta con `src/restaurante/menu-qr/PaginaConBotones` —los botones van ENCIMA de la imagen— y se va la lista repetida de platillos de abajo; el portal toma el estilo, la tipografía y el fondo que eligió el negocio. DP-10.3 (DP-D33): el QR de una mesa unida a otra dice «Esta mesa está unida a la mesa N» bajo el número de la principal. DP-11.1 (DP-D38): la carga del menú deja su círculo girando y es la carga larga del sistema (tarjeta «Cargando el menú», con Morfi si el negocio lo tiene encendido); el QR que no lleva a ninguna mesa («QR inválido», «Mesa no encontrada», mismos textos) es la página que no existe con Morfi asomado por el hoyo, sin botón (recargar el mismo QR no lo arregla).",
       "testigos": [
         "+ clase:flex",
         "+ clase:gap-1.5",
@@ -1337,7 +1361,20 @@
         "- clase:object-cover",
         "- clase:p-3",
         "+ clase:font-semibold",
-        "+ clase:text-primary"
+        "+ clase:text-primary",
+        "- clase:items-center",
+        "- clase:gap-3",
+        "- clase:text-muted-foreground",
+        "- clase:rounded-full",
+        "- clase:text-sm",
+        "- clase:flex-col",
+        "- clase:border-4",
+        "- clase:border-border",
+        "- clase:border-t-primary",
+        "- clase:animate-spin",
+        "- clase:w-10",
+        "- clase:h-10",
+        "- texto:Cargando menú…"
       ]
     }
   ]

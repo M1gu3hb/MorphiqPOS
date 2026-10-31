@@ -52,6 +52,77 @@ function lectorDesde(ruta) {
  */
 export const SIN_ESTADO = [
   {
+    pantalla: 'configuracion/MascotaDelNegocio',
+    estado: 'vacio',
+    razon:
+      'Un interruptor de la configuración del negocio (DP-11.1): no tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'configuracion/MascotaDelNegocio',
+    estado: 'cargando',
+    razon:
+      'No lee nada al pintarse: el valor llega del servidor con la página (useExperiencia). Mientras guarda, el interruptor queda deshabilitado.',
+  },
+  {
+    pantalla: 'morfi/ClipDeMorfi',
+    estado: 'vacio',
+    razon:
+      'Pieza decorativa (DP-11.1): pinta un clip de Morfi o su imagen fija; no tiene lista que pueda llegar vacía. El texto de al lado dice lo que pasa.',
+  },
+  {
+    pantalla: 'morfi/ClipDeMorfi',
+    estado: 'cargando',
+    razon:
+      'Pieza decorativa: mientras el clip se descarga se ve su imagen fija, y antes de saber el navegador un hueco del mismo tamaño. No lee datos.',
+  },
+  {
+    pantalla: 'morfi/ClipDeMorfi',
+    estado: 'error',
+    razon:
+      'Pieza decorativa: si el clip no se puede reproducir (sin red, sin archivo, sin alfa) se queda en su imagen fija, y el texto de la pantalla sigue diciendo lo que pasa.',
+  },
+  {
+    pantalla: 'morfi/HoyoEnLaTarjeta',
+    estado: 'vacio',
+    razon:
+      'Dibujo SVG del hoyo de la página que no existe (DP-11.1): no tiene lista ni contenido que pueda faltar.',
+  },
+  {
+    pantalla: 'morfi/HoyoEnLaTarjeta',
+    estado: 'cargando',
+    razon: 'Dibujo SVG en línea: no se descarga ni lee nada, así que no tiene espera que enseñar.',
+  },
+  {
+    pantalla: 'morfi/HoyoEnLaTarjeta',
+    estado: 'error',
+    razon:
+      'Dibujo SVG en línea: no lee nada ni manda comandos, así que no tiene nada que pueda fallar.',
+  },
+  {
+    pantalla: 'morfi/MorfiCargando',
+    estado: 'vacio',
+    razon:
+      'ES la espera de una pantalla entera (DP-11.1, PantallaDeCarga con Morfi): no tiene lista; lo que llega después lo pinta la pantalla que cargaba.',
+  },
+  {
+    pantalla: 'morfi/MorfiCargando',
+    estado: 'error',
+    razon:
+      'ES la espera: si lo que se carga falla, lo dice la pantalla que lo pidió (AppLayout manda a la entrada, el portal pinta su error).',
+  },
+  {
+    pantalla: 'morfi/MorfiNoEncontrada',
+    estado: 'cargando',
+    razon:
+      'La página que no existe (DP-11.1) no lee nada: recibe su título, su explicación y su acción por props.',
+  },
+  {
+    pantalla: 'morfi/MorfiNoEncontrada',
+    estado: 'error',
+    razon:
+      'Ya es el estado de «no está»: su título y su acción dicen qué hacer; no manda comandos que puedan fallar.',
+  },
+  {
     pantalla: 'restaurante/AnularLineaDialog',
     estado: 'vacio',
     razon:

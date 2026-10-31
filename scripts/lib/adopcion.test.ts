@@ -156,6 +156,22 @@ describe('verify:adopcion · el analizador', () => {
     );
   });
 
+  it('la carga larga del sistema (PantallaDeCarga, DP-11.1) cuenta como la espera', () => {
+    const conCarga = conCambio(
+      "if (estado === 'cargando') return <EsqueletoDeLista />;",
+      "if (estado === 'cargando') return <PantallaDeCarga titulo={texto} />;",
+    ).replace('EsqueletoDeLista, Superficie', 'PantallaDeCarga, Superficie');
+    expect(hallazgos(conCarga)).toEqual([]);
+    // La misma, con una PantallaDeCarga que NO viene del sistema: no cuenta.
+    const ajena = conCarga
+      .replace('PantallaDeCarga, Superficie', 'Superficie')
+      .replace(
+        "from '@morphiqpos/ui/sistema';",
+        "from '@morphiqpos/ui/sistema';\nimport { PantallaDeCarga } from './mia';",
+      );
+    expect(hallazgos(ajena).map((h) => h.motivo)).toContain('no pinta cargando');
+  });
+
   it('un Vacio con el mismo nombre que NO viene del sistema no cuenta', () => {
     const texto = CUMPLE.replace(
       "import { Dinero, ErrorDePantalla, EsqueletoDeLista, Superficie, Tabla, Vacio, dineroEnTexto } from '@morphiqpos/ui/sistema';",

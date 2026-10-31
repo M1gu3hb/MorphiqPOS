@@ -13,6 +13,8 @@ import SolicitudesQRWatcher from './SolicitudesQRWatcher';
 import PedidoListoWatcher from './PedidoListoWatcher';
 import MobileAdminRadialMenu from './MobileAdminRadialMenu';
 import { useRouteCleanup } from '@/lib/useRouteCleanup';
+import { MorfiCargando } from '~/morfi/MorfiCargando';
+import { textoDeCarga } from '~/morfi/textos-de-carga';
 
 /**
  * `marco="modelo"` (bloque D de la 2.4): las pantallas de los cinco modelos no tenían
@@ -65,12 +67,10 @@ export default function AppLayout({ marco = 'interno' }) {
     navigate(inicioDeLaSesion(posUser.rol, paquete_modo, hasPermission), { replace: true });
   }, [rutaAjena, cargandoConfig, posUser, paquete_modo, navigate]);
 
+  // DP-11.1: la carga larga del sistema (tarjeta que dice qué carga, con Morfi si el negocio
+  // lo tiene encendido); nada se ve antes de 600 ms. Antes era un círculo girando suelto.
   if (isLoading || esperandoPlantilla) {
-    return (
-      <div className="fixed inset-0 flex items-center justify-center">
-        <div className="w-8 h-8 border-4 border-borde border-t-primary rounded-full animate-spin" />
-      </div>
-    );
+    return <MorfiCargando titulo={textoDeCarga(pathname)} />;
   }
 
   if (!posUser) return null;
@@ -82,7 +82,9 @@ export default function AppLayout({ marco = 'interno' }) {
       <BrandedBackground />
       <Sidebar collapsed={collapsed} onToggle={() => setCollapsed((c) => !c)} />
       <main
-        className={`flex-1 transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-60'} relative z-10`}
+        // `min-w-0` (DP-11.1): un hijo de flex mide por omisión lo que su contenido más ancho, y en el
+        // teléfono una fila que no se encoge estiraba la página a lo ancho (Configuración: 543 de 412).
+        className={`min-w-0 flex-1 transition-all duration-300 ${collapsed ? 'lg:ml-16' : 'lg:ml-60'} relative z-10`}
         style={{ minHeight: '100dvh' }}
       >
         <div

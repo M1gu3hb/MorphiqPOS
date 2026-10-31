@@ -35,6 +35,7 @@ export {
   type TamanoDeVacio,
   type TonoDeVacio,
 } from './estados';
+export { PantallaDeCarga, type PantallaDeCargaProps } from './carga-de-pantalla';
 export { Tabla, type ColumnaDeTabla, type TablaProps, type TonoDeFila } from './tabla';
 export {
   ListaDeTarjetas,

@@ -314,7 +314,9 @@ export default function ConfiguracionDeVoz() {
           </p>
         ) : (
           <>
-            <fieldset className="space-y-2">
+            {/* `min-w-0`: un fieldset mide por omisión lo que su contenido, y en el teléfono los renglones
+                de voz no se encogían: la pestaña Apariencia se desbordaba a lo ancho (DP-11.1). */}
+            <fieldset className="min-w-0 space-y-2">
               <legend className="mb-1 text-sm font-semibold">Voz</legend>
 
               <FilaDeVoz
