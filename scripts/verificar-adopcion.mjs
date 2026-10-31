@@ -967,6 +967,16 @@ export const SIN_ESTADO = [
     razon:
       'Va dentro del renglón de un ajuste de inventario: si los motivos no se leen lo dice en una línea bajo el selector y deja la corrección de conteo. Un Aviso o un ErrorDePantalla ahí ocuparía el renglón entero.',
   },
+  {
+    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
+    estado: 'vacio',
+    razon: 'Diálogo de confirmación de un grupo que ya existe: no tiene lista.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe la unión por props. Mientras separa, su botón dice «Separando…».',
+  },
 ];
 
 const argumentos = process.argv.slice(2);

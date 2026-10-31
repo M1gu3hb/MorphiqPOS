@@ -226,6 +226,7 @@ function mesaPublica(
     // aquí daría dos sitios donde decidir lo mismo, y con el tiempo dirían cosas
     // distintas.
     puede_pedir: puedeOrdenarAqui && cuenta !== null && esUnoDe(ORDEN_ADMITE_PEDIDO, cuenta.estado),
+    unida_a_la_mesa: ambito.unidaALaPrincipal ? ambito.mesaNumero : null,
   };
 }
 

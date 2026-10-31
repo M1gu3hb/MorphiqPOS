@@ -342,6 +342,14 @@ export async function unirMesas(tx: Transaccion, datos: DatosDeUnion): Promise<U
     const { mesa, ordenId } = miembro;
 
     if (ordenId !== null) {
+      // Lo que cocina tiene en marcha para esta mesa pasa a la cuenta del grupo (D-3): así
+      // «Marcar entregado» en la principal alcanza lo que se pidió en la unida.
+      await tx
+        .updateTable('comandas')
+        .set({ orden_id: datos.ordenPrincipalId, updated_at: datos.ahora })
+        .where('organizacion_id', '=', datos.organizacionId)
+        .where('orden_id', '=', ordenId)
+        .execute();
       const movidas = await tx
         .updateTable('orden_lineas')
         .set({ orden_id: datos.ordenPrincipalId, updated_at: datos.ahora })

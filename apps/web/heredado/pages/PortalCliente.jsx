@@ -511,6 +511,12 @@ function PortalCliente() {
               Mesa {mesa?.numero}
               {mesa?.nombre ? ` · ${mesa.nombre}` : ''}
             </p>
+            {/* DP-10.3: el QR es de una mesa unida a ésta; todo cae en la cuenta de la principal. */}
+            {mesa?.unida_a_la_mesa != null && (
+              <p className="text-xs font-semibold text-primary">
+                Esta mesa está unida a la mesa {mesa.unida_a_la_mesa}
+              </p>
+            )}
           </div>
           <ThemeToggle variant="icon" />
         </div>

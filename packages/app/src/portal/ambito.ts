@@ -42,6 +42,11 @@ export interface AmbitoPortal {
   readonly empleadoAsignadoId: string | null;
   /** Quien tomó la mesa en el modo sin asignación (`restaurante.asignar_mesero`). DP-9.2. */
   readonly empleadoAtiendeId: string | null;
+  /**
+   * DP-10.3: el QR era de una mesa UNIDA a otra, y lo de arriba es de la principal. El portal
+   * dice «Esta mesa está unida a la mesa N».
+   */
+  readonly unidaALaPrincipal: boolean;
 }
 
 /** La fila cruda que devuelve la búsqueda por token, antes de comprobar nada. */
@@ -57,6 +62,8 @@ export interface FilaMesaPorToken {
   readonly empleado_atiende_id: string | null;
   readonly qr_activa: boolean;
   readonly activa: boolean;
+  /** DP-10.3: esta fila es la de la principal; el token era de una mesa unida a ella. */
+  readonly unida?: boolean;
 }
 
 /**
@@ -129,6 +136,7 @@ export async function resolverAmbitoPortal(
     ordenActivaId: fila.orden_activa_id,
     empleadoAsignadoId: fila.empleado_asignado_id,
     empleadoAtiendeId: fila.empleado_atiende_id,
+    unidaALaPrincipal: fila.unida === true,
   };
 }
 
@@ -160,12 +168,55 @@ const COLUMNAS_MESA = [
 export function buscadorDeProduccion(organizacionId: string, db?: Transaccion): BuscadorDeMesa {
   return async (token: string) => {
     const base = db ?? obtenerDb();
-    return base
+    const filas = await base
       .selectFrom('mesas')
       .select(COLUMNAS_MESA)
       .where('qr_token', '=', token)
       .where('organizacion_id', '=', organizacionId)
       .limit(2)
       .execute();
+    const fila = filas[0];
+    if (filas.length !== 1 || fila === undefined) return filas;
+    const principal = await principalDeLaUnion(base, organizacionId, fila.id);
+    // El QR propio sigue mandando: apagado en la unida, no sirve aunque la principal sí.
+    return principal === undefined
+      ? filas
+      : [
+          {
+            ...principal,
+            activa: principal.activa && fila.activa,
+            qr_activa: fila.qr_activa,
+            unida: true,
+          },
+        ];
   };
+}
+
+/**
+ * DP-10.3 · EL PUENTE DE LAS MESAS UNIDAS hasta la mudanza. En la unión de `main` (F-302) la 5
+ * unida a la 4 se queda SIN cuenta propia: su QR tiene que caer en la 4, o el comensal pide en
+ * una mesa sin cuenta. Sólo mientras la unión está ABIERTA; separadas, cada QR es de su mesa. La
+ * unión de la fase B (`mesas.unida_a_mesa_id`, migración 187) reemplaza esto.
+ */
+async function principalDeLaUnion(
+  base: Transaccion | ReturnType<typeof obtenerDb>,
+  organizacionId: string,
+  mesaId: string,
+): Promise<Omit<FilaMesaPorToken, 'unida'> | undefined> {
+  const union = await base
+    .selectFrom('union_mesa_miembros as miembro')
+    .innerJoin('uniones_mesa as union', 'union.id', 'miembro.union_id')
+    .select('union.mesa_principal_id as principalId')
+    .where('miembro.mesa_id', '=', mesaId)
+    .where('miembro.union_abierta', '=', true)
+    .where('union.organizacion_id', '=', organizacionId)
+    .where('union.cerrada_en', 'is', null)
+    .executeTakeFirst();
+  if (union === undefined) return undefined;
+  return base
+    .selectFrom('mesas')
+    .select(COLUMNAS_MESA)
+    .where('organizacion_id', '=', organizacionId)
+    .where('id', '=', union.principalId)
+    .executeTakeFirst();
 }

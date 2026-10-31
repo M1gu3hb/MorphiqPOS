@@ -53,6 +53,7 @@ import { DividirCuentaDialog } from './DividirCuentaDialog';
 import { lineasDelEnvio } from './envio-a-cocina';
 import { ListosParaRecoger, useListosDeLaCuenta } from './ListosParaRecoger';
 import { useRolDeLaSesion } from './rol-de-la-sesion';
+import { useUnionDeLaMesa } from './unir-mesas/use-union-de-la-mesa';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /**
@@ -126,6 +127,9 @@ export function MesaActiva(props: MesaActivaProps) {
   const idDeLaDireccion = useSearchParams().get('mesa');
   const router = useRouter();
   const [mesa, setMesa] = useState<MesaAbierta | null>(mesaInicial ?? null);
+  // D-2 (DP-10.3): si esta mesa encabeza un grupo vivo, su pantalla ofrece «Separar mesas».
+  const [versionDelGrupo, setVersionDelGrupo] = useState(0);
+  const unionId = useUnionDeLaMesa(mesa?.id ?? null, versionDelGrupo)?.unionId ?? null;
   const [productos, setProductos] = useState<readonly ProductoDeComanda[] | null>(
     productosIniciales ?? (mesaInicial === undefined ? null : []),
   );
@@ -836,7 +840,15 @@ export function MesaActiva(props: MesaActivaProps) {
               falloLineas === null ? enviadas.reduce((s, l) => s + importeDe(l), 0) : null
             }
             alCambiarDeMesa={alCambiarDeMesa}
-            alUnir={releerLoEnviado}
+            alUnir={() => {
+              setVersionDelGrupo((v) => v + 1);
+              releerLoEnviado();
+            }}
+            unionId={unionId}
+            alSeparar={() => {
+              setVersionDelGrupo((v) => v + 1);
+              releerLoEnviado();
+            }}
           />
         </div>
       ) : null}

@@ -98,8 +98,10 @@ import {
  * `test.fixme` que exige lo CORRECTO, con un comentario que dice qué falla y dónde. El día que se
  * arregle, se quita el `fixme` y tiene que pasar sin tocar nada más.
  *
- *   D-2 · ninguna pantalla separa un grupo de mesas (`restaurante.separar_mesas` no cuelga de nada);
- *   D-3 · lo que cocina dejó listo para la mesa unida no se entrega desde la principal;
+ *   D-2 · ninguna pantalla separaba un grupo de mesas (arreglado en DP-10.3: «Separar mesas» en la
+ *         mesa activa de la principal);
+ *   D-3 · lo que cocina dejó listo para la mesa unida no se entregaba desde la principal
+ *         (arreglado en DP-10.3: al unir, sus comandas pasan a la cuenta del grupo);
  *   D-4 · la pantalla de la mesa unida dice «está libre» y ofrece «Abrir la mesa»;
  *   D-5 · la autorización firmada del supervisor sirve para otra cuenta (no va atada a la cuenta);
  *   D-6 · una demo con una cuenta dividida no se puede resetear (500 al confirmar el reseteo);
@@ -765,18 +767,6 @@ async function cocinaDejaListaLaMesa(
   await expect(
     cocina.getByRole('button', { name: `Quitar de la lista — ${mesa}`, exact: true }),
   ).toHaveCount(comandas);
-}
-
-/** Cocina quita de su lista lo que ya salió: lo mueve de «Listos» a entregado, desde su tablero. */
-async function cocinaQuitaDeLaLista(cocina: Page, numero: number, comandas: number): Promise<void> {
-  const quitar = cocina.getByRole('button', {
-    name: `Quitar de la lista — Mesa ${String(numero)}`,
-    exact: true,
-  });
-  await enLaColumna(cocina, 'Listos');
-  await expect(quitar).toHaveCount(comandas, { timeout: 30_000 });
-  for (let i = 0; i < comandas; i += 1) await quitar.first().click();
-  await expect(quitar).toHaveCount(0);
 }
 
 /**
@@ -1799,9 +1789,8 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
         expect(estadosDe(await comandasDeLaMesa(duena, principal.mesaId))).toEqual(
           Array<string>(comandasDeLaPrincipal).fill('entregado'),
         );
-        // «Marcar entregado» de la principal sólo mueve las comandas de SU cuenta: lo de la mesa
-        // unida lo quita de su lista la cocina (hallazgo D-3, prueba `fixme` de abajo).
-        await cocinaQuitaDeLaLista(cocina, 2, comandasDelMiembro);
+        // «Marcar entregado» en la principal entrega también lo de la mesa unida (D-3, DP-10.3):
+        // al unir, sus comandas pasaron a la cuenta del grupo.
         await expect
           .poll(async () => estadosDe(await comandasDeLaMesa(duena, miembro.mesaId)))
           .toEqual(Array<string>(comandasDelMiembro).fill('entregado'));
@@ -1904,8 +1893,8 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
         expect(await leerCuenta(duena, m7.ordenId)).toMatchObject({ totalCentavos: ventaJuntas });
         expect((await leerMesa(duena, 8)).ordenId).toBeNull();
 
-        // No hay botón para separar en ninguna pantalla (hallazgo D-2, prueba `fixme` de abajo):
-        // se llama a la misma ruta que usaría.
+        // «Separar mesas» está en la mesa activa de la principal (D-2, su prueba está abajo); aquí
+        // se llama a la misma ruta que usa ese botón.
         const separada = await comando<{
           readonly mesasLiberadas: number;
           readonly ordenPrincipalId: string;
@@ -2676,8 +2665,8 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
   // ══ HALLAZGOS: lo que la aplicación hace hoy y no debe ═══════════════════════
   //
   // Cada una de estas pruebas exige el comportamiento CORRECTO. Las que siguen en `test.fixme` no
-  // se corren y dicen arriba qué falla (D-2, D-3 y D-5, pendientes del reporte 021); D-4, D-6 y
-  // D-7 se arreglaron en el cierre del 21-10 y corren. El día que el defecto se arregle se quita el `fixme` y la
+  // se corren y dicen arriba qué falla (D-5, pendiente del reporte 021); D-4, D-6 y D-7 se
+  // arreglaron en el cierre del 21-10, y D-2 y D-3 en DP-10.3: todas ésas corren. El día que el defecto se arregle se quita el `fixme` y la
   // prueba tiene que pasar sin tocar nada más. Cada una limpia lo que arma (separa el grupo y
   // cancela sus cuentas), así que con el `fixme` quitado deja el día como lo encontró.
 
@@ -2745,13 +2734,11 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
     }
   });
 
-  // D-2 · NINGUNA PANTALLA SEPARA UN GRUPO.
-  //   Qué falla: `restaurante.separar_mesas` existe, con su ruta (`/api/restaurante/separar-mesas`)
-  //   y sus pruebas, y ninguna pantalla la llama: `AccionesDeLaMesa.tsx` ofrece «Pedir la cuenta»,
-  //   «Cambiar de mesa» y «Unir mesas», y no «Separar». Un grupo que se juntó por error no se
-  //   puede deshacer desde el sistema.
-  //   Se exige: un botón «Separar» en la mesa activa de la principal de un grupo.
-  test.fixme('D-2 · la mesa activa de la principal de un grupo ofrece «Separar»', async ({
+  // D-2 · NINGUNA PANTALLA SEPARABA UN GRUPO (arreglado en DP-10.3).
+  //   Qué fallaba: `restaurante.separar_mesas` existía, con su ruta y sus pruebas, y ninguna
+  //   pantalla la llamaba: un grupo que se juntó por error no se podía deshacer desde el sistema.
+  //   Se exige: un botón «Separar» en la mesa activa de la principal de un grupo, que separa.
+  test('D-2 · la mesa activa de la principal de un grupo ofrece «Separar»', async ({
     browser,
   }, info) => {
     test.setTimeout(6 * 60_000);
@@ -2760,24 +2747,42 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
     try {
       await irALaMesa(dia.duena, grupo.principal.mesaId, 7);
       await expect(dia.duena.getByRole('group', { name: /^Acciones de/ })).toBeVisible();
+      const separar = dia.duena.getByRole('button', { name: /Separar/ });
       await expect(
-        dia.duena.getByRole('button', { name: /Separar/ }),
+        separar,
         'La mesa activa de la principal no ofrece separar el grupo.',
       ).toBeVisible();
+      await separar.click();
+      const pregunta = dia.duena.getByRole('alertdialog', { name: '¿Separar las mesas?' });
+      await pregunta.getByRole('button', { name: 'Separar mesas' }).click();
+      await expect(pregunta).toBeHidden();
+      await expect
+        .poll(
+          async () =>
+            (
+              await consultarPuente<{ cerrada_en?: string | null }>(dia.duena, 'UnionMesa', {
+                filtro: { id: grupo.unionId },
+                limite: 1,
+              })
+            )[0]?.cerrada_en ?? null,
+          { message: '«Separar» no cerró el grupo en el servidor.' },
+        )
+        .not.toBeNull();
+      await expect(dia.duena.getByRole('button', { name: /Separar/ })).toHaveCount(0);
     } finally {
       await deshacerElGrupo(dia, grupo);
       await dia.equipo.cerrar();
     }
   });
 
-  // D-3 · LO QUE COCINA DEJÓ LISTO PARA LA MESA UNIDA NO SE ENTREGA DESDE EL GRUPO.
-  //   Qué falla: «Listos para recoger» y «Marcar entregado» de la principal sólo leen y mueven las
-  //   comandas de SU cuenta (`useListosDeLaCuenta(mesa.venta_activa_id)`, MesaActiva.tsx:165); las de
-  //   la mesa unida cuelgan de la cuenta absorbida, así que se quedan en «listo» hasta que cocina
-  //   las quita de su lista.
+  // D-3 · LO QUE COCINA DEJÓ LISTO PARA LA MESA UNIDA NO SE ENTREGABA DESDE EL GRUPO (arreglado en
+  //   DP-10.3: al unir, las comandas de la unida pasan a la cuenta del grupo).
+  //   Qué fallaba: «Listos para recoger» y «Marcar entregado» de la principal sólo leen y mueven
+  //   las comandas de SU cuenta; las de la mesa unida colgaban de la cuenta absorbida, así que se
+  //   quedaban en «listo» hasta que cocina las quitaba de su lista.
   //   Se exige: que tras «Marcar entregado» en la principal las comandas de la unida pasen a
   //   «entregado».
-  test.fixme('D-3 · «Marcar entregado» en la principal entrega también lo que cocina dejó listo para la mesa unida', async ({
+  test('D-3 · «Marcar entregado» en la principal entrega también lo que cocina dejó listo para la mesa unida', async ({
     browser,
   }, info) => {
     test.setTimeout(6 * 60_000);
@@ -2882,8 +2887,8 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
   }, info) => {
     test.setTimeout(6 * 60_000);
     const dia = await empezarElDia(browser, info);
-    // Las mesas 7 y 8 ya tuvieron comandas hoy (6b y D-4): sólo cuentan las de ESTE grupo. La 6b
-    // deja «listo» lo de la 8 porque entregar desde la principal no lo alcanza (D-3, pendiente).
+    // Las mesas 7 y 8 ya tuvieron comandas hoy (6b, D-2, D-3 y D-4): sólo cuentan las de ESTE
+    // grupo.
     const previas = new Set<string>();
     for (const numero of [7, 8]) {
       const mesa = await leerMesa(dia.duena, numero);
@@ -2911,8 +2916,7 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
             'Quedó una comanda viva de un grupo cancelado: cocina haría un plato que nadie va a pagar.',
         })
         .toEqual(Array<string>(cuantas).fill('cancelado'));
-      // La 8 no se mira en el tablero: puede seguir enseñando lo que la 6b dejó «listo» (D-3). Lo
-      // de ESTE grupo ya se afirmó arriba, contra el servidor.
+      // La 8 no se mira en el tablero: lo de ESTE grupo ya se afirmó arriba, contra el servidor.
       await exigirQueLaCocinaNoVeLaMesa(dia.cocina, 'Mesa 7');
     } finally {
       // Con el defecto presente la prueba falla y la comanda de la unida se queda viva en el
