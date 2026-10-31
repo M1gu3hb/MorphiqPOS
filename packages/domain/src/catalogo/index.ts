@@ -34,3 +34,11 @@ export {
   type PesoDePieza,
   type SistemaDeMedida,
 } from './medidas.ts';
+export {
+  areaPorOmision,
+  AREAS_CON_COMANDA,
+  AREAS_DE_PREPARACION,
+  type AreaConComanda,
+  type AreaDePreparacion,
+  type ProductoConArea,
+} from './area-por-omision.ts';

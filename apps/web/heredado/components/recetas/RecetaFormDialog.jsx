@@ -32,6 +32,8 @@ import TipoVentaSection from '@/components/productos/TipoVentaSection';
 import { TIPO_VENTA, validarProductoVariable, esProductoVariable } from '@/utils/tipoVentaUtils';
 import { canonicalUnidad, convertirAUnidadBase } from '@/utils/unidadesMedida';
 import { textoDecimal } from '@/components/inventario/comandos';
+import { AreaDePreparacionSelect } from '~/restaurante/AreaDePreparacionSelect';
+import { areaInicial, SEGUN_SU_CATEGORIA } from '~/restaurante/area-de-preparacion';
 
 /**
  * En qué unidades se puede expresar el gramaje de una receta, por unidad base
@@ -112,6 +114,8 @@ export default function RecetaFormDialog({
 }) {
   const queryClient = useQueryClient();
   const [producto, setProducto] = useState(EMPTY_PRODUCTO);
+  // DP-9.1: el área que tiene el platillo, o «según su categoría» al crear. Nunca una fija.
+  const [area, setArea] = useState(() => areaInicial(null));
   const [lineas, setLineas] = useState([]);
   const [saving, setSaving] = useState(false);
   // Clave de idempotencia del diálogo: se genera al abrirlo y se reusa mientras
@@ -127,6 +131,7 @@ export default function RecetaFormDialog({
   useEffect(() => {
     if (!open) return;
     claveDelDialogo.current = nuevaClave();
+    setArea(areaInicial(productoToEdit ?? null));
     if (productoToEdit) {
       setProducto({
         nombre: productoToEdit.nombre || '',
@@ -313,10 +318,14 @@ export default function RecetaFormDialog({
         categoria_id: producto.categoria_id || null,
         descripcion: producto.descripcion || '',
         precio_venta: parseFloat(producto.precio_venta),
-        imagen_url: producto.imagen_url || '',
-        area_preparacion: 'cocina',
+        // `null` y no '': el puente valida que una imagen sea una URL, y la cadena vacía no lo
+        // es; con '' no se podía guardar la receta de un platillo sin foto (DP-9.1).
+        imagen_url: producto.imagen_url || null,
+        // DP-9.1: el área elegida (o ninguna, y el servidor la aprende de su categoría). La
+        // visibilidad en el menú digital no viaja: al crear vale la de la columna y al editar
+        // se queda la que tiene, en vez de volver a encender un platillo escondido del QR.
+        ...(area === SEGUN_SU_CATEGORIA ? {} : { area_preparacion: area }),
         visible_en_pos: producto.visible_en_pos,
-        visible_en_menu_digital: true,
         activo: producto.activo,
         ...tipoVentaPayload,
       };
@@ -418,6 +427,13 @@ export default function RecetaFormDialog({
                   onChange={(id) => setProducto({ ...producto, categoria_id: id })}
                   categorias={categorias}
                   placeholder="Seleccionar…"
+                />
+              </div>
+              <div>
+                <AreaDePreparacionSelect
+                  valor={area}
+                  alCambiar={setArea}
+                  alCrear={!productoToEdit}
                 />
               </div>
               <div>

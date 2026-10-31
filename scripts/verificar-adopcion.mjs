@@ -394,6 +394,23 @@ export const SIN_ESTADO = [
       'No lee ni escribe: «Agregar» abre el diálogo del portal, que es quien envía y dice si falló.',
   },
   {
+    pantalla: 'restaurante/AreaDePreparacionSelect',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es UN campo de los diálogos de Recetas y Platillos (DP-9.1). Sus opciones son fijas; nunca está vacío.',
+  },
+  {
+    pantalla: 'restaurante/AreaDePreparacionSelect',
+    estado: 'cargando',
+    razon: 'No lee nada: las cinco áreas son una lista fija del dominio.',
+  },
+  {
+    pantalla: 'restaurante/AreaDePreparacionSelect',
+    estado: 'error',
+    razon:
+      'No lee ni escribe: el diálogo que lo contiene es quien guarda y dice si el servidor se negó.',
+  },
+  {
     pantalla: 'restaurante/RecetasPendientes',
     estado: 'vacio',
     razon:
