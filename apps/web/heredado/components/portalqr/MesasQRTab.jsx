@@ -10,16 +10,31 @@ import { QrCode, Search, RefreshCcw } from 'lucide-react';
 import { toast } from 'sonner';
 import { generarTokenMesa, buildPortalQRUrl } from '@/utils/qrUtils';
 import QRMesaDialog from './QRMesaDialog';
-import QRCanvas from './QRCanvas';
+import { PanelDeLosQr } from '~/restaurante/qr-de-mesas/PanelDeLosQr';
+import { DisenoDeLaMesa } from '~/restaurante/qr-de-mesas/DisenoDeLaMesa';
+import { disenoDeLaMesa } from '~/restaurante/qr-de-mesas/diseno';
+import { useLogoDelNegocio, useQrDeMesas } from '~/restaurante/qr-de-mesas/use-qr-de-mesas';
 
 /**
  * Pestaña "Mesas QR": admin ve sus mesas y administra el QR de cada una.
  * NO permite operación de pedidos.
+ *
+ * DP-9.8: arriba, el diseño de los QR (general y PDF de todas); en cada tarjeta, el QR con su
+ * diseño y «Personalizar» / «Restablecer al diseño general».
  */
+
+/** La mesa como la pide el diseño de los QR: su número y lo que dice su QR (si ya tiene token). */
+const conQr = (mesa) => ({
+  id: mesa.id,
+  numero: Number(mesa.numero) || 0,
+  contenido: mesa?.qr_token ? buildPortalQRUrl(mesa) : null,
+});
 export default function MesasQRTab({ config }) {
   const queryClient = useQueryClient();
   const [busqueda, setBusqueda] = useState('');
   const [mesaActiva, setMesaActiva] = useState(null);
+  const disenos = useQrDeMesas();
+  const logo = useLogoDelNegocio(config?.logo_url);
 
   // Las mesas OPERATIVAS: una mesa quitada del mapa no tiene QR que repartir. La clave cuelga
   // de `['mesas']` para que crear, editar, quitar o reactivar una mesa en Configuración —que
@@ -110,6 +125,12 @@ export default function MesasQRTab({ config }) {
         </Button>
       </div>
 
+      <PanelDeLosQr
+        estado={disenos}
+        logo={logo}
+        mesas={(Array.isArray(mesas) ? mesas : []).map(conQr)}
+      />
+
       {isLoading && (
         <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-3" aria-busy="true">
           {[0, 1, 2, 3, 4, 5].map((i) => (
@@ -155,13 +176,7 @@ export default function MesasQRTab({ config }) {
               }}
             >
               <div className="shrink-0 rounded-lg p-1.5 bg-superficie border">
-                {mesa.qr_token ? (
-                  <QRCanvas value={url} size={70} />
-                ) : (
-                  <div className="w-[70px] h-[70px] flex items-center justify-center text-[10px] text-muted-foreground">
-                    Sin token
-                  </div>
-                )}
+                <DisenoDeLaMesa mesa={conQr(mesa)} estado={disenos} logo={logo} />
               </div>
               <div className="flex-1 min-w-0">
                 <p className="font-heading font-bold text-base leading-tight">
@@ -209,7 +224,8 @@ export default function MesasQRTab({ config }) {
         mesa={mesaActiva}
         open={!!mesaActiva}
         onClose={() => setMesaActiva(null)}
-        config={config}
+        diseno={mesaActiva && disenos.qr ? disenoDeLaMesa(disenos.qr, mesaActiva.id) : null}
+        logo={logo.logo}
       />
     </div>
   );

@@ -5,6 +5,7 @@ import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/da
 import { z } from 'zod';
 
 import { BOTONES_DEL_MENU, CLAVE_DE_BOTONES } from '../portal/botones-del-menu.ts';
+import { CLAVE_DE_QR_DE_MESAS, QR_DE_MESAS } from '../portal/qr-de-mesas.ts';
 import { CLAVE_DEL_TEMA, TEMA_DEL_PORTAL } from '../portal/tema-del-portal.ts';
 
 /**
@@ -186,6 +187,8 @@ const CLAVES_EDITABLES = new Set([
   // DP-9.7: los botones sobre las páginas del menú y el aspecto del portal, validados al guardar.
   'portal_qr_botones',
   'portal_qr_tema',
+  // DP-9.8: el diseño de los QR de las mesas (general y por mesa).
+  'qr_de_mesas',
   'presentacion_ultimo_acceso',
   'bascula_etiqueta',
   'comision_terminal_bp',
@@ -405,6 +408,13 @@ export async function guardarConfiguracionParcial(
   }
   if (CLAVE_DEL_TEMA in parche) {
     exigirForma(TEMA_DEL_PORTAL, parche[CLAVE_DEL_TEMA], 'El aspecto del portal no tiene forma.');
+  }
+  if (CLAVE_DE_QR_DE_MESAS in parche) {
+    exigirForma(
+      QR_DE_MESAS,
+      parche[CLAVE_DE_QR_DE_MESAS],
+      'El diseño de los QR de las mesas no tiene forma.',
+    );
   }
   if ('comision_terminal_bp' in parche) exigirTasaDeTerminal(parche['comision_terminal_bp']);
 

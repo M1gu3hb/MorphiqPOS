@@ -1270,6 +1270,46 @@
         "+ clase:mt-1",
         "+ texto:Los platillos se ligan a la página con «Botones», sobre la imagen."
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/MesasQRTab.jsx",
+      "porque": "DP-9.8 (DP-D28): el QR de cada tarjeta ya no lo dibuja QRCanvas sino el motor de diseño, con su diseño, «Personalizar» y «Restablecer al diseño general»; su «Sin token» lo dice ahora ese bloque. Arriba entra el panel «Diseño de los QR».",
+      "testigos": [
+        "- clase:flex",
+        "- clase:text-muted-foreground",
+        "- clase:w-[70px]",
+        "- clase:h-[70px]",
+        "- clase:items-center",
+        "- clase:justify-center",
+        "- clase:text-[10px]",
+        "- texto:Sin token"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/QRMesaDialog.jsx",
+      "porque": "DP-9.8 (DP-D28): el QR de la mesa se ve con su diseño y «Descargar» e «Imprimir» (PNG de 800 px y una ventana emergente) se vuelven PNG, SVG y PDF a su tamaño en mm, que sólo salen si el QR se lee. Sus avisos y la hoja de impresión se van con ellos.",
+      "testigos": [
+        "- clase:gap-2",
+        "- clase:gap-2",
+        "- clase:w-4",
+        "- clase:w-4",
+        "- clase:h-4",
+        "- clase:h-4",
+        "- texto:Escanea para ver el menú",
+        "- aviso:QR descargado",
+        "- aviso:No se pudo descargar",
+        "- aviso:Tu navegador bloqueó la impresión",
+        "- aviso:No se pudo imprimir",
+        "- alt:QR Mesa ${mesa?.numero || ''}",
+        "- icono:Download",
+        "- icono:Printer"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/QRCanvas.jsx",
+      "borrado": true,
+      "porque": "DP-9.8 (DP-D28): ya nadie lo usaba; los QR de mesa los dibuja el motor de diseño (packages/domain/src/qr).",
+      "testigos": []
     }
   ]
 }

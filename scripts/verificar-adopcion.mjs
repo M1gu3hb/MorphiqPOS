@@ -463,6 +463,75 @@ export const SIN_ESTADO = [
       'Es un formulario de tres opciones que siempre tiene valor (el de siempre si no se guardó nada): no hay vacío que enseñar.',
   },
   {
+    pantalla: 'restaurante/qr-de-mesas/ControlesDelDiseno',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: son los controles del diseño de un QR dentro del editor (DP-9.8); siempre hay un diseño que editar.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/ControlesDelDiseno',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el diseño que el editor ya tiene.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/ControlesDelDiseno',
+    estado: 'error',
+    razon:
+      'No escribe: cambiar un control es estado local; el editor dice lo que falta y si se lee.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/MiniaturaDelQr',
+    estado: 'vacio',
+    razon: 'No es una pantalla: es la imagen de UN QR (DP-9.8); sin mesa con token no se pinta.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/MiniaturaDelQr',
+    estado: 'cargando',
+    razon: 'No lee nada: dibuja en el momento el diseño que recibe.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/MiniaturaDelQr',
+    estado: 'error',
+    razon: 'No escribe ni lee: el diseño que recibe ya pasó la validación.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DisenoDeLaMesa',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el QR de UNA mesa en su tarjeta (DP-9.8); sin token dice «Sin token», y sin mesas la pestaña enseña su vacío.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DisenoDeLaMesa',
+    estado: 'cargando',
+    razon: 'No lee nada: el diseño lo leyó la pestaña, y su panel enseña la espera.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DescargasDeLaMesa',
+    estado: 'vacio',
+    razon: 'No es una pantalla: son las descargas de UNA mesa en su diálogo (DP-9.8).',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DescargasDeLaMesa',
+    estado: 'cargando',
+    razon: 'No lee nada: mientras revisa y arma el archivo, el botón dice «Revisando…».',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/EditorDeDisenoDeQr',
+    estado: 'vacio',
+    razon: 'No es una pantalla: es el diálogo de UN diseño (DP-9.8); siempre abre con uno.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/EditorDeDisenoDeQr',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el diseño ya leído; la revisión de lectura se anuncia con Aviso.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/PanelDeLosQr',
+    estado: 'vacio',
+    razon:
+      'Sin mesas con token no hay QR que diseñar: lo dice un Aviso que manda a «Generar tokens faltantes», el botón de al lado (DP-9.8).',
+  },
+  {
     pantalla: 'telefono-de-cocina/ComandaEnElTelefono',
     estado: 'vacio',
     razon:

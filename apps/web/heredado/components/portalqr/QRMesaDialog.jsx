@@ -1,5 +1,5 @@
 'use client';
-import React, { useState } from 'react';
+import React from 'react';
 import {
   Dialog,
   DialogContent,
@@ -8,17 +8,21 @@ import {
   DialogFooter,
 } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Download, Printer, Copy, ExternalLink } from 'lucide-react';
+import { Copy, ExternalLink } from 'lucide-react';
 import { toast } from 'sonner';
-import QRCanvas, { getQRDataURL } from './QRCanvas';
 import { buildPortalQRUrl } from '@/utils/qrUtils';
+import { MiniaturaDelQr } from '~/restaurante/qr-de-mesas/MiniaturaDelQr';
+import { DescargasDeLaMesa } from '~/restaurante/qr-de-mesas/DescargasDeLaMesa';
 
 /**
- * Modal que muestra el QR de una mesa con acciones: copiar / descargar / imprimir / abrir.
+ * Modal que muestra el QR de una mesa con acciones: copiar / abrir / descargar.
+ *
+ * DP-9.8: el QR se ve con su diseño, y PNG, SVG y PDF salen a su tamaño en milímetros sólo si
+ * se leen (cada descarga lo revisa antes).
  */
-export default function QRMesaDialog({ mesa, open, onClose, config }) {
+export default function QRMesaDialog({ mesa, open, onClose, diseno, logo }) {
   const url = mesa ? buildPortalQRUrl(mesa) : '';
-  const [downloading, setDownloading] = useState(false);
+  const numero = Number(mesa?.numero) || 0;
 
   const copiar = async () => {
     if (!url) return;
@@ -27,64 +31,6 @@ export default function QRMesaDialog({ mesa, open, onClose, config }) {
       toast.success('Enlace copiado');
     } catch {
       toast.error('No se pudo copiar');
-    }
-  };
-
-  const descargar = async () => {
-    if (!url) return;
-    setDownloading(true);
-    try {
-      const dataUrl = await getQRDataURL(url, { size: 800 });
-      const a = document.createElement('a');
-      a.href = dataUrl;
-      a.download = `QR-Mesa-${mesa?.numero || ''}.png`;
-      document.body.appendChild(a);
-      a.click();
-      a.remove();
-      toast.success('QR descargado');
-    } catch (err) {
-      console.error('[QRMesaDialog] descargar:', err);
-      toast.error('No se pudo descargar');
-    } finally {
-      setDownloading(false);
-    }
-  };
-
-  const imprimir = async () => {
-    if (!url) return;
-    try {
-      const dataUrl = await getQRDataURL(url, { size: 800 });
-      const w = window.open('', '_blank', 'width=480,height=640');
-      if (!w) {
-        toast.error('Tu navegador bloqueó la impresión');
-        return;
-      }
-      const nombreNegocio = config?.nombre_negocio || '';
-      w.document.write(`
-        <html>
-          <head>
-            <title>QR Mesa ${mesa?.numero || ''}</title>
-            <style>
-              body { font-family: system-ui, -apple-system, sans-serif; text-align: center; padding: 24px; }
-              h1 { margin: 0 0 4px 0; font-size: 22px; }
-              h2 { margin: 0 0 16px 0; font-size: 18px; color: #555; }
-              img { max-width: 320px; width: 100%; }
-              p { font-size: 11px; color: #777; margin-top: 12px; word-break: break-all; }
-            </style>
-          </head>
-          <body>
-            <h1>${nombreNegocio}</h1>
-            <h2>Mesa ${mesa?.numero || ''}${mesa?.nombre ? ' — ' + mesa.nombre : ''}</h2>
-            <img src="${dataUrl}" alt="QR Mesa ${mesa?.numero || ''}" />
-            <p>Escanea para ver el menú</p>
-            <script>window.onload = () => { setTimeout(() => window.print(), 200); };</script>
-          </body>
-        </html>
-      `);
-      w.document.close();
-    } catch (err) {
-      console.error('[QRMesaDialog] imprimir:', err);
-      toast.error('No se pudo imprimir');
     }
   };
 
@@ -109,7 +55,15 @@ export default function QRMesaDialog({ mesa, open, onClose, config }) {
         </DialogHeader>
         <div className="flex flex-col items-center gap-3 py-2">
           <div className="bg-superficie border-2 border-borde rounded-xl p-3 shadow-sm">
-            <QRCanvas value={url} size={220} />
+            {url && diseno ? (
+              <MiniaturaDelQr
+                contenido={url}
+                numero={numero}
+                diseno={diseno}
+                logo={logo ?? null}
+                tamano="grande"
+              />
+            ) : null}
           </div>
           <p className="text-xs text-muted-foreground break-all text-center max-w-full px-2">
             {url}
@@ -122,12 +76,9 @@ export default function QRMesaDialog({ mesa, open, onClose, config }) {
           <Button variant="outline" onClick={abrir} className="gap-2">
             <ExternalLink className="w-4 h-4" /> Abrir
           </Button>
-          <Button variant="outline" onClick={descargar} disabled={downloading} className="gap-2">
-            <Download className="w-4 h-4" /> {downloading ? 'Descargando...' : 'Descargar'}
-          </Button>
-          <Button variant="outline" onClick={imprimir} className="gap-2">
-            <Printer className="w-4 h-4" /> Imprimir
-          </Button>
+          {url && diseno ? (
+            <DescargasDeLaMesa mesa={{ numero, contenido: url, diseno }} logo={logo ?? null} />
+          ) : null}
         </div>
         <DialogFooter>
           <Button onClick={onClose}>Cerrar</Button>
