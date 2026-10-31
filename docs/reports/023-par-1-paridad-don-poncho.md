@@ -9,10 +9,10 @@ documento. Progreso vivo, tabla commit por commit y pasos de las fases 3 y 4:
 | Qué | Dónde | Estado |
 | --- | --- | --- |
 | Next 16.4.3, DOMPurify 3.4.17, Zod 4.6.7 (+ dos defectos del maestro) | PR #19 | **fusionado, en producción** |
-| Bloques A a D (sin migraciones) | PR #20, `paridad/sin-migracion` | CI; ver §5 |
-| Bloque E: pedido compartido y unir mesas, migraciones 186 y 187 | PR B, `paridad/fase-b` | listo, **sin fusionar** |
-| Guion de la laptop (`scripts/paridad-laptop.mjs`) | PR B | probado de punta a punta |
-| Don Poncho `fase-b` listo para la fase 4 | PR #1 de Don Poncho | ver §6 |
+| Bloques A a D (sin migraciones) | PR #20, `paridad/sin-migracion` | **fusionado, en producción** (`6bd55ba`) |
+| Bloque E: pedido compartido y unir mesas, migraciones 186 y 187 | PR #21, `paridad/fase-b` | abierto, **sin fusionar** |
+| Guion de la laptop (`scripts/paridad-laptop.mjs`) | PR #21 | revisado y probado de punta a punta |
+| Don Poncho `fase-b` listo para la fase 4 | PR #1 de Don Poncho | listo para revisión, **sin fusionar** |
 | Fases 3 y 4 | laptop de Miguel | pendientes |
 
 71 commits de Don Poncho revisados: **32 porta, 14 adapta, 25 no** (tabla en el archivo de progreso).
@@ -58,6 +58,22 @@ cookies, zona del modo espera ×3, sonidos de la cafetería ×2, huella ×2, lis
   base compartida, y su `db:migrate` la habría aplicado ahí (rompiendo el ledger del maestro).
   Corregido en `fase-b` (§6).
 
+## 3 bis · La revisión adversarial del PR B
+
+Antes de abrirlo, una revisión con subagentes (§9): 22 hallazgos, 11 refutados, 11 en pie. El de
+peso: el ensayo del guion con `--transporte url` habría migrado **producción** si el `.env` de la
+laptop trae el proyecto compartido (el guion borraba la variable y el `db:migrate` hijo la
+recargaba). La corrida normal no estaba expuesta. Se reprodujo con un CLI trampa y se corrigió
+(`PAR-1.58`), junto con:
+- los hashes de la 186 y la 187 fijados;
+- el estado de la base dicho en cada fallo, y `--reanudar`;
+- `tomar --entorno`;
+- el slug en las diferencias de la huella;
+- los pasos del §5 para PowerShell 5.1.
+
+Queda anotado, sin corregir porque es igual en Don Poncho: un producto que se oculta con líneas
+en el carrito compartido traba el envío de esa mesa (progreso §2).
+
 ## 4 · Convivencia con la 187
 
 La 187 quita el `NOT NULL` de `uniones_mesa.orden_id` y agrega columnas. Contra una base desechable
@@ -72,10 +88,24 @@ queda marcada; por eso la fase 3 y la 4 van seguidas y fuera del horario (progre
 | --- | --- | --- |
 | #19 | 1ª | 15/17: aislamiento (intermitente, verde al relanzarlo una vez) y galería de estética (día de la semana): ninguno del cambio |
 | #19 | 2ª (con PAR-1.2 y 1.3) | **17/17** |
-| #20 | ver el PR | — |
+| #20 | 1ª (`c4309be`) | 17/18: la galería del restaurante, por el cambio declarado (Configuración y Portal QR) |
+| #20 | galería regenerada (41232816583) | 16 retratos distintos según Playwright, subidos (`PAR-1.56`) |
+| #20 | 2ª (`71e7c87`, 41235720581) | **18/18** |
+| #21 | ver el PR | — |
 
 Producción tras el PR #19: `85556f0` `READY`; humo sin sesión: la raíz y la entrada 200, la página
 que no existe 404, la API sin sesión 401, CSP y HSTS presentes.
+
+Producción tras el PR #20: `6bd55ba` `READY`. Humo sin sesión:
+- 200: la raíz, la entrada, la demo del restaurante, la entrada de la tienda, el menú público de
+  la cafetería, la imagen de Morfi y la licencia de Sound Lab;
+- 404 con Morfi («Ocultar a Morfi»): la página que no existe;
+- 404: la API pública del QR con un token inválido;
+- rechazada (403): la API de caja sin sesión;
+- CSP, HSTS y `nosniff` presentes.
+
+Configuración → Sonidos y → Este aparato piden PIN: se ven en la galería de la CI y quedan para el
+humo de la laptop.
 
 No corren desde la nube: `verify:esquema`, `verify:rls` y `verify:acople` contra la base viva
 (fase 3, laptop). Lecturas hechas por el conector (sólo `select`): ledger en la 185, hashes 181–185
@@ -83,7 +113,8 @@ como el repositorio, tablas y columna nuevas ausentes, 0 uniones abiertas, 11 ne
 
 ## 6 · Don Poncho (`fase-b`)
 
-- `fase-b` contiene `main` (`2feb661`); el PR #1 es fusionable.
+- `fase-b` contiene `main` (`2feb661`); el PR #1 es fusionable y su CI salió en verde sobre las
+  guardas (`c39a26a`, corrida 41235753096).
 - Nuevo en `fase-b`: su `verify:acople` no cuenta la 188 como faltante en la base compartida, y su
   `db:migrate` se niega a migrar la compartida (`--emitir`, que sólo lee, sí). Con prueba y dos
   mutaciones.
@@ -101,9 +132,20 @@ fuera de su horario, su CI, producción y humo. Paso por paso en el archivo de p
 
 Todos a nombre de `M1gu3hb <118588634+M1gu3hb@users.noreply.github.com>`, sin `Co-Authored-By` ni
 «Generated with» (comprobado con `git log --format=%B`): PR #19 `PAR-1.1` a `1.3`; PR A
-`PAR-1.2` a `1.50`; PR B `PAR-1.46` a `1.49` y los que siguen; Don Poncho, `PAR-1` en `fase-b`.
+`PAR-1.2` a `1.56`; PR B `PAR-1.46` a `1.49`, `1.52`, `1.55`, `1.57` y los que siguen; Don
+Poncho, `PAR-1` en `fase-b`. Las descripciones de los PR, sin pie de atribución.
 
 ## 9 · Subagentes
 
-Ninguno: el trabajo era secuencial (cada choque dependía del anterior) y cada adaptación pedía
-criterio sobre el maestro multigiro; no habrían ahorrado tiempo ni uso.
+Para portar, ninguno: el trabajo era secuencial (cada choque dependía del anterior) y cada
+adaptación pedía criterio sobre el maestro multigiro.
+
+Para revisar el PR B antes de abrirlo, sí. Todos fueron Sonnet (ninguno Opus), con dos a la vez
+como máximo, cada uno en su propia worktree, de sólo lectura, sin commits ni push y sin tocar
+ninguna base remota.
+- **Primera ronda.** Tres revisores: el guion de la laptop, el bloque E en el maestro multigiro, y
+  los pasos escritos junto con Don Poncho. Detrás de cada uno, un escéptico que intentaba
+  refutarlo. Fueron 6 agentes y unos 945 mil tokens.
+- **Segunda ronda.** Dos atacantes sobre las correcciones (`PAR-1.58`).
+
+Lo que encontraron está en §3 bis.
