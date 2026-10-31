@@ -8,6 +8,7 @@ import {
   prepararElPortalDelComensal,
   type TelefonoDelComensal,
 } from './ayudantes/mesas-heredadas.ts';
+import { enviarElPedidoDeLaMesa } from './ayudantes/pedido-de-la-mesa.ts';
 import { Equipo } from './ayudantes/roles.ts';
 import {
   cabecerasDeEscrituraDePrueba,
@@ -176,11 +177,7 @@ test.describe('los botones del menú QR', () => {
           .getByRole('button', { name: /^Agregar/ })
           .last()
           .click();
-        await telefono.getByRole('button', { name: /Ver mi pedido/ }).click();
-        const enviado = telefono.waitForResponse(
-          (r) => new URL(r.url()).pathname === `/api/publico/qr/${token}/pedido`,
-        );
-        await telefono.getByRole('button', { name: 'Enviar a cocina' }).click();
+        const enviado = enviarElPedidoDeLaMesa(telefono, token);
         expect((await enviado).status()).toBe(200);
       });
 

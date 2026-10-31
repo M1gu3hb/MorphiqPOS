@@ -168,6 +168,7 @@ export async function ejecutarComandoPublico<E extends ZodType, S>(
         correlationId,
         ahora: instante,
         tx,
+        pimienta: peticion.pimienta,
         async paso(nombre, fn) {
           pasosVistos.add(nombre);
           if (peticion.interrumpirEn === nombre) {

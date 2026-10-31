@@ -14,3 +14,16 @@ export {
   type ParteDeTramo,
   type TramoDeAtencion,
 } from './propina-repartida.ts';
+
+export {
+  IMAN,
+  LADO_CORTO_MAXIMO,
+  LADO_LARGO_MAXIMO,
+  TOLERANCIA_DE_CONTACTO,
+  atraer,
+  grupoDe,
+  medidasDeMesa,
+  revisarUnion,
+  seTocan,
+  type MesaEnPlano,
+} from './union.ts';

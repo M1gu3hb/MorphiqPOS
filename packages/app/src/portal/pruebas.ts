@@ -247,6 +247,7 @@ export function contextoPortalFalso(
       correlationId: '44444444-4444-4444-8444-444444444444',
       ahora: new Date('2026-09-09T20:00:00Z'),
       tx: base.tx,
+      pimienta: 'pimienta-de-la-prueba-del-portal-0123456789',
       paso: async (_nombre, ejecutar) => ejecutar(),
       auditar: (datos) => auditorias.push(datos),
     },

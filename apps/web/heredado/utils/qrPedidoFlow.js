@@ -169,7 +169,7 @@ function cantidadTexto(valor) {
  * lógica del carrito es 1— y es la que el servidor valora con la regla del tipo
  * de venta: por medida o por porción.
  */
-function itemParaComando(item) {
+export function itemParaComando(item) {
   const variable = item?._variable || null;
   const cruda = variable
     ? variable.tipo_venta === 'porcion_contenedor'

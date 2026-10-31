@@ -74,6 +74,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { safeFormatDate } from '@/lib/safeFormat';
 import StatCard from '@/components/common/StatCard';
 import { claves } from '~/cliente/claves-de-consulta';
+import { liberarMesaConPregunta } from '~/restaurante/unir-mesas/liberar-con-pregunta';
 import { sonar } from '~/sonidos/gestor';
 
 const METODOS = [
@@ -498,7 +499,11 @@ export default function Caja() {
       // que es justo lo que este botón nunca debe borrar. Sin mesa (venta
       // directa de mostrador) no hay mesa que liberar: se cancela la orden.
       if (venta.mesa_id) {
-        await api.comandos.ejecutar('/api/restaurante/liberar-mesa', { mesaId: venta.mesa_id });
+        // DP-9.6: si se cancela «¿Separar o dejarlas unidas?», no pasó nada y no se dice otra cosa.
+        const liberada = await liberarMesaConPregunta(venta.mesa_id, (entrada) =>
+          api.comandos.ejecutar('/api/restaurante/liberar-mesa', entrada),
+        );
+        if (!liberada) return;
       } else {
         await api.comandos.ejecutar('/api/restaurante/cancelar-orden', {
           ordenId: venta.id,
@@ -725,9 +730,10 @@ export default function Caja() {
         // cobrada, así que un fallo aquí no puede tirar el cobro — pero sí se
         // dice, porque la mesa se queda ocupada y alguien tiene que liberarla.
         try {
-          await api.comandos.ejecutar('/api/restaurante/liberar-mesa', {
-            mesaId: ventaSeleccionada.mesa_id,
-          });
+          // DP-9.6: la principal de mesas unidas pregunta «¿Separar o dejarlas unidas?».
+          await liberarMesaConPregunta(ventaSeleccionada.mesa_id, (entrada) =>
+            api.comandos.ejecutar('/api/restaurante/liberar-mesa', entrada),
+          );
         } catch (errMesa) {
           toast.warning(errMesa?.message || 'La venta se cobró, pero la mesa sigue ocupada.', {
             duration: 10000,

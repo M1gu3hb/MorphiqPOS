@@ -8,6 +8,7 @@ import { cerrarAvisosDeLaMesa } from './avisos-de-la-mesa.ts';
 import { esViolacionDeUnicidad } from './datos.ts';
 import type { entradaAbrirMesa } from './esquemas.ts';
 import { sellarTransicionDeMesa } from './sala-escrituras.ts';
+import { tomarLaUnionDeLaMesa } from './union-del-salon.ts';
 
 /**
  * Las escrituras de `abrir_mesa` y `liberar_mesa`.
@@ -148,6 +149,14 @@ export async function atarMesaAOrden(tx: Transaccion, datos: DatosDeAtadura): Pr
     estadoNuevo: 'esperando_orden',
     personas: entrada.personas,
     empleadoId: datos.empleoId,
+    ahora: datos.ahora,
+  });
+
+  // DP-9.6: si la mesa es la principal de una unión viva, ésta es la cuenta del grupo.
+  await tomarLaUnionDeLaMesa(tx, {
+    organizacionId: datos.organizacionId,
+    mesaId: datos.mesaId,
+    ordenId: datos.ordenId,
     ahora: datos.ahora,
   });
 }
@@ -372,7 +381,7 @@ export async function pasarMesaCobradaALimpieza(
   });
 
   // Si era la principal de un grupo, el grupo entero se recoge con ella.
-  await cerrarElGrupoDeLaMesa(tx, organizacionId, mesa.id, {
+  await llevarElGrupoConLaPrincipal(tx, organizacionId, mesa.id, {
     estado: 'limpieza',
     ordenId: cuentaDeLaMesa,
     empleoId: quien.empleoId,
@@ -383,25 +392,26 @@ export async function pasarMesaCobradaALimpieza(
 }
 
 /**
- * UN GRUPO DE MESAS UNIDAS SE VA JUNTO (cierre del restaurante, 21-10).
+ * UN GRUPO DE MESAS UNIDAS SIGUE A SU PRINCIPAL (cierre del restaurante, 21-10; DP-9.6).
  *
  * El grupo se cobra —o se cancela— en la cuenta de la PRINCIPAL, y las mesas miembro no la
  * tienen: `unirMesas` les quita `orden_activa_id` para que nadie comande en la 5 mientras el
  * grupo se cobra en la 4. Por eso el cobro sólo encontraba a la principal: las demás se
- * quedaban en «Pedido enviado» con la cuenta ya pagada, y «mesa limpia» las rechazaba por ser
- * de un grupo que nadie cerraba (separar existe, pero ninguna pantalla lo ofrece al cobrar).
+ * quedaban en «Pedido enviado» con la cuenta ya pagada.
  *
- * Aquí el grupo se CIERRA con su cuenta y cada miembro sigue a la principal: a `limpieza` si
- * se cobró —hay platos encima; «mesa limpia» la libera—, a `libre` si se canceló. Cada una con
- * su sello en el ledger. Sin grupo abierto no hace nada. Devuelve cuántas mesas miembro tenía.
+ * Aquí cada miembro sigue a la principal: a `limpieza` si se cobró —hay platos encima—, a
+ * `libre` si se canceló. Cada una con su sello en el ledger. Desde DP-9.6 la unión NO se cierra:
+ * es del salón, no de la cuenta. Al limpiar la principal se decide «¿Separar mesas o dejarlas
+ * unidas?» (`restaurante.liberar_mesa`), y unidas sirven al siguiente cliente con el mismo
+ * número. Sin grupo abierto no hace nada. Devuelve cuántas mesas miembro tenía.
  */
-export async function cerrarElGrupoDeLaMesa(
+export async function llevarElGrupoConLaPrincipal(
   tx: Transaccion,
   organizacionId: string,
   principalId: string,
   destino: {
     readonly estado: 'limpieza' | 'libre';
-    readonly ordenId: string;
+    readonly ordenId: string | null;
     readonly empleoId: string;
     readonly ahora: Date;
   },
@@ -452,15 +462,6 @@ export async function cerrarElGrupoDeLaMesa(
     });
   }
 
-  // Cerrar la unión dispara el trigger que apaga `union_abierta` en los miembros: vuelven a
-  // poder unirse a otro grupo, y «mesa limpia» deja de rechazarlas.
-  await tx
-    .updateTable('uniones_mesa')
-    .set({ cerrada_en: destino.ahora, empleado_cierra_id: destino.empleoId })
-    .where('organizacion_id', '=', organizacionId)
-    .where('id', '=', union.id)
-    .where('cerrada_en', 'is', null)
-    .execute();
   return miembros.length;
 }
 

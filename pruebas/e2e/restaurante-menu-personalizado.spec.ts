@@ -10,6 +10,7 @@ import {
   unidadesEsperadas,
   unidadesPorPlatillo,
 } from './ayudantes/mesas-heredadas.ts';
+import { enviarElPedidoDeLaMesa } from './ayudantes/pedido-de-la-mesa.ts';
 import { Equipo } from './ayudantes/roles.ts';
 import {
   cabecerasDeEscrituraDePrueba,
@@ -169,13 +170,7 @@ test.describe('el menú personalizado del portal QR', () => {
         await telefono.getByText(OPCION.nombre, { exact: true }).click();
         // «Agregar · $55.00»: el de la hoja, no los «Agregar <platillo>» de la página.
         await telefono.getByRole('button', { name: /^Agregar\s*·/ }).click();
-        await telefono.getByRole('button', { name: /Ver mi pedido/ }).click();
-        const enviado = telefono.waitForResponse(
-          (r) =>
-            new URL(r.url()).pathname === `/api/publico/qr/${token}/pedido` &&
-            r.request().method() === 'POST',
-        );
-        await telefono.getByRole('button', { name: 'Enviar a cocina' }).click();
+        const enviado = enviarElPedidoDeLaMesa(telefono, token);
         expect((await enviado).status(), 'El servidor rechazó el pedido del comensal.').toBe(200);
       });
 

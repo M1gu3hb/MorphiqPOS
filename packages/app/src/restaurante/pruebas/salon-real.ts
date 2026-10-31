@@ -395,7 +395,7 @@ export function cobrarExacto(ambito: Ambito, ordenId: string, totalCentavos: num
 export async function mesaPersistida(mesaId: string) {
   return obtenerDb()
     .selectFrom('mesas')
-    .select(['numero', 'estado', 'orden_activa_id'])
+    .select(['numero', 'estado', 'orden_activa_id', 'unida_a_mesa_id'])
     .where('id', '=', mesaId)
     .executeTakeFirstOrThrow();
 }

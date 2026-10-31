@@ -58,6 +58,8 @@ function salon(cambiosOrigen: Fila = {}, cambiosDestino: Fila = {}): TablasFalsa
     comandas: [comanda('en_preparacion')],
     eventos_mesa: [],
     movimientos_cuenta: [],
+    // DP-9.6: la cuenta que llega a la principal de una unión libre la toma; aquí no hay unión.
+    uniones_mesa: [],
   };
 }
 

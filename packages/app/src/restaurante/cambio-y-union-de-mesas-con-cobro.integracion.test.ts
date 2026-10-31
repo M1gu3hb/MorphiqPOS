@@ -441,32 +441,68 @@ describe('C05b · unir dos mesas y cobrar el grupo UNA vez', () => {
   });
 
   /**
-   * Estuvo en ROJO hasta el cierre del 21-10, y es lo que el mesero VEÍA: después de cobrar el
-   * grupo, «mesa limpia» no liberaba ninguna de
-   * las dos mesas. `liberar_mesa` rechaza una mesa de un grupo vivo («sepáralas antes de
-   * liberarla»), la unión sigue abierta porque nadie la cierra, y `restaurante.separar_mesas` —que
-   * la cerraría— existe como ruta pero ninguna pantalla lo llama.
+   * Hasta el cierre del 21-10, «mesa limpia» no liberaba ninguna de las dos mesas del grupo
+   * cobrado. Desde DP-9.6 la unión es del SALÓN y sobrevive al cobro: al limpiar la principal se
+   * DECIDE —«¿Separar mesas o dejarlas unidas?»—, y la mesa absorbida no se libera sola.
    */
-  it('«mesa limpia» devuelve al servicio cada mesa del grupo ya cobrado', async () => {
-    const otro = await unirYCobrar('Restaurante del grupo que se va');
-    const rechazos: string[] = [];
-    for (const [nombre, mesaId] of [
-      ['la principal', otro.a.mesaId],
-      ['la miembro', otro.b.mesaId],
-    ] as const) {
-      const salida = await comando(liberarMesa, {
-        entrada: { mesaId },
+  it('«mesa limpia» en la principal pide decidir; la absorbida no se libera sola', async () => {
+    const otro = await unirYCobrar('Restaurante del grupo que decide');
+    const sinDecidir = await comando(liberarMesa, {
+      entrada: { mesaId: otro.a.mesaId },
+      ambito: ambitoDeCaja(otro.salon),
+      idempotencyKey: clave(),
+    });
+    expect(sinDecidir.ok ? null : sinDecidir.error.datos?.['regla']).toBe(
+      'MESA_UNIDA_SIN_DECISION',
+    );
+    const absorbida = await comando(liberarMesa, {
+      entrada: { mesaId: otro.b.mesaId },
+      ambito: ambitoDeCaja(otro.salon),
+      idempotencyKey: clave(),
+    });
+    expect(absorbida.ok ? '' : absorbida.error.mensaje).toMatch(/unida a la/);
+  });
+
+  it('«Separar»: las dos mesas quedan libres, cada una suelta, y el grupo se cierra', async () => {
+    const otro = await unirYCobrar('Restaurante del grupo que se separa');
+    exigirOk(
+      await comando(liberarMesa, {
+        entrada: { mesaId: otro.a.mesaId, grupo: 'separar' },
         ambito: ambitoDeCaja(otro.salon),
         idempotencyKey: clave(),
-      });
-      if (!salida.ok) rechazos.push(`«mesa limpia» en ${nombre}: ${salida.error.mensaje}`);
-    }
-    expect(rechazos, 'ninguna mesa del grupo cobrado se puede liberar desde «mesa limpia»').toEqual(
-      [],
+      }),
+      'liberar y separar',
     );
-
     expect((await mesaPersistida(otro.a.mesaId)).estado).toBe('libre');
-    expect((await mesaPersistida(otro.b.mesaId)).estado).toBe('libre');
+    const miembro = await mesaPersistida(otro.b.mesaId);
+    expect([miembro.estado, miembro.unida_a_mesa_id]).toEqual(['libre', null]);
+    const union = await obtenerDb()
+      .selectFrom('uniones_mesa')
+      .select('cerrada_en')
+      .where('mesa_principal_id', '=', otro.a.mesaId)
+      .executeTakeFirstOrThrow();
+    expect(union.cerrada_en).not.toBeNull();
+  });
+
+  it('«Dejarlas unidas»: libres para el siguiente cliente, con el grupo vivo y la absorbida oculta', async () => {
+    const otro = await unirYCobrar('Restaurante del grupo que se queda');
+    exigirOk(
+      await comando(liberarMesa, {
+        entrada: { mesaId: otro.a.mesaId, grupo: 'mantener' },
+        ambito: ambitoDeCaja(otro.salon),
+        idempotencyKey: clave(),
+      }),
+      'liberar y mantener',
+    );
+    expect((await mesaPersistida(otro.a.mesaId)).estado).toBe('libre');
+    const miembro = await mesaPersistida(otro.b.mesaId);
+    expect([miembro.estado, miembro.unida_a_mesa_id]).toEqual(['libre', otro.a.mesaId]);
+    const union = await obtenerDb()
+      .selectFrom('uniones_mesa')
+      .select('cerrada_en')
+      .where('mesa_principal_id', '=', otro.a.mesaId)
+      .executeTakeFirstOrThrow();
+    expect(union.cerrada_en).toBeNull();
   });
 });
 
@@ -508,7 +544,7 @@ describe('D-7 · cancelar la cuenta de un grupo de mesas unidas', () => {
     );
 
     const db = obtenerDb();
-    // Desde DP-10.3 las comandas de la unida pasan a la cuenta del grupo al unir (D-3): se buscan
+    // Desde DP-9.6 las comandas de la unida pasan a la cuenta del grupo al unir (D-3): se buscan
     // por su MESA, que es como las ve la cocina.
     const comandas = await db
       .selectFrom('comandas')

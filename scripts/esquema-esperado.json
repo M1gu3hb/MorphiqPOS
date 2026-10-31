@@ -1090,6 +1090,149 @@
       "generada": null
     },
     {
+      "clave": "public.carrito_mesa_lineas.cantidad",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "cantidad",
+      "tipo": "numeric(14,4)",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.created_at",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "created_at",
+      "tipo": "timestamp with time zone",
+      "noNula": true,
+      "defaultSql": "now()",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.dispositivo_huella",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "dispositivo_huella",
+      "tipo": "text",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.id",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": "gen_random_uuid()",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.mesa_id",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "mesa_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.notas",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "notas",
+      "tipo": "text",
+      "noNula": true,
+      "defaultSql": "''::text",
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.organizacion_id",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "organizacion_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.producto_id",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "columna": "producto_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carritos_mesa.enviado_en",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "columna": "enviado_en",
+      "tipo": "timestamp with time zone",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carritos_mesa.enviado_por_huella",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "columna": "enviado_por_huella",
+      "tipo": "text",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carritos_mesa.mesa_id",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "columna": "mesa_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carritos_mesa.organizacion_id",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "columna": "organizacion_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.carritos_mesa.ronda",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "columna": "ronda",
+      "tipo": "integer",
+      "noNula": true,
+      "defaultSql": "0",
+      "identidad": null,
+      "generada": null
+    },
+    {
       "clave": "public.categorias.activa",
       "esquema": "public",
       "tabla": "categorias",
@@ -5178,6 +5321,50 @@
       "tipo": "uuid",
       "noNula": true,
       "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.dispositivos_mesa.dispositivo_huella",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "columna": "dispositivo_huella",
+      "tipo": "text",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.dispositivos_mesa.mesa_id",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "columna": "mesa_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.dispositivos_mesa.organizacion_id",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "columna": "organizacion_id",
+      "tipo": "uuid",
+      "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.dispositivos_mesa.visto_en",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "columna": "visto_en",
+      "tipo": "timestamp with time zone",
+      "noNula": true,
+      "defaultSql": "now()",
       "identidad": null,
       "generada": null
     },
@@ -9433,6 +9620,17 @@
       "tabla": "mesas",
       "columna": "tipo_celebracion",
       "tipo": "text",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.mesas.unida_a_mesa_id",
+      "esquema": "public",
+      "tabla": "mesas",
+      "columna": "unida_a_mesa_id",
+      "tipo": "uuid",
       "noNula": false,
       "defaultSql": null,
       "identidad": null,
@@ -18459,6 +18657,28 @@
       "generada": null
     },
     {
+      "clave": "public.union_mesa_miembros.posicion_x_original",
+      "esquema": "public",
+      "tabla": "union_mesa_miembros",
+      "columna": "posicion_x_original",
+      "tipo": "integer",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.union_mesa_miembros.posicion_y_original",
+      "esquema": "public",
+      "tabla": "union_mesa_miembros",
+      "columna": "posicion_y_original",
+      "tipo": "integer",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
       "clave": "public.union_mesa_miembros.union_abierta",
       "esquema": "public",
       "tabla": "union_mesa_miembros",
@@ -18552,7 +18772,7 @@
       "tabla": "uniones_mesa",
       "columna": "orden_id",
       "tipo": "uuid",
-      "noNula": true,
+      "noNula": false,
       "defaultSql": null,
       "identidad": null,
       "generada": null
@@ -18564,6 +18784,28 @@
       "columna": "organizacion_id",
       "tipo": "uuid",
       "noNula": true,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.uniones_mesa.principal_x_original",
+      "esquema": "public",
+      "tabla": "uniones_mesa",
+      "columna": "principal_x_original",
+      "tipo": "integer",
+      "noNula": false,
+      "defaultSql": null,
+      "identidad": null,
+      "generada": null
+    },
+    {
+      "clave": "public.uniones_mesa.principal_y_original",
+      "esquema": "public",
+      "tabla": "uniones_mesa",
+      "columna": "principal_y_original",
+      "tipo": "integer",
+      "noNula": false,
       "defaultSql": null,
       "identidad": null,
       "generada": null
@@ -19831,6 +20073,149 @@
       "nombre": "caducidades_registrada_por_fkey",
       "tipo": "foreign_key",
       "definicion": "FOREIGN KEY (registrada_por) REFERENCES empleos(id) ON DELETE SET NULL",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_cantidad_check",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_cantidad_check",
+      "tipo": "check",
+      "definicion": "CHECK (cantidad > 0::numeric AND cantidad <= 999::numeric)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_dispositivo_huella_check",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_dispositivo_huella_check",
+      "tipo": "check",
+      "definicion": "CHECK (length(dispositivo_huella) = 64)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_mesa_id_fkey",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_mesa_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (mesa_id) REFERENCES mesas(id) ON DELETE CASCADE",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_notas_check",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_notas_check",
+      "tipo": "check",
+      "definicion": "CHECK (length(notas) <= 300)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_organizacion_id_fkey",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_organizacion_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (organizacion_id) REFERENCES organizaciones(id) ON DELETE CASCADE",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_pkey",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_pkey",
+      "tipo": "primary_key",
+      "definicion": "PRIMARY KEY (id)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_producto_id_fkey",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_producto_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carritos_mesa.carritos_mesa_enviado_por_huella_check",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "nombre": "carritos_mesa_enviado_por_huella_check",
+      "tipo": "check",
+      "definicion": "CHECK (enviado_por_huella IS NULL OR length(enviado_por_huella) = 64)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carritos_mesa.carritos_mesa_envio_completo",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "nombre": "carritos_mesa_envio_completo",
+      "tipo": "check",
+      "definicion": "CHECK ((enviado_en IS NULL) = (enviado_por_huella IS NULL))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carritos_mesa.carritos_mesa_mesa_id_fkey",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "nombre": "carritos_mesa_mesa_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (mesa_id) REFERENCES mesas(id) ON DELETE CASCADE",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carritos_mesa.carritos_mesa_organizacion_id_fkey",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "nombre": "carritos_mesa_organizacion_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (organizacion_id) REFERENCES organizaciones(id) ON DELETE CASCADE",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carritos_mesa.carritos_mesa_pkey",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "nombre": "carritos_mesa_pkey",
+      "tipo": "primary_key",
+      "definicion": "PRIMARY KEY (organizacion_id, mesa_id)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.carritos_mesa.carritos_mesa_ronda_check",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "nombre": "carritos_mesa_ronda_check",
+      "tipo": "check",
+      "definicion": "CHECK (ronda >= 0)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -23032,6 +23417,50 @@
       "nombre": "devoluciones_lineas_pkey",
       "tipo": "primary_key",
       "definicion": "PRIMARY KEY (id)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.dispositivos_mesa.dispositivos_mesa_dispositivo_huella_check",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "nombre": "dispositivos_mesa_dispositivo_huella_check",
+      "tipo": "check",
+      "definicion": "CHECK (length(dispositivo_huella) = 64)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.dispositivos_mesa.dispositivos_mesa_mesa_id_fkey",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "nombre": "dispositivos_mesa_mesa_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (mesa_id) REFERENCES mesas(id) ON DELETE CASCADE",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.dispositivos_mesa.dispositivos_mesa_organizacion_id_fkey",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "nombre": "dispositivos_mesa_organizacion_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (organizacion_id) REFERENCES organizaciones(id) ON DELETE CASCADE",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.dispositivos_mesa.dispositivos_mesa_pkey",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "nombre": "dispositivos_mesa_pkey",
+      "tipo": "primary_key",
+      "definicion": "PRIMARY KEY (organizacion_id, mesa_id, dispositivo_huella)",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -26271,6 +26700,17 @@
       "diferidaInicialmente": false
     },
     {
+      "clave": "public.mesas.mesas_no_unida_a_si_misma",
+      "esquema": "public",
+      "tabla": "mesas",
+      "nombre": "mesas_no_unida_a_si_misma",
+      "tipo": "check",
+      "definicion": "CHECK (unida_a_mesa_id IS NULL OR unida_a_mesa_id <> id)",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
       "clave": "public.mesas.mesas_numero_check",
       "esquema": "public",
       "tabla": "mesas",
@@ -26354,6 +26794,17 @@
       "nombre": "mesas_tamano_check",
       "tipo": "check",
       "definicion": "CHECK (tamano = ANY (ARRAY['chica'::text, 'mediana'::text, 'grande'::text]))",
+      "validada": true,
+      "diferible": false,
+      "diferidaInicialmente": false
+    },
+    {
+      "clave": "public.mesas.mesas_unida_a_mesa_id_fkey",
+      "esquema": "public",
+      "tabla": "mesas",
+      "nombre": "mesas_unida_a_mesa_id_fkey",
+      "tipo": "foreign_key",
+      "definicion": "FOREIGN KEY (unida_a_mesa_id) REFERENCES mesas(id) ON DELETE SET NULL",
       "validada": true,
       "diferible": false,
       "diferidaInicialmente": false
@@ -34265,6 +34716,36 @@
       "definicion": "CREATE INDEX caducidades_proximas ON public.caducidades USING btree (organizacion_id, almacen_id, caduca_el) WHERE (consumida < cantidad)"
     },
     {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_pkey",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_pkey",
+      "unico": true,
+      "primario": true,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX carrito_mesa_lineas_pkey ON public.carrito_mesa_lineas USING btree (id)"
+    },
+    {
+      "clave": "public.carrito_mesa_lineas.carrito_mesa_lineas_por_mesa",
+      "esquema": "public",
+      "tabla": "carrito_mesa_lineas",
+      "nombre": "carrito_mesa_lineas_por_mesa",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX carrito_mesa_lineas_por_mesa ON public.carrito_mesa_lineas USING btree (organizacion_id, mesa_id, created_at)"
+    },
+    {
+      "clave": "public.carritos_mesa.carritos_mesa_pkey",
+      "esquema": "public",
+      "tabla": "carritos_mesa",
+      "nombre": "carritos_mesa_pkey",
+      "unico": true,
+      "primario": true,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX carritos_mesa_pkey ON public.carritos_mesa USING btree (organizacion_id, mesa_id)"
+    },
+    {
       "clave": "public.categorias.categorias_id_org_unica",
       "esquema": "public",
       "tabla": "categorias",
@@ -35203,6 +35684,26 @@
       "primario": false,
       "valido": true,
       "definicion": "CREATE INDEX devoluciones_lineas_por_linea ON public.devoluciones_lineas USING btree (organizacion_id, orden_linea_id)"
+    },
+    {
+      "clave": "public.dispositivos_mesa.dispositivos_mesa_pkey",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "nombre": "dispositivos_mesa_pkey",
+      "unico": true,
+      "primario": true,
+      "valido": true,
+      "definicion": "CREATE UNIQUE INDEX dispositivos_mesa_pkey ON public.dispositivos_mesa USING btree (organizacion_id, mesa_id, dispositivo_huella)"
+    },
+    {
+      "clave": "public.dispositivos_mesa.dispositivos_mesa_recientes",
+      "esquema": "public",
+      "tabla": "dispositivos_mesa",
+      "nombre": "dispositivos_mesa_recientes",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX dispositivos_mesa_recientes ON public.dispositivos_mesa USING btree (organizacion_id, mesa_id, visto_en DESC)"
     },
     {
       "clave": "public.documentos_credito.documentos_credito_id_org_unica",
@@ -36203,6 +36704,16 @@
       "primario": false,
       "valido": true,
       "definicion": "CREATE UNIQUE INDEX mesas_una_orden_activa ON public.mesas USING btree (organizacion_id, orden_activa_id) WHERE (orden_activa_id IS NOT NULL)"
+    },
+    {
+      "clave": "public.mesas.mesas_unidas",
+      "esquema": "public",
+      "tabla": "mesas",
+      "nombre": "mesas_unidas",
+      "unico": false,
+      "primario": false,
+      "valido": true,
+      "definicion": "CREATE INDEX mesas_unidas ON public.mesas USING btree (organizacion_id, unida_a_mesa_id) WHERE (unida_a_mesa_id IS NOT NULL)"
     },
     {
       "clave": "public.modificador_opciones.modificador_opciones_pkey",

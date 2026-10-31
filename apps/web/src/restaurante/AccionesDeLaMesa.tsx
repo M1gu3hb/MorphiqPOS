@@ -5,17 +5,18 @@ import {
   Dialog,
   DialogContent,
   DialogDescription,
-  DialogFooter,
   DialogHeader,
   DialogTitle,
 } from '@morphiqpos/ui/primitivas/dialog';
 import { Aviso, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
 import { ArrowRightLeft, Combine, ReceiptText, Split } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import { mesasElegibles, type MesaElegible } from './mesas-elegibles';
 import { PedirLaCuentaDialog } from './PedirLaCuentaDialog';
 import { SepararMesasDialog } from './unir-mesas/SepararMesasDialog';
 
@@ -41,41 +42,17 @@ import { SepararMesasDialog } from './unir-mesas/SepararMesasDialog';
  * por ciento» llegaba a caja sin su propina. Después se abre la precuenta DE ESA cuenta, que
  * es la hoja que el mesero lleva a la mesa.
  *
+ * ── DP-9.6: unir es en el MAPA, y aquí se separa ─────────────────────────
+ * Sólo se unen mesas que quedan físicamente juntas, y eso se ve en el plano: «Unir mesas» lleva
+ * al mapa del mesero con esta mesa ya elegida (`/mesero?unir=`), donde se arrastran o se juntan
+ * con un toque. En la principal de un grupo vivo está «Separar mesas» (D-2): cada mesa vuelve a
+ * su lugar y la cuenta se queda en ésta.
+ *
  * ── Las tres son de sala ─────────────────────────────────────────────────
  * Ninguna mueve dinero fuera del negocio —el consumo es el mismo, cambia de sitio o de
  * cuenta—, y por eso el mesero puede las tres (`cambio-de-mesa.ts`, `union-de-mesas.ts`).
  * Dividir, anular y cancelar sí hacen desaparecer importes y siguen siendo de caja.
  */
-
-/** Lo que el puente sirve de una mesa, lo que aquí se usa para elegir. */
-interface MesaElegible {
-  readonly id: string;
-  readonly numero: number;
-  readonly estado: string;
-  readonly zona: string | null;
-  readonly venta_activa_id: string | null;
-}
-
-type Modo = 'cambiar' | 'unir';
-
-/** Las mesas a las que se puede ir (libres) o que se pueden juntar (con su cuenta viva). */
-export function mesasElegibles(
-  mesas: readonly MesaElegible[],
-  propiaId: string,
-  modo: Modo,
-): readonly MesaElegible[] {
-  const otras = mesas.filter((m) => m.id !== propiaId);
-  const elegibles =
-    modo === 'cambiar'
-      ? otras.filter((m) => m.estado === 'libre' && m.venta_activa_id === null)
-      : otras.filter(
-          (m) =>
-            m.venta_activa_id !== null &&
-            m.estado !== 'cuenta_solicitada' &&
-            m.estado !== 'limpieza',
-        );
-  return [...elegibles].sort((a, b) => a.numero - b.numero);
-}
 
 function mensajeDe(fallo: unknown, porOmision: string): string {
   return fallo instanceof ErrorApi ? fallo.message : porOmision;
@@ -90,9 +67,7 @@ export interface AccionesDeLaMesaProps {
   readonly totalCentavos: number | null;
   /** La cuenta se fue a otra mesa: la pantalla abre ésa. */
   readonly alCambiarDeMesa: (mesaDestinoId: string) => void;
-  /** Llegaron las líneas de las mesas unidas: la pantalla relee lo enviado. */
-  readonly alUnir: () => void;
-  /** D-2 (DP-10.3) · el grupo vivo del que esta mesa es la principal; `null` si no encabeza uno. */
+  /** DP-9.6 · El grupo vivo del que esta mesa es la principal; `null` si no encabeza uno. */
   readonly unionId: string | null;
   /** Se separó el grupo: la pantalla relee la mesa. */
   readonly alSeparar: () => void;
@@ -100,7 +75,8 @@ export interface AccionesDeLaMesaProps {
 
 export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
   const voc = useVocabulario();
-  const [modo, setModo] = useState<Modo | null>(null);
+  const router = useRouter();
+  const [cambiando, setCambiando] = useState(false);
   const [preguntandoLaPropina, setPreguntandoLaPropina] = useState(false);
   const [separando, setSeparando] = useState(false);
 
@@ -126,7 +102,7 @@ export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
           size="sm"
           variant="outline"
           onClick={() => {
-            setModo('cambiar');
+            setCambiando(true);
           }}
         >
           <ArrowRightLeft aria-hidden="true" />
@@ -136,7 +112,7 @@ export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
           size="sm"
           variant="outline"
           onClick={() => {
-            setModo('unir');
+            router.push(`/mesero?unir=${encodeURIComponent(props.mesaId)}`);
           }}
         >
           <Combine aria-hidden="true" />
@@ -176,28 +152,24 @@ export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
           }}
         />
       ) : null}
-      {modo === null ? null : (
+      {cambiando ? (
         <ElegirMesasDialog
-          key={modo}
-          modo={modo}
           mesaId={props.mesaId}
           ordenId={props.ordenId}
           alCerrar={() => {
-            setModo(null);
+            setCambiando(false);
           }}
           alHecho={(destinoId) => {
-            setModo(null);
-            if (modo === 'cambiar') props.alCambiarDeMesa(destinoId);
-            else props.alUnir();
+            setCambiando(false);
+            props.alCambiarDeMesa(destinoId);
           }}
         />
-      )}
+      ) : null}
     </div>
   );
 }
 
 interface ElegirMesasProps {
-  readonly modo: Modo;
   readonly mesaId: string;
   readonly ordenId: string;
   readonly alCerrar: () => void;
@@ -233,46 +205,25 @@ function useSalon(): {
   return { mesas, fallo };
 }
 
-function ElegirMesasDialog({ modo, mesaId, ordenId, alCerrar, alHecho }: ElegirMesasProps) {
+function ElegirMesasDialog({ mesaId, ordenId, alCerrar, alHecho }: ElegirMesasProps) {
   const voc = useVocabulario();
   const { mesas, fallo: falloDeLectura } = useSalon();
-  const [elegidas, setElegidas] = useState<readonly string[]>([]);
   const [enviando, setEnviando] = useState(false);
   const [fallo, setFallo] = useState<string | null>(null);
-  const opciones = mesas === null ? null : mesasElegibles(mesas, mesaId, modo);
-  const titulo =
-    modo === 'cambiar'
-      ? `Cambiar de ${voc.singular('unidad_servicio')}`
-      : `Unir ${voc.plural('unidad_servicio')}`;
+  const opciones = mesas === null ? null : mesasElegibles(mesas, mesaId);
+  const titulo = `Cambiar de ${voc.singular('unidad_servicio')}`;
 
-  async function confirmar(ids: readonly string[]): Promise<void> {
-    const [primera] = ids;
-    if (primera === undefined) return;
+  async function confirmar(destinoId: string): Promise<void> {
     setEnviando(true);
     setFallo(null);
     try {
-      if (modo === 'cambiar') {
-        await invocarComando('/api/restaurante/cambiar-mesa', { ordenId, mesaDestinoId: primera });
-      } else {
-        await invocarComando('/api/restaurante/unir-mesas', {
-          mesaPrincipalId: mesaId,
-          mesaIds: ids,
-        });
-      }
-      alHecho(primera);
+      await invocarComando('/api/restaurante/cambiar-mesa', { ordenId, mesaDestinoId: destinoId });
+      alHecho(destinoId);
     } catch (error: unknown) {
       setFallo(mensajeDe(error, `No se pudo. ${voc.conArticulo('orden')} sigue como estaba.`));
       setEnviando(false);
     }
   }
-
-  const alTocar = (id: string): void => {
-    if (modo === 'cambiar') {
-      void confirmar([id]);
-      return;
-    }
-    setElegidas((antes) => (antes.includes(id) ? antes.filter((x) => x !== id) : [...antes, id]));
-  };
 
   return (
     <Dialog
@@ -285,34 +236,16 @@ function ElegirMesasDialog({ modo, mesaId, ordenId, alCerrar, alHecho }: ElegirM
         <DialogHeader>
           <DialogTitle>{titulo}</DialogTitle>
           <DialogDescription>
-            {modo === 'cambiar'
-              ? `${voc.conArticulo('orden')}, lo comandado y la cocina se van con ustedes.`
-              : `Lo comandado en las que elijas pasa a ${voc.enFraseCon('este', 'orden')}.`}
+            {`${voc.conArticulo('orden')}, lo comandado y la cocina se van con ustedes.`}
           </DialogDescription>
         </DialogHeader>
         <ListaDeMesas
           opciones={opciones}
           falloDeLectura={falloDeLectura}
-          elegidas={elegidas}
           enviando={enviando}
-          modo={modo}
-          alTocar={alTocar}
+          alTocar={(id) => void confirmar(id)}
         />
         {fallo === null ? null : <Aviso tono="peligro" titulo={fallo} />}
-        {modo === 'unir' ? (
-          <DialogFooter>
-            <Button
-              disabled={elegidas.length === 0 || enviando}
-              cargando={enviando}
-              onClick={() => {
-                void confirmar(elegidas);
-              }}
-            >
-              <Combine aria-hidden="true" />
-              {`Unir ${voc.conNumero('unidad_servicio', elegidas.length)}`}
-            </Button>
-          </DialogFooter>
-        ) : null}
       </DialogContent>
     </Dialog>
   );
@@ -321,9 +254,7 @@ function ElegirMesasDialog({ modo, mesaId, ordenId, alCerrar, alHecho }: ElegirM
 interface ListaDeMesasProps {
   readonly opciones: readonly MesaElegible[] | null;
   readonly falloDeLectura: string | null;
-  readonly elegidas: readonly string[];
   readonly enviando: boolean;
-  readonly modo: Modo;
   readonly alTocar: (id: string) => void;
 }
 
@@ -337,15 +268,7 @@ function ListaDeMesas(props: ListaDeMesasProps) {
     return <Esqueleto className="h-32 w-full rounded-lg" />;
   }
   if (props.opciones.length === 0) {
-    return (
-      <Vacio
-        titulo={
-          props.modo === 'cambiar'
-            ? `No hay ${voc.plural('unidad_servicio')} libres ahora.`
-            : `No hay otra ${voc.singular('unidad_servicio')} con ${voc.singular('orden')} abierta.`
-        }
-      />
-    );
+    return <Vacio titulo={`No hay ${voc.plural('unidad_servicio')} libres ahora.`} />;
   }
   return (
     <ul className="grid grid-cols-3 gap-(--espacio-2) sm:grid-cols-4">
@@ -356,8 +279,6 @@ function ListaDeMesas(props: ListaDeMesasProps) {
             type="button"
             interactiva
             relleno={3}
-            activa={props.elegidas.includes(mesa.id)}
-            aria-pressed={props.modo === 'unir' ? props.elegidas.includes(mesa.id) : undefined}
             disabled={props.enviando}
             onClick={() => {
               props.alTocar(mesa.id);

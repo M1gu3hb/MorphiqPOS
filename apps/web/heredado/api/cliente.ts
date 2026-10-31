@@ -74,6 +74,8 @@ export class ErrorPuente extends Error {
     readonly codigo: string,
     mensaje: string,
     readonly estado: number,
+    /** Lo que el servidor añade al error —`regla`, por ejemplo—: la pantalla decide con eso. */
+    readonly datos: Readonly<Record<string, unknown>> = {},
   ) {
     super(mensaje);
     this.name = 'ErrorPuente';
@@ -126,11 +128,16 @@ async function pedir<T>(ruta: string, cuerpo: unknown, clave?: string): Promise<
 
   const datos: unknown = await respuesta.json().catch(() => null);
   if (typeof datos !== 'object' || datos === null || (datos as { ok?: unknown }).ok !== true) {
-    const error = (datos as { error?: { codigo?: string; mensaje?: string } } | null)?.error;
+    const error = (
+      datos as {
+        error?: { codigo?: string; mensaje?: string; datos?: Record<string, unknown> };
+      } | null
+    )?.error;
     throw new ErrorPuente(
       error?.codigo ?? 'ERROR_INTERNO',
       error?.mensaje ?? 'No fue posible completar la operación.',
       respuesta.status,
+      error?.datos ?? {},
     );
   }
   return (datos as { datos: T }).datos;

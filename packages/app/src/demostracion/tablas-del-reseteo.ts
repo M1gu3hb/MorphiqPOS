@@ -96,6 +96,8 @@ export const ORDEN_DE_LIMPIEZA: readonly PasoDeLimpieza[] = [
   { tabla: 'bitacora_sincronizacion', via: null },
   { tabla: 'bloqueos_agenda', via: null },
   { tabla: 'caducidades', via: null },
+  { tabla: 'carrito_mesa_lineas', via: null },
+  { tabla: 'carritos_mesa', via: null },
   { tabla: 'cita_recursos', via: null },
   { tabla: 'cobros_renta', via: null },
   { tabla: 'comanda_items', via: null },
@@ -109,6 +111,7 @@ export const ORDEN_DE_LIMPIEZA: readonly PasoDeLimpieza[] = [
   { tabla: 'cotizacion_lineas', via: null },
   { tabla: 'depositos_envase', via: null },
   { tabla: 'devoluciones_lineas', via: null },
+  { tabla: 'dispositivos_mesa', via: null },
   { tabla: 'equivalencias', via: null },
   {
     tabla: 'esquema_propina_puntos',

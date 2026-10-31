@@ -159,7 +159,11 @@ describe('el mapa del mesero', () => {
   });
 
   it('el plano sale de `mesasDelPlano` (activas, de la zona que se mira), y lo reciben el lienzo y la rejilla', () => {
-    expect(inicializadorDe(mesero, 'mesasZona')).toEqual(['mesasDelPlano(mesas||[],zonaActiva)']);
+    expect(inicializadorDe(mesero, 'mesasDeLaZona')).toEqual([
+      'mesasDelPlano(mesas||[],zonaActiva)',
+    ]);
+    // DP-9.6: lo que se pinta es ese plano sin las mesas absorbidas en una unión.
+    expect(inicializadorDe(mesero, 'mesasZona').join('')).toContain('sinAbsorbidas(mesasDeLaZona)');
     expect(propsDe(mesero, 'MesaGridMobile').map((p) => p['mesas'])).toEqual(['mesasZona']);
     // El lienzo de escritorio pinta cada mesa de `mesasZona`.
     expect(texto(mesero, mesero)).toContain('mesasZona.map((mesa)=>');

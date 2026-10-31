@@ -3000,6 +3000,8 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       // `detectarHuerfano` a existir.
       estado: { columna: 'estado', conversion: 'texto', escribible: false },
       venta_activa_id: { columna: 'orden_activa_id', conversion: 'texto', escribible: false },
+      // DP-9.6 · La principal de la unión viva que la absorbió: el mapa la oculta.
+      unida_a_mesa_id: { columna: 'unida_a_mesa_id', conversion: 'texto', escribible: false },
       personas_actuales: { columna: 'personas_actuales', conversion: 'entero', escribible: false },
       cliente_temporal: { columna: 'cliente_temporal', conversion: 'texto', escribible: false },
       notas_alergias: { columna: 'notas_alergias', conversion: 'texto', escribible: false },

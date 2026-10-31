@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { cambiarDeMesa, mesaEnSala } from './sala-escrituras.ts';
+import { exigirQueNoEsteAbsorbida, tomarLaUnionDeLaMesa } from './union-del-salon.ts';
 
 /**
  * `restaurante.cambiar_mesa` — F-303.
@@ -124,6 +125,11 @@ export const cambiarMesaComando = definirComando<
       );
     }
 
+    // DP-9.6 · Una mesa oculta en una unión no recibe cuentas: su gente está en la principal.
+    await ctx.paso('mirar_si_el_destino_esta_unido', () =>
+      exigirQueNoEsteAbsorbida(ctx.tx, organizacionId, destino.id, 'usa'),
+    );
+
     const escrito = await ctx.paso('mover_cuenta', () =>
       cambiarDeMesa(ctx.tx, {
         organizacionId,
@@ -131,6 +137,15 @@ export const cambiarMesaComando = definirComando<
         origen,
         destino,
         empleadoId: empleoId,
+        ahora: ctx.ahora,
+      }),
+    );
+    // Y la que llega a la principal de una unión que quedó libre es la cuenta del grupo.
+    await ctx.paso('tomar_la_union', () =>
+      tomarLaUnionDeLaMesa(ctx.tx, {
+        organizacionId,
+        mesaId: destino.id,
+        ordenId: orden.id,
         ahora: ctx.ahora,
       }),
     );

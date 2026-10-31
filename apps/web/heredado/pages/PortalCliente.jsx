@@ -12,12 +12,11 @@ import ProductoPlaceholder from '@/components/portalqr/ProductoPlaceholder';
 import PedirCuentaQR from '@/components/portalqr/PedirCuentaQR';
 import AbrirMesaQRDialog from '@/components/portalqr/AbrirMesaQRDialog';
 import ProductoQRDialog from '@/components/portalqr/ProductoQRDialog';
-import CarritoQR from '@/components/portalqr/CarritoQR';
 import ValoracionEmoji from '@/components/portalqr/ValoracionEmoji';
 import {
   abrirMesaDesdeQR,
   crearSolicitudQR,
-  enviarPedidoQR,
+  itemParaComando,
   leerPortalPublico,
 } from '@/utils/qrPedidoFlow';
 import { getTiposSolicitudHabilitados, TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
@@ -30,6 +29,9 @@ import { MorfiCargando } from '~/morfi/MorfiCargando';
 import { MorfiNoEncontrada } from '~/morfi/MorfiNoEncontrada';
 import { PaginaConBotones } from '~/restaurante/menu-qr/PaginaConBotones';
 import { atributosDelTema, temaDelPortal } from '~/restaurante/menu-qr/tema-del-portal';
+import { AvisoDeLaMesa } from '~/portal/carrito-compartido/AvisoDeLaMesa';
+import { CarritoDeLaMesa } from '~/portal/carrito-compartido/CarritoDeLaMesa';
+import { useCarritoDeLaMesa } from '~/portal/carrito-compartido/use-carrito-de-la-mesa';
 
 /**
  * Vista pública del comensal (sin sidebar, sin POS).
@@ -58,12 +60,9 @@ function PortalCliente() {
   const [showPedirCuenta, setShowPedirCuenta] = useState(false);
 
   // === PEDIDO QR (Prompt 6C) ===
-  const [carrito, setCarrito] = useState([]); // items con _uid único
-  const [notaGeneralCarrito, setNotaGeneralCarrito] = useState('');
   const [productoSeleccionado, setProductoSeleccionado] = useState(null);
   const [showAbrirMesaQR, setShowAbrirMesaQR] = useState(false);
   const [abriendoMesa, setAbriendoMesa] = useState(false);
-  const [enviandoPedido, setEnviandoPedido] = useState(false);
   const [showValoracion, setShowValoracion] = useState(false);
   const [valoracionVentaId, setValoracionVentaId] = useState(null);
 
@@ -71,7 +70,6 @@ function PortalCliente() {
   // abrir y se reusan mientras el diálogo siga abierto: un doble toque en
   // «Confirmar» con mala cobertura no abre dos mesas ni manda dos pedidos.
   const [claveAbrirMesa, setClaveAbrirMesa] = useState(null);
-  const [claveEnviarPedido, setClaveEnviarPedido] = useState(() => nuevaClave());
 
   // Cliente de queries para refrescar el portal tras cada comando.
   const queryClient = useQueryClient();
@@ -223,6 +221,13 @@ function PortalCliente() {
   const cuentaYaSolicitada = ventaActivaMesa?.estado === 'cuenta_solicitada';
   const mesaPermitePedirAhora = mesa?.puede_pedir === true;
 
+  // DP-9.5: UN carrito por mesa, compartido por todos los teléfonos que escanean su QR. Se
+  // mira cada 2.5 s —con eso cada teléfono deja su latido— mientras la mesa tiene cuenta.
+  const carritoMesa = useCarritoDeLaMesa(
+    token || '',
+    pedidosQRActivos && !mesaLibreParaAbrir && !!ventaActivaMesa,
+  );
+
   // === HANDLERS PEDIDO QR ===
   const handleClickProducto = (producto) => {
     if (!pedidosQRActivos) return;
@@ -248,45 +253,26 @@ function PortalCliente() {
     setProductoSeleccionado(producto);
   };
 
-  const handleAddToCart = ({ producto, cantidad, notas, modificadores, _variable }) => {
+  // DP-9.5: lo elegido va al carrito de la MESA, en el servidor: lo ven todos los teléfonos.
+  // Sólo viaja qué y cuánto (con sus opciones en la nota); el precio lo pone el servidor.
+  const handleAddToCart = async ({ producto, cantidad, notas, modificadores, _variable }) => {
     if (!producto?.id) return;
-    const _uid = `cart-${producto.id}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
-    // 6B / 1.E — Si llega snapshot _variable, el precio_venta efectivo es
-    // el precio total de la línea (cantidad lógica = 1, igual que en Mesero).
-    const precioEfectivo = _variable
-      ? Number(_variable.precio_total_linea) || 0
-      : Number(producto.precio_venta) || 0;
-    setCarrito((prev) => [
-      ...prev,
-      {
-        _uid,
-        id: producto.id,
-        nombre: producto.nombre || '',
-        // Sólo para pintar el carrito. Lo que se cobra lo decide el catálogo
-        // dentro del comando: `precio_venta` NO viaja al servidor (D-17).
-        // El costo y el área de preparación tampoco están aquí — el costo es
-        // del negocio y el ruteo a cocina lo resuelve `portal.enviar_pedido`.
-        precio_venta: precioEfectivo,
-        cantidad: Math.max(1, parseInt(cantidad, 10) || 1),
-        notas: (notas || '').trim(),
-        _modificadores: Array.isArray(modificadores) ? modificadores : [],
-        _variable: _variable || null,
-      },
-    ]);
-    setProductoSeleccionado(null);
-  };
-
-  const handleChangeCantidad = (uid, delta) => {
-    setCarrito((prev) =>
-      prev
-        .map((i) =>
-          i._uid === uid ? { ...i, cantidad: Math.max(0, (Number(i.cantidad) || 0) + delta) } : i,
-        )
-        .filter((i) => Number(i.cantidad) > 0),
-    );
-  };
-  const handleEliminarItem = (uid) => {
-    setCarrito((prev) => prev.filter((i) => i._uid !== uid));
+    try {
+      await carritoMesa.agregar(
+        itemParaComando({
+          id: producto.id,
+          nombre: producto.nombre || '',
+          cantidad: Math.max(1, parseInt(cantidad, 10) || 1),
+          notas: (notas || '').trim(),
+          _modificadores: Array.isArray(modificadores) ? modificadores : [],
+          _variable: _variable || null,
+        }),
+      );
+      setProductoSeleccionado(null);
+      toast.success(`${producto.nombre || 'Producto'} agregado al pedido de la mesa`);
+    } catch (err) {
+      toast.error(err?.message || 'No pudimos agregarlo. Intenta de nuevo.');
+    }
   };
 
   const abrirDialogoMesa = () => {
@@ -325,41 +311,6 @@ function PortalCliente() {
       toast.error(err?.message || 'No pudimos abrir la mesa. Intenta de nuevo.');
     } finally {
       setAbriendoMesa(false);
-    }
-  };
-
-  const handleEnviarPedido = async () => {
-    if (enviandoPedido) return;
-    if (!Array.isArray(carrito) || carrito.length === 0) {
-      toast.error('Tu pedido está vacío.');
-      return;
-    }
-    if (!mesa?.id || faltaMesero) {
-      toast.error('Esta mesa no está disponible para pedir.');
-      return;
-    }
-    setEnviandoPedido(true);
-    try {
-      // La re-validación de la venta activa se fue con el comando: buscarla
-      // aquí era leer, decidir y escribir en tres momentos distintos, y entre
-      // ellos cabía el mesero cerrando la cuenta. `portal.enviar_pedido` la
-      // resuelve dentro de su transacción y devuelve el motivo en español.
-      await enviarPedidoQR({
-        token,
-        items: carrito,
-        notaGeneral: notaGeneralCarrito,
-        clave: claveEnviarPedido,
-      });
-      setCarrito([]);
-      setNotaGeneralCarrito('');
-      // Pedido enviado: el siguiente es OTRO pedido y necesita su propia clave.
-      setClaveEnviarPedido(nuevaClave());
-      queryClient.invalidateQueries({ queryKey: ['portal_publico', token] });
-      toast.success('¡Pedido enviado a cocina!');
-    } catch (err) {
-      toast.error(err?.message || 'No pudimos enviar tu pedido. Intenta de nuevo.');
-    } finally {
-      setEnviandoPedido(false);
     }
   };
 
@@ -530,6 +481,7 @@ function PortalCliente() {
       </header>
 
       <main className="relative z-10 max-w-2xl mx-auto px-4 pt-4 space-y-4">
+        {pedidosQRActivos && !cuentaYaSolicitada && <AvisoDeLaMesa estado={carritoMesa.estado} />}
         {/* Bienvenida */}
         {config?.portal_qr_mensaje_bienvenida && (
           <div className="rounded-2xl p-4 border bg-card text-card-foreground shadow-sm flex items-start gap-3">
@@ -764,17 +716,7 @@ function PortalCliente() {
         )}
       </AnimatePresence>
 
-      {pedidosQRActivos && !cuentaYaSolicitada && (
-        <CarritoQR
-          items={carrito}
-          onChangeCantidad={handleChangeCantidad}
-          onEliminar={handleEliminarItem}
-          onEnviar={handleEnviarPedido}
-          enviando={enviandoPedido}
-          notaGeneral={notaGeneralCarrito}
-          setNotaGeneral={setNotaGeneralCarrito}
-        />
-      )}
+      {pedidosQRActivos && !cuentaYaSolicitada && <CarritoDeLaMesa carrito={carritoMesa} />}
 
       <AnimatePresence>
         {showValoracion && valoracionVentaId && (

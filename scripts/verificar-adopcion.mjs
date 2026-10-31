@@ -701,6 +701,98 @@ export const SIN_ESTADO = [
       'Sin mesas con token no hay QR que diseñar: lo dice un Aviso que manda a «Generar tokens faltantes», el botón de al lado (DP-9.8).',
   },
   {
+    pantalla: 'restaurante/unir-mesas/UnirMesasEnElMapa',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el modo «Unir mesas» del mapa del mesero (DP-9.6). Recibe las mesas de la zona que el mapa ya leyó; sin mesas, el mapa enseña su propio vacío.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/UnirMesasEnElMapa',
+    estado: 'cargando',
+    razon:
+      'No lee el salón: recibe las mesas del mapa, que ya cargó. Su fallo al unir lo dice un Aviso.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/MesasQueSeFunden',
+    estado: 'vacio',
+    razon:
+      'Es sólo el dibujo de las mesas bajo sus botones (DP-9.6): sin mesas no dibuja nada y el mapa dice su vacío.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/MesasQueSeFunden',
+    estado: 'cargando',
+    razon: 'No lee nada: dibuja el plano que le da UnirMesasEnElMapa.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/MesasQueSeFunden',
+    estado: 'error',
+    razon: 'No lee ni escribe: es un SVG de adorno, sin nada que pueda fallar.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/EligeElNumero',
+    estado: 'vacio',
+    razon:
+      'Diálogo: las opciones son las mesas del grupo que se está uniendo, dos o más; no hay lista que llegue vacía.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/EligeElNumero',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe las mesas por props. Mientras se une, su botón dice «Uniendo…».',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/EligeElNumero',
+    estado: 'error',
+    razon: 'No escribe: «Unir» lo hace UnirMesasEnElMapa, que pinta su fallo con un Aviso.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
+    estado: 'vacio',
+    razon: 'Diálogo de confirmación de un grupo que ya existe: no tiene lista.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe la unión por props. Mientras separa, su botón dice «Separando…».',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/liberar-con-pregunta',
+    estado: 'vacio',
+    razon: 'Es la pregunta «¿Separar mesas o dejarlas unidas?», no una pantalla: no tiene lista.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/liberar-con-pregunta',
+    estado: 'cargando',
+    razon: 'No lee nada: se abre cuando el servidor pidió decidir, con la respuesta ya en la mano.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/liberar-con-pregunta',
+    estado: 'error',
+    razon:
+      'No escribe: libera quien la abrió (mesa activa, mesa de meseros, caja), y cada una pinta su fallo.',
+  },
+  {
+    pantalla: 'portal/carrito-compartido/CarritoDeLaMesa',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el pedido de la mesa en el portal (DP-9.5); vacío no se pinta y el menú de al lado es lo que se ve.',
+  },
+  {
+    pantalla: 'portal/carrito-compartido/CarritoDeLaMesa',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el carrito que el portal ya sondea; mientras llega no se pinta.',
+  },
+  {
+    pantalla: 'portal/carrito-compartido/AvisoDeLaMesa',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el aviso de arriba del portal (DP-9.5); sin teléfonos conectados no se pinta.',
+  },
+  {
+    pantalla: 'portal/carrito-compartido/AvisoDeLaMesa',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el estado que el portal ya sondea.',
+  },
+  {
     pantalla: 'telefono-de-cocina/ComandaEnElTelefono',
     estado: 'vacio',
     razon:
@@ -1135,16 +1227,6 @@ export const SIN_ESTADO = [
     estado: 'error',
     razon:
       'Va dentro del renglón de un ajuste de inventario: si los motivos no se leen lo dice en una línea bajo el selector y deja la corrección de conteo. Un Aviso o un ErrorDePantalla ahí ocuparía el renglón entero.',
-  },
-  {
-    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
-    estado: 'vacio',
-    razon: 'Diálogo de confirmación de un grupo que ya existe: no tiene lista.',
-  },
-  {
-    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
-    estado: 'cargando',
-    razon: 'No lee nada: recibe la unión por props. Mientras separa, su botón dice «Separando…».',
   },
 ];
 

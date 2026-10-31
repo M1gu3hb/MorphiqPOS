@@ -51,6 +51,10 @@ const ESTADO_POR_REGLA: Readonly<Record<string, number>> = {
   QR_PORTAL_CERRADO: 403,
   QR_SOLICITUD_DUPLICADA: 409,
   QR_DEMASIADAS_PETICIONES: 429,
+  // El carrito compartido (DP-9.5): confirmar es otra vuelta; lo ajeno no se toca.
+  QR_CARRITO_SIN_CONFIRMAR: 409,
+  QR_LINEA_AJENA: 403,
+  QR_CARRITO_LLENO: 422,
   // El teléfono de una estación de cocina (DP-9.4): mismo trato que el QR de la mesa.
   TELEFONO_DE_COCINA_INVALIDO: 404,
   TELEFONO_DEMASIADAS_PETICIONES: 429,
@@ -125,7 +129,7 @@ export function peticionPropia(peticion: PeticionDelPortal): boolean {
   return permitidos.includes(origen);
 }
 
-interface Despliegue {
+export interface Despliegue {
   readonly organizacionId: string;
   readonly pimienta: string;
 }
@@ -143,7 +147,7 @@ interface Despliegue {
  * comprueba contra la tabla, y el token se busca DENTRO de la organizacion que
  * resulte. Un token de otro negocio no encuentra mesa.
  */
-async function resolverDespliegue(token: string, host?: string | null): Promise<Despliegue> {
+export async function resolverDespliegue(token: string, host?: string | null): Promise<Despliegue> {
   const entorno = validarEntorno(process.env);
   // El negocio sale del TOKEN dentro de los que sirve el despliegue: con el sistema maestro
   // sirviendo seis negocios en un dominio sin slug, pedir «el» negocio del despliegue fallaba

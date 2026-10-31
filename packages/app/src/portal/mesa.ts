@@ -9,6 +9,7 @@ import { ORDEN_ACTIVA } from './estados.ts';
 import { entradaAbrirMesa } from './esquemas.ts';
 import { faltaMesero, puedeOrdenarDesdeQR } from './negocio.ts';
 import { sellarTransicionDeMesa } from '../restaurante/sala-escrituras.ts';
+import { tomarLaUnionDeLaMesa } from '../restaurante/union-del-salon.ts';
 
 /**
  * `portal.abrir_mesa` — el comensal abre su propia mesa (E7-3).
@@ -74,6 +75,15 @@ export const abrirMesaDesdeQR = definirComandoPublico<typeof entradaAbrirMesa, R
     }
 
     const ordenId = await ctx.paso('abrir_venta', () => insertarOrden(ctx, entrada, meseroId));
+    // DP-9.6: con el QR de cualquier mesa del grupo se abre la principal, y es la cuenta del grupo.
+    await ctx.paso('tomar_la_union', () =>
+      tomarLaUnionDeLaMesa(ctx.tx, {
+        organizacionId: ctx.ambito.organizacionId,
+        mesaId: ctx.ambito.mesaId,
+        ordenId,
+        ahora: ctx.ahora,
+      }),
+    );
 
     await ctx.paso('ocupar_mesa', () =>
       ctx.tx

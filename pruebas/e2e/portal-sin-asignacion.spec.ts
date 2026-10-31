@@ -10,6 +10,7 @@ import {
   prepararElPortalDelComensal,
   type TelefonoDelComensal,
 } from './ayudantes/mesas-heredadas.ts';
+import { enviarElPedidoDeLaMesa } from './ayudantes/pedido-de-la-mesa.ts';
 import { Equipo } from './ayudantes/roles.ts';
 import {
   cabecerasDeEscrituraDePrueba,
@@ -139,13 +140,7 @@ test.describe('el portal sin asignación de mesas', () => {
         // Y ahora sí, el pedido.
         await tarjeta.click();
         await telefono.getByRole('button', { name: /^Agregar/ }).click();
-        await telefono.getByRole('button', { name: /Ver mi pedido/ }).click();
-        const enviado = telefono.waitForResponse(
-          (r) =>
-            new URL(r.url()).pathname === `/api/publico/qr/${token}/pedido` &&
-            r.request().method() === 'POST',
-        );
-        await telefono.getByRole('button', { name: 'Enviar a cocina' }).click();
+        const enviado = enviarElPedidoDeLaMesa(telefono, token);
         expect((await enviado).status(), 'El servidor rechazó el pedido del comensal.').toBe(200);
         await expect(telefono.getByText('¡Pedido enviado a cocina!')).toBeVisible();
         const { ordenId } = await mesaEnElServidor(duena, MESA);
