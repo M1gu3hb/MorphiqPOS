@@ -2787,21 +2787,31 @@ test.describe('las operaciones de mesa del restaurante, por las vistas adicional
   }, info) => {
     test.setTimeout(6 * 60_000);
     const dia = await empezarElDia(browser, info);
+    // Las mesas 7 y 8 ya tuvieron comandas hoy (6b, D-2 y D-4): sólo cuentan las de ESTE grupo.
+    const previas = new Set<string>();
+    for (const numero of [7, 8]) {
+      const mesa = await leerMesa(dia.duena, numero);
+      for (const c of await comandasDeLaMesa(dia.duena, mesa.id)) previas.add(c.id);
+    }
     const grupo = await armarUnGrupo(dia, 7, 8);
+    const estadosNuevos = async (mesaId: string): Promise<readonly string[]> =>
+      (await comandasDeLaMesa(dia.duena, mesaId))
+        .filter((c) => !previas.has(c.id))
+        .map((c) => c.estado);
     try {
-      const deLaPrincipal = (await comandasDeLaMesa(dia.duena, grupo.principal.mesaId)).length;
-      const deLaUnida = (await comandasDeLaMesa(dia.duena, grupo.unida.mesaId)).length;
+      const deLaPrincipal = (await estadosNuevos(grupo.principal.mesaId)).length;
+      const deLaUnida = (await estadosNuevos(grupo.unida.mesaId)).length;
+      expect(deLaUnida, 'La mesa unida no mandó nada a cocina.').toBeGreaterThan(0);
       await cocinaDejaListaLaMesa(dia.cocina, 7, deLaPrincipal);
       await cocinaDejaListaLaMesa(dia.cocina, 8, deLaUnida);
       await entregarEnLaMesa(dia.duena, 7, CARTA.cerveza.nombre);
       await expect
-        .poll(async () => estadosDe(await comandasDeLaMesa(dia.duena, grupo.unida.mesaId)), {
+        .poll(() => estadosNuevos(grupo.unida.mesaId), {
           message:
             'Lo de la mesa unida sigue «listo» tras entregar desde el grupo: se enfriaría en la ventana.',
         })
         .toEqual(Array<string>(deLaUnida).fill('entregado'));
     } finally {
-      // Si el defecto sigue, lo de la unida se queda en la ventana: cocina lo quita para no dejarlo.
       await deshacerElGrupo(dia, grupo);
       await dia.equipo.cerrar();
     }
