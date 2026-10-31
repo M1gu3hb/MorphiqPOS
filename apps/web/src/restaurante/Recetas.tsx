@@ -27,12 +27,20 @@ import {
   type TamanoDeDinero,
 } from '@morphiqpos/ui/sistema';
 import { ArrowLeft, ChefHat, ClipboardList } from 'lucide-react';
+import { useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type Ref } from 'react';
 import { flushSync } from 'react-dom';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
+
+import {
+  ETIQUETA_RECETA_PENDIENTE,
+  costoVisible,
+  margenVisible,
+  recetasPendientes,
+} from './receta-pendiente';
 
 /**
  * PANTALLA · restaurante · recetas
@@ -107,11 +115,15 @@ export interface ProductoConMargen {
   readonly precio_venta: number | null;
   readonly costo_calculado_actual: number | null;
   readonly margen_bruto_actual: number | null;
+  /** `receta` = se prepara con receta; con ella y sin líneas, la receta está pendiente. */
+  readonly estrategia_consumo?: string | null;
 }
 
 export interface LineaDeReceta {
   readonly id: string;
   readonly producto_id: string;
+  /** `false` es una línea dada de baja: no cuenta para saber si hay receta. */
+  readonly activo?: boolean | null;
   readonly ingrediente_id: string;
   readonly ingrediente_nombre: string | null;
   readonly cantidad_usada: number | null;
@@ -128,6 +140,11 @@ export interface IngredienteDisponible {
 export interface FilaDeReceta {
   readonly producto: ProductoConMargen;
   readonly lineas: readonly LineaDeReceta[];
+  /**
+   * La receta está pendiente (DP-5): se vende por receta y no tiene una. Su costo guardado es
+   * un cero sin significado y su margen guardado un 100 % falso: los dos se callan.
+   */
+  readonly pendiente: boolean;
 }
 
 export interface RecetasProps {
@@ -180,10 +197,17 @@ export function armarFilas(
     grupo.push(linea);
     porProducto.set(linea.producto_id, grupo);
   }
+  const pendientes = recetasPendientes(productos, lineas);
   const peso = (fila: FilaDeReceta) =>
-    fila.lineas.length === 0 ? -1 : (fila.producto.margen_bruto_actual ?? Number.MAX_SAFE_INTEGER);
+    fila.pendiente || fila.lineas.length === 0
+      ? -1
+      : (fila.producto.margen_bruto_actual ?? Number.MAX_SAFE_INTEGER);
   return productos
-    .map((producto) => ({ producto, lineas: porProducto.get(producto.id) ?? [] }))
+    .map((producto) => ({
+      producto,
+      lineas: porProducto.get(producto.id) ?? [],
+      pendiente: pendientes.has(producto.id),
+    }))
     .sort((a, b) => {
       const orden = peso(a) - peso(b);
       return orden === 0 ? a.producto.nombre.localeCompare(b.producto.nombre, 'es-MX') : orden;
@@ -282,8 +306,17 @@ function Margen({
 const ingredientes = (cuantos: number): string =>
   `${String(cuantos)} ingrediente${cuantos === 1 ? '' : 's'}`;
 
+/** El costo que se enseña: con la receta pendiente es desconocido, no el cero guardado. */
+const costoDeLaFila = (fila: FilaDeReceta): number | null =>
+  costoVisible(fila.pendiente, costoDe(fila.producto));
+
+/** El margen que se enseña: con la receta pendiente no hay («Sin costo»). */
+const margenDeLaFila = (fila: FilaDeReceta): number | null =>
+  margenVisible(fila.pendiente, fila.producto.margen_bruto_actual);
+
 /** Si tiene receta: el segundo dato de la jerarquía, dicho con palabras. */
 function EstadoDeReceta({ fila }: { readonly fila: FilaDeReceta }) {
+  if (fila.pendiente) return <Badge variant="secondary">{ETIQUETA_RECETA_PENDIENTE}</Badge>;
   if (fila.lineas.length === 0) return <Badge variant="secondary">Sin receta</Badge>;
   return <span className="text-texto-sutil">{ingredientes(fila.lineas.length)}</span>;
 }
@@ -309,7 +342,7 @@ function columnasDePlatillos(tituloDePlatillo: string): readonly ColumnaDeTabla<
               ver: bajan aquí con su palabra delante. */}
           <span className="flex flex-wrap items-baseline gap-x-(--espacio-1) text-xs text-texto-sutil md:hidden">
             <span>Costo</span>
-            <Importe centavos={costoDe(fila.producto)} tamano="xs" />
+            <Importe centavos={costoDeLaFila(fila)} tamano="xs" />
             <span aria-hidden="true">·</span>
             <span>Precio</span>
             <Importe centavos={precioDe(fila.producto)} tamano="xs" />
@@ -329,8 +362,8 @@ function columnasDePlatillos(tituloDePlatillo: string): readonly ColumnaDeTabla<
       titulo: 'Costo',
       numerica: true,
       desde: 'md',
-      orden: (fila) => costoDe(fila.producto) ?? -1,
-      celda: (fila) => <Importe centavos={costoDe(fila.producto)} />,
+      orden: (fila) => costoDeLaFila(fila) ?? -1,
+      celda: (fila) => <Importe centavos={costoDeLaFila(fila)} />,
     },
     {
       clave: 'precio',
@@ -344,8 +377,8 @@ function columnasDePlatillos(tituloDePlatillo: string): readonly ColumnaDeTabla<
       clave: 'margen',
       titulo: 'Margen',
       numerica: true,
-      orden: (fila) => fila.producto.margen_bruto_actual ?? Number.MAX_SAFE_INTEGER,
-      celda: (fila) => <Margen margen={fila.producto.margen_bruto_actual} />,
+      orden: (fila) => margenDeLaFila(fila) ?? Number.MAX_SAFE_INTEGER,
+      celda: (fila) => <Margen margen={margenDeLaFila(fila)} />,
     },
   ];
 }
@@ -416,6 +449,8 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
   const [borrador, setBorrador] = useState<Borrador>(VACIO);
   const [guardando, setGuardando] = useState<string | null>(null);
   const [problema, setProblema] = useState<Problema | null>(null);
+  /** Sólo las de receta pendiente (DP-5). El tablero llega con `?pendientes=1`. */
+  const [soloPendientes, setSoloPendientes] = useState(useSearchParams().get('pendientes') === '1');
   /** La lista, para saber si el panel la tapó y para devolverle el foco a su fila. */
   const lista = useRef<HTMLDivElement>(null);
   const tituloDelPanel = useRef<HTMLHeadingElement>(null);
@@ -613,6 +648,8 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
   }
 
   const conReceta = filas.filter((fila) => fila.lineas.length > 0).length;
+  const pendientes = filas.filter((fila) => fila.pendiente).length;
+  const enLista = soloPendientes ? filas.filter((fila) => fila.pendiente) : filas;
   const filaAbierta = filas.find((fila) => fila.producto.id === abierta) ?? null;
   // El aviso va en el panel de SU platillo; si el abierto es otro, arriba y con su nombre.
   const idAbierto = filaAbierta?.producto.id ?? null;
@@ -625,11 +662,28 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
         {cabecera}
         {/* La cobertura, arriba: capturar quince recetas y creer que terminaste
             es lo que hace que el consumo teórico no cuadre nunca. */}
-        <Progreso
-          className="w-full sm:w-72"
-          valor={(conReceta / filas.length) * PORCENTAJE_COMPLETO}
-          etiqueta={`${String(conReceta)} de ${voc.conNumero('linea_orden', filas.length)} tienen receta`}
-        />
+        <div className="flex w-full flex-col gap-(--espacio-2) sm:w-72">
+          <Progreso
+            valor={(conReceta / filas.length) * PORCENTAJE_COMPLETO}
+            etiqueta={`${String(conReceta)} de ${voc.conNumero('linea_orden', filas.length)} tienen receta`}
+          />
+          {/* El filtro de lo que falta capturar: con su cuenta, antes de tocarlo. */}
+          {pendientes === 0 && !soloPendientes ? null : (
+            <Button
+              type="button"
+              size="sm"
+              className="self-start"
+              aria-pressed={soloPendientes}
+              variant={soloPendientes ? 'default' : 'outline'}
+              onClick={() => {
+                setSoloPendientes((antes) => !antes);
+              }}
+            >
+              {ETIQUETA_RECETA_PENDIENTE}
+              <span className="font-numeros font-normal tabular-nums">{pendientes}</span>
+            </Button>
+          )}
+        </div>
       </header>
 
       {problemaDeOtro === null ? null : (
@@ -658,16 +712,14 @@ export function Recetas({ filasIniciales, ingredientesIniciales }: RecetasProps)
         <Tabla
           etiqueta={voc.titulo('linea_orden', true)}
           columnas={columnasDePlatillos(voc.titulo('linea_orden'))}
-          filas={filas}
+          filas={enLista}
           claveDe={(fila) => fila.producto.id}
           {...(filaAbierta === null ? {} : { activa: filaAbierta.producto.id })}
           alActivar={abrir}
           viajeDeFila={(fila) =>
             fila.producto.id === viajando ? VIAJE.fila(fila.producto.id) : undefined
           }
-          tonoDeFila={(fila) =>
-            pierdeMargen(fila.producto.margen_bruto_actual) ? 'peligro' : undefined
-          }
+          tonoDeFila={(fila) => (pierdeMargen(margenDeLaFila(fila)) ? 'peligro' : undefined)}
           alto="max-h-[70vh]"
         />
       </div>
@@ -771,13 +823,13 @@ function PanelDeReceta({
         <div className="flex flex-col gap-(--espacio-1)">
           <dt className="text-xs text-texto-sutil">Margen</dt>
           <dd>
-            <Margen margen={producto.margen_bruto_actual} tamano="lg" />
+            <Margen margen={margenDeLaFila(fila)} tamano="lg" />
           </dd>
         </div>
         <div className="flex flex-col gap-(--espacio-1)">
           <dt className="text-xs text-texto-sutil">Costo</dt>
           <dd>
-            <Importe centavos={costoDe(producto)} tamano="base" />
+            <Importe centavos={costoDeLaFila(fila)} tamano="base" />
           </dd>
         </div>
         <div className="flex flex-col gap-(--espacio-1)">
@@ -796,7 +848,7 @@ function PanelDeReceta({
         alto="max-h-[40vh]"
         pie={{
           ingrediente: 'Costo del platillo',
-          costo: <Importe centavos={costoDe(producto)} />,
+          costo: <Importe centavos={costoDeLaFila(fila)} />,
         }}
         vacio={
           // El vacío explica la consecuencia; el formulario de abajo es su salida.

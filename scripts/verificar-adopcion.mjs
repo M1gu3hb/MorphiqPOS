@@ -377,6 +377,18 @@ export const SIN_ESTADO = [
       'Los ocho estilos y sus perillas son constantes del sistema de diseño (ESTILOS, PERILLAS), no datos de la red: no hay ninguna lista que pueda llegar vacía.',
   },
   {
+    pantalla: 'restaurante/RecetasPendientes',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el aviso «N platillos sin receta» del tablero (DP-5). Con cero no hay nada que avisar, y no pintar nada ES su estado vacío.',
+  },
+  {
+    pantalla: 'restaurante/RecetasPendientes',
+    estado: 'cargando',
+    razon:
+      'Es un aviso dentro del tablero, que ya enseña sus propios esqueletos: mientras cuenta no se pinta, en vez de empujar el tablero con un hueco que luego desaparece.',
+  },
+  {
     pantalla: 'marca/MarcaMorphiq',
     estado: 'vacio',
     razon:

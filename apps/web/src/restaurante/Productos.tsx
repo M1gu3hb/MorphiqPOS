@@ -20,6 +20,16 @@ import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { centavosDe } from '~/cliente/dinero-del-puente';
 import { useVocabulario } from '~/cliente/vocabulario';
 
+import {
+  ETIQUETA_COSTO_DESCONOCIDO,
+  ETIQUETA_RECETA_PENDIENTE,
+  ETIQUETA_SIN_COSTO,
+  costoVisible,
+  margenVisible,
+  recetasPendientes,
+  type LineaQuizaActiva,
+} from './receta-pendiente';
+
 /**
  * PANTALLA · restaurante · productos
  *
@@ -107,7 +117,7 @@ interface Semaforo {
  * en el renglón «Margen» de la ficha, así que no repite la palabra.
  */
 export function semaforoDeMargen(margen: number | null): Semaforo {
-  if (margen === null) return { texto: 'Sin receta', clase: 'bg-fondo-sutil' };
+  if (margen === null) return { texto: ETIQUETA_SIN_COSTO, clase: 'bg-fondo-sutil' };
   const cifra = `${Math.round(margen)} %`;
   if (margen >= MARGEN_SANO) return { texto: `${cifra} · sano`, clase: 'bg-exito/25' };
   if (margen >= MARGEN_JUSTO) return { texto: `${cifra} · justo`, clase: 'bg-advertencia/30' };
@@ -130,6 +140,13 @@ export interface FilaDeProducto {
   readonly margen_bruto_actual: number | null;
   readonly area_preparacion: string | null;
   readonly visible_en_pos: boolean | null;
+  /** `receta` = se prepara con receta. Lo sirve el puente a todos los roles. */
+  readonly estrategia_consumo?: string | null;
+  /**
+   * La receta está pendiente (DP-5), derivado al leer: por receta y sin una línea activa.
+   * Ausente es «no se pudo saber» (quien no lee recetas): se enseña lo guardado.
+   */
+  readonly receta_pendiente?: boolean;
 }
 
 export interface ProductosProps {
@@ -168,14 +185,31 @@ function costoDe(producto: FilaDeProducto): number | null {
   return centavosDe('ProductoTerminado', 'costo_calculado_actual', producto.costo_calculado_actual);
 }
 
-/** El catálogo vivo. El borrado es suave, así que lo inactivo no se pide. */
+/**
+ * El catálogo vivo, con su receta pendiente ya derivada. El borrado es suave, así que lo
+ * inactivo no se pide.
+ *
+ * Las líneas de receta son de quien ve recetas e inventario: a quien no, el puente le contesta
+ * que no, y entonces la marca no se pone (no se sabe) en vez de tumbar el catálogo entero.
+ */
 async function leerCatalogo(signal: AbortSignal): Promise<readonly FilaDeProducto[]> {
-  return consultarPuente<FilaDeProducto>('ProductoTerminado', {
-    filtro: { activo: true },
-    orden: 'nombre',
-    limite: 400,
-    signal,
-  });
+  const [catalogo, lineas] = await Promise.all([
+    consultarPuente<FilaDeProducto>('ProductoTerminado', {
+      filtro: { activo: true },
+      orden: 'nombre',
+      limite: 400,
+      signal,
+    }),
+    consultarPuente<LineaQuizaActiva>('RecetaEscandallo', { limite: 2000, signal }).catch(
+      (fallo: unknown) => {
+        if (fallo instanceof ErrorApi && fallo.error.codigo === 'SIN_PERMISO') return null;
+        throw fallo;
+      },
+    ),
+  ]);
+  if (lineas === null) return catalogo;
+  const pendientes = recetasPendientes(catalogo, lineas);
+  return catalogo.map((p) => ({ ...p, receta_pendiente: pendientes.has(p.id) }));
 }
 
 /**
@@ -204,6 +238,8 @@ export function Productos({ filasIniciales }: ProductosProps) {
   const [cargando, setCargando] = useState(filasIniciales === undefined);
   const [intento, setIntento] = useState(0);
   const [area, setArea] = useState<ClaveArea | null>(null);
+  /** Sólo las de receta pendiente (DP-5). */
+  const [soloPendientes, setSoloPendientes] = useState(false);
   const [busqueda, setBusqueda] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [guardando, setGuardando] = useState<string | null>(null);
@@ -238,9 +274,15 @@ export function Productos({ filasIniciales }: ProductosProps) {
     const texto = busqueda.trim().toLocaleLowerCase('es-MX');
     return filas.filter((p) => {
       const porNombre = texto === '' || p.nombre.toLocaleLowerCase('es-MX').includes(texto);
-      return porNombre && (area === null || claveArea(p.area_preparacion) === area);
+      const enSuArea = area === null || claveArea(p.area_preparacion) === area;
+      return porNombre && enSuArea && (!soloPendientes || p.receta_pendiente === true);
     });
-  }, [filas, busqueda, area]);
+  }, [filas, busqueda, area, soloPendientes]);
+
+  const pendientes = useMemo(
+    () => filas.filter((p) => p.receta_pendiente === true).length,
+    [filas],
+  );
 
   const porArea = useMemo(() => cuentaPorArea(filas), [filas]);
 
@@ -380,6 +422,9 @@ export function Productos({ filasIniciales }: ProductosProps) {
                 {/* El estado se dice con palabras: el botón de abajo cambia
                     de texto, pero la marca la lee quien sólo mira. */}
                 {!enPos && <Badge variant="destructive">Oculto en el POS</Badge>}
+                {producto.receta_pendiente === true && (
+                  <Badge variant="outline">{ETIQUETA_RECETA_PENDIENTE}</Badge>
+                )}
               </span>
             </span>
           </span>
@@ -397,9 +442,9 @@ export function Productos({ filasIniciales }: ProductosProps) {
       titulo: 'Costo',
       numerica: true,
       celda: (producto) => {
-        const costo = costoDe(producto);
+        const costo = costoVisible(producto.receta_pendiente === true, costoDe(producto));
         return costo === null ? (
-          <span className="text-texto-sutil">Sin calcular</span>
+          <span className="text-texto-sutil">{ETIQUETA_COSTO_DESCONOCIDO}</span>
         ) : (
           <Dinero centavos={costo} tamano="sm" />
         );
@@ -409,7 +454,9 @@ export function Productos({ filasIniciales }: ProductosProps) {
       clave: 'margen',
       titulo: 'Margen',
       celda: (producto) => {
-        const margen = semaforoDeMargen(producto.margen_bruto_actual);
+        const margen = semaforoDeMargen(
+          margenVisible(producto.receta_pendiente === true, producto.margen_bruto_actual),
+        );
         return (
           <span
             className={`rounded-full px-(--espacio-2) py-0.5 text-xs font-medium tabular-nums ${margen.clase}`}
@@ -495,6 +542,20 @@ export function Productos({ filasIniciales }: ProductosProps) {
               </span>
             </Button>
           ))}
+          {pendientes === 0 && !soloPendientes ? null : (
+            <Button
+              type="button"
+              size="sm"
+              aria-pressed={soloPendientes}
+              variant={soloPendientes ? 'default' : 'outline'}
+              onClick={() => {
+                setSoloPendientes((antes) => !antes);
+              }}
+            >
+              {ETIQUETA_RECETA_PENDIENTE}
+              <span className="font-numeros font-normal tabular-nums">{pendientes}</span>
+            </Button>
+          )}
         </nav>
       </div>
 
