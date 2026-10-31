@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { formatDistanceToNow } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
+import { sonar } from '~/sonidos/gestor';
 
 const ESTADOS_LABEL = {
   pendiente: 'Pendiente',
@@ -134,6 +135,7 @@ export default function SolicitudesQRTab() {
       });
       refrescarListas();
       toast.success('Solicitud actualizada');
+      if (accionTipo === 'atender') sonar('solicitudAtendida');
     } catch (err) {
       // «Un compañero movió ese aviso mientras lo atendías», «Esa solicitud está
       // en "resuelta" y ya no puede pasar a…»: el dominio ya lo explica.

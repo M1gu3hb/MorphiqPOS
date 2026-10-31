@@ -63,6 +63,8 @@ describe('«Mascota Morfi» en la configuración del negocio', () => {
     expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toEqual({
       mascota: true,
       pin_al_despertar: false,
+      sonidos_en_el_portal: false,
+      tecla: 'nib',
     });
   });
 
@@ -93,10 +95,26 @@ describe('«Mascota Morfi» en la configuración del negocio', () => {
       pin_al_despertar: true,
     });
     expect((await guardar({ experiencia: { pin_al_despertar: false } })).ok).toBe(true);
-    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toEqual({
+    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toMatchObject({
       mascota: false,
       pin_al_despertar: false,
     });
+  });
+
+  it('los sonidos del negocio (DP-11.3): el teclado y el portal, validados', async () => {
+    expect(
+      (await guardar({ experiencia: { tecla: 'thock', sonidos_en_el_portal: true } })).ok,
+    ).toBe(true);
+    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toMatchObject({
+      mascota: false,
+      tecla: 'thock',
+      sonidos_en_el_portal: true,
+    });
+    expect((await guardar({ experiencia: { tecla: 'block' } })).ok).toBe(false);
+    expect(await guardada(negocio.organizacionId)).toMatchObject({ tecla: 'thock' });
+    expect((await guardar({ experiencia: { tecla: 'nib', sonidos_en_el_portal: false } })).ok).toBe(
+      true,
+    );
   });
 
   it('el mesero no la cambia', async () => {
@@ -110,6 +128,8 @@ describe('«Mascota Morfi» en la configuración del negocio', () => {
     expect(await experienciaDeLaOrganizacion(vecino.organizacionId)).toEqual({
       mascota: true,
       pin_al_despertar: false,
+      sonidos_en_el_portal: false,
+      tecla: 'nib',
     });
   });
 
@@ -117,6 +137,8 @@ describe('«Mascota Morfi» en la configuración del negocio', () => {
     expect(await experienciaDeLaOrganizacion('00000000-0000-4000-8000-000000000000')).toEqual({
       mascota: true,
       pin_al_despertar: false,
+      sonidos_en_el_portal: false,
+      tecla: 'nib',
     });
   });
 });

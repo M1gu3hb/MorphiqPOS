@@ -38,6 +38,7 @@ import {
   ShieldAlert,
   Database,
   Tablet,
+  Volume2,
 } from 'lucide-react';
 import IntegracionesRespaldos from '@/components/configuracion/IntegracionesRespaldos';
 import DatosSection from '@/components/datos/DatosSection';
@@ -46,6 +47,8 @@ import ConfiguracionDeVoz from '@/components/configuracion/ConfiguracionDeVoz';
 import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
 import { ExperienciaDelNegocio } from '~/configuracion/ExperienciaDelNegocio';
 import { ModoEsperaDelAparato } from '~/configuracion/ModoEsperaDelAparato';
+import { SonidoDelAparato } from '~/configuracion/SonidoDelAparato';
+import { SonidosDelNegocio } from '~/configuracion/SonidosDelNegocio';
 import { useLocation } from '@/enrutado';
 import { canAccessModule } from '@/lib/packageConfig';
 import ReiniciarSistemaSection from '@/components/configuracion/ReiniciarSistemaSection';
@@ -512,6 +515,10 @@ export default function Configuracion() {
             <Tablet className="w-3 h-3 mr-1" />
             Este aparato
           </TabsTrigger>
+          <TabsTrigger value="sonidos">
+            <Volume2 className="w-3 h-3 mr-1" />
+            Sonidos
+          </TabsTrigger>
           <TabsTrigger value="negocio">
             <Settings className="w-3 h-3 mr-1" />
             Operación
@@ -569,7 +576,16 @@ export default function Configuracion() {
 
         {/* DP-11.2: lo que es de ESTE aparato y no del negocio (el modo espera). */}
         <TabsContent value="aparato">
-          <ModoEsperaDelAparato />
+          <div className="space-y-6">
+            <ModoEsperaDelAparato />
+            {/* DP-11.3: cuánto suena ESTE aparato (Apagado, Suave, Normal). */}
+            <SonidoDelAparato />
+          </div>
+        </TabsContent>
+
+        {/* DP-11.3: cada momento con su sonido, el del teclado y el portal (del negocio). */}
+        <TabsContent value="sonidos">
+          <SonidosDelNegocio />
         </TabsContent>
 
         <TabsContent value="negocio">

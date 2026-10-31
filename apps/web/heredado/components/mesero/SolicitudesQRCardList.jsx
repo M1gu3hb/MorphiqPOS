@@ -14,6 +14,7 @@ import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
 // el puente calcula al leer la mesa, no una columna que esta pantalla escriba.
 import { filtrarSolicitudesParaUsuario, asignacionActiva } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
+import { sonar } from '~/sonidos/gestor';
 
 const TIPO_ICON = { ordenar: Bell, cuenta: Receipt, ayuda: HelpCircle };
 const TIPO_COLOR = {
@@ -82,6 +83,7 @@ export default function SolicitudesQRCardList() {
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero_count'] });
       toast.success('Solicitud actualizada');
+      if (accionTipo === 'atender') sonar('solicitudAtendida');
     } catch (err) {
       console.error('[SolicitudesQRCardList] accion:', err);
       toast.error(err?.message || 'No se pudo actualizar');

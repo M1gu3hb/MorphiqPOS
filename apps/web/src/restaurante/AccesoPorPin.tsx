@@ -19,6 +19,7 @@ import { flushSync } from 'react-dom';
 import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
 import { negocioParaEntrar, rutaDeEmpleados } from '~/cliente/entrada';
 import { abrir as abrirElCandado } from '~/espera/candado-del-pin';
+import { sonarAntesDeIrse } from '~/sonidos/gestor';
 
 import { almacenDelAparato } from './vista-de-solicitudes';
 
@@ -279,6 +280,8 @@ function TecladoNumerico({
             disabled={deshabilitado || tecla.apagada}
             cargando={tecla.valor === 'entrar' && enviando}
             className={`h-20 md:h-24 ${tecla.valor.length === 1 ? 'font-numeros text-2xl font-semibold' : 'text-base'}`}
+            // DP-11.3: los dígitos y borrar suenan con el sonido de teclado; «Entrar», como botón.
+            data-sonido={tecla.valor === 'entrar' ? undefined : 'tecla'}
             onClick={() => {
               onTecla(tecla.valor);
             }}
@@ -411,6 +414,8 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         // anterior. En una terminal compartida eso significa que lo tecleado
         // por quien se acaba de ir sigue en pantalla con el nombre del que
         // entra. La recarga es lo que garantiza que no quede nada suyo.
+        // DP-11.3: suena la entrada antes de recargar (la recarga corta el audio).
+        await sonarAntesDeIrse('entrar');
         // eslint-disable-next-line @next/next/no-location-assign-relative-destination
         if (onEntro === undefined) window.location.assign('/');
         else onEntro(empleoId);

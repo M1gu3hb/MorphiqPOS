@@ -18,6 +18,7 @@ import { useConfig } from '@/lib/ConfigContext';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
 import { claves } from '~/cliente/claves-de-consulta';
 import { mantenerDespierta } from '~/espera/despertador';
+import { sonar } from '~/sonidos/gestor';
 import { alcanceDeLaCocina, comandasDelAlcance } from '~/restaurante/alcance-de-la-cocina';
 import {
   conLosToques,
@@ -267,6 +268,7 @@ export default function Cocina() {
       queryClient.invalidateQueries({ queryKey: ['pedidos_listos_mesero'] });
       queryClient.invalidateQueries({ queryKey: ['pedidos_listos_watcher'] });
       toast.success('¡Pedido listo!');
+      sonar('comandaLista');
     } catch (e) {
       toast.error('No se pudo marcar listo: ' + (e?.message || ''));
     }

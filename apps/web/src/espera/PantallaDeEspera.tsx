@@ -7,6 +7,7 @@ import { ClipDeMorfi } from '~/morfi/ClipDeMorfi';
 import { PRIORIDAD } from '~/morfi/turno';
 import { useSinMovimiento } from '~/morfi/use-clip';
 import { useExperiencia } from '~/proveedores/Experiencia';
+import { sonar } from '~/sonidos/gestor';
 
 import { CapaModal } from './CapaModal';
 import { desplazamientoContraQuemado, horaYFecha } from './reloj';
@@ -73,6 +74,8 @@ export function PantallaDeEspera({
   }, [despertando, alDespertar]);
 
   const tocar = (): void => {
+    // DP-11.3: amanece al TOCAR, no cuando la despierta un aviso (ahí viene la voz de Cocina).
+    if (!despertando) sonar('despertar');
     if (despertando || !conMorfi || sinMovimiento) {
       alDespertar();
       return;

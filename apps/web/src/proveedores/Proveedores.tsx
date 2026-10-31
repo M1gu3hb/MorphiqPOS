@@ -10,6 +10,8 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 
 import type { AparienciaInicial } from '@morphiqpos/ui/hooks';
 
+import { ProveedorDeSonidos } from '~/sonidos/ProveedorDeSonidos';
+
 import { ProveedorDeApariencia } from './Apariencia';
 import { ProveedorDeExperiencia, type ExperienciaDelNegocio } from './Experiencia';
 import { GuardiaDePlantilla, ProveedorDeConsultas } from './ProveedorDeConsultas';
@@ -62,37 +64,40 @@ export function Proveedores({
   return (
     <ProveedorDeApariencia aparienciaInicial={apariencia}>
       <ProveedorDeExperiencia inicial={experiencia} {...(zona === undefined ? {} : { zona })}>
-        <ThemeProvider>
-          <POSAuthProvider conSesion={conSesion}>
-            {/*
+        {/* DP-11.3: el gestor de sonido de la pestaña (el aparato, el negocio y el oyente único). */}
+        <ProveedorDeSonidos>
+          <ThemeProvider>
+            <POSAuthProvider conSesion={conSesion}>
+              {/*
             El caché de consultas cuelga de QUIÉN está dentro, y por eso va DEBAJO de la
             sesión: cada contexto —negocio, empleo y plantilla— tiene el suyo, y cambiar de
             contexto lo descarta entero, con sus consultas en vuelo
             (`ProveedorDeConsultas`). Los avisos quedan fuera de él: que un aviso siga en
             pantalla al cambiar de contexto es justo lo que se quiere.
           */}
-            <ProveedorDeConsultas>
-              <VigiaDePresentacion />
-              {conSesion ? (
-                <ConfigProvider>
-                  <GuardiaDePlantilla />
-                  {children}
-                </ConfigProvider>
-              ) : (
-                children
-              )}
-            </ProveedorDeConsultas>
-            <Toaster />
-            <SonnerToaster
-              richColors
-              position="top-right"
-              closeButton
-              duration={3500}
-              visibleToasts={4}
-              swipeDirections={['top', 'right']}
-            />
-          </POSAuthProvider>
-        </ThemeProvider>
+              <ProveedorDeConsultas>
+                <VigiaDePresentacion />
+                {conSesion ? (
+                  <ConfigProvider>
+                    <GuardiaDePlantilla />
+                    {children}
+                  </ConfigProvider>
+                ) : (
+                  children
+                )}
+              </ProveedorDeConsultas>
+              <Toaster />
+              <SonnerToaster
+                richColors
+                position="top-right"
+                closeButton
+                duration={3500}
+                visibleToasts={4}
+                swipeDirections={['top', 'right']}
+              />
+            </POSAuthProvider>
+          </ThemeProvider>
+        </ProveedorDeSonidos>
       </ProveedorDeExperiencia>
     </ProveedorDeApariencia>
   );

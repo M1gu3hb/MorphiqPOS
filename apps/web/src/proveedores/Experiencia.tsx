@@ -2,8 +2,11 @@
 
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
+import { TECLA_DE_OMISION, type SonidoDeTecla } from '~/sonidos/mapa';
+
 /**
- * LA EXPERIENCIA DEL NEGOCIO EN VIVO (DP-11): «Mascota Morfi» y «Pedir PIN al despertar».
+ * LA EXPERIENCIA DEL NEGOCIO EN VIVO (DP-11): «Mascota Morfi», «Pedir PIN al despertar» y los
+ * sonidos del negocio (el del teclado y si el portal suena).
  *
  * El servidor la lee al pintar (`app/layout.tsx`, de `configuracion.valores.experiencia`) y la
  * pasa aquí, como la apariencia: la primera pintura ya sabe si Morfi sale. `cambiar` la ajusta
@@ -12,11 +15,17 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
 export interface ExperienciaDelNegocio {
   readonly mascota: boolean;
   readonly pin_al_despertar: boolean;
+  /** DP-11.3: si el portal del comensal suena. */
+  readonly sonidos_en_el_portal: boolean;
+  /** DP-11.3: con qué suena el teclado de PIN y de números. */
+  readonly tecla: SonidoDeTecla;
 }
 
 export const EXPERIENCIA_DE_OMISION: ExperienciaDelNegocio = {
   mascota: true,
   pin_al_despertar: false,
+  sonidos_en_el_portal: false,
+  tecla: TECLA_DE_OMISION,
 };
 
 interface ExperienciaEnVivo {

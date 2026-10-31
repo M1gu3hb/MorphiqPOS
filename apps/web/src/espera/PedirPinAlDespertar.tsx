@@ -118,7 +118,7 @@ export function PedirPinAlDespertar({
             {pin.length} de {LARGO_DEL_PIN} dígitos
           </p>
           {fallo === null ? null : <Aviso tono="peligro" titulo={fallo} anuncio="alerta" />}
-          <div className="grid grid-cols-3 gap-(--espacio-2)">
+          <div data-sonido="tecla" className="grid grid-cols-3 gap-(--espacio-2)">
             {TECLAS.map((digito) => (
               <Button
                 key={digito}

@@ -1,12 +1,13 @@
 'use client';
 
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 
 import { useConfig } from '@/lib/ConfigContext';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 
 import { useExperiencia } from '~/proveedores/Experiencia';
+import { sonar } from '~/sonidos/gestor';
 
 import { PantallaDeEspera } from './PantallaDeEspera';
 import { PedirPinAlDespertar } from './PedirPinAlDespertar';
@@ -60,6 +61,15 @@ export function ModoEspera({ ruta }: { readonly ruta: string }) {
     },
   );
   useDespertadorDeCaja(puesto === 'caja');
+
+  // DP-11.3: anochece al dormirse. Amanece al tocarla (`PantallaDeEspera`), no cuando la despierta
+  // un aviso: ahí suenan el timbre y la voz de Cocina.
+  const faseAnterior = useRef(fase);
+  useEffect(() => {
+    const antes = faseAnterior.current;
+    faseAnterior.current = fase;
+    if (antes !== 'dormida' && fase === 'dormida') sonar('dormir');
+  }, [fase]);
 
   useEffect(() => {
     if (fase !== 'dormida') return undefined;

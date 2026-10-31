@@ -30,6 +30,7 @@ import { Link } from '@/enrutado';
 import { printDocument } from '@/lib/print';
 import { tipsEnabled, getPorcentajesSugeridos } from '@/utils/tipsUtils';
 import { TIPO_VENTA, esProductoVariable } from '@/utils/tipoVentaUtils';
+import { sonar } from '~/sonidos/gestor';
 
 /** Centavos del servidor (llegan como cadena) a los pesos que la interfaz pinta. */
 const centavosAPesos = (valor) => (Number(valor) || 0) / 100;
@@ -287,6 +288,7 @@ export default function POS() {
         });
       }
       await refrescarCarrito();
+      sonar('agregar');
       return true;
     } catch (e) {
       toast.error(e?.message || 'No se pudo agregar el producto.');
@@ -350,6 +352,7 @@ export default function POS() {
         ...(unidad ? { unidad } : {}),
       });
       await refrescarCarrito();
+      sonar('agregar');
     } catch (e) {
       toast.error(e?.message || 'No se pudo agregar el producto.');
     }
@@ -380,6 +383,7 @@ export default function POS() {
         cantidad: aCantidad(qty),
       });
       await refrescarCarrito();
+      sonar('cantidad');
     } catch (e) {
       toast.error(e?.message || 'No se pudo cambiar la cantidad.');
     }
@@ -394,6 +398,7 @@ export default function POS() {
         lineaId: item.linea_id,
       });
       await refrescarCarrito();
+      sonar('quitar');
     } catch (e) {
       toast.error(e?.message || 'No se pudo quitar el producto.');
     }
@@ -537,6 +542,7 @@ export default function POS() {
       toast.success(
         `Venta ${folio} cobrada: ${formatCurrency(centavosAPesos(ticket?.totalCentavos))}`,
       );
+      sonar('cobro');
     } catch (err) {
       // El mensaje llega del dominio, en español y diciendo QUÉ pasó: «Abre la
       // caja antes de cobrar.», «No hay inventario suficiente para completar la
@@ -551,6 +557,7 @@ export default function POS() {
 
   const handlePrintTicket = () => {
     try {
+      sonar('ticket');
       printDocument({ mode: 'thermal', title: `Ticket-${ticketFinal?.venta?.folio || ''}` });
     } catch (e) {
       console.error('[POS] Error al imprimir:', e);

@@ -55,6 +55,7 @@ import { ListosParaRecoger, useListosDeLaCuenta } from './ListosParaRecoger';
 import { useRolDeLaSesion } from './rol-de-la-sesion';
 import { useUnionDeLaMesa } from './unir-mesas/use-union-de-la-mesa';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { sonar } from '~/sonidos/gestor';
 
 /**
  * PANTALLA · restaurante · mesa-activa
@@ -264,6 +265,9 @@ export function MesaActiva(props: MesaActivaProps) {
 
   /** Sumar es tocar el platillo; restar, el botón de su línea. */
   const tocar = (productoId: string, delta: number) => () => {
+    // DP-11.3: fuera del actualizador (StrictMode lo corre dos veces).
+    const queda = (borrador[productoId] ?? 0) + delta;
+    sonar(delta > 0 ? 'agregar' : queda > 0 ? 'cantidad' : 'quitar');
     setBorrador((actual) => {
       const siguiente = { ...actual, [productoId]: (actual[productoId] ?? 0) + delta };
       return Object.fromEntries(Object.entries(siguiente).filter(([, n]) => n > 0));
@@ -343,6 +347,7 @@ export function MesaActiva(props: MesaActivaProps) {
     try {
       const entrada = { ordenId: orden, lineas };
       await invocarComando('/api/restaurante/enviar-pedido', entrada, { idempotencyKey: clave });
+      sonar('enviarACocina');
       // Lo enviado cruza al bloque de arriba con identificadores provisionales;
       // los definitivos llegan con la siguiente lectura de la mesa. La línea imita
       // la fila del puente, así que su `total` va en la unidad del puente: se multiplica

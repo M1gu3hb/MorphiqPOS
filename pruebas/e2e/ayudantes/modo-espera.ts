@@ -47,16 +47,17 @@ export async function experiencia(duena: Page, valores: Record<string, boolean>)
   });
 }
 
-/** La cuenta abierta de la mesa de la prueba, si la hay. */
+/** La cuenta abierta de una mesa (la de la prueba si no se dice cuál), si la hay. */
 export async function cuentaDeLaMesa(
   duena: Page,
+  numero: number = MESA,
 ): Promise<{ mesaId: string; ordenId: string | null }> {
   const [mesa] = await consultarPuente<{ id: string; venta_activa_id?: string | null }>(
     duena,
     'Mesa',
-    { filtro: { numero: MESA }, limite: 1 },
+    { filtro: { numero }, limite: 1 },
   );
-  expect(mesa, `El negocio de prueba no tiene la mesa ${String(MESA)}.`).toBeDefined();
+  expect(mesa, `El negocio de prueba no tiene la mesa ${String(numero)}.`).toBeDefined();
   return { mesaId: mesa?.id ?? '', ordenId: mesa?.venta_activa_id ?? null };
 }
 
@@ -65,8 +66,8 @@ export async function cuentaDeLaMesa(
  * pendientes, la cocina no se duerme (que es justo la regla). Así la siguiente vuelta, en otro
  * aparato, empieza con la cocina vacía.
  */
-export async function cancelarLaCuentaDeLaMesa(duena: Page): Promise<void> {
-  const { ordenId } = await cuentaDeLaMesa(duena);
+export async function cancelarLaCuentaDeLaMesa(duena: Page, numero: number = MESA): Promise<void> {
+  const { ordenId } = await cuentaDeLaMesa(duena, numero);
   if (ordenId === null) return;
   await escribir(duena, '/api/restaurante/cancelar-orden', {
     ordenId,

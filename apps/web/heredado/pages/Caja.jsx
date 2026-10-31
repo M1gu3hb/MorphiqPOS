@@ -74,6 +74,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { safeFormatDate } from '@/lib/safeFormat';
 import StatCard from '@/components/common/StatCard';
 import { claves } from '~/cliente/claves-de-consulta';
+import { sonar } from '~/sonidos/gestor';
 
 const METODOS = [
   {
@@ -806,6 +807,7 @@ export default function Caja() {
       setPropinaTarjeta('');
       setPropinaTransferencia('');
       toast.success(`¡Venta cobrada! Cambio: ${formatCurrency(cambio)}`);
+      sonar('cobro');
     } catch (err) {
       // 🟡 HOTFIX bandera amarilla #2: mensaje correcto según el momento del fallo.
       // - Si venta NO quedó pagada → el motivo TAL CUAL lo dice el dominio, que
@@ -1730,6 +1732,7 @@ export default function Caja() {
             <Button
               onClick={() => {
                 try {
+                  sonar('ticket');
                   printDocument({
                     mode: 'thermal',
                     title: `Ticket-${ticketFinalData?.venta?.folio || ''}`,

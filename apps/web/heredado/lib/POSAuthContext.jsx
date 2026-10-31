@@ -6,6 +6,7 @@ import { claveDeContexto } from '~/cliente/contexto-de-consultas';
 import { mismaCocina } from '~/restaurante/alcance-de-la-cocina';
 import { almacenDelAparato } from '~/restaurante/vista-de-solicitudes';
 import { abrir as abrirElCandado } from '~/espera/candado-del-pin';
+import { sonarAntesDeIrse } from '~/sonidos/gestor';
 
 /** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, enPresentacion?: boolean, paquete?: string, organizacionId?: string, estacion_preparacion_id?: string | null, estacion_preparacion_nombre?: string | null, estacion_preparacion_color?: string | null, puede_ver_todas_estaciones?: boolean}} UsuarioDePOS */
 /** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, verificada: boolean, sesion: number, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
@@ -195,6 +196,9 @@ export function POSAuthProvider({ children, conSesion = true }) {
     // DP-11.2: el candado del modo espera se quita sólo cuando el servidor cerró la sesión; si
     // `salir` falla, sigue puesto (una recarga no debe entrar sin el PIN).
     abrirElCandado(almacenDelAparato());
+    // DP-11.3: suena la salida ANTES de soltar la sesión: sin sesión, la pantalla ya navega sola
+    // a la entrada y la recarga de abajo llegaría encima. La recarga corta el audio.
+    await sonarAntesDeIrse('salir');
     version.current += 1;
     setSesion((n) => n + 1);
     setPosUser(null);

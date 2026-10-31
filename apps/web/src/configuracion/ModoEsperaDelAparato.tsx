@@ -1,11 +1,12 @@
 'use client';
 
-import { useId, useState, useSyncExternalStore } from 'react';
+import { useId, useState } from 'react';
 
 import { Switch } from '@morphiqpos/ui/primitivas/switch';
 import { Aviso, Superficie } from '@morphiqpos/ui/sistema';
 import { MoonStar } from 'lucide-react';
 
+import { avisarCambioDelAparato, useTextoDelAparato } from '~/cliente/texto-del-aparato';
 import {
   CLAVE_DE_LA_ESPERA,
   guardarPreferenciaDeEspera,
@@ -18,29 +19,8 @@ import { almacenDelAparato } from '~/restaurante/vista-de-solicitudes';
 /** Los minutos que se ofrecen; «de cada pantalla» es la opción vacía. */
 const MINUTOS_A_ELEGIR = [1, 2, 3, 5, 10, 15, 30, 60] as const;
 
-/** Quien guarda aquí avisa a esta pestaña; las otras se enteran por el evento `storage`. */
-const oyentes = new Set<() => void>();
-
-function suscribir(avisar: () => void): () => void {
-  oyentes.add(avisar);
-  window.addEventListener('storage', avisar);
-  return () => {
-    oyentes.delete(avisar);
-    window.removeEventListener('storage', avisar);
-  };
-}
-
-/** El texto guardado, no el objeto: así la instantánea no cambia de identidad en cada lectura. */
-function textoGuardado(): string | null {
-  try {
-    return almacenDelAparato()?.getItem(CLAVE_DE_LA_ESPERA) ?? null;
-  } catch {
-    return null;
-  }
-}
-
 function usePreferenciaDeEspera(): PreferenciaDeEspera {
-  const texto = useSyncExternalStore(suscribir, textoGuardado, () => null);
+  const texto = useTextoDelAparato(CLAVE_DE_LA_ESPERA);
   return leerPreferenciaDeEspera({ getItem: () => texto });
 }
 
@@ -61,7 +41,7 @@ export function ModoEsperaDelAparato() {
       ...parte,
     });
     setFallo(!guardada);
-    for (const avisar of oyentes) avisar();
+    avisarCambioDelAparato();
   };
 
   return (

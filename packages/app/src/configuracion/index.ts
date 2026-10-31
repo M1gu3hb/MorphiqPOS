@@ -18,6 +18,7 @@ export {
   EXPERIENCIA_POR_OMISION,
   experienciaDe,
   experienciaDeLaOrganizacion,
+  TECLAS_DE_SONIDO,
   type Experiencia,
 } from './experiencia.ts';
 

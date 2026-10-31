@@ -76,6 +76,30 @@ export const SIN_ESTADO = [
       'Lee el almacén del navegador, que responde al instante; sin almacén pinta lo de omisión. No hay viaje al servidor.',
   },
   {
+    pantalla: 'configuracion/SonidoDelAparato',
+    estado: 'vacio',
+    razon:
+      'El sonido de ESTE aparato (DP-11.3): un perfil, un volumen y un botón para probar. No tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'configuracion/SonidoDelAparato',
+    estado: 'cargando',
+    razon:
+      'Lee el almacén del navegador, que responde al instante; sin almacén pinta lo de omisión. No hay viaje al servidor.',
+  },
+  {
+    pantalla: 'configuracion/SonidosDelNegocio',
+    estado: 'vacio',
+    razon:
+      'El mapa de sonidos es fijo (DP-11.3): siempre trae sus momentos. No viene del servidor.',
+  },
+  {
+    pantalla: 'configuracion/SonidosDelNegocio',
+    estado: 'cargando',
+    razon:
+      'No lee nada al pintarse: el teclado y el portal llegan del servidor con la página (useExperiencia). Mientras guarda, los controles quedan deshabilitados.',
+  },
+  {
     pantalla: 'espera/CapaModal',
     estado: 'vacio',
     razon:

@@ -1374,6 +1374,34 @@
         "+ texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin asignación de mesas.",
         "+ icono:Tablet"
       ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "DP-2 (DP-D05): sale la pestaña «Presentación» (su icono Sparkles de 3×3 con margen). Sin modo presentación no hay qué configurar; las demás pestañas quedan igual. DP-9.2 (DP-D23): los pedidos desde el QR ya no dependen de la asignación de mesas; sale el aviso ámbar «activa primero la asignación de mesas» y la explicación dice que funciona con y sin ella. DP-11.2 (DP-D39): pestaña nueva «Este aparato» (icono Tablet, del mismo tamaño que las demás) con el modo espera de ESE aparato; lo del negocio sigue en Apariencia. DP-11.3 (DP-D40): pestaña nueva «Sonidos» (icono Volume2, como las demás) con cada momento y su sonido; y en «Este aparato», el panel de sonido debajo del modo espera (por eso el contenedor con space-y-6).",
+      "testigos": [
+        "+ icono:Tablet",
+        "+ icono:Volume2",
+        "+ clase:w-3",
+        "+ clase:h-3",
+        "+ clase:mr-1",
+        "+ clase:space-y-6",
+        "- clase:w-3",
+        "- clase:h-3",
+        "- clase:mr-1",
+        "- clase:text-xs",
+        "- clase:px-3",
+        "- clase:py-2",
+        "- clase:rounded-lg",
+        "- clase:bg-advertencia/10",
+        "- clase:border",
+        "- clase:border-advertencia/30",
+        "- clase:text-advertencia",
+        "- texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Esta función solo está disponible si la",
+        "- texto:asignación de mesas",
+        "- texto:asignación de mesas",
+        "- texto:también está activa.",
+        "+ texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin asignación de mesas."
+      ]
     }
   ]
 }
