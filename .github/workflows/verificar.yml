@@ -764,7 +764,8 @@ jobs:
   # prueba de navegador, en los aparatos donde lo usa quien lo opera. Dos tandas en paralelo para
   # no alargar la jornada: la SALA (recetas, portal sin asignación y globos, «Solicitudes», cocina
   # en el teléfono, botones del menú QR, QR con diseño, estaciones, QR de la mesa unida, los
-  # toques de cocina en camino y el menú personalizado) y la EXPERIENCIA (Morfi, el modo espera
+  # toques de cocina en camino, el menú personalizado y, con la 186 y la 187, el pedido compartido
+  # y unir mesas desde el mapa) y la EXPERIENCIA (Morfi, el modo espera
   # con y sin PIN y los sonidos). Cada suite resetea la demo al empezar. Sin reintentos.
   paridad:
     name: Lo de Don Poncho · ${{ matrix.tanda }}
@@ -856,6 +857,8 @@ jobs:
           pnpm test:e2e pruebas/e2e/qr-de-mesas.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
           pnpm test:e2e pruebas/e2e/estaciones-de-cocina.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
           pnpm test:e2e pruebas/e2e/qr-de-mesa-unida.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/pedido-compartido.spec.ts --project=escritorio --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/unir-mesas-en-el-mapa.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
 
       - name: La experiencia (DP-11.1 a 11.3)
         if: matrix.tanda == 'experiencia'
