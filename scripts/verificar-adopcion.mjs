@@ -394,6 +394,18 @@ export const SIN_ESTADO = [
       'No lee ni escribe: «Agregar» abre el diálogo del portal, que es quien envía y dice si falló.',
   },
   {
+    pantalla: 'restaurante/GlobosDeSolicitud',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: son los globos de UNA mesa en el mapa (DP-9.2). Sin solicitudes no pinta nada: la mesa se ve como siempre.',
+  },
+  {
+    pantalla: 'restaurante/GlobosDeSolicitud',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe las solicitudes que el mapa ya leyó, y el mapa enseña su propia espera.',
+  },
+  {
     pantalla: 'restaurante/AreaDePreparacionSelect',
     estado: 'vacio',
     razon:

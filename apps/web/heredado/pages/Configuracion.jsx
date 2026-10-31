@@ -715,8 +715,8 @@ export default function Configuracion() {
               </div>
 
               {/* === PEDIDOS DESDE PORTAL QR (Prompt 6C) ===
-                  Solo visible con módulo de mesas. Solo activable si asignación de mesas
-                  está activa. Si está apagada, el switch queda gris y se muestra aviso. */}
+                  Solo visible con módulo de mesas. Desde DP-9.2 no depende de la asignación de
+                  mesas: sin ella la cuenta es del mesero que la atiende. */}
               {showMesasTab && (
                 <div className="border-t pt-4 space-y-3">
                   <p className="text-sm font-semibold">Pedidos desde Portal QR</p>
@@ -727,8 +727,8 @@ export default function Configuracion() {
                       </Label>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         Si está activo, el comensal puede agregar productos a un carrito y enviar el
-                        pedido a cocina. El cobro siempre se realiza en caja. Esta función solo está
-                        disponible si la <strong>asignación de mesas</strong> también está activa.
+                        pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin
+                        asignación de mesas.
                       </p>
                     </div>
                     <Switch
@@ -736,15 +736,8 @@ export default function Configuracion() {
                       onCheckedChange={(v) =>
                         setBizForm({ ...bizForm, portal_qr_permitir_pedidos_cliente: v })
                       }
-                      disabled={bizForm.asignacion_mesas_activa !== true}
                     />
                   </div>
-                  {bizForm.asignacion_mesas_activa !== true && (
-                    <div className="text-xs px-3 py-2 rounded-lg bg-advertencia/10 border border-advertencia/30 text-advertencia">
-                      Para permitir pedidos desde el QR, activa primero la{' '}
-                      <strong>asignación de mesas</strong>.
-                    </div>
-                  )}
                 </div>
               )}
 

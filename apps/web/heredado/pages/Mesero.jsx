@@ -69,6 +69,8 @@ import {
 import { ROLES } from '@/lib/constants';
 import { claves } from '~/cliente/claves-de-consulta';
 import { mesasDelPlano, zonasConMesas, zonasDelNegocio } from '~/cliente/mesas-del-mapa';
+import { GlobosDeSolicitud } from '~/restaurante/GlobosDeSolicitud';
+import { solicitudesPorMesa } from '~/restaurante/globos-de-solicitud';
 
 const MAP_HEIGHT = 600;
 // Hook simple para detectar móvil
@@ -172,6 +174,32 @@ function Mesero() {
     if (!asignacionActiva(config)) return arr;
     return arr.filter((s) => !s?.mesero_destino_id || s.mesero_destino_id === posUser.id);
   }, [solicitudesPendRaw, posUser, config]);
+
+  // DP-9.2: los globos de solicitud sobre cada mesa, en los dos modos (con y sin asignación).
+  // Son las mismas solicitudes que cuenta el botón, agrupadas por mesa. Atender una desde su
+  // globo relee las solicitudes y las mesas (el mesero que la atiende puede quedarse con ella).
+  const solicitudesDeCadaMesa = useMemo(
+    () => solicitudesPorMesa(solicitudesActivas),
+    [solicitudesActivas],
+  );
+  const releerTrasAtender = () => {
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero_count'] });
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
+    queryClient.invalidateQueries({ queryKey: claves.mesas.activas() });
+  };
+  const globosDe = (mesa, lugar) => {
+    const deLaMesa = solicitudesDeCadaMesa.get(mesa.id);
+    if (!deLaMesa || deLaMesa.length === 0) return null;
+    return (
+      <GlobosDeSolicitud
+        solicitudes={deLaMesa}
+        mesaNumero={mesa.numero}
+        alAtender={releerTrasAtender}
+        lugar={lugar}
+      />
+    );
+  };
 
   // Refs para evitar doble cierre y cerrar el sheet hijo antes que el Dialog
   const cartFabRef = useRef(null);
@@ -1030,6 +1058,7 @@ function Mesero() {
             onMesaClick={onMesaClick}
             getResponsable={getResponsable}
             loading={cargandoMesas}
+            globosDe={(mesa) => globosDe(mesa, 'en-linea')}
           />
         </div>
       ) : (
@@ -1055,6 +1084,8 @@ function Mesero() {
                 onClick={() => onMesaClick(mesa)}
                 responsableColor={resp?.color || null}
                 responsableNombre={resp?.nombre || ''}
+                // Pegada al borde de arriba, el lienzo recortaría la pila: va debajo.
+                globos={globosDe(mesa, (mesa.posicion_y ?? 100) < 80 ? 'abajo' : 'arriba')}
               />
             );
           })}

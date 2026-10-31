@@ -19,7 +19,12 @@ import {
   type ProductoDeMenu,
   type SeccionDeMenu,
 } from './lista-blanca.ts';
-import { exigirPortalAbierto, leerContextoDelNegocio, puedeOrdenarDesdeQR } from './negocio.ts';
+import {
+  exigirPortalAbierto,
+  faltaMesero,
+  leerContextoDelNegocio,
+  puedeOrdenarDesdeQR,
+} from './negocio.ts';
 import { opcionesDelMenu } from './opciones-publicas.ts';
 
 /**
@@ -127,7 +132,11 @@ export async function payloadDelPortal(
 
   return {
     negocio: negocioPublico(publica, banderas, puedeOrdenar),
-    mesa: mesaPublica(ambito, cuenta, puedeOrdenar),
+    mesa: mesaPublica(
+      ambito,
+      cuenta,
+      puedeOrdenar && !faltaMesero(banderas, ambito.empleadoAsignadoId),
+    ),
     productos,
     categorias,
     secciones,
@@ -169,10 +178,14 @@ async function solicitudDeLaMesa(ambito: AmbitoPortal): Promise<SolicitudPublica
  * la respuesta es un booleano, así que el latch anti-parpadeo deja de hacer
  * falta —la causa que lo obligaba a existir ya no puede ocurrir.
  */
+/**
+ * `puedeOrdenarAqui` ya trae `faltaMesero` (DP-9.2): con la asignación encendida una mesa sin
+ * mesero asignado no abre ni pide; sin asignación, sí.
+ */
 function mesaPublica(
   ambito: AmbitoPortal,
   cuenta: CuentaPublica | null,
-  puedeOrdenar: boolean,
+  puedeOrdenarAqui: boolean,
 ): MesaPublica {
   const tieneMesero = ambito.empleadoAsignadoId !== null;
   const abierta = cuenta !== null || ambito.ordenActivaId !== null || ambito.estadoMesa !== 'libre';
@@ -184,12 +197,11 @@ function mesaPublica(
     estado: ambito.estadoMesa,
     tiene_mesero: tieneMesero,
     venta_activa_id: cuenta?.id ?? null,
-    puede_abrir: puedeOrdenar && tieneMesero && !abierta,
+    puede_abrir: puedeOrdenarAqui && !abierta,
     // `puedeOrdenar` ya contiene `portal_qr_permitir_pedidos_cliente`: repetirlo
     // aquí daría dos sitios donde decidir lo mismo, y con el tiempo dirían cosas
     // distintas.
-    puede_pedir:
-      puedeOrdenar && tieneMesero && cuenta !== null && esUnoDe(ORDEN_ADMITE_PEDIDO, cuenta.estado),
+    puede_pedir: puedeOrdenarAqui && cuenta !== null && esUnoDe(ORDEN_ADMITE_PEDIDO, cuenta.estado),
   };
 }
 

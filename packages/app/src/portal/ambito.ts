@@ -38,8 +38,10 @@ export interface AmbitoPortal {
   readonly tokenMesa: string;
   readonly estadoMesa: string;
   readonly ordenActivaId: string | null;
-  /** Sin mesero asignado no se abre mesa desde el QR (`qrPedidoFlow.js:63`). */
+  /** Con la asignación encendida, sin mesero asignado no se abre mesa desde el QR (DP-9.2). */
   readonly empleadoAsignadoId: string | null;
+  /** Quien tomó la mesa en el modo sin asignación (`restaurante.asignar_mesero`). DP-9.2. */
+  readonly empleadoAtiendeId: string | null;
 }
 
 /** La fila cruda que devuelve la búsqueda por token, antes de comprobar nada. */
@@ -52,6 +54,7 @@ export interface FilaMesaPorToken {
   readonly estado: string;
   readonly orden_activa_id: string | null;
   readonly empleado_asignado_id: string | null;
+  readonly empleado_atiende_id: string | null;
   readonly qr_activa: boolean;
   readonly activa: boolean;
 }
@@ -125,6 +128,7 @@ export async function resolverAmbitoPortal(
     estadoMesa: fila.estado,
     ordenActivaId: fila.orden_activa_id,
     empleadoAsignadoId: fila.empleado_asignado_id,
+    empleadoAtiendeId: fila.empleado_atiende_id,
   };
 }
 
@@ -138,6 +142,7 @@ const COLUMNAS_MESA = [
   'estado',
   'orden_activa_id',
   'empleado_asignado_id',
+  'empleado_atiende_id',
   'qr_activa',
   'activa',
 ] as const;

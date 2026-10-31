@@ -203,6 +203,9 @@ function PortalCliente() {
   const pedidosQRActivos = config?.puede_ordenar === true;
 
   const tieneMeseroAsignado = mesa?.tiene_mesero === true;
+  // DP-9.2: el mesero sólo FALTA con la asignación encendida. Sin asignación nadie tiene mesas
+  // fijas: el comensal abre, pide y llama igual, y la cuenta es de quien la atiende.
+  const faltaMesero = config?.asignacion_mesas_activa === true && !tieneMeseroAsignado;
   // "Mesa ya abierta" se miraba por TRES señales porque el navegador no podía
   // fiarse de ninguna: la venta del sondeo, el puntero de la mesa y su estado,
   // cada una de una consulta distinta y llegando en momentos distintos. Ahora
@@ -229,7 +232,7 @@ function PortalCliente() {
       return;
     }
     if (!mesaPermitePedirAhora) {
-      if (!tieneMeseroAsignado) {
+      if (faltaMesero) {
         toast.error('Esta mesa aún no tiene mesero asignado. Pide apoyo al personal.');
       } else {
         toast.info('No se pueden agregar productos en este momento.');
@@ -325,7 +328,7 @@ function PortalCliente() {
       toast.error('Tu pedido está vacío.');
       return;
     }
-    if (!mesa?.id || !tieneMeseroAsignado) {
+    if (!mesa?.id || faltaMesero) {
       toast.error('Esta mesa no está disponible para pedir.');
       return;
     }
@@ -637,28 +640,18 @@ function PortalCliente() {
         <MarcaMorphiq variante="portal" />
       </main>
 
-      {/* Botón flotante de atención.
-          Reglas:
+      {/* Botón flotante de atención (DP-9.2). Siempre: las solicitudes llegan en los dos modos.
           - Asignación activa + mesa SIN mesero asignado: bloqueado (mensaje aviso).
-          - Asignación apagada: el botón se oculta (no audio masivo).
-          - Asignación activa + mesa con mesero: funciona normal.
-      */}
-      {(() => {
-        const asign = config?.asignacion_mesas_activa === true;
-        if (!asign) return null; // oculto si no hay asignación
-        // `tiene_mesero` es un booleano: quién atiende la mesa es dato de la
-        // operación y no sale al público. Lo que el portal necesita saber es si
-        // hay alguien a quien avisar, no a quién le toca.
-        return (
-          <AtencionFAB
-            tiposHabilitados={tiposHabilitados}
-            onPedir={enviarSolicitud}
-            disabled={!!enviandoTipo}
-            bloqueado={!tieneMeseroAsignado}
-            mensajeBloqueado="Esta mesa aún no tiene un mesero asignado. Por favor, acércate a un mesero del salón."
-          />
-        );
-      })()}
+          - Asignación apagada: funciona; el aviso va a todo el salón, y la voz sólo suena en la
+            vista «Solicitudes» de Mesas (DP-9.3), no en todas las pantallas.
+          `tiene_mesero` es un booleano: quién atiende la mesa no sale al público. */}
+      <AtencionFAB
+        tiposHabilitados={tiposHabilitados}
+        onPedir={enviarSolicitud}
+        disabled={!!enviandoTipo}
+        bloqueado={faltaMesero}
+        mensajeBloqueado="Esta mesa aún no tiene un mesero asignado. Por favor, acércate a un mesero del salón."
+      />
 
       {/* Tarjeta persistente: cuando el mesero ya disparó la cuenta.
           Permite reabrir PedirCuentaQR si el cliente cerró la pantalla. */}

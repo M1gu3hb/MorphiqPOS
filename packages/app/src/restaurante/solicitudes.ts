@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { quedarseConLaMesa } from './responsable-de-la-mesa.ts';
 
 import { mesaOperable } from './datos.ts';
 import type { Movimiento } from './transiciones.ts';
@@ -285,6 +286,15 @@ export const atenderSolicitud = definirComando<
       );
     }
 
+    // DP-9.2: el MESERO que atiende el aviso de una mesa sin responsable se queda con la mesa y
+    // con su cuenta. Un gerente o la caja que lo atienden no la toman: no es su mesa.
+    const tomada =
+      ctx.ambito.rol === 'mesero' && atribucion.empleadoAtiendeId !== null
+        ? await ctx.paso('quedarse_con_la_mesa', () =>
+            quedarseConLaMesa(ctx.tx, organizacionId, solicitud.mesaId, empleoId),
+          )
+        : null;
+
     ctx.auditar({
       entidadId: solicitud.id,
       payload: {
@@ -295,6 +305,8 @@ export const atenderSolicitud = definirComando<
         // Queda constancia de a quién se acreditó: es el dato que hoy elige el
         // navegador y el que después nadie puede reconstruir.
         atendidaPorId: atribucion.empleadoAtiendeId,
+        tomoLaMesa: tomada?.mesa ?? false,
+        tomoLaCuenta: tomada?.cuenta ?? false,
       },
     });
 
@@ -552,6 +564,10 @@ export const asignarMesero = definirComando<
         { mesaNumero: mesa.numero },
       );
     }
+    // DP-9.2: con la mesa va su cuenta abierta, si la abrió el comensal sin responsable.
+    await ctx.paso('quedarse_con_la_cuenta', () =>
+      quedarseConLaMesa(ctx.tx, organizacionId, mesa.id, empleoId),
+    );
 
     ctx.auditar({
       entidadId: mesa.id,

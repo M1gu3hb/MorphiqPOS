@@ -17,7 +17,15 @@ import { MESA_STATUS_DARK } from '@/lib/darkPalettes';
  * Dark mode: usa MESA_STATUS_DARK con fill/stroke profundos + glow
  * para que cada estado sea distinguible y "Libre" sea legible sin zoom.
  */
-export default function MesaGridMobile({ mesas, onMesaClick, getResponsable, loading = false }) {
+// DP-9.2: `globosDe(mesa)` da los globos de solicitud de la mesa; van en fila sobre su tarjeta,
+// que es un botón y no puede llevar otro botón adentro.
+export default function MesaGridMobile({
+  mesas,
+  onMesaClick,
+  getResponsable,
+  loading = false,
+  globosDe = null,
+}) {
   const isDark = useIsDark();
   const safeMesas = Array.isArray(mesas) ? mesas : [];
 
@@ -83,8 +91,9 @@ export default function MesaGridMobile({ mesas, onMesaClick, getResponsable, loa
         const chipText = isDark ? cfg.text : cfg.text;
 
         return (
+          <div key={mesa.id} className="flex flex-col gap-1">
+            {globosDe ? globosDe(mesa) : null}
           <button
-            key={mesa.id}
             onClick={() => onMesaClick(mesa)}
             className="rounded-2xl p-3 border-2 active:scale-95 transition-all flex flex-col items-center justify-center min-h-[110px] relative overflow-hidden"
             style={{
@@ -186,6 +195,7 @@ export default function MesaGridMobile({ mesas, onMesaClick, getResponsable, loa
               </span>
             )}
           </button>
+          </div>
         );
       })}
     </div>
