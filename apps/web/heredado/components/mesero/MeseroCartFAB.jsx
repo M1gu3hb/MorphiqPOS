@@ -58,8 +58,10 @@ const MeseroCartFAB = forwardRef(function MeseroCartFAB(
   if (!visible) return null;
 
   const isCart = cantidad > 0;
-  const colorMain = isCart ? 'hsl(4,72%,46%)' : 'hsl(217,91%,50%)';
-  const colorMainEnd = isCart ? 'hsl(4,72%,34%)' : 'hsl(217,91%,38%)';
+  // Los del estilo (DP-3), planos —el primario con carrito, el acento con la mesa abierta—.
+  // Antes eran un rojo y el azul de Morphiq fijos, con degradado, encima de cualquier estilo.
+  const colorMain = isCart ? 'hsl(var(--primario))' : 'hsl(var(--acento))';
+  const colorMainEnd = colorMain;
 
   return (
     <>
@@ -88,7 +90,7 @@ const MeseroCartFAB = forwardRef(function MeseroCartFAB(
             {isCart && (
               <span
                 className="absolute -top-2 -right-2 min-w-[18px] h-[18px] px-1 rounded-full bg-superficie text-[10px] font-black flex items-center justify-center"
-                style={{ color: 'hsl(4,72%,40%)' }}
+                style={{ color: 'hsl(var(--primario))' }}
               >
                 {cantidad}
               </span>
