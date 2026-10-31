@@ -20,6 +20,15 @@ const dobles = vi.hoisted(() => ({
   devolver: vi.fn(),
   entrarConPin: vi.fn(),
   organizacionDeQuienEntra: vi.fn(),
+  // La estación de la sesión (DP-10.1) se lee de la base; aquí no hay base y no es lo que se mide.
+  leerEstacionDeLaSesion: vi.fn(() =>
+    Promise.resolve({
+      estacion_preparacion_id: null,
+      estacion_preparacion_nombre: null,
+      estacion_preparacion_color: null,
+      puede_ver_todas_estaciones: false,
+    }),
+  ),
 }));
 
 vi.mock('@morphiqpos/contracts', async () => {
@@ -51,6 +60,7 @@ vi.mock('@morphiqpos/app/identidad', async () => {
     ...original,
     entrarConPin: dobles.entrarConPin,
     organizacionDeQuienEntra: dobles.organizacionDeQuienEntra,
+    leerEstacionDeLaSesion: dobles.leerEstacionDeLaSesion,
   };
 });
 

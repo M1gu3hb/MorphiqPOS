@@ -1310,6 +1310,33 @@
       "borrado": true,
       "porque": "DP-9.8 (DP-D28): ya nadie lo usaba; los QR de mesa los dibuja el motor de diseño (packages/domain/src/qr).",
       "testigos": []
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/EstacionesPreparacionSection.jsx",
+      "porque": "DP-10.1 (DP-D31): «Hacer general» nombra general una estación que ya existe (restaurante.marcar_estacion_general), mientras el negocio no tenga ninguna; el aviso lo ofrece junto a «Crear Cocina general».",
+      "testigos": [
+        "- texto:. Es la estación por defecto donde caen las categorías sin asignar. Crea Cocina general para evitar inconsistencias futuras.",
+        "+ texto:. Es la estación por defecto donde caen las categorías sin asignar. Crea Cocina general o toca «Hacer general» en una de las tuyas.",
+        "+ texto:Hacer general",
+        "+ aviso:«${estacion.nombre}» es ahora la estación general",
+        "+ aviso:No se pudo:"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Cocina.jsx",
+      "porque": "DP-10.1 (DP-D31): el aviso del cocinero sin estación dice lo que pidió el cliente: «Tu usuario no tiene estación asignada; pide al administrador que te asigne una.», y dónde se asigna.",
+      "testigos": [
+        "- texto:Este usuario de cocina no tiene estación asignada",
+        "- texto:Pide al administrador que te asigne una estación o te marque como \"Todas las estaciones\" en",
+        "+ texto:Se asigna en",
+        "+ texto:, o ahí mismo se le marca «Todas las estaciones»."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/utils/preparacionEstacionUtils.js",
+      "borrado": true,
+      "porque": "DP-10.1 (DP-D31): nadie lo importaba; la estación de cada comanda la decide el servidor (restaurante/estaciones.ts y portal/estaciones.ts).",
+      "testigos": []
     }
   ]
 }

@@ -1254,6 +1254,13 @@
       "paquetes": ["restaurante"]
     },
     {
+      "ruta": "/api/restaurante/marcar-estacion-general",
+      "comando": "restaurante.marcar_estacion_general",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"]
+    },
+    {
       "ruta": "/api/restaurante/marchar-tiempo",
       "comando": "restaurante.marchar_tiempo",
       "escribe": true,

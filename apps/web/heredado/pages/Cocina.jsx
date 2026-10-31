@@ -15,9 +15,9 @@ import { useIsDark } from '@/lib/ThemeContext';
 import { COCINA_COLS } from '@/lib/darkPalettes';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { ROLES } from '@/lib/constants';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
 import { claves } from '~/cliente/claves-de-consulta';
+import { alcanceDeLaCocina, comandasDelAlcance } from '~/restaurante/alcance-de-la-cocina';
 import {
   conLosToques,
   crearFilaPorClave,
@@ -69,38 +69,18 @@ function detectarHuerfano(pedido, ventasMap) {
 export default function Cocina() {
   const queryClient = useQueryClient();
   const isDark = useIsDark();
-  const { posUser } = usePOSAuth();
+  const { posUser, verificada } = usePOSAuth();
   const { config } = useConfig();
   const estacionesActivas = config?.estaciones_preparacion_activas === true;
 
-  // === F3: Decidir scope de filtro según rol + estación del usuario ===
-  // - admin → ve todos.
-  // - cocina con puede_ver_todas_estaciones → ve todos.
-  // - cocina con estacion_preparacion_id → ve solo su estación.
-  // - cocina sin nada (cuando estaciones activas) → ve nada + alerta.
-  // - Otros roles (caja/mesero) entrando a /cocina → ven todos (legacy, no rompemos).
-  const userScope = useMemo(() => {
-    const rol = posUser?.rol;
-    if (!estacionesActivas) return { mode: 'all', label: null };
-    if (rol === ROLES.ADMIN) return { mode: 'all', label: 'Vista general (admin)' };
-    if (rol === ROLES.KITCHEN) {
-      if (posUser?.puede_ver_todas_estaciones === true) {
-        return { mode: 'all', label: 'Todas las estaciones' };
-      }
-      if (posUser?.estacion_preparacion_id) {
-        return {
-          mode: 'station',
-          stationId: posUser.estacion_preparacion_id,
-          label: posUser.estacion_preparacion_nombre || 'Estación',
-          color: posUser.estacion_preparacion_color || COCINA_GENERAL_COLOR,
-        };
-      }
-      // (raro: caía a unassigned sin id ni todas)
-      return { mode: 'unassigned', label: null };
-    }
-    // Otros roles ven todo (no rompemos legacy).
-    return { mode: 'all', label: null };
-  }, [posUser, estacionesActivas]);
+  // === Qué ve cada quien (DP-10.1, `~/restaurante/alcance-de-la-cocina`) ===
+  // Dueño, gerente y administrador ven todo; el cocinero, su estación (o todas si se lo
+  // marcaron); el cocinero sin estación, un aviso. La estación sale de la sesión del SERVIDOR:
+  // mientras no la confirma, lo guardado de la pestaña no decide nada (podría ser de antes).
+  const userScope = useMemo(
+    () => alcanceDeLaCocina(posUser, estacionesActivas),
+    [posUser, estacionesActivas],
+  );
 
   // === Carga de pedidos ===
   // - Modo estaciones activas: trae TODOS los pedidos activos y filtra en memoria.
@@ -186,25 +166,11 @@ export default function Cocina() {
   }, [userScope, estacionesAll]);
 
   // === F3: Filtrado por estación del usuario ===
-  // Los pedidos sin estacion_preparacion_id se consideran "Cocina general" /
-  // legacy. Se muestran siempre en vista 'all'. En vista 'station' solo se
-  // muestran si el usuario es de la estación general.
-  const pedidosFiltrados = useMemo(() => {
-    const arr = pedidosVistos;
-    if (userScope.mode === 'unassigned') return [];
-    if (userScope.mode === 'all') return arr;
-    if (userScope.mode === 'station') {
-      return arr.filter((p) => {
-        // Match directo por id
-        if (p?.estacion_preparacion_id === userScope.stationId) return true;
-        // Pedido legacy / fallback sin estacion_preparacion_id → solo lo ve
-        // el cocinero de la estación 'Cocina general'.
-        if (!p?.estacion_preparacion_id && userEsCocinaGeneral) return true;
-        return false;
-      });
-    }
-    return arr;
-  }, [pedidosVistos, userScope, userEsCocinaGeneral]);
+  // Lo que nació sin estación (el portal, antes de DP-10.1) lo ve sólo la general.
+  const pedidosFiltrados = useMemo(
+    () => (verificada ? comandasDelAlcance(pedidosVistos, userScope, userEsCocinaGeneral) : []),
+    [verificada, pedidosVistos, userScope, userEsCocinaGeneral],
+  );
 
   const activos = useMemo(
     () =>
@@ -316,7 +282,7 @@ export default function Cocina() {
   };
 
   // === F3: Pantalla especial si el usuario es cocina sin estación asignada ===
-  if (userScope.mode === 'unassigned') {
+  if (verificada && userScope.mode === 'unassigned') {
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-3">
@@ -337,12 +303,12 @@ export default function Cocina() {
         <div className="rounded-2xl border-2 border-advertencia/30 bg-advertencia/10 p-6 text-center">
           <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-advertencia" />
           <p className="font-bold text-base text-advertencia mb-1">
-            Este usuario de cocina no tiene estación asignada
+            Tu usuario no tiene estación asignada; pide al administrador que te asigne una.
           </p>
           <p className="text-sm text-advertencia">
-            Pide al administrador que te asigne una estación o te marque como "Todas las estaciones"
-            en
-            <strong> Configuración → Usuarios POS</strong>.
+            Se asigna en
+            <strong> Configuración → Usuarios POS</strong>, o ahí mismo se le marca «Todas las
+            estaciones».
           </p>
         </div>
       </div>
@@ -397,7 +363,13 @@ export default function Cocina() {
       </div>
 
       {/* Watcher local: reproduce voz/sonido SOLO para pedidos NUEVOS, nunca para "listo". */}
-      <CocinaNuevoPedidoWatcher pedidos={pedidosFiltrados} />
+      {/* DP-10.1: por estación. La `key` lo vuelve a montar si cambia lo que se ve: lo que ya
+          estaba en la pantalla nueva se toma como visto, no se anuncia de golpe. */}
+      <CocinaNuevoPedidoWatcher
+        key={userScope.mode === 'station' ? userScope.stationId : userScope.mode}
+        pedidos={pedidosFiltrados}
+        cargando={cargandoPedidos || !verificada}
+      />
 
       {/* F3.1: vista "tipo llaves" SOLO cuando estaciones activas + modo all.
           En el resto de casos (estación específica, legacy) se renderiza la

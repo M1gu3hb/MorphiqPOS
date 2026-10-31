@@ -7,7 +7,11 @@ import {
   leerCookie,
   permitir,
 } from '@morphiqpos/app/http';
-import { entrarConPin, organizacionDeQuienEntra } from '@morphiqpos/app/identidad';
+import {
+  entrarConPin,
+  leerEstacionDeLaSesion,
+  organizacionDeQuienEntra,
+} from '@morphiqpos/app/identidad';
 import { elegirNegocioDeLaEntrada, negociosDelDespliegue } from '@morphiqpos/app/negocio';
 import { sesionDePresentacion } from '@morphiqpos/app/presentacion';
 import { correlationIdDe, registrar } from '@morphiqpos/app/observabilidad';
@@ -218,6 +222,14 @@ export async function POST(peticion: Request): Promise<Response> {
   // El rol, como lo llama SU giro: la estilista no es «Mesero» (A.8). Es un rótulo: si
   // la configuración no se pudiera leer, la sesión ya nació y se rotula con el genérico.
   const terminos = await terminosDeLaOrganizacion(resultado.organizacionId).catch(() => null);
+  // La estación de la cocina, del EMPLEO (DP-10.1): sin ella el cocinero de una estación veía
+  // la pantalla vacía. No es un rótulo: si no se puede leer, la entrada falla y se reintenta.
+  // En el modo presentación la sesión vive en el gemelo: su estación es la del empleo gemelo.
+  const estacion = await leerEstacionDeLaSesion(
+    enPresentacion?.organizacionId ?? resultado.organizacionId,
+    enPresentacion?.empleoId ?? validada.data.empleoId,
+    resultado.rol,
+  );
 
   return json(
     200,
@@ -240,6 +252,7 @@ export async function POST(peticion: Request): Promise<Response> {
         activo: true,
         organizacionId: enPresentacion?.organizacionId ?? resultado.organizacionId,
         enPresentacion: enPresentacion !== null,
+        ...estacion,
       },
     },
     cookies,

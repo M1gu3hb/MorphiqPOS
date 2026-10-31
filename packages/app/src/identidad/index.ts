@@ -19,6 +19,8 @@ export {
 
 export { entradaEstablecerPin, establecerPin } from './comandos.ts';
 
+export { leerEstacionDeLaSesion, type EstacionDeLaSesion } from './estacion-de-la-sesion.ts';
+
 export {
   empleadosConAcceso,
   terminalesDeGestion,

@@ -1,5 +1,6 @@
 import { ROLES } from '@morphiqpos/contracts';
 import { terminosDeLaOrganizacion } from '@morphiqpos/app/configuracion';
+import { leerEstacionDeLaSesion } from '@morphiqpos/app/identidad';
 import { etiquetaDeRol, etiquetaDeRolEnElGiro, rolMH } from '@morphiqpos/app/puente';
 import { destinosDePresentacion } from '@morphiqpos/app/sesion';
 
@@ -24,6 +25,9 @@ export const dynamic = 'force-dynamic';
  * `id` es el del EMPLEO —el que el navegador ya recibe al entrar y con el que las
  * pantallas de sala reconocen lo suyo—, `rol` en el vocabulario de esas pantallas y
  * `etiqueta` como lo llama su giro. El `identidadId` se queda en el servidor.
+ *
+ * Y la estación del empleo (DP-10.1): `estacion_preparacion_*` y `puede_ver_todas_estaciones`,
+ * los mismos campos que el PIN, para que la cocina filtre con lo que dice el servidor.
  */
 export function GET(): Promise<Response> {
   return responderConsulta(
@@ -32,6 +36,13 @@ export function GET(): Promise<Response> {
       const terminos = await terminosDeLaOrganizacion(sesion.organizacionId).catch(() => null);
       const esDuenoGeneral =
         sesion.presentador !== undefined || (await destinosDePresentacion(sesion)).length > 0;
+      // DP-10.1: la estación NO es un rótulo, es lo que filtra la pantalla de Cocina. Si no se
+      // puede leer, falla la respuesta y el navegador conserva lo que tenía.
+      const estacion = await leerEstacionDeLaSesion(
+        sesion.organizacionId,
+        sesion.empleoId,
+        sesion.rol,
+      );
       return {
         id: sesion.empleoId,
         nombre: sesion.nombrePersona,
@@ -50,6 +61,7 @@ export function GET(): Promise<Response> {
         esDuenoGeneral,
         // El restaurante se está presentando y esta sesión trabaja en su contexto (21-10).
         enPresentacion: sesion.enPresentacion,
+        ...estacion,
       };
     },
     { roles: ROLES },

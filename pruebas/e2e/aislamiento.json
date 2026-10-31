@@ -2060,6 +2060,16 @@
       "ids": [{ "camino": "mesaId", "tabla": "mesas" }]
     },
     {
+      "ruta": "/api/restaurante/marcar-estacion-general",
+      "comando": "restaurante.marcar_estacion_general",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "estacionId": "⟨?⟩" },
+      "ids": [{ "camino": "estacionId", "tabla": null }]
+    },
+    {
       "ruta": "/api/restaurante/marchar-tiempo",
       "comando": "restaurante.marchar_tiempo",
       "escribe": true,

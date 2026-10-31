@@ -3,9 +3,10 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 
 import { api, ErrorPuente } from '@/api/cliente';
 import { claveDeContexto } from '~/cliente/contexto-de-consultas';
+import { mismaCocina } from '~/restaurante/alcance-de-la-cocina';
 
-/** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, enPresentacion?: boolean, paquete?: string, organizacionId?: string}} UsuarioDePOS */
-/** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, sesion: number, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
+/** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, enPresentacion?: boolean, paquete?: string, organizacionId?: string, estacion_preparacion_id?: string | null, estacion_preparacion_nombre?: string | null, estacion_preparacion_color?: string | null, puede_ver_todas_estaciones?: boolean}} UsuarioDePOS */
+/** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, verificada: boolean, sesion: number, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
 const POSAuthContext = createContext(null);
 
 const CLAVE = 'posUser';
@@ -52,10 +53,16 @@ function leerGuardado() {
  * 401 en la consola de cada pantalla de acceso, antes de que nadie tecleara su PIN: el
  * rastreador lo cuenta como respuesta rota, y con razón, porque un 401 permanente enseña a
  * no mirar los que sí importan. Lo guardado de una sesión anterior se borra, como con ese 401.
+ *
+ * `verificada` (DP-10.1) dice que el SERVIDOR ya contestó —o que no se pudo preguntar—. Lo
+ * guardado sirve para pintar la barra, pero la pantalla de Cocina no decide con ello qué
+ * estación enseñar: podría ser de antes de que se la asignaran, o de antes de que la sesión
+ * trajera la estación.
  */
 export function POSAuthProvider({ children, conSesion = true }) {
   const [posUser, setPosUser] = useState(/** @type {UsuarioDePOS | null} */ (null));
   const [isLoading, setIsLoading] = useState(true);
+  const [verificada, setVerificada] = useState(false);
   // Cuántas entradas y salidas EXPLÍCITAS ha habido. El caché de consultas parte de cero con
   // cada una (`ProveedorDeConsultas`), aunque vuelva a entrar el mismo empleo.
   const [sesion, setSesion] = useState(0);
@@ -70,6 +77,7 @@ export function POSAuthProvider({ children, conSesion = true }) {
       }
       setPosUser(null);
       setIsLoading(false);
+      setVerificada(true);
       return undefined;
     }
     const guardado = leerGuardado();
@@ -102,7 +110,9 @@ export function POSAuthProvider({ children, conSesion = true }) {
         }
       })
       .finally(() => {
-        if (vigente) setIsLoading(false);
+        if (!vigente) return;
+        setIsLoading(false);
+        setVerificada(true);
       });
     return () => {
       vigente = false;
@@ -116,7 +126,8 @@ export function POSAuthProvider({ children, conSesion = true }) {
    * abierta nunca se enteraba de que la cookie ya era de otra persona, ni de que la sesión
    * venció o se revocó. Distingue lo mismo que `me()`: 401/403 saca; un fallo de red no.
    * Si contesta OTRA identidad, se adopta —las peticiones ya viajan como ella— y el caché de
-   * consultas se descarta con el cambio de contexto.
+   * consultas se descarta con el cambio de contexto. Y si es la misma pero le cambiaron la
+   * estación de cocina, también (DP-10.1): la pantalla de Cocina filtra con ella.
    */
   useEffect(() => {
     if (!conSesion) return undefined;
@@ -132,7 +143,10 @@ export function POSAuthProvider({ children, conSesion = true }) {
         .then((delServidor) => {
           if (!vigente || version.current !== alPreguntar) return;
           setPosUser((actual) =>
-            claveDeContexto(actual) === claveDeContexto(delServidor) ? actual : delServidor,
+            claveDeContexto(actual) === claveDeContexto(delServidor) &&
+            mismaCocina(actual, delServidor)
+              ? actual
+              : delServidor,
           );
           try {
             sessionStorage.setItem(CLAVE, JSON.stringify(delServidor));
@@ -164,6 +178,7 @@ export function POSAuthProvider({ children, conSesion = true }) {
     setSesion((n) => n + 1);
     setPosUser(user);
     setIsLoading(false);
+    setVerificada(true);
     try {
       sessionStorage.setItem(CLAVE, JSON.stringify(user));
     } catch {
@@ -185,7 +200,7 @@ export function POSAuthProvider({ children, conSesion = true }) {
   };
 
   return (
-    <POSAuthContext.Provider value={{ posUser, login, logout, isLoading, sesion }}>
+    <POSAuthContext.Provider value={{ posUser, login, logout, isLoading, verificada, sesion }}>
       {children}
     </POSAuthContext.Provider>
   );
