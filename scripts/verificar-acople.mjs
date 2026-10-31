@@ -44,6 +44,7 @@ import { leerMigraciones } from '../packages/data/src/migraciones/lectura.ts';
 import {
   cadenaDeVerificacion,
   consultarViva,
+  proyectoVerificado,
 } from '../packages/data/src/verificacion/consulta-directa.ts';
 import { DICCIONARIOS } from '../packages/domain/src/vocabulario/diccionarios.ts';
 import { problemasDeSeguridad } from '../packages/data/src/verificacion/rls.ts';
@@ -51,7 +52,9 @@ import { sinFalsosDelimitadores } from './lib/sin-prosa.mjs';
 import { MODELOS, pantallasEsperadas, rutasEsperadas } from './verificar-cobertura.mjs';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
-const PROYECTO_MORPHIQPOS = 'wyqmzhliurwyxuyxznpb';
+// El proyecto contra el que se verifica: el de la Fase A, o el que diga
+// `MORPHIQPOS_PROYECTO_VERIFICADO` (DP-10.5, la mudanza).
+const PROYECTO_MORPHIQPOS = proyectoVerificado();
 const ENTORNO_VERCEL = join(RAIZ, 'docs', 'fase-2', 'VERCEL-ENTORNO.md');
 
 const fallos = [];
