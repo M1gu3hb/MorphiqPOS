@@ -17,7 +17,11 @@ import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
 import { claves } from '~/cliente/claves-de-consulta';
-import { conLosToques, useToquesEnCamino } from '~/restaurante/toques-en-camino';
+import {
+  conLosToques,
+  crearFilaPorClave,
+  useToquesEnCamino,
+} from '~/restaurante/toques-en-camino';
 
 const ESTADOS = ['nuevo', 'en_preparacion', 'listo'];
 const ESTADO_LABELS = { nuevo: 'Nuevos', en_preparacion: 'En preparación', listo: 'Listos' };
@@ -124,6 +128,8 @@ export default function Cocina() {
   // comanda a «Nuevos» (`~/restaurante/toques-en-camino`).
   const { toques, poner: ponerToque, soltar: soltarToque } = useToquesEnCamino();
   const pedidosVistos = useMemo(() => conLosToques(pedidos, toques), [pedidos, toques]);
+  // Y los de una misma comanda salen en fila: «Listo» espera a que conteste su «Preparar».
+  const [fila] = React.useState(crearFilaPorClave);
 
   const { data: ventas } = useQuery({
     queryKey: ['ventas_para_cocina'],
@@ -242,12 +248,12 @@ export default function Cocina() {
    * soltarlo. `invalidateQueries` cancela la lectura que venía en camino (salió antes de este
    * toque) y espera una que sale después: al soltar el toque, lo leído ya lo trae. Si falla, se
    * suelta y la comanda vuelve a pintarse como la tiene el servidor; el fallo sigue hacia el
-   * botón, que lo avisa.
+   * botón, que lo avisa. El toque se manda cuando contestó el anterior de ESA comanda.
    */
   const moverComanda = async (pedido, estado, parche) => {
     const toque = ponerToque(pedido.id, { estado, ...parche });
     try {
-      await transicionar(pedido.id, estado);
+      await fila.encolar(pedido.id, () => transicionar(pedido.id, estado));
       await queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
     } catch (e) {
       queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });

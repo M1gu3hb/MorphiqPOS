@@ -20,6 +20,11 @@ import {
  *
  * Lo que se exige: mientras la segunda va en camino, su comanda NO vuelve a «Nuevos». Y al final
  * el servidor tiene las dos en preparación.
+ *
+ * Y el caso de UNA comanda (DP-D19, segunda parte): «Preparar» tarda y Toño toca «Listo» de esa
+ * misma, que la pantalla ya le enseña. Mandados juntos, el «Listo» llegaba primero y el
+ * «Preparar» atrasado se rechazaba (422), o al revés: la CI lo vio en la tableta. Ahora el
+ * «Listo» espera a que conteste su «Preparar», y los dos entran.
  */
 
 const SLUG = 'prueba-restaurante';
@@ -46,6 +51,45 @@ async function resetear(duena: Page): Promise<void> {
   expect(respuesta.status(), `resetear: ${await respuesta.text()}`).toBe(200);
 }
 
+/** La mesa 5 abierta, con un platillo de la cocina y una bebida de la barra: dos comandas. */
+async function mesaConDosComandas(duena: Page): Promise<string> {
+  const [mesa] = await consultarPuente<{ id: string }>(duena, 'Mesa', {
+    filtro: { numero: MESA },
+    limite: 1,
+  });
+  const productos = await consultarPuente<{ id: string; nombre: string }>(
+    duena,
+    'ProductoTerminado',
+    { limite: 80 },
+  );
+  const idDe = (nombre: string): string => {
+    const producto = productos.find((p) => p.nombre === nombre);
+    expect(producto, `La siembra no trae «${nombre}».`).toBeDefined();
+    return producto?.id ?? '';
+  };
+  const apertura = await escribir(duena, '/api/restaurante/abrir-mesa', {
+    mesaId: mesa?.id,
+    personas: 2,
+  });
+  const ordenId = String(apertura.datos?.['ordenId']);
+  await escribir(duena, '/api/restaurante/enviar-pedido', {
+    ordenId,
+    lineas: [
+      { productoId: idDe(CARTA.guacamole.nombre), cantidad: '1' },
+      { productoId: idDe(CARTA.limonada.nombre), cantidad: '1' },
+    ],
+  });
+  return ordenId;
+}
+
+async function estadosEnElServidor(duena: Page, ordenId: string): Promise<string[]> {
+  const comandas = await consultarPuente<{ estado: string }>(duena, 'PedidoPreparacion', {
+    filtro: { venta_id: ordenId },
+    limite: 10,
+  });
+  return comandas.map((c) => c.estado).sort();
+}
+
 test.describe('la cocina con dos toques en camino', () => {
   test.use({ actionTimeout: 20_000, navigationTimeout: 30_000 });
 
@@ -65,35 +109,7 @@ test.describe('la cocina con dos toques en camino', () => {
       fallos.push(vigilarFallos(duena));
       await resetear(duena);
 
-      let ordenId = '';
-      await test.step('la mesa 5 manda un platillo de la cocina y una bebida de la barra', async () => {
-        const [mesa] = await consultarPuente<{ id: string }>(duena, 'Mesa', {
-          filtro: { numero: MESA },
-          limite: 1,
-        });
-        const productos = await consultarPuente<{ id: string; nombre: string }>(
-          duena,
-          'ProductoTerminado',
-          { limite: 80 },
-        );
-        const idDe = (nombre: string): string => {
-          const producto = productos.find((p) => p.nombre === nombre);
-          expect(producto, `La siembra no trae «${nombre}».`).toBeDefined();
-          return producto?.id ?? '';
-        };
-        const apertura = await escribir(duena, '/api/restaurante/abrir-mesa', {
-          mesaId: mesa?.id,
-          personas: 2,
-        });
-        ordenId = String(apertura.datos?.['ordenId']);
-        await escribir(duena, '/api/restaurante/enviar-pedido', {
-          ordenId,
-          lineas: [
-            { productoId: idDe(CARTA.guacamole.nombre), cantidad: '1' },
-            { productoId: idDe(CARTA.limonada.nombre), cantidad: '1' },
-          ],
-        });
-      });
+      const ordenId = await mesaConDosComandas(duena);
 
       await test.step('Toño prepara las dos y la segunda tarda: no vuelve a «Nuevos»', async () => {
         const tono = await equipo.pagina(info, 'cocina');
@@ -137,19 +153,71 @@ test.describe('la cocina con dos toques en camino', () => {
 
       await test.step('en el servidor: las dos comandas, en preparación', async () => {
         await expect
-          .poll(async () =>
-            (
-              await consultarPuente<{ estado: string }>(duena, 'PedidoPreparacion', {
-                filtro: { venta_id: ordenId },
-                limite: 10,
-              })
-            ).map((c) => c.estado),
-          )
+          .poll(() => estadosEnElServidor(duena, ordenId))
           .toEqual(['en_preparacion', 'en_preparacion']);
       });
 
       for (const exigirSinFallos of fallos) exigirSinFallos();
       // La mesa queda con su cuenta abierta: se deja la demo en limpio para la que siga.
+      await resetear(duena);
+    } finally {
+      await equipo.cerrar();
+    }
+  });
+
+  test('«Listo» tocado con el «Preparar» de la misma comanda en camino espera su turno', async ({
+    browser,
+  }, info) => {
+    test.setTimeout(3 * 60_000);
+    const equipo = new Equipo(browser, SLUG);
+    const fallos: (() => void)[] = [];
+
+    try {
+      const duena = await equipo.pagina(info, 'dueno');
+      fallos.push(vigilarFallos(duena));
+      await resetear(duena);
+      const ordenId = await mesaConDosComandas(duena);
+
+      await test.step('Toño toca «Preparar» (tarda) y enseguida «Listo» de la MISMA', async () => {
+        const tono = await equipo.pagina(info, 'cocina');
+        fallos.push(vigilarFallos(tono));
+        const respuestas: { estado: string; codigo: number }[] = [];
+        let pedidas = 0;
+        await tono.route(`**${RUTA}`, async (ruta) => {
+          pedidas += 1;
+          if (pedidas === 1) await new Promise((listo) => setTimeout(listo, DEMORA_MS));
+          await ruta.continue();
+        });
+        tono.on('response', (r) => {
+          if (new URL(r.url()).pathname !== RUTA) return;
+          const { estado } = r.request().postDataJSON() as { estado: string };
+          respuestas.push({ estado, codigo: r.status() });
+        });
+
+        await tono.goto('/');
+        await tono.waitForURL(/\/cocina$/);
+        const preparar = tono.getByRole('button', { name: 'Preparar', exact: true });
+        await expect(preparar).toHaveCount(2, { timeout: 30_000 });
+        await preparar.first().click();
+        const listo = tono.getByRole('button', { name: 'Listo', exact: true });
+        await expect(listo, 'La comanda tocada no se pintó en preparación.').toHaveCount(1);
+        await listo.first().click();
+
+        await expect.poll(() => respuestas.length, { timeout: DEMORA_MS * 4 }).toBe(2);
+        expect(
+          respuestas,
+          'El «Listo» salió antes de que contestara su «Preparar» y el servidor lo rechazó.',
+        ).toEqual([
+          { estado: 'en_preparacion', codigo: 200 },
+          { estado: 'listo', codigo: 200 },
+        ]);
+      });
+
+      await test.step('en el servidor: una lista y la otra sin tocar', async () => {
+        await expect.poll(() => estadosEnElServidor(duena, ordenId)).toEqual(['listo', 'nuevo']);
+      });
+
+      for (const exigirSinFallos of fallos) exigirSinFallos();
       await resetear(duena);
     } finally {
       await equipo.cerrar();

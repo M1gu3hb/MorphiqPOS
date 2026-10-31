@@ -64,6 +64,36 @@ export function conLosToques<T extends { readonly id?: string | null }>(
   });
 }
 
+/**
+ * LOS TOQUES DE UNA MISMA COMANDA, EN FILA.
+ *
+ * La pantalla pinta «Preparar» al instante, así que el cocinero puede tocar «Listo» antes de
+ * que el servidor haya guardado el «Preparar». Mandados juntos, el «Listo» llegaba sobre una
+ * comanda todavía `nuevo` y el servidor lo rechazaba (`TRANSICION_INVALIDA`: «cambió de estado
+ * desde otra pantalla»), y la tarjeta volvía atrás (lo vio la CI). Aquí cada toque de una
+ * comanda sale cuando contestó el anterior de ESA comanda; las demás no esperan. Un toque que
+ * falla no traba a los que siguen: su fallo le llega a quien lo pidió.
+ */
+export interface FilaPorClave {
+  readonly encolar: <R>(clave: string, tarea: () => Promise<R>) => Promise<R>;
+}
+
+export function crearFilaPorClave(): FilaPorClave {
+  const ultimas = new Map<string, Promise<unknown>>();
+  return {
+    encolar<R>(clave: string, tarea: () => Promise<R>): Promise<R> {
+      const anterior = ultimas.get(clave) ?? Promise.resolve();
+      const esta = anterior.then(tarea);
+      const terminada = esta.catch(() => undefined);
+      ultimas.set(clave, terminada);
+      void terminada.then(() => {
+        if (ultimas.get(clave) === terminada) ultimas.delete(clave);
+      });
+      return esta;
+    },
+  };
+}
+
 export interface ToquesDeLaPantalla<T> {
   readonly toques: ToquesEnCamino<T>;
   /** Pinta el toque y devuelve su número, para soltarlo después. */

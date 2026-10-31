@@ -1,6 +1,12 @@
 import { describe, expect, it } from 'vitest';
 
-import { conLosToques, conToque, sinToque, type ToquesEnCamino } from './toques-en-camino.ts';
+import {
+  conLosToques,
+  conToque,
+  crearFilaPorClave,
+  sinToque,
+  type ToquesEnCamino,
+} from './toques-en-camino.ts';
 
 /**
  * DP-7 · LOS TOQUES DE LA COCINA QUE VAN EN CAMINO.
@@ -80,5 +86,70 @@ describe('cuándo se suelta un toque', () => {
     expect([...antes.keys()]).toEqual(['a']);
     expect([...despues.keys()]).toEqual(['a', 'b']);
     expect(vacio.size).toBe(0);
+  });
+});
+
+describe('los toques de UNA comanda van en fila', () => {
+  /** Una tarea que no termina hasta que se le dice, y anota cuándo empezó y terminó. */
+  function tarea(nombre: string, bitacora: string[], falla = false) {
+    let soltar: () => void = () => undefined;
+    const lista = new Promise<void>((resolver) => {
+      soltar = resolver;
+    });
+    const correr = async (): Promise<string> => {
+      bitacora.push(`empieza ${nombre}`);
+      await lista;
+      bitacora.push(`termina ${nombre}`);
+      if (falla) throw new Error(nombre);
+      return nombre;
+    };
+    return { correr, soltar: () => soltar() };
+  }
+
+  it('«Listo» sale hasta que contestó el «Preparar» de la misma comanda', async () => {
+    const bitacora: string[] = [];
+    const fila = crearFilaPorClave();
+    const preparar = tarea('preparar', bitacora);
+    const listo = tarea('listo', bitacora);
+
+    const primero = fila.encolar('a', preparar.correr);
+    const segundo = fila.encolar('a', listo.correr);
+    await Promise.resolve();
+    expect(bitacora).toEqual(['empieza preparar']);
+
+    preparar.soltar();
+    await primero;
+    await new Promise((r) => setTimeout(r, 0));
+    expect(bitacora).toEqual(['empieza preparar', 'termina preparar', 'empieza listo']);
+    listo.soltar();
+    expect(await segundo).toBe('listo');
+  });
+
+  it('dos comandas distintas no se esperan entre sí', async () => {
+    const bitacora: string[] = [];
+    const fila = crearFilaPorClave();
+    const a = tarea('a', bitacora);
+    const b = tarea('b', bitacora);
+
+    void fila.encolar('a', a.correr);
+    void fila.encolar('b', b.correr);
+    await Promise.resolve();
+    expect(bitacora).toEqual(['empieza a', 'empieza b']);
+    a.soltar();
+    b.soltar();
+  });
+
+  it('un toque que falla no traba los que siguen, y su fallo llega a quien lo pidió', async () => {
+    const bitacora: string[] = [];
+    const fila = crearFilaPorClave();
+    const malo = tarea('malo', bitacora, true);
+    const bueno = tarea('bueno', bitacora);
+
+    const primero = fila.encolar('a', malo.correr);
+    const segundo = fila.encolar('a', bueno.correr);
+    malo.soltar();
+    await expect(primero).rejects.toThrow('malo');
+    bueno.soltar();
+    expect(await segundo).toBe('bueno');
   });
 });
