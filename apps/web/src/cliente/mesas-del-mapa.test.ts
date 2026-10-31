@@ -145,9 +145,10 @@ describe('las zonas del negocio (DP-5)', () => {
   });
 
   it('una zona que sólo aparece en sus mesas también cuenta', () => {
-    expect(
-      zonasDelNegocio([{ nombre: 'Salón', orden: 0 }], [{ id: 'x', zona: 'Patio' }], FIJAS),
-    ).toEqual(['Salón', 'Patio']);
+    expect(zonasDelNegocio([{ nombre: 'Salón', orden: 0 }], [{ zona: 'Patio' }], FIJAS)).toEqual([
+      'Salón',
+      'Patio',
+    ]);
   });
 
   it('sin zonas leídas, la lista de siempre y después las de sus mesas', () => {
