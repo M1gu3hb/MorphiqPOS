@@ -59,6 +59,46 @@ export function mesasDelPlano<T extends Pick<MesaDelPlano, 'activo' | 'zona'>>(
   return soloMesasEnServicio(mesas).filter((mesa) => zonaDeLaMesa(mesa) === zona);
 }
 
+/** Lo que se lee de una zona dada de alta (`Zona` del puente). */
+export interface ZonaDelNegocio {
+  readonly nombre?: string | null | undefined;
+  readonly orden?: number | null | undefined;
+  readonly activo?: boolean | null | undefined;
+}
+
+/**
+ * LAS ZONAS DEL NEGOCIO (DP-5): las que tiene dadas de alta, por su orden y sin las apagadas, y
+ * después las que sólo aparecen en sus mesas. Sin ninguna leída, la lista de siempre (`porOmision`,
+ * la `ZONAS_MESA` del heredado) seguida de las de sus mesas.
+ *
+ * Las pantallas del salón sólo conocían esa lista fija: una mesa en «Salón» —la zona de Don
+ * Poncho— no salía en el mapa del mesero ni en el editor, y una mesa nueva nacía en «Interior»,
+ * que el negocio no tiene, y no se podía guardar.
+ */
+export function zonasDelNegocio(
+  zonas: readonly ZonaDelNegocio[],
+  mesas: readonly Pick<MesaDelPlano, 'zona'>[],
+  porOmision: readonly string[],
+): readonly string[] {
+  const dadasDeAlta = zonas
+    .filter(
+      (z): z is ZonaDelNegocio & { readonly nombre: string } =>
+        z.activo !== false && typeof z.nombre === 'string' && z.nombre.trim() !== '',
+    )
+    .sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0))
+    .map((z) => z.nombre);
+  const base = dadasDeAlta.length > 0 ? dadasDeAlta : [...porOmision];
+  const conocidas = new Set(base);
+  const deSusMesas: string[] = [];
+  for (const mesa of mesas) {
+    const zona = zonaDeLaMesa(mesa);
+    if (conocidas.has(zona)) continue;
+    conocidas.add(zona);
+    deSusMesas.push(zona);
+  }
+  return [...base, ...deSusMesas];
+}
+
 /**
  * Las zonas que de verdad tienen mesas en servicio, en el orden de `zonasConocidas`.
  * Una pestaña de una zona vacía —o que sólo tiene bajas— es una trampa.

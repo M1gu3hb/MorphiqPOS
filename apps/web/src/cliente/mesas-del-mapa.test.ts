@@ -11,6 +11,7 @@ import {
   soloMesasEnServicio,
   zonaDeLaMesa,
   zonasConMesas,
+  zonasDelNegocio,
   type MesaDelPlano,
 } from './mesas-del-mapa.ts';
 
@@ -126,6 +127,42 @@ describe('el plano de una zona', () => {
       { id: 'c', posicion_x: 100, posicion_y: 100 },
     ];
     expect(mesasEncimadas(sinPosicion)).toHaveLength(3);
+  });
+});
+
+describe('las zonas del negocio (DP-5)', () => {
+  const FIJAS = ['Interior', 'Exterior', 'Terraza', 'Barra', 'Otro'];
+  const salon = (n: number): MesaDelPlano[] =>
+    Array.from({ length: n }, (_, i) => ({ id: `m${String(i)}`, zona: 'Salón', activo: true }));
+
+  it('las dadas de alta, por su orden, y sin las apagadas', () => {
+    const zonas = [
+      { nombre: 'Terraza', orden: 2, activo: true },
+      { nombre: 'Salón', orden: 1, activo: true },
+      { nombre: 'Jardín', orden: 0, activo: false },
+    ];
+    expect(zonasDelNegocio(zonas, [], FIJAS)).toEqual(['Salón', 'Terraza']);
+  });
+
+  it('una zona que sólo aparece en sus mesas también cuenta', () => {
+    expect(
+      zonasDelNegocio([{ nombre: 'Salón', orden: 0 }], [{ id: 'x', zona: 'Patio' }], FIJAS),
+    ).toEqual(['Salón', 'Patio']);
+  });
+
+  it('sin zonas leídas, la lista de siempre y después las de sus mesas', () => {
+    expect(zonasDelNegocio([], salon(1), FIJAS)).toEqual([...FIJAS, 'Salón']);
+  });
+
+  it('Don Poncho: sus 10 mesas en «Salón» se ven en el mapa del mesero', () => {
+    const mesas = salon(10);
+    expect(zonasConMesas(mesas, zonasDelNegocio([], mesas, FIJAS))).toEqual([
+      { zona: 'Salón', cuantas: 10 },
+    ]);
+  });
+
+  it('sin nada de nada, la lista de siempre', () => {
+    expect(zonasDelNegocio([], [], FIJAS)).toEqual(FIJAS);
   });
 });
 

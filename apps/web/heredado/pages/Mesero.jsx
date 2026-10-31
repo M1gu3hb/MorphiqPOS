@@ -68,7 +68,7 @@ import {
 } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
 import { claves } from '~/cliente/claves-de-consulta';
-import { mesasDelPlano, zonasConMesas } from '~/cliente/mesas-del-mapa';
+import { mesasDelPlano, zonasConMesas, zonasDelNegocio } from '~/cliente/mesas-del-mapa';
 
 const MAP_HEIGHT = 600;
 // Hook simple para detectar móvil
@@ -271,7 +271,11 @@ function Mesero() {
 
   // El plano de la zona y sus pestañas cuentan sólo mesas en servicio (21-10).
   const mesasZona = mesasDelPlano(mesas || [], zonaActiva);
-  const zonasConCount = zonasConMesas(mesas || [], ZONAS_MESA).map(({ zona, cuantas }) => ({
+  // Las zonas del NEGOCIO, no sólo la lista fija: una mesa en «Salón» se ve (DP-5).
+  const zonasConCount = zonasConMesas(
+    mesas || [],
+    zonasDelNegocio([], mesas || [], ZONAS_MESA),
+  ).map(({ zona, cuantas }) => ({
     zona,
     count: cuantas,
   }));

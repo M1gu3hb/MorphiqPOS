@@ -64,8 +64,19 @@ const ESTADOS_OCUPADA = [
   'cuenta_solicitada',
 ];
 
-export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }) {
+export default function MesaEditDialog({
+  open,
+  mesa,
+  onClose,
+  onSave,
+  onDelete,
+  // Las zonas del negocio (DP-5); sin ellas, la lista de siempre.
+  zonas = ZONAS_MESA,
+}) {
   const [form, setForm] = useState(empty);
+  // Un texto y no el arreglo: el padre lo recalcula en cada pintada, y depender del arreglo
+  // reiniciaría el formulario a media captura.
+  const primeraZona = zonas[0];
   const [confirmDelete, setConfirmDelete] = useState(false);
   const isEdit = !!mesa?.id;
 
@@ -78,9 +89,10 @@ export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }
   });
 
   useEffect(() => {
+    // Una mesa nueva nace en la primera zona DEL NEGOCIO, no en «Interior» si no la tiene.
     if (mesa) setForm({ ...empty, ...mesa });
-    else setForm(empty);
-  }, [mesa, open]);
+    else setForm({ ...empty, zona: primeraZona ?? empty.zona });
+  }, [mesa, open, primeraZona]);
 
   const meserosOrdenados = useMemo(
     () =>
@@ -187,7 +199,7 @@ export default function MesaEditDialog({ open, mesa, onClose, onSave, onDelete }
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {ZONAS_MESA.map((z) => (
+                  {zonas.map((z) => (
                     <SelectItem key={z} value={z}>
                       {z}
                     </SelectItem>

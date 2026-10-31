@@ -167,13 +167,23 @@ describe('el mapa del mesero', () => {
 
   it('las pestañas de zona cuentan sólo mesas en servicio', () => {
     expect(inicializadorDe(mesero, 'zonasConCount')).toEqual([
-      'zonasConMesas(mesas||[],ZONAS_MESA).map(({zona,cuantas})=>({zona,count:cuantas}))',
+      'zonasConMesas(mesas||[],zonasDelNegocio([],mesas||[],ZONAS_MESA)).map(({zona,cuantas})=>({zona,count:cuantas}))',
     ]);
   });
 });
 
 describe('el editor de mesas de Configuración', () => {
   const configuracion = leer('heredado/pages/Configuracion.jsx');
+
+  it('las zonas son las del negocio, y el diálogo de la mesa recibe esas mismas (DP-5)', () => {
+    expect(inicializadorDe(configuracion, 'zonasDelEditor')).toEqual([
+      'zonasDelNegocio(zonasLeidas,mesasActivas,ZONAS_MESA)',
+    ]);
+    expect(propsDe(configuracion, 'MesaEditDialog').map((p) => p['zonas'])).toEqual([
+      'zonasDelEditor',
+    ]);
+    expect(texto(configuracion, configuracion)).toContain('zonasDelEditor.map((z)=>');
+  });
 
   it('lee TODAS las mesas con la clave de «todas»: es el único que necesita las dadas de baja', () => {
     const lecturas = consultasQueLeen(configuracion, 'Mesa.list');

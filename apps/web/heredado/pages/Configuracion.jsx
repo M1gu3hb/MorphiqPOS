@@ -66,6 +66,7 @@ import {
   mesasDelPlano,
   siguientePosicionLibre,
   soloMesasEnServicio,
+  zonasDelNegocio,
 } from '~/cliente/mesas-del-mapa';
 import { Pencil, Phone, Mail } from 'lucide-react';
 
@@ -124,6 +125,11 @@ export default function Configuracion() {
     queryFn: () => api.entidades.Mesa.list('-created_date', 500),
   });
   const mesas = useMemo(() => (Array.isArray(mesasLeidas) ? mesasLeidas : []), [mesasLeidas]);
+  // Las zonas dadas de alta (DP-5): son las que el editor ofrece y en las que nace una mesa.
+  const { data: zonasLeidas = [] } = useQuery({
+    queryKey: ['zonas'],
+    queryFn: () => api.entidades.Zona.list(),
+  });
 
   // HOTFIX: cfg seguro. Si la query aún no respondió, cfg queda null
   // (no {} con defaults) para que los useEffects de los hijos NO se hidraten
@@ -430,6 +436,13 @@ export default function Configuracion() {
   const mesasActivas = soloMesasEnServicio(mesas);
   const mesasDesactivadas = mesas.filter((m) => m.activo === false);
   const mesasFiltradas = mesasDelPlano(mesas, zonaFiltro);
+  const zonasDelEditor = zonasDelNegocio(zonasLeidas, mesasActivas, ZONAS_MESA);
+  // Si la zona que se mira no es del negocio («Interior» en Don Poncho), la primera que sí.
+  const primeraZona = zonasDelEditor[0];
+  const zonaAjena = !zonasDelEditor.includes(zonaFiltro);
+  useEffect(() => {
+    if (primeraZona && zonaAjena) setZonaFiltro(primeraZona);
+  }, [primeraZona, zonaAjena]);
 
   const reactivarMesa = async (mesa) => {
     try {
@@ -981,7 +994,7 @@ export default function Configuracion() {
                   </div>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
-                  {ZONAS_MESA.map((z) => (
+                  {zonasDelEditor.map((z) => (
                     <button
                       key={z}
                       onClick={() => setZonaFiltro(z)}
@@ -1104,6 +1117,7 @@ export default function Configuracion() {
       <MesaEditDialog
         open={showMesaDialog}
         mesa={editingMesa}
+        zonas={zonasDelEditor}
         onClose={() => {
           setShowMesaDialog(false);
           setEditingMesa(null);
