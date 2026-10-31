@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import { PROYECTO_DE_LA_FASE_A, proyectoVerificado } from './consulta-directa.ts';
 
@@ -9,27 +9,25 @@ import { PROYECTO_DE_LA_FASE_A, proyectoVerificado } from './consulta-directa.ts
  */
 
 const CLAVE = 'MORPHIQPOS_PROYECTO_VERIFICADO';
-const antes = process.env[CLAVE];
 
 afterEach(() => {
-  if (antes === undefined) delete process.env[CLAVE];
-  else process.env[CLAVE] = antes;
+  vi.unstubAllEnvs();
 });
 
 describe('proyectoVerificado', () => {
   it('sin la variable, el de la Fase A', () => {
-    process.env[CLAVE] = '';
+    vi.stubEnv(CLAVE, '');
     expect(proyectoVerificado()).toBe(PROYECTO_DE_LA_FASE_A);
     expect(PROYECTO_DE_LA_FASE_A).toBe('wyqmzhliurwyxuyxznpb');
   });
 
   it('con la variable, el que diga', () => {
-    process.env[CLAVE] = 'abcdefghijklmnopqrst';
+    vi.stubEnv(CLAVE, 'abcdefghijklmnopqrst');
     expect(proyectoVerificado()).toBe('abcdefghijklmnopqrst');
   });
 
   it('una referencia que no tiene forma de referencia no se acepta', () => {
-    process.env[CLAVE] = 'db.otro.supabase.co';
+    vi.stubEnv(CLAVE, 'db.otro.supabase.co');
     expect(() => proyectoVerificado()).toThrow(/MORPHIQPOS_PROYECTO_VERIFICADO/);
   });
 });
