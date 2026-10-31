@@ -18,6 +18,9 @@ import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
 import { negocioParaEntrar, rutaDeEmpleados } from '~/cliente/entrada';
+import { abrir as abrirElCandado } from '~/espera/candado-del-pin';
+import { almacenDelAparato } from '~/restaurante/vista-de-solicitudes';
+import { sonarAntesDeIrse } from '~/sonidos/gestor';
 
 /**
  * PANTALLA · cafeteria · acceso-por-pin
@@ -307,6 +310,7 @@ function TecladoNumerico({
             variant={tecla.tipo}
             disabled={deshabilitado || tecla.apagada}
             cargando={tecla.valor === 'entrar' && enviando}
+            data-sonido={tecla.valor === 'entrar' ? undefined : 'tecla'}
             className={`h-20 md:h-24 ${tecla.valor.length === 1 ? 'font-numeros text-2xl font-semibold' : 'text-base'}`}
             onClick={() => {
               onTecla(tecla.valor);
@@ -390,9 +394,15 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
       // conservaría el árbol de React del turno anterior. La barra es una
       // terminal compartida: lo que dejó quien se va no puede seguir en
       // pantalla con el nombre de quien entra.
-      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
-      if (onEntro === undefined) window.location.assign('/');
-      else onEntro(seleccionado.id);
+      if (onEntro !== undefined) {
+        onEntro(seleccionado.id);
+        return;
+      }
+      // PAR-1 (DP-11.3): suena la entrada antes de recargar (la recarga corta el audio).
+      void sonarAntesDeIrse('entrar').then(() => {
+        // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+        window.location.assign('/');
+      });
     }, PAUSA_DEL_SALUDO);
     return () => {
       clearTimeout(id);
@@ -411,6 +421,9 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         setPin('');
         setError(null);
         setIntentos(INTENTOS);
+        // Entrar con el PIN quita el candado del modo espera que hubiera en el aparato (PAR-1,
+        // como las otras dos pantallas de acceso: DP-11.2).
+        abrirElCandado(almacenDelAparato());
         setTurno(await abrirPresencia(empleoId));
       } catch (fallo: unknown) {
         setPin('');

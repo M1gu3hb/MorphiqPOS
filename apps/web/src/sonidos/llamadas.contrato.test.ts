@@ -121,6 +121,12 @@ const LLAMADAS: readonly Llamada[] = [
     llamada: "window.location.assign('/')",
   },
   {
+    archivo: 'src/cafeteria/AccesoPorPin.tsx',
+    que: 'entrar con PIN en el acceso de la cafetería, antes de recargar (PAR-1)',
+    tras: /void sonarAntesDeIrse\('entrar'\)\.then\(\(\) => \{[\s\S]{0,200}?/,
+    llamada: "window.location.assign('/')",
+  },
+  {
     archivo: 'src/restaurante/Cobro.tsx',
     que: 'el cobro en la pantalla nueva, tras el comando',
     tras: /setCambio\(Number\(hecho\.cambioCentavos\)\);\s*/,
@@ -161,6 +167,7 @@ const LLAMADAS: readonly Llamada[] = [
 const TECLADOS = [
   'heredado/pages/POSLogin.jsx',
   'src/restaurante/AccesoPorPin.tsx',
+  'src/cafeteria/AccesoPorPin.tsx',
   'src/espera/PedirPinAlDespertar.tsx',
 ] as const;
 
