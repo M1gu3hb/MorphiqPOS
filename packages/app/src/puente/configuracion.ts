@@ -108,6 +108,9 @@ const NUNCA_SALEN = new Set([
   'presentacion_password_hash',
   'presentacion_dueno_empleo',
   'presentacion_destinos',
+  // DP-9.4: la versión vigente del teléfono de cada estación de cocina. No es secreta —el token
+  // va firmado—, pero es del servidor: ni se lee ni se escribe por el camino genérico.
+  'telefonos_de_cocina',
 ]);
 
 /**
@@ -396,10 +399,14 @@ export async function guardarConfiguracionParcial(
     nombreNormalizado = nombre;
   }
 
+  // `for update`: este guardado lee el documento y lo escribe ENTERO. Sin el cerrojo, una
+  // escritura del servidor entre las dos (DP-9.4: conectar el teléfono de una estación sube su
+  // versión) se perdería y el código revocado volvería a valer.
   const actual = await tx
     .selectFrom('configuracion')
     .select(['id', 'valores', 'version'])
     .where('organizacion_id', '=', organizacionId)
+    .forUpdate()
     .executeTakeFirst();
 
   // `id` y `updated_date` los pone el servidor: si llegan en el parche, se

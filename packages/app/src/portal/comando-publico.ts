@@ -252,7 +252,7 @@ interface ContextoFallo {
  * está, y lo que no cuadre queda en el registro del servidor con su
  * correlation id.
  */
-async function traducirFallo<S>(error: unknown, ctx: ContextoFallo): Promise<Resultado<S>> {
+export async function traducirFallo<S>(error: unknown, ctx: ContextoFallo): Promise<Resultado<S>> {
   const { correlationId } = ctx;
 
   if (error instanceof Reintento) {

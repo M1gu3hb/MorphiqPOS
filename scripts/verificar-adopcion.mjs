@@ -406,6 +406,24 @@ export const SIN_ESTADO = [
       'No lee nada: recibe las solicitudes que el mapa ya leyó, y el mapa enseña su propia espera.',
   },
   {
+    pantalla: 'telefono-de-cocina/ComandaEnElTelefono',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es la tarjeta de UNA comanda en el teléfono de cocina (DP-9.4). Sin comanda no se pinta: el teléfono enseña su Vacio.',
+  },
+  {
+    pantalla: 'telefono-de-cocina/ComandaEnElTelefono',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe la comanda que el teléfono ya leyó, y el teléfono enseña su espera.',
+  },
+  {
+    pantalla: 'telefono-de-cocina/ConectarTelefono',
+    estado: 'vacio',
+    razon:
+      'Es un diálogo de un paso (DP-9.4): sin estaciones activas dice por qué con un Aviso dentro del diálogo, no con una pantalla vacía.',
+  },
+  {
     pantalla: 'restaurante/IconoDeSolicitud',
     estado: 'vacio',
     razon: 'No es una pantalla: es el icono de UN tipo de solicitud (DP-9.3); siempre tiene uno.',

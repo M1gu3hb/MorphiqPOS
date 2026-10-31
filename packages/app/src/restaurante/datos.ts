@@ -283,3 +283,29 @@ export async function comandaPorId(
   }
   return { ...fila, estado: fila.estado as EstadoComanda };
 }
+
+/**
+ * La comanda, sólo si es de ESA estación (DP-9.4): el teléfono de una estación no toca las de
+ * otra. `null` si no existe o es ajena, sin distinguir: el teléfono no aprende ids de otros.
+ */
+export async function comandaDeLaEstacion(
+  tx: Transaccion,
+  organizacionId: string,
+  estacionId: string,
+  comandaId: string,
+): Promise<ComandaViva | null> {
+  const fila = await tx
+    .selectFrom('comandas')
+    .select([
+      'id',
+      'estado',
+      'orden_id as ordenId',
+      'mesa_id as mesaId',
+      'estacion_nombre as estacionNombre',
+    ])
+    .where('organizacion_id', '=', organizacionId)
+    .where('estacion_preparacion_id', '=', estacionId)
+    .where('id', '=', comandaId)
+    .executeTakeFirst();
+  return fila === undefined ? null : { ...fila, estado: fila.estado as EstadoComanda };
+}

@@ -9,6 +9,7 @@ import CocinaPedidoCardPremium from '@/components/cocina/CocinaPedidoCardPremium
 import CocinaMesaGroupCard from '@/components/cocina/CocinaMesaGroupCard';
 import SoundUnlockButton from '@/components/common/SoundUnlockButton';
 import CocinaVozControl from '@/components/cocina/CocinaVozControl';
+import { ConectarTelefono } from '~/telefono-de-cocina/ConectarTelefono';
 import CocinaNuevoPedidoWatcher from '@/components/cocina/CocinaNuevoPedidoWatcher';
 import { useIsDark } from '@/lib/ThemeContext';
 import { COCINA_COLS } from '@/lib/darkPalettes';
@@ -385,6 +386,12 @@ export default function Cocina() {
           </h1>
           <p className="text-xs text-muted-foreground">{activos.length} pedido(s) activos</p>
         </div>
+        {/* DP-9.4: el QR del teléfono de UNA estación; un cocinero con estación fija, la suya. */}
+        <ConectarTelefono
+          estacionFijaId={
+            userScope.mode === 'station' ? (posUser?.estacion_preparacion_id ?? null) : null
+          }
+        />
         <CocinaVozControl />
         <SoundUnlockButton />
       </div>

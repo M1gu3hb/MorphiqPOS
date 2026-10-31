@@ -19,7 +19,8 @@ interface DatosDeMovimiento {
   readonly comandaId: string;
   readonly desde: EstadoComanda;
   readonly hacia: EstadoComanda;
-  readonly empleoId: string;
+  /** Quien la mueve; nulo desde el teléfono de una estación, que no tiene sesión (DP-9.4). */
+  readonly empleoId: string | null;
   readonly ahora: Date;
 }
 
@@ -85,7 +86,7 @@ interface DatosDeSincronia {
   readonly mesaId: string | null;
   readonly comandasMovidas: readonly string[];
   readonly estadoComanda: EstadoComanda;
-  readonly empleoId: string;
+  readonly empleoId: string | null;
   readonly ahora: Date;
 }
 

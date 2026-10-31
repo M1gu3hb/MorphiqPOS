@@ -1805,6 +1805,14 @@
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
     {
+      "ruta": "/api/publico/cocina/[token]",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/cocina/[token]/transicion",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
       "ruta": "/api/publico/negocio/[slug]/apartar",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
@@ -1844,6 +1852,10 @@
     {
       "ruta": "/api/reportes/exportar",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/restaurante/conectar-telefono-de-cocina",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
     },
     {
       "ruta": "/api/venta/cobrar-mostrador",
