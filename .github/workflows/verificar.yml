@@ -760,6 +760,122 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  # LO QUE TRAJO POS DON PONCHO (PAR-1), en el restaurante de demostración: cada cambio con su
+  # prueba de navegador, en los aparatos donde lo usa quien lo opera. Dos tandas en paralelo para
+  # no alargar la jornada: la SALA (recetas, portal sin asignación y globos, «Solicitudes», cocina
+  # en el teléfono, botones del menú QR, QR con diseño, estaciones, QR de la mesa unida, los
+  # toques de cocina en camino y el menú personalizado) y la EXPERIENCIA (Morfi, el modo espera
+  # con y sin PIN y los sonidos). Cada suite resetea la demo al empezar. Sin reintentos.
+  paridad:
+    name: Lo de Don Poncho · ${{ matrix.tanda }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    strategy:
+      fail-fast: false
+      matrix:
+        tanda: [sala, experiencia]
+
+    services:
+      postgres:
+        image: postgres:17.6-alpine
+        env:
+          POSTGRES_USER: morphiqpos
+          POSTGRES_PASSWORD: morphiqpos_ci
+          POSTGRES_DB: morphiqpos_e2e
+        ports:
+          - 5433:5432
+        options: >-
+          --health-cmd "pg_isready -U morphiqpos -d morphiqpos_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    env:
+      DATABASE_URL: postgres://morphiqpos:morphiqpos_ci@localhost:5433/morphiqpos_e2e
+      APP_URL: http://localhost:3200
+      ORGANIZACION: demo-acople-restaurante
+      STORAGE_ENDPOINT: http://localhost:9000
+      STORAGE_BUCKET: morphiqpos
+      STORAGE_ACCESS_KEY: e2e-sin-almacen
+      STORAGE_SECRET_KEY: e2e-sin-almacen
+      SESSION_SECRET: e2e_de_ci_firma_de_sesion_efimera_2026_x
+      PIN_PEPPER: e2e_de_ci_pimienta_de_pin_efimera_2026_xx
+      NODE_ENV: production
+      TZ: America/Mexico_City
+
+    steps:
+      - name: Descargar el repositorio
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Preparar pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Preparar Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Instalar dependencias
+        run: pnpm install --frozen-lockfile
+
+      - name: El navegador de Playwright
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: El rol de la aplicación en la base
+        env:
+          PGPASSWORD: morphiqpos_ci
+        run: |
+          CONEXION="-h localhost -p 5433 -U morphiqpos -d morphiqpos_e2e"
+          if [ -z "$(psql $CONEXION -tAc "select 1 from pg_roles where rolname = 'morphiqpos_app'")" ]; then
+            psql $CONEXION -v ON_ERROR_STOP=1 -c "create role morphiqpos_app with login bypassrls"
+          fi
+
+      - name: Migraciones
+        run: pnpm --filter @morphiqpos/data migrate
+
+      - name: La demostración del restaurante
+        run: |
+          pnpm db:alta-negocio \
+            --slug "demo-acople-restaurante" \
+            --nombre "Demo del acople · restaurante" \
+            --giro restaurante \
+            --paquete restaurante
+          pnpm db:bootstrap --org "demo-acople-restaurante" --persona "Demo" --pin 1234
+          node --conditions=react-server scripts/sembrar-demos.mjs --solo "demo-acople-restaurante"
+
+      - name: La sala (DP-9, DP-10 y los arreglos del arranque)
+        if: matrix.tanda == 'sala'
+        run: |
+          pnpm test:e2e pruebas/e2e/recetas-area-y-visibilidad.spec.ts pruebas/e2e/cocina-toques-en-camino.spec.ts pruebas/e2e/restaurante-menu-personalizado.spec.ts --project=escritorio --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/portal-sin-asignacion.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/vista-de-solicitudes.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/telefono-de-cocina.spec.ts --project=escritorio --project=tablet --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/botones-del-menu-qr.spec.ts --project=escritorio --project=tablet --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/qr-de-mesas.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/estaciones-de-cocina.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/qr-de-mesa-unida.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+
+      - name: La experiencia (DP-11.1 a 11.3)
+        if: matrix.tanda == 'experiencia'
+        run: |
+          pnpm test:e2e pruebas/e2e/morfi.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/modo-espera.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/modo-espera-pin.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+          pnpm test:e2e pruebas/e2e/sonidos.spec.ts --project=escritorio --project=tablet --project=telefono --workers=1 --retries=0
+
+      - name: Las trazas
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: paridad-${{ matrix.tanda }}
+          path: |
+            pruebas/e2e/.resultados
+            playwright-report
+          retention-days: 7
+          if-no-files-found: ignore
+
   # PERMISOS POR ROL Y AISLAMIENTO ENTRE NEGOCIOS, contra el servidor (D.3 y D.4 de la 2.4).
   #
   # Con las cinco demos en una sola base, como en un despliegue de varios negocios:
