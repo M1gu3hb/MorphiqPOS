@@ -166,6 +166,13 @@ test.describe('el menú personalizado del portal QR', () => {
       });
 
       for (const exigirSinFallos of fallos) exigirSinFallos();
+      // La mesa 6 queda con su cuenta abierta: se deja la demo en limpio para la que siga (el
+      // cierre del día de `restaurante.spec.ts` no se deja hacer con una cuenta abierta).
+      const limpieza = await duena.request.post('/api/pruebas/resetear', {
+        headers: cabecerasDeEscrituraDePrueba(),
+        data: { confirmacion: 'RESETEAR' },
+      });
+      expect(limpieza.status(), `resetear al final: ${await limpieza.text()}`).toBe(200);
     } finally {
       for (const t of telefonos) await t.cerrar();
       await equipo.cerrar();
