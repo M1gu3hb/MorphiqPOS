@@ -59,8 +59,15 @@ if (!['preparar', 'servir'].includes(accion ?? '') || base === '') {
   process.exit(2);
 }
 const destino = new URL(base);
-if (!['localhost', '127.0.0.1'].includes(destino.hostname)) {
-  console.error(`✗ La demo sólo usa una base de ESTA máquina; «${destino.hostname}» no lo es.`);
+// `?host=` o `?hostaddr=` pisan el servidor de la URL en el driver: no se admiten (PAR-1).
+if (
+  !['localhost', '127.0.0.1'].includes(destino.hostname) ||
+  destino.searchParams.has('host') ||
+  destino.searchParams.has('hostaddr')
+) {
+  console.error(
+    `✗ La demo sólo usa una base de ESTA máquina; «${destino.hostname}${destino.search}» no lo es.`,
+  );
   process.exit(1);
 }
 

@@ -112,6 +112,11 @@ describe('la comparación de dos huellas', () => {
     );
   });
 
+  it('con la columna de la 187, una absorbida que el relleno no marcó no es «idéntica»', () => {
+    const r = compararHuellas(huella(), huella({ conUnida: true }));
+    expect(r.diferencias).toContain('unida_a_mesa_id no marca exactamente a las mesas absorbidas');
+  });
+
   it('una absorbida a la que le cambió algo más que su relleno se denuncia', () => {
     const r = compararHuellas(
       huella(),

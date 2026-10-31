@@ -24,6 +24,8 @@ export interface Huella {
   readonly tablas: Readonly<Record<string, TablaDeLaHuella>>;
   readonly absorbidas: readonly MesaAbsorbida[];
   readonly marcadas: readonly string[];
+  /** ¿La base ya tiene `mesas.unida_a_mesa_id` (la 187)? */
+  readonly conUnida?: boolean;
 }
 
 export interface Comparacion {

@@ -114,12 +114,21 @@ export async function tomarHuella(cliente, { solo = [], excluir = [], columnasDe
           [ids],
         )
       : { rows: [] };
+    const filas = Object.values(tablas).reduce(
+      (suma, t) => suma + Object.values(t.porNegocio).reduce((s, v) => s + v.n, 0),
+      0,
+    );
+    if (organizaciones.length > 0 && filas === 0) {
+      // Con RLS forzada, un rol sin BYPASSRLS ve todo vacío: una huella vacía no prueba nada.
+      throw new Error('La huella no ve ni una fila: ¿el rol de la cadena no tiene BYPASSRLS?');
+    }
     return {
       tomada: new Date().toISOString(),
       organizaciones,
       tablas,
       absorbidas: unidas,
       marcadas: marcadas.map((f) => f.mesa).sort(),
+      conUnida,
     };
   } finally {
     await cliente.query('rollback');
@@ -174,7 +183,9 @@ export function compararHuellas(antes, despues) {
   }
   for (const a of antesPorMesa.values()) diferencias.push(`mesa ${a.mesa}: ya no está absorbida`);
   const esperadas = despues.absorbidas.filter((d) => d.unida === d.principal).map((d) => d.mesa);
-  if (despues.marcadas.length > 0 || antes.marcadas.length > 0) {
+  // Con la columna de la 187, TODA absorbida tiene que salir marcada con su principal (y nada
+  // más): un relleno que no marcó nada no es «idéntica».
+  if (despues.conUnida === true || despues.marcadas.length > 0 || antes.marcadas.length > 0) {
     const ok =
       JSON.stringify([...esperadas].sort()) === JSON.stringify(despues.marcadas) &&
       esperadas.length === despues.absorbidas.length;

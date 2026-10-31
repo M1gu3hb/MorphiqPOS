@@ -27,14 +27,30 @@ const lista = (nombre) =>
     .map((s) => s.trim())
     .filter((s) => s !== '');
 
+/** Pastelería Confetti (otro cliente, otro proyecto): no se lee ni para una huella. */
+const CONFETTI = 'ivqcxdpqxwjxfohiswqb';
+
+/** ¿La cadena nombra ese proyecto, también con `%xx`? Lo que no se puede leer, cuenta como sí. */
+export function nombraAlProyecto(url, ref) {
+  try {
+    return decodeURIComponent(url).toLocaleLowerCase('en-US').includes(ref) || url.includes(ref);
+  } catch {
+    return true;
+  }
+}
+
 export async function tomar(url, { salida, como = null, solo = [], excluir = [] }) {
+  if (nombraAlProyecto(url, CONFETTI)) {
+    throw new Error(
+      'La cadena apunta a Pastelería Confetti: ese proyecto no se toca ni para leer.',
+    );
+  }
   const requerir = createRequire(join(process.cwd(), 'packages', 'data', 'package.json'));
   const { Client } = requerir('pg');
-  const local = /@(localhost|127\.0\.0\.1)[:/]/.test(url);
-  const cliente = new Client({
-    connectionString: url,
-    ssl: local ? false : { rejectUnauthorized: false },
-  });
+  // El TLS de la aplicación (raíz de Supabase fijada, `rejectUnauthorized: true`): por este canal
+  // viaja la contraseña de la base. En una base local, sin TLS.
+  const { tlsPara } = await import('../packages/data/src/tls.ts');
+  const cliente = new Client({ connectionString: url, ssl: tlsPara(url) });
   await cliente.connect();
   try {
     const columnasDe = como === null ? null : columnasDeLaHuella(como);
