@@ -16,7 +16,8 @@ import {
 } from '@/components/ui/dialog';
 import { Plus, Upload, Trash2, ImageIcon, Edit } from 'lucide-react';
 import { toast } from 'sonner';
-import { SEPARADOR_DE_CATEGORIAS, resumenDeLaPagina } from '~/restaurante/paginas-del-menu';
+import { AspectoDelPortal } from '~/restaurante/menu-qr/AspectoDelPortal';
+import { EditorDeBotones } from '~/restaurante/menu-qr/EditorDeBotones';
 
 const empty = { nombre: '', descripcion: '', imagen_url: '', orden: 0, activo: true };
 
@@ -28,7 +29,7 @@ export default function MenuQRTab() {
   const [editForm, setEditForm] = useState(null);
   const [uploading, setUploading] = useState(false);
 
-  // Para decir de cada página qué categorías pide (DP-5): su título las nombra.
+  // El catálogo para el editor de botones de cada página (DP-9.7).
   const { data: categorias = [] } = useQuery({
     queryKey: ['menu_qr_categorias'],
     queryFn: () => api.entidades.CategoriaProducto.filter({ activo: true }),
@@ -121,6 +122,9 @@ export default function MenuQRTab() {
         </Button>
       </div>
 
+      {/* DP-9.7: el aspecto del portal (estilo, tipografía y fondo), por tokens. */}
+      <AspectoDelPortal />
+
       {secciones.length === 0 && (
         <div className="text-center py-10 text-sm text-muted-foreground rounded-xl border-2 border-dashed">
           <ImageIcon className="w-10 h-10 mx-auto mb-2 opacity-40" />
@@ -150,9 +154,6 @@ export default function MenuQRTab() {
               {s.descripcion && (
                 <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{s.descripcion}</p>
               )}
-              <p className="text-xs text-muted-foreground mt-1">
-                {resumenDeLaPagina(s, categorias, platillos)}
-              </p>
               <div className="flex gap-1 mt-2">
                 <Button
                   size="sm"
@@ -162,6 +163,7 @@ export default function MenuQRTab() {
                 >
                   <Edit className="w-3 h-3 mr-1" /> Editar
                 </Button>
+                <EditorDeBotones pagina={s} platillos={platillos} categorias={categorias} />
                 <Button
                   size="sm"
                   variant="ghost"
@@ -196,8 +198,7 @@ export default function MenuQRTab() {
                   placeholder="Bebidas, Postres, Vinos..."
                 />
                 <p className="text-xs text-muted-foreground mt-1">
-                  {resumenDeLaPagina(editForm, categorias, platillos)} Varias categorías, separadas
-                  por «{SEPARADOR_DE_CATEGORIAS}».
+                  Los platillos se ligan a la página con «Botones», sobre la imagen.
                 </p>
               </div>
               <div>

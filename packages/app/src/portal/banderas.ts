@@ -95,11 +95,15 @@ function enumerado<T extends string>(
 }
 
 /** Lee los interruptores del documento de configuración. Función pura. */
+/** El documento de configuración como objeto; cualquier otra cosa, vacío. */
+export function documentoDe(valores: unknown): Readonly<Record<string, unknown>> {
+  return typeof valores === 'object' && valores !== null && !Array.isArray(valores)
+    ? (valores as Record<string, unknown>)
+    : {};
+}
+
 export function banderasDe(valores: unknown): BanderasPortal {
-  const doc: Readonly<Record<string, unknown>> =
-    typeof valores === 'object' && valores !== null && !Array.isArray(valores)
-      ? (valores as Record<string, unknown>)
-      : {};
+  const doc = documentoDe(valores);
 
   return {
     // El portal nace CERRADO. Un negocio que nunca configuró nada no debe

@@ -82,7 +82,7 @@ test.describe('el menú personalizado del portal QR', () => {
           operacion: 'create',
           datos: {
             nombre: PAGINA,
-            imagen_url: `${base}/menu-qr/02-lo-fuerte.webp`,
+            imagen_url: `${base}/platillos/arrachera-al-carbon.webp`,
             orden: 0,
             activo: true,
           },

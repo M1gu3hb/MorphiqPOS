@@ -406,6 +406,63 @@ export const SIN_ESTADO = [
       'No lee nada: recibe las solicitudes que el mapa ya leyó, y el mapa enseña su propia espera.',
   },
   {
+    pantalla: 'restaurante/menu-qr/PaginaConBotones',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es UNA página del menú del portal (DP-9.7). Sin botones es sólo imagen; sin páginas, el portal dice «Sin menú configurado».',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PaginaConBotones',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe la página y el catálogo que el portal ya leyó, y el portal enseña su espera.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PaginaConBotones',
+    estado: 'error',
+    razon:
+      'No lee ni escribe: «Agregar» abre el diálogo del portal, que es quien envía y dice si falló.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/LienzoDeBotones',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es la imagen con sus botones dentro del editor (DP-9.7). Sin botones, el editor dice qué hacer al lado.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/LienzoDeBotones',
+    estado: 'cargando',
+    razon: 'No lee nada: el editor ya leyó los botones y enseña su espera.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/LienzoDeBotones',
+    estado: 'error',
+    razon: 'No escribe: mover un botón es estado local; guardar y su fallo son del editor.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PanelDelBoton',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el formulario de UN botón; sin botón elegido no se pinta (el editor dice qué tocar).',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PanelDelBoton',
+    estado: 'cargando',
+    razon: 'No lee nada: el catálogo se lo pasa la pestaña Menú QR, que ya lo leyó.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/EditorDeBotones',
+    estado: 'vacio',
+    razon:
+      'Es un diálogo de edición (DP-9.7): una página sin botones dice «Toca un botón para elegir qué hace, o agrega uno» con un Aviso.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/AspectoDelPortal',
+    estado: 'vacio',
+    razon:
+      'Es un formulario de tres opciones que siempre tiene valor (el de siempre si no se guardó nada): no hay vacío que enseñar.',
+  },
+  {
     pantalla: 'telefono-de-cocina/ComandaEnElTelefono',
     estado: 'vacio',
     razon:

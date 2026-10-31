@@ -1142,34 +1142,6 @@
       "testigos": ["- label:Cargando recetas…", "+ clase:@container", "+ texto:Reintentar"]
     },
     {
-      "archivo": "apps/web/heredado/pages/PortalCliente.jsx",
-      "porque": "DP-5 (DP-D18): el menú personalizado (modo «menú subido») también pide. Cada página lleva debajo los platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú de siempre (renglones separados por divide-y bajo un border-t), y con más de una página hay una fila de accesos para saltar a cada una (nav «Páginas del menú»). La página guarda su ancla (scroll-mt-20) para no quedar bajo el encabezado fijo.",
-      "testigos": [
-        "+ clase:flex",
-        "+ clase:gap-1.5",
-        "+ clase:overflow-x-auto",
-        "+ clase:pb-2",
-        "+ clase:px-3",
-        "+ clase:scroll-mt-20",
-        "+ clase:border-t",
-        "+ clase:divide-y",
-        "+ label:Páginas del menú",
-        "+ aria-label:Páginas del menú"
-      ]
-    },
-    {
-      "archivo": "apps/web/heredado/components/portalqr/MenuQRTab.jsx",
-      "porque": "DP-5 (DP-D18): cada página del menú subido dice qué categorías pide y cuántos platillos («Se pide: …» o «Sólo imagen: …»), en la tarjeta y bajo el nombre del diálogo, para que el dueño sepa cómo ligarla a sus platillos.",
-      "testigos": [
-        "+ clase:text-muted-foreground",
-        "+ clase:text-muted-foreground",
-        "+ clase:text-xs",
-        "+ clase:text-xs",
-        "+ clase:mt-1",
-        "+ clase:mt-1"
-      ]
-    },
-    {
       "archivo": "apps/web/heredado/components/portalqr/ProductoPlaceholder.jsx",
       "porque": "DP-3 (DP-D11): el marcador de platillo sin foto deja el degradado de un color por tipo (la cerveza salía azul) y su brillo radial, y se pinta plano sobre la pizarra de la marca: ícono en el dorado de lo activo y la inicial en la letra de la barra. Don Poncho no tiene fotos, así que es lo que el comensal ve en cada platillo del portal.",
       "testigos": [
@@ -1254,6 +1226,50 @@
       "borrado": true,
       "porque": "DP-9.3 (DP-D24): el modal de solicitudes del mesero se va con su botón; la vista «Solicitudes» de Mesas (src/restaurante/VistaDeSolicitudes) lo sustituye, y atender o resolver desde el plano sigue en SolicitudesQRCardList.",
       "testigos": []
+    },
+    {
+      "archivo": "apps/web/heredado/pages/PortalCliente.jsx",
+      "porque": "DP-5 (DP-D18): el menú personalizado (modo «menú subido») también pide. Cada página lleva debajo los platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú de siempre (renglones separados por divide-y bajo un border-t), y con más de una página hay una fila de accesos para saltar a cada una (nav «Páginas del menú»). La página guarda su ancla (scroll-mt-20) para no quedar bajo el encabezado fijo. DP-9.7 (DP-D26): cada página del menú subido se pinta con `src/restaurante/menu-qr/PaginaConBotones` —los botones van ENCIMA de la imagen— y se va la lista repetida de platillos de abajo; el portal toma el estilo, la tipografía y el fondo que eligió el negocio.",
+      "testigos": [
+        "+ clase:flex",
+        "+ clase:gap-1.5",
+        "+ clase:overflow-x-auto",
+        "+ clase:pb-2",
+        "+ clase:px-3",
+        "+ clase:scroll-mt-20",
+        "+ clase:border-t",
+        "+ clase:divide-y",
+        "+ label:Páginas del menú",
+        "+ aria-label:Páginas del menú",
+        "- clase:shadow-sm",
+        "- clase:border",
+        "- clase:font-heading",
+        "- clase:text-base",
+        "- clase:text-xs",
+        "- clase:text-muted-foreground",
+        "- clase:rounded-2xl",
+        "- clase:bg-card",
+        "- clase:text-card-foreground",
+        "- clase:font-bold",
+        "- clase:overflow-hidden",
+        "- clase:w-full",
+        "- clase:h-auto",
+        "- clase:object-cover",
+        "- clase:p-3"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/MenuQRTab.jsx",
+      "porque": "DP-5 (DP-D18): cada página del menú subido dice qué categorías pide y cuántos platillos («Se pide: …» o «Sólo imagen: …»), en la tarjeta y bajo el nombre del diálogo, para que el dueño sepa cómo ligarla a sus platillos. DP-9.7 (DP-D26): cada página tiene su botón «Botones» (el editor) y la pestaña lleva el panel «Aspecto del portal»; sale el resumen por título de DP-D18.",
+      "testigos": [
+        "+ clase:text-muted-foreground",
+        "+ clase:text-muted-foreground",
+        "+ clase:text-xs",
+        "+ clase:text-xs",
+        "+ clase:mt-1",
+        "+ clase:mt-1",
+        "+ texto:Los platillos se ligan a la página con «Botones», sobre la imagen."
+      ]
     }
   ]
 }

@@ -5,7 +5,7 @@ import { obtenerDb } from '@morphiqpos/data';
 
 import { leerConfiguracion } from '../puente/configuracion.ts';
 import { buscadorDeProduccion, resolverAmbitoPortal, type AmbitoPortal } from './ambito.ts';
-import { banderasDe } from './banderas.ts';
+import { banderasDe, documentoDe } from './banderas.ts';
 import { permitirPortal } from './limite.ts';
 import { cuentaPublica, type CuentaPublica, type MesaPublica } from './cuenta-publica.ts';
 import { esUnoDe, ORDEN_ACTIVA, ORDEN_ADMITE_PEDIDO } from './estados.ts';
@@ -25,6 +25,13 @@ import {
   leerContextoDelNegocio,
   puedeOrdenarDesdeQR,
 } from './negocio.ts';
+import {
+  botonesGuardados,
+  botonesPublicos,
+  CLAVE_DE_BOTONES,
+  type BotonPublico,
+} from './botones-del-menu.ts';
+import { CLAVE_DEL_TEMA, temaGuardado, type TemaDelPortal } from './tema-del-portal.ts';
 import { opcionesDelMenu } from './opciones-publicas.ts';
 
 /**
@@ -40,12 +47,19 @@ import { opcionesDelMenu } from './opciones-publicas.ts';
  * siquiera son consultables sin sesión: el puente exige cookie.
  */
 
+/** Una página del menú subido con sus botones (DP-9.7). Sin pedir, sin botones: sólo imagen. */
+export interface SeccionConBotones extends SeccionDeMenu {
+  readonly botones: readonly BotonPublico[];
+}
+
 export interface PayloadPortal {
   readonly negocio: NegocioPublico;
   readonly mesa: MesaPublica;
   readonly productos: readonly ProductoDeMenu[];
   readonly categorias: readonly CategoriaDeMenu[];
-  readonly secciones: readonly SeccionDeMenu[];
+  readonly secciones: readonly SeccionConBotones[];
+  /** El aspecto del portal (DP-9.7): estilo, tipografía y fondo, por tokens. */
+  readonly tema: TemaDelPortal;
   /** La venta viva de ESTA mesa, sólo para la precuenta. `null` si no hay. */
   readonly cuenta: CuentaPublica | null;
   /** El último aviso de ESTA mesa, para que el comensal sepa si ya lo vieron. */
@@ -112,8 +126,8 @@ export async function payloadDelPortal(
   const puedeOrdenar = puedeOrdenarDesdeQR(negocio.paquete, banderas);
   const publica = await leerConfiguracion(ambito.organizacionId, { publica: true });
 
-  // El menú SUBIDO también pide del catálogo cuando se puede ordenar (DP-5): cada página lleva
-  // debajo los platillos de las categorías que nombra, con su botón de pedir.
+  // El menú SUBIDO también pide del catálogo cuando se puede ordenar (DP-5): los botones de cada
+  // página (DP-9.7) abren los platillos del catálogo.
   const usaCatalogo =
     banderas.modoMenu === 'productos_pos' || banderas.modoMenu === 'mixto' || puedeOrdenar;
   const usaSecciones = banderas.modoMenu === 'menu_subido' || banderas.modoMenu === 'mixto';
@@ -130,6 +144,15 @@ export async function payloadDelPortal(
     solicitudDeLaMesa(ambito),
   ]);
 
+  // DP-9.7: los botones van SOBRE cada página y sólo con lo que se vende; sin poder pedir, la
+  // página es sólo imagen.
+  const documento = documentoDe(negocio.valores);
+  const botones = botonesGuardados(documento[CLAVE_DE_BOTONES]);
+  const conBotones = secciones.map((s) => ({
+    ...s,
+    botones: puedeOrdenar ? botonesPublicos(botones[s.id] ?? [], productos) : [],
+  }));
+
   return {
     negocio: negocioPublico(publica, banderas, puedeOrdenar),
     mesa: mesaPublica(
@@ -139,7 +162,8 @@ export async function payloadDelPortal(
     ),
     productos,
     categorias,
-    secciones,
+    secciones: conBotones,
+    tema: temaGuardado(documento[CLAVE_DEL_TEMA]),
     cuenta,
     solicitud,
   };

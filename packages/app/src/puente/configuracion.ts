@@ -4,6 +4,9 @@ import { ErrorDominio, plantillaDeOrganizacion } from '@morphiqpos/contracts';
 import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { BOTONES_DEL_MENU, CLAVE_DE_BOTONES } from '../portal/botones-del-menu.ts';
+import { CLAVE_DEL_TEMA, TEMA_DEL_PORTAL } from '../portal/tema-del-portal.ts';
+
 /**
  * `ConfiguracionNegocio` — la entidad que no es una tabla con columnas.
  *
@@ -180,6 +183,9 @@ const CLAVES_EDITABLES = new Set([
   'portal_qr_permitir_pedidos_cliente',
   'portal_qr_cuenta_modo',
   'portal_qr_mensaje_bienvenida',
+  // DP-9.7: los botones sobre las páginas del menú y el aspecto del portal, validados al guardar.
+  'portal_qr_botones',
+  'portal_qr_tema',
   'presentacion_ultimo_acceso',
   'bascula_etiqueta',
   'comision_terminal_bp',
@@ -230,6 +236,15 @@ function exigirTasaDeTerminal(valor: unknown): void {
       'PUENTE_CAMPO_INVALIDO',
       'La tasa de la terminal va en puntos base, de 0 a 1000 (3.6 % son 360).',
     );
+  }
+}
+
+/** Una clave con esquema (DP-9.7): `null` la vacía; lo demás se guarda sólo si tiene forma. */
+function exigirForma(esquema: z.ZodType, valor: unknown, porOmision: string): void {
+  if (valor === null) return;
+  const leido = esquema.safeParse(valor);
+  if (!leido.success) {
+    throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', leido.error.issues[0]?.message ?? porOmision);
   }
 }
 
@@ -381,6 +396,16 @@ export async function guardarConfiguracionParcial(
   }
   serializarConfiguracion({ ...parche });
   if ('bascula_etiqueta' in parche) exigirBascula(parche['bascula_etiqueta']);
+  if (CLAVE_DE_BOTONES in parche) {
+    exigirForma(
+      BOTONES_DEL_MENU,
+      parche[CLAVE_DE_BOTONES],
+      'Los botones del menú no tienen forma.',
+    );
+  }
+  if (CLAVE_DEL_TEMA in parche) {
+    exigirForma(TEMA_DEL_PORTAL, parche[CLAVE_DEL_TEMA], 'El aspecto del portal no tiene forma.');
+  }
   if ('comision_terminal_bp' in parche) exigirTasaDeTerminal(parche['comision_terminal_bp']);
 
   const nombreNuevo = parche['nombre_negocio'];

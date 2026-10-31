@@ -24,9 +24,10 @@ import { getTiposSolicitudHabilitados, TIPO_SOLICITUD_VERBO } from '@/utils/qrUt
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { MarcaMorphiq } from '~/marca/MarcaMorphiq';
+import { useIsDark } from '@/lib/ThemeContext';
 import { nombreVisibleDelNegocio } from '~/marca/nombre-visible';
-import { PlatilloParaPedir } from '~/restaurante/PlatilloParaPedir';
-import { platillosDeLaPagina } from '~/restaurante/paginas-del-menu';
+import { PaginaConBotones } from '~/restaurante/menu-qr/PaginaConBotones';
+import { atributosDelTema, temaDelPortal } from '~/restaurante/menu-qr/tema-del-portal';
 
 /**
  * Vista pública del comensal (sin sidebar, sin POS).
@@ -100,6 +101,9 @@ function PortalCliente() {
   const productos = useMemo(() => portal?.productos || [], [portal]);
   const categorias = useMemo(() => portal?.categorias || [], [portal]);
   const secciones = useMemo(() => portal?.secciones || [], [portal]);
+  // DP-9.7: el aspecto que eligió el negocio para su portal (estilo, tipografía, fondo).
+  const tema = useMemo(() => temaDelPortal(portal?.tema), [portal]);
+  const oscuro = useIsDark();
   // La venta viva de ESTA mesa, resuelta por el token, CON sus líneas dentro.
   // Ya no se consulta una lista de ventas desde el navegador para quedarse con
   // la más reciente, ni se sondea `DetalleVenta` aparte —que era lo que dejaba
@@ -462,11 +466,16 @@ function PortalCliente() {
   };
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground pb-32 overflow-x-hidden">
+    <div
+      className="relative min-h-screen bg-background text-foreground pb-32 overflow-x-hidden"
+      {...atributosDelTema(tema)}
+      // Los estilos cambian su paleta oscura con `data-modo` en el MISMO elemento.
+      {...(tema.estilo === null ? {} : { 'data-modo': oscuro ? 'oscuro' : 'claro' })}
+    >
       {/* MARCA DE AGUA — logo del negocio, visible en claro y oscuro.
           Usa la clase `brand-watermark` para que en modo oscuro el filtro
           definido en index.css realce el logo (brightness + grayscale). */}
-      {brandLogo && (
+      {brandLogo && tema.fondo === 'marca' && (
         <div
           aria-hidden="true"
           className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center"
@@ -568,9 +577,8 @@ function PortalCliente() {
           </section>
         )}
 
-        {/* MODO MENÚ SUBIDO — el menú que diseñó el negocio. Cada página lleva debajo los
-            platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú
-            de siempre (DP-5, `paginas-del-menu.ts`). */}
+        {/* MODO MENÚ SUBIDO — el menú que diseñó el negocio, con sus botones encima de cada
+            página (DP-9.7; la regla del título de DP-D18 queda superada). */}
         {usarSecciones && seccionesUtiles.length > 0 && (
           <section className="space-y-3">
             {usarProductos && <h2 className="text-sm font-heading font-bold mt-4">Menús</h2>}
@@ -591,41 +599,17 @@ function PortalCliente() {
                 ))}
               </nav>
             )}
-            {seccionesUtiles.map((s) => {
-              const paraPedir =
-                pedidosQRActivos && !cuentaYaSolicitada
-                  ? platillosDeLaPagina(s, categorias, productos)
-                  : [];
-              return (
-                <div
-                  key={s.id}
-                  id={`pagina-${s.id}`}
-                  className="rounded-2xl border bg-card text-card-foreground overflow-hidden shadow-sm scroll-mt-20"
-                >
-                  {s.imagen_url && (
-                    <img src={s.imagen_url} alt={s.nombre} className="w-full h-auto object-cover" />
-                  )}
-                  <div className="p-3">
-                    <p className="font-heading font-bold text-base">{s.nombre}</p>
-                    {s.descripcion && (
-                      <p className="text-xs text-muted-foreground">{s.descripcion}</p>
-                    )}
-                  </div>
-                  {paraPedir.length > 0 && (
-                    <ul aria-label={`Pedir de ${s.nombre}`} className="border-t px-3 divide-y">
-                      {paraPedir.map((p) => (
-                        <PlatilloParaPedir
-                          key={p.id}
-                          platillo={p}
-                          mostrarPrecios={mostrarPrecios}
-                          alPedir={() => handleClickProducto(p)}
-                        />
-                      ))}
-                    </ul>
-                  )}
-                </div>
-              );
-            })}
+            {/* DP-9.7: cada página con sus botones ENCIMA (en % de la imagen). Sin poder pedir,
+                la página es sólo imagen; la lista repetida de abajo ya no va. */}
+            {seccionesUtiles.map((s) => (
+              <PaginaConBotones
+                key={s.id}
+                pagina={pedidosQRActivos && !cuentaYaSolicitada ? s : { ...s, botones: [] }}
+                productos={productos}
+                mostrarPrecios={mostrarPrecios}
+                alPedir={handleClickProducto}
+              />
+            ))}
           </section>
         )}
 
