@@ -147,6 +147,11 @@ export function compararHuellas(antes, despues) {
   const diferencias = [];
   const negocios = (h) => h.organizaciones.map((o) => `${o.id}:${o.slug}`).join(',');
   if (negocios(antes) !== negocios(despues)) diferencias.push('cambió la lista de negocios');
+  // Por su slug: «ordenes · tienda-x: +1 filas» dice de un vistazo si fue el tráfico de un negocio
+  // abierto o la migración.
+  const slug = new Map(
+    [...antes.organizaciones, ...despues.organizaciones].map((o) => [o.id, o.slug]),
+  );
   for (const [tabla, a] of Object.entries(antes.tablas)) {
     const d = despues.tablas[tabla];
     if (d === undefined) {
@@ -157,9 +162,13 @@ export function compararHuellas(antes, despues) {
       const x = a.porNegocio[org];
       const y = d.porNegocio[org];
       if (x?.n !== y?.n || x?.md5 !== y?.md5) {
-        const que = x?.n === y?.n ? 'mismas filas, contenido distinto' : 'otro número de filas';
+        const dif = (y?.n ?? 0) - (x?.n ?? 0);
+        const que =
+          dif === 0
+            ? 'mismas filas, contenido distinto'
+            : `${dif > 0 ? '+' : ''}${String(dif)} filas`;
         diferencias.push(
-          `${tabla} · ${org}: ${String(x?.n ?? 0)} → ${String(y?.n ?? 0)} filas (${que})`,
+          `${tabla} · ${slug.get(org) ?? org}: ${String(x?.n ?? 0)} → ${String(y?.n ?? 0)} filas (${que})`,
         );
       }
     }
