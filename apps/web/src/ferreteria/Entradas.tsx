@@ -115,6 +115,7 @@ import { useEffect, useMemo, useState } from 'react';
 
 import { KardexDelProducto } from '~/abarrotes/KardexDelProducto';
 import { ErrorApi, consultarPuente, invocarComando, subirImagen } from '~/cliente/api';
+import { idAlAzar } from '~/cliente/id-al-azar';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import { ContraElPedido } from './ContraElPedido.tsx';
@@ -755,7 +756,7 @@ export function Entradas({
     }
     setError(null);
     const partida: PartidaCapturada = {
-      clave: crypto.randomUUID(),
+      clave: idAlAzar(),
       insumoId: elegido.id,
       nombre: elegido.nombre,
       cantidad: cantidad.trim(),

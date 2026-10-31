@@ -3,6 +3,8 @@
  * `/api/publico/cocina/:token`. Sin sesión: el token del QR es todo.
  */
 
+import { idAlAzar } from '~/cliente/id-al-azar';
+
 export interface ComandaDelTelefono {
   readonly id: string;
   readonly estado: 'nuevo' | 'en_preparacion';
@@ -71,7 +73,7 @@ export async function moverDesdeElTelefono(
       headers: {
         'content-type': 'application/json',
         'x-morphiqpos-request': '1',
-        'idempotency-key': crypto.randomUUID(),
+        'idempotency-key': idAlAzar(),
       },
       body: JSON.stringify({ comandaId, estado }),
     }),

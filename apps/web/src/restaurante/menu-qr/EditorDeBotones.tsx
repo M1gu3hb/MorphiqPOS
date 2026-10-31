@@ -14,6 +14,7 @@ import { Eye, LayoutGrid, MousePointerClick, Pencil, Plus } from 'lucide-react';
 import { useState } from 'react';
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
+import { idAlAzar } from '~/cliente/id-al-azar';
 
 import type { BotonDePagina } from './botones-de-pagina';
 import {
@@ -104,7 +105,7 @@ export function EditorDeBotones({
     setBotones(lista.map((b) => (b.id === boton.id ? boton : b)));
   };
   const agregar = (tipo: TipoDeBoton): void => {
-    const boton = nuevoBoton(tipo, crypto.randomUUID());
+    const boton = nuevoBoton(tipo, idAlAzar());
     setBotones([...lista, boton]);
     setSeleccionado(boton.id);
     setVistaPrevia(false);

@@ -2,6 +2,7 @@ import type { ErrorComando, Resultado } from '@morphiqpos/contracts';
 
 import { crearRegistroDeIntentos } from './claves-de-intento.ts';
 import { vigilarPresentacion } from './presentacion.ts';
+import { idAlAzar } from './id-al-azar.ts';
 
 /**
  * El único camino del navegador al servidor (F1.1-X-01).
@@ -199,10 +200,7 @@ export async function consultarPuente<T>(
 }
 
 export function nuevaClave(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return idAlAzar();
 }
 
 async function leerResultado<T>(respuesta: Response): Promise<T> {
