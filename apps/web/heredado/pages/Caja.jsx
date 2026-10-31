@@ -991,6 +991,9 @@ export default function Caja() {
         efectivoContadoCentavos: aCentavos(form.efectivo_contado),
         ...(form.notas ? { notas: form.notas } : {}),
       });
+      // DP-10.2: cerró con cuentas de mesa vivas porque queda otra caja abierta; el servidor
+      // dice cuáles y que las cobrará la otra. (La última caja ni siquiera cierra.)
+      if (arqueo?.aviso?.mensaje) toast.warning(arqueo.aviso.mensaje, { duration: 10000 });
 
       // Lo que se enseña y se imprime. El esperado, la diferencia y el número de
       // ventas son los del SERVIDOR —los del navegador se calculaban sobre una

@@ -6,6 +6,12 @@ import { repoCaja, repoOrdenes } from '@morphiqpos/data';
 
 import { definirComando } from '../definicion.ts';
 import { violaIndice } from '../portal/errores-sql.ts';
+import {
+  bloquearLasCajasDeLaSucursal,
+  cuentasVivasDeLaSucursal,
+  decidirElCierre,
+  type AvisoDelCierre,
+} from './cuentas-vivas-al-cerrar.ts';
 import { entradaAbrirCaja, entradaCerrarCaja, entradaMovimientoCaja } from '../venta/esquemas.ts';
 
 /**
@@ -223,6 +229,8 @@ export interface ResultadoCorte {
   readonly numeroVentas: number;
   /** Lo que se quedó en el cajón, si se dijo. Es el fondo esperado de la próxima apertura. */
   readonly fondoDejadoCentavos?: string;
+  /** Cerró con cuentas vivas porque queda otra caja abierta que las cobrará (DP-10.2). */
+  readonly aviso?: AvisoDelCierre;
 }
 
 export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, ResultadoCorte>({
@@ -238,6 +246,11 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
       throw new ErrorDominio('VENTA_SIN_TERMINAL', 'Cierra la caja desde la terminal.');
     }
 
+    // DP-10.2 · las cajas abiertas de la sucursal se bloquean ANTES que la propia y en orden:
+    // dos cierres a la vez se forman en fila, y el segundo ya ve cerrada a la primera.
+    const abiertas = await ctx.paso('bloquear_cajas_de_la_sucursal', () =>
+      bloquearLasCajasDeLaSucursal(ctx.tx, organizacionId, terminalId),
+    );
     const sesion = await ctx.paso('cargar_caja', () =>
       repoCaja.sesionAbiertaDeTerminal(ctx.tx, organizacionId, terminalId, true),
     );
@@ -328,6 +341,13 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
       );
     }
 
+    // C10 (DP-10.2) · la ÚLTIMA caja no cierra con cuentas de mesa vivas; con otra abierta,
+    // cierra y avisa (`cuentas-vivas-al-cerrar.ts`).
+    const vivas = await ctx.paso('contar_cuentas_vivas', () =>
+      cuentasVivasDeLaSucursal(ctx.tx, organizacionId, sesion.sucursalId),
+    );
+    const aviso = decidirElCierre(vivas, abiertas.filter((id) => id !== sesion.id).length);
+
     // El arqueo se deriva DENTRO de la transacción del cierre: si se leyera
     // antes, una venta cobrada en ese hueco quedaría fuera del corte.
     const arqueo = await ctx.paso('derivar_arqueo', () =>
@@ -392,6 +412,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
         contadoCentavos: contado.toString(),
         diferenciaCentavos: diferencia.toString(),
         numeroVentas: arqueo.numeroVentas,
+        ...(aviso === null ? {} : { cuentasVivas: aviso.cuentasVivas, mesas: aviso.mesas }),
       },
     });
 
@@ -407,6 +428,7 @@ export const cerrarCaja = definirComando<Transaccion, typeof entradaCerrarCaja, 
       ventasCentavos: arqueo.ventasCentavos.toString(),
       numeroVentas: arqueo.numeroVentas,
       ...(retirado === null ? {} : { fondoDejadoCentavos: (contado - retirado).toString() }),
+      ...(aviso === null ? {} : { aviso }),
     };
   },
 });
