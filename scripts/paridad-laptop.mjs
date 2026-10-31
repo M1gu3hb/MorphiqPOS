@@ -12,7 +12,9 @@
  *                         migrar): salta a las puertas y a la huella de después, contra la
  *                         `huella-antes.json` de esa carpeta.
  *   --transporte cli|url  y `--saltar-verificacion`: `url` es sólo para ensayarlo en una base
- *                         desechable, y entonces las puertas (que son de Supabase) se saltan.
+ *                         desechable (exige saltar las puertas, que son de Supabase, y se niega
+ *                         si un `.env` del checkout trae un proyecto). Con `cli`, saltar las
+ *                         puertas nunca da verde.
  *
  * En orden, y se detiene en el primer problema:
  *   1. El repositorio limpio y en el commit del PR B.
@@ -86,6 +88,8 @@ const alto = (texto) => {
   process.exit(1);
 };
 const mismaLista = (a, b) => JSON.stringify(a) === JSON.stringify(b);
+// Ctrl+C a medio camino (el hijo también lo recibe): que el pie diga en qué quedó la base.
+process.on('SIGINT', () => alto('Interrumpido con Ctrl+C.'));
 
 function git(...args) {
   const r = spawnSync('git', args, { cwd: RAIZ, encoding: 'utf8' });
@@ -145,6 +149,11 @@ if (entorno !== null) {
 }
 const transporte = argumento('transporte', 'cli');
 const saltarVerificacion = process.argv.includes('--saltar-verificacion');
+if (transporte === 'cli' && saltarVerificacion) {
+  // Se permite (es como se ensaya el CLI contra una base desechable), pero el resultado no puede
+  // ser verde: sin las puertas no hay con qué fusionar el PR B.
+  console.log('  OJO: --saltar-verificacion con el CLI: el resultado no podrá salir en verde.');
+}
 const url = process.env['DATABASE_URL'] ?? '';
 if (url === '') alto('Falta DATABASE_URL (las lecturas). Pásala con --entorno <archivo>.');
 const { referenciaDeLaCadena } =
@@ -193,6 +202,24 @@ if (transporte === 'cli') {
   process.env['MORPHIQPOS_SUPABASE_PROJECT_REF'] = '';
   process.env['SUPABASE_CLI_PATH'] = '';
   process.env['MORPHIQPOS_DB_VERIFICACION'] = url;
+  // Y aun así, sin fiarse de que una variable VACÍA llegue entera al nieto: en Windows el
+  // `db:migrate` pasa por cmd.exe (`pnpm.cmd`, dos veces) y si se perdiera, dotenv la recargaría.
+  // Si un `.env` de los que lee `migrar.mjs` trae un proyecto, el ensayo no corre en este checkout.
+  for (const archivo of [
+    join(RAIZ, '.env.local'),
+    join(RAIZ, '.env'),
+    join(RAIZ, 'packages', 'data', '.env.local'),
+    join(RAIZ, 'packages', 'data', '.env'),
+  ]) {
+    const texto = existsSync(archivo) ? readFileSync(archivo, 'utf8') : '';
+    if (/^\s*MORPHIQPOS_SUPABASE_PROJECT_REF\s*=\s*["']?[^\s"'#]/m.test(texto)) {
+      alto(
+        `Con --transporte url no se ensaya en un checkout cuyo ${archivo} trae ` +
+          'MORPHIQPOS_SUPABASE_PROJECT_REF: db:migrate podría recargarlo y migrar por el CLI. ' +
+          'Ensaya en otra copia del repositorio, sin ese .env.',
+      );
+    }
+  }
   // Decodificada y contra los dos intocables: un `%77yqm…` en el usuario no la esconde.
   if (esDeUnProyectoIntocable(url)) {
     alto('Con --transporte url no se migra la base compartida (ni la de otro cliente).');
@@ -299,11 +326,12 @@ try {
     const migro = correr('pnpm', ['db:migrate'], process.env);
     const despuesDeMigrar = await pendientes();
     if (despuesDeMigrar.lista.length > 0) {
-      base = 'intacta';
+      // Al releer no entró ninguna (la tanda es atómica), pero si el CLI se cortó, la petición
+      // puede seguir viva en el servidor y confirmarse después: no se afirma «intacta».
       alto(
-        `db:migrate ${migro ? 'terminó' : 'falló'} y siguen pendientes: ` +
+        `db:migrate ${migro ? 'terminó' : 'falló'} y, al releer, siguen pendientes: ` +
           `${despuesDeMigrar.lista.join(', ')} (ledger en ${String(despuesDeMigrar.yaEstaban)}). ` +
-          'La tanda es atómica: no entró ninguna.',
+          'Espera dos minutos antes de volver a correr el guion.',
       );
     }
     base = 'migrada';
@@ -354,13 +382,18 @@ try {
 }
 
 // ── 9 · El resumen ─────────────────────────────────────────────────────────
-const verde = r !== null && r.diferencias.length === 0 && puertas !== 'ROJAS';
+// Verde SÓLO con las puertas verdes, o saltadas en un ensayo por `DATABASE_URL`.
+const puertasBien = puertas === 'verdes' || (puertas === 'saltadas' && transporte === 'url');
+const verde = r !== null && r.diferencias.length === 0 && puertasBien;
 const segundos = ((Date.now() - inicio) / 1000).toFixed(0);
 console.log(`\n══ PAR-1 · fase 3 · ${verde ? 'TODO EN VERDE' : 'REVISAR'} (${segundos} s)`);
 for (const linea of resumen) console.log(`· ${linea}`);
 console.log(`· huellas en ${String(salida)} (fuera del repositorio)`);
 if (!verde) {
   console.log('· La base YA tiene la 186 y la 187. NO fusiones el PR B hasta revisarlo.');
+  if (puertas === 'saltadas') {
+    console.log('· Las puertas no corrieron (--saltar-verificacion): con esto no se fusiona.');
+  }
   if (r !== null && r.diferencias.length > 0) {
     console.log(
       '· Si lo distinto es de un negocio que estaba atendiendo (ordenes, pagos, sesiones, ' +
