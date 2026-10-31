@@ -57,8 +57,7 @@ import { useUnionDeLaMesa } from './unir-mesas/use-union-de-la-mesa';
 import { useVocabulario } from '~/cliente/vocabulario';
 import { sonar } from '~/sonidos/gestor';
 
-/**
- * PANTALLA · restaurante · mesa-activa
+/** PANTALLA · restaurante · mesa-activa (en la primera línea: `verify:cobertura` lee 60)
  *
  * La comanda. 80-200 veces al día por mesero. No es una pantalla nueva: es la
  * mesa, abierta. Jerarquía (`04-INTERFAZ`): ENVIAR A COCINA, lo pedido, el
