@@ -64,8 +64,15 @@ export const entradaCrearProducto = z
       problema(ctx, 'insumoBaseId', 'Selecciona el insumo base.');
     }
     if (valor.tipoVenta === 'variable_medida') {
-      if (valor.estrategiaConsumo !== 'insumo_base') {
-        problema(ctx, 'estrategiaConsumo', 'Un producto variable descuenta su insumo base.');
+      // Por su insumo base (un kilo de queso) o por su RECETA por unidad de medida (un kilo de
+      // barbacoa lleva carnero, sal y hoja de maguey): `consumoDeReceta` ya multiplica la receta
+      // por la cantidad vendida, 0.25 kg incluido. DP-5, la barbacoa de Don Poncho.
+      if (valor.estrategiaConsumo !== 'insumo_base' && valor.estrategiaConsumo !== 'receta') {
+        problema(
+          ctx,
+          'estrategiaConsumo',
+          'Un producto variable descuenta su insumo base o su receta.',
+        );
       }
       if (valor.unidadVariable === undefined) problema(ctx, 'unidadVariable', 'Selecciona unidad.');
       if (valor.precioVariable === undefined) problema(ctx, 'precioVariable', 'Define el precio.');

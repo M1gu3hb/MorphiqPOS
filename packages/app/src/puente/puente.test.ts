@@ -30,6 +30,7 @@ const MUESTRAS: Readonly<Record<Conversion, readonly unknown[]>> = {
   fecha: ['2026-09-09T18:30:00.000Z'],
   dia: ['2026-09-09'],
   json: [{ a: 1 }, [1, 2, 3]],
+  jsonb: [{ a: 1 }, [0.25, 0.5, 1], [{ insumo: 'Carnero', kg: 20 }]],
 };
 
 describe('el puente traduce sin perder nada', () => {
@@ -37,8 +38,10 @@ describe('el puente traduce sin perder nada', () => {
     it(`«${conversion}» cierra el círculo`, () => {
       for (const original of valores) {
         const enLaBase = haciaLaBase(original, conversion);
-        const devuelto = haciaEl(enLaBase, conversion);
-        if (conversion === 'json') {
+        // Una columna `jsonb` recibe TEXTO JSON y devuelve el documento ya leído: así viaja.
+        const leido = conversion === 'jsonb' ? (JSON.parse(String(enLaBase)) as unknown) : enLaBase;
+        const devuelto = haciaEl(leido, conversion);
+        if (conversion === 'json' || conversion === 'jsonb') {
           expect(devuelto).toStrictEqual(original);
         } else if (conversion === 'texto' || conversion === 'dia') {
           expect(devuelto).toBe(original);

@@ -254,8 +254,8 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       },
       tiempo_preparacion_estimado: { columna: 'minutos_preparacion', conversion: 'entero' },
       notas: { columna: 'notas', conversion: 'texto' },
-      presets_variable_qr: { columna: 'presets_variable', conversion: 'json', publico: true },
-      presets_porcion_qr: { columna: 'presets_porcion', conversion: 'json', publico: true },
+      presets_variable_qr: { columna: 'presets_variable', conversion: 'jsonb', publico: true },
+      presets_porcion_qr: { columna: 'presets_porcion', conversion: 'jsonb', publico: true },
     },
     derivados: {
       /**
@@ -3501,7 +3501,7 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
       // es real: `lineas` se lee ENTERA para precargar un formulario y nunca
       // se actualiza parcialmente. `comanda_items`, en cambio, se consulta y
       // se actualiza fila por fila desde cocina, en vivo.
-      lineas: { columna: 'lineas', conversion: 'json' },
+      lineas: { columna: 'lineas', conversion: 'jsonb' },
       activa: { columna: 'activa', conversion: 'booleano' },
       notas: { columna: 'notas', conversion: 'texto' },
       ultima_fecha_uso: { columna: 'ultimo_uso_en', conversion: 'fecha', escribible: false },

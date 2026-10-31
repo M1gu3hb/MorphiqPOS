@@ -103,8 +103,31 @@ describe('B-04 · comandos de producto', () => {
       { ...fijo, tipoVenta: 'variable_medida', estrategiaConsumo: 'insumo_base' },
       'variable sin insumo ni precio',
     ],
+    [
+      {
+        ...fijo,
+        tipoVenta: 'variable_medida',
+        estrategiaConsumo: 'sku',
+        unidadVenta: 'kg',
+        unidadVariable: 'kg',
+        precioVariable: '795',
+      },
+      'variable que descontaría la pieza y no la medida',
+    ],
   ])('rechaza %s: %s', (entrada, descripcion) => {
     expect(entradaCrearProducto.safeParse(entrada).success, descripcion).toBe(false);
+  });
+
+  it('acepta un variable por receta: el kilo de barbacoa con su receta por kilo (DP-5)', () => {
+    const barbacoa = {
+      ...fijo,
+      tipoVenta: 'variable_medida',
+      estrategiaConsumo: 'receta',
+      unidadVenta: 'kg',
+      unidadVariable: 'kg',
+      precioVariable: '795',
+    };
+    expect(entradaCrearProducto.safeParse(barbacoa).success).toBe(true);
   });
 
   it.each([
