@@ -14,13 +14,6 @@ import { puestoDeEspera } from './reglas';
 import { useDespertadorDeCaja } from './use-despertador-de-caja';
 import { useModoEspera } from './use-modo-espera';
 
-/**
- * La hora del negocio. Don Poncho está en la Ciudad de México y su servidor corre con
- * `TZ=America/Mexico_City` en las tres fases (`docs/infra/FASES.md`); la tableta puede tener
- * otra, y la hora de la pared tiene que ser la del local.
- */
-const ZONA_DEL_NEGOCIO = 'America/Mexico_City';
-
 /** Mientras duerme, cada cuánto vuelve a leer la configuración del negocio. */
 const RELEER_DORMIDA_MS = 60_000;
 
@@ -50,7 +43,9 @@ interface SesionDelPuesto {
  * a pedir: un «Pedir PIN» encendido en otro aparato vale al despertar, sin recargar la tableta.
  */
 export function ModoEspera({ ruta }: { readonly ruta: string }) {
-  const { experiencia } = useExperiencia();
+  // La hora es la del NEGOCIO (`organizaciones.zona_horaria`, leída al pintar), no la del
+  // aparato ni una fija (PAR-1: en Don Poncho era la de la Ciudad de México).
+  const { experiencia, zona } = useExperiencia();
   const { config } = useConfig() as unknown as ConfiguracionDelNegocio;
   const { posUser, logout } = usePOSAuth() as unknown as SesionDelPuesto;
   const consultas = useQueryClient();
@@ -93,7 +88,7 @@ export function ModoEspera({ ruta }: { readonly ruta: string }) {
       <PantallaDeEspera
         logo={config.logo_url ?? ''}
         nombre={config.nombre_negocio ?? ''}
-        zona={ZONA_DEL_NEGOCIO}
+        zona={zona}
         dormidaDesde={dormidaDesde}
         alDespertar={pedirDespertar}
       />

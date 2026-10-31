@@ -48,6 +48,7 @@ export function Proveedores({
   conSesion,
   apariencia,
   experiencia,
+  zona,
 }: {
   readonly children: ReactNode;
   readonly conSesion: boolean;
@@ -55,10 +56,12 @@ export function Proveedores({
   readonly apariencia: AparienciaInicial;
   /** La experiencia del negocio (DP-11: «Mascota Morfi»), leída en el servidor como la apariencia. */
   readonly experiencia: ExperienciaDelNegocio;
+  /** La zona horaria del negocio, leída en el servidor (PAR-1): la hora del modo espera. */
+  readonly zona?: string;
 }) {
   return (
     <ProveedorDeApariencia aparienciaInicial={apariencia}>
-      <ProveedorDeExperiencia inicial={experiencia}>
+      <ProveedorDeExperiencia inicial={experiencia} {...(zona === undefined ? {} : { zona })}>
         <ThemeProvider>
           <POSAuthProvider conSesion={conSesion}>
             {/*

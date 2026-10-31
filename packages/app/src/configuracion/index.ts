@@ -22,6 +22,12 @@ export {
 } from './experiencia.ts';
 
 export {
+  ZONA_HORARIA_POR_OMISION,
+  zonaHorariaDeLaOrganizacion,
+  zonaValida,
+} from './zona-horaria.ts';
+
+export {
   entradaGuardarConfiguracion,
   guardarConfiguracion,
   leerConfiguracion,

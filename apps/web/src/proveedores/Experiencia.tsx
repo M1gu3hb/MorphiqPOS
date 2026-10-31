@@ -22,19 +22,26 @@ export const EXPERIENCIA_DE_OMISION: ExperienciaDelNegocio = {
 interface ExperienciaEnVivo {
   readonly experiencia: ExperienciaDelNegocio;
   readonly cambiar: (nueva: ExperienciaDelNegocio) => void;
+  /** La zona horaria del negocio (`organizaciones.zona_horaria`): la hora del modo espera. */
+  readonly zona: string;
 }
+
+/** La de los negocios que no dicen otra (la columna nace con ella). */
+export const ZONA_DE_OMISION = 'America/Mexico_City';
 
 const Contexto = createContext<ExperienciaEnVivo | null>(null);
 
 export function ProveedorDeExperiencia({
   inicial,
+  zona = ZONA_DE_OMISION,
   children,
 }: {
   readonly inicial: ExperienciaDelNegocio;
+  readonly zona?: string;
   readonly children: ReactNode;
 }) {
   const [experiencia, cambiar] = useState(inicial);
-  const valor = useMemo(() => ({ experiencia, cambiar }), [experiencia]);
+  const valor = useMemo(() => ({ experiencia, cambiar, zona }), [experiencia, zona]);
   return <Contexto.Provider value={valor}>{children}</Contexto.Provider>;
 }
 
@@ -43,5 +50,11 @@ export function ProveedorDeExperiencia({
  * y no tiene por qué tumbar una pantalla.
  */
 export function useExperiencia(): ExperienciaEnVivo {
-  return useContext(Contexto) ?? { experiencia: EXPERIENCIA_DE_OMISION, cambiar: () => undefined };
+  return (
+    useContext(Contexto) ?? {
+      experiencia: EXPERIENCIA_DE_OMISION,
+      cambiar: () => undefined,
+      zona: ZONA_DE_OMISION,
+    }
+  );
 }

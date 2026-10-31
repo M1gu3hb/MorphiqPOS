@@ -55,6 +55,33 @@ describe('puestoDeEspera', () => {
     }
   });
 
+  it('los otros giros del maestro: su caja, su barra y su administración (PAR-1)', () => {
+    expect(puestoDeEspera('/ferreteria/mostrador')).toBe('caja');
+    expect(puestoDeEspera('/abarrotes/cobrar')).toBe('caja');
+    expect(puestoDeEspera('/estetica-salon/caja-y-corte')).toBe('caja');
+    expect(puestoDeEspera('/cafeteria/barra')).toBe('cocina');
+    expect(puestoDeEspera('/restaurante/cocina')).toBe('cocina');
+    expect(puestoDeEspera('/cafeteria/inventario')).toBe('administracion');
+    expect(puestoDeEspera('/ferreteria/existencias')).toBe('administracion');
+  });
+
+  it('NUNCA en la agenda, la cita en curso, la recogida, los accesos ni el portal de un giro', () => {
+    for (const ruta of [
+      '/estetica-salon/agenda-del-dia',
+      '/estetica-salon/cita-en-curso',
+      '/estetica-salon/mi-dia',
+      '/cafeteria/recogida',
+      '/cafeteria/acceso-por-pin',
+      '/cafeteria/menu-publico-y-pedido-anticipado',
+      '/restaurante/acceso-por-pin',
+      '/restaurante/mapa-de-mesas',
+      '/restaurante/mesa-activa',
+      '/restaurante/portal-del-comensal',
+    ]) {
+      expect(puestoDeEspera(ruta), ruta).toBeNull();
+    }
+  });
+
   it('una consulta o una diagonal al final no cambian el puesto', () => {
     expect(puestoDeEspera('/configuracion?tab=apariencia')).toBe('administracion');
     expect(puestoDeEspera('/caja/')).toBe('caja');

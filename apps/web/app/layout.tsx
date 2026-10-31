@@ -11,6 +11,8 @@ import {
   EXPERIENCIA_POR_OMISION,
   aparienciaDeLaOrganizacion,
   experienciaDeLaOrganizacion,
+  ZONA_HORARIA_POR_OMISION,
+  zonaHorariaDeLaOrganizacion,
 } from '@morphiqpos/app/configuracion';
 import { negocioDeLaEntrada, slugDeLaRutaDeEntrada } from '@morphiqpos/app/negocio';
 import { estiloOPredeterminado } from '@morphiqpos/ui/tokens';
@@ -140,12 +142,13 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
     cabeceras.get('host'),
     cabeceras.get(CABECERA_RUTA),
   );
-  const [guardada, experiencia] =
+  const [guardada, experiencia, zona] =
     organizacionId === null
-      ? [APARIENCIA_POR_OMISION, EXPERIENCIA_POR_OMISION]
+      ? [APARIENCIA_POR_OMISION, EXPERIENCIA_POR_OMISION, ZONA_HORARIA_POR_OMISION]
       : await Promise.all([
           aparienciaDeLaOrganizacion(organizacionId),
           experienciaDeLaOrganizacion(organizacionId),
+          zonaHorariaDeLaOrganizacion(organizacionId),
         ]);
   /**
    * Sin preferencia, o con una que ya no es un estilo construido, arranca `morphiq`.
@@ -206,7 +209,12 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_DEL_MODO }} />
       </head>
       <body>
-        <Proveedores conSesion={conSesion} apariencia={apariencia} experiencia={experiencia}>
+        <Proveedores
+          conSesion={conSesion}
+          apariencia={apariencia}
+          experiencia={experiencia}
+          zona={zona}
+        >
           {children}
         </Proveedores>
       </body>
