@@ -8,6 +8,7 @@
     "playwright.config.ts",
     "scripts/lib/adopcion.test.ts",
     "scripts/lib/clases-de-color.test.ts",
+    "scripts/lib/huella.test.ts",
     "scripts/lib/unidades.test.ts",
     "scripts/lib/vocabulario-de-color.test.ts"
   ],
