@@ -13,16 +13,44 @@ Archivo de progreso. **Con él solo, otra sesión retoma el encargo.** Se actual
 
 ## 1 · Estado
 
-| Paso       | Qué                                                                   | Estado             |
-| ---------- | --------------------------------------------------------------------- | ------------------ |
-| Fase 0     | Este archivo: tabla, PR A / PR B, nube contra laptop                  | hecho              |
-| PAR-1.1    | Next 16.4.3, DOMPurify 3.4.17, Zod 4.6.7 — PR #19 (rama de la sesión) | CI corriendo       |
-| PR A       | `paridad/sin-migracion`: bloques A a D                                | en curso           |
-| PR B       | `paridad/fase-b`: bloque E, 186 y 187                                 | pendiente          |
-| Guion      | `scripts/paridad-laptop.mjs` y su huella                              | pendiente          |
-| Don Poncho | PR #1 (`fase-b` → `main`) al día y listo                              | pendiente          |
-| Fase 3     | Migrar la base compartida (laptop)                                    | espera a la laptop |
-| Fase 4     | Fusionar `fase-b` de Don Poncho (laptop + Miguel)                     | espera a la fase 3 |
+| Paso       | Qué                                                                   | Estado                                            |
+| ---------- | --------------------------------------------------------------------- | ------------------------------------------------- |
+| Fase 0     | Este archivo: tabla, PR A / PR B, nube contra laptop                  | hecho                                             |
+| PR #19     | Next 16.4.3 + la lista de espera (R16) + la galería por día de semana | CI corriendo; se fusiona en verde                 |
+| PR A       | `paridad/sin-migracion`: bloques A a D, `PAR-1.2` a `PAR-1.44`        | portado y probado en local; falta CI y producción |
+| PR B       | `paridad/fase-b`: bloque E, 186 y 187                                 | pendiente                                         |
+| Guion      | `scripts/paridad-laptop.mjs` y su huella                              | huella hecha (`PAR-1.35`); guion pendiente        |
+| Don Poncho | PR #1 (`fase-b` → `main`) al día y listo                              | pendiente                                         |
+| Fase 3     | Migrar la base compartida (laptop)                                    | espera a la laptop                                |
+| Fase 4     | Fusionar `fase-b` de Don Poncho (laptop + Miguel)                     | espera a la fase 3                                |
+
+Numeración: el PR #19 lleva sus propios `PAR-1.1` a `PAR-1.3` (rama de la sesión); el PR A
+empieza en `PAR-1.2` sobre `PAR-1.1` y sigue hasta `PAR-1.44`. Los dos `PAR-1.2`/`PAR-1.3` son
+commits distintos; el mensaje dice cuál es cuál.
+
+### Cómo se probó en la nube (para repetirlo)
+
+- Postgres 17 desechable en `127.0.0.1:5433` (`initdb` como `postgres`, rol `morphiqpos` y
+  `morphiqpos_app` con `bypassrls`), migrado con `pnpm --filter @morphiqpos/data migrate`.
+- Integración: `DATABASE_URL_PRUEBAS=… npx vitest run --config vitest.integracion.config.ts <archivo>`.
+- Navegador: la demo del restaurante como en la CI (`db:alta-negocio`, `db:bootstrap`,
+  `sembrar-demos.mjs --solo demo-acople-restaurante`), el web compilado con
+  `pnpm --filter @morphiqpos/web build` (en este contenedor `turbo` no puede lanzar procesos) y
+  servido en un worktree aparte, `MORPHIQPOS_PUERTO_E2E=<puerto>`.
+- Las pruebas de Don Poncho se traducen a los nombres del maestro: `prueba-restaurante` →
+  `demo-acople-restaurante`, `/api/pruebas/resetear` → `/api/catalogo/demostracion/resetear`,
+  `equipo-de-prueba.ts` → `equipo-demo.ts`, `NEGOCIOS_DE_PRUEBA` → `DEMOS`,
+  `sembrar-pruebas.mjs` → `sembrar-demos.mjs`; las páginas de su carta → una imagen que el
+  maestro sirve (`/platillos/arrachera-al-carbon.webp`).
+
+### Resultados en local (antes de la CI)
+
+- Bloque A en navegador: 3 de 3. Bloque B: 8 de 8 suites (18 pruebas, tres aparatos).
+- Unitarias, integración, tipos y las puertas estáticas tocadas, en verde en cada commit.
+- Mutaciones de lo adaptado: la estación en el modo presentación (1), el contrato de
+  `idAlAzar` (2 archivos), el de las cookies (2 rutas), la zona del modo espera (3), los
+  sonidos de la cafetería (2) y la lista de espera (PR #19): todas muertas.
+- La mudanza (exportar/importar) con la demo: 132 tablas, 322 filas, idénticas en md5.
 
 ## 2 · Qué va en cada PR
 

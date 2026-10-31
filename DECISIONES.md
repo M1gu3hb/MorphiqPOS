@@ -103,6 +103,7 @@ Extraídas de las decisiones anteriores. Si una propuesta las viola, se rechaza.
 | 8-sep-2026 | Cowork local | **Reparto en dos carriles.** Codex entra como segundo desarrollador. Decisiones A-45 a A-48. `TEAM.md`, `18-REPARTO-DOS-CARRILES.md`, plantilla de reportes |
 | 8/9-sep-2026 | Claude Code + Codex | **Sesión 2.** Carril A: A-01 (envoltorio `comando()`), 1 de 22. Carril B: B-01 a B-05 + 2 a medias, 5 de 24. Ambos reportes honestos |
 | 9-sep-2026 | Cowork local | **Auditoría de la sesión 2.** Hallazgo central: `apps/web` no importa nada del backend — motor sin cableado. Se revisa y se descarta la mudanza a la tiendita (A-49). Decisiones A-49 a A-51. Prompts de la sesión 3 en `docs/fase-1/19` |
+| 31-oct-2026 | Claude Code (nube) | **PAR-1 · paridad con POS Don Poncho.** Bloques A a D portados (PR A, sin migraciones) y el bloque E (pedido compartido y unir mesas, 186 y 187) listo sin fusionar. Decisiones A-53 a A-58. Progreso en `docs/paridad/PARIDAD-DON-PONCHO.md` |
 
 ## A-52 · 20-oct-2026 · Master POS interno y extracción por cliente
 
@@ -117,3 +118,85 @@ Consecuencia: cada extracción debe declarar su origen y llevar dependencias, es
 permisos y pruebas; las mejoras genéricas pueden regresar al maestro mediante revisión.
 No elimina el aislamiento de datos ni los permisos en servidor. Ver D-42 y
 [objetivo vigente](docs/MASTER-POS-VIGENTE.md).
+
+## A-53 · 31-oct-2026 · PAR-1 · paridad con POS Don Poncho: cómo se porta
+
+POS Don Poncho nació de `MorphiqPOS@5f4534c` y le quitó todo lo que no es restaurante. Lo que
+arregló o construyó después vuelve al maestro **por cambio, nunca por carpeta** (copiar
+carpetas borraría los otros giros): `git cherry-pick -n` de cada commit, choques resueltos a
+favor del maestro multigiro, y sólo lo genérico. Alternativas descartadas: copiar los
+archivos finales de Don Poncho (se perdería todo lo que el maestro tiene y Don Poncho podó) y
+reescribir cada función (cuesta semanas que Miguel no tiene). Plan, tabla commit por commit y
+estado en [`docs/paridad/PARIDAD-DON-PONCHO.md`](docs/paridad/PARIDAD-DON-PONCHO.md). Las
+fichas de Don Poncho (`docs/para-el-maestro/`) se citan; no se copian.
+
+- Las pruebas de navegador portadas usan la demo del restaurante del maestro
+  (`demo-acople-restaurante`, `/api/catalogo/demostracion/resetear`, `equipo-demo.ts`) en vez
+  del negocio de prueba de Don Poncho.
+- Las excepciones de `verify:aspecto` y `verify:lecturas` se rehicieron con los testigos y las
+  cuentas reales del maestro (las de Don Poncho daban por quitada la pestaña «Presentación»).
+- La galería se regenera en la CI del maestro, no se copian los retratos de Don Poncho.
+
+## A-54 · 31-oct-2026 · PAR-1 bloque A · los arreglos del arranque de Don Poncho
+
+Los ocho defectos heredados que Don Poncho encontró al arrancar (su reporte 001 §4; DP-D14 a
+DP-D19) los tenía también el maestro:
+
+1. Next 16.3.8 con ejecución remota de código, DOMPurify y Zod → Next 16.4.3, DOMPurify
+   3.4.17, Zod 4.6.7 (PR #19, lockfile regenerado con pnpm, no copiado).
+2. Los arreglos del puente no llegaban a su columna `jsonb` (DP-D15); y un producto por medida
+   acepta receta (DP-D14).
+3. Las zonas fijas del salón (DP-D16).
+4. Costo $0 y margen 100 % «sano» en un platillo sin receta: «receta pendiente» (DP-D17).
+5. Las opciones que no salían en el menú público (DP-D18; la regla del título la reemplazó
+   después DP-9.7).
+6. El área de preparación con la que nace un producto: el servidor la aprende al crear (DP-9.1).
+7. Los colores fijos de Morphiq en el carrito del mesero y en el marcador sin foto.
+8. Las dos carreras de toques en la cocina (DP-D19).
+
+**No entró:** DP-7b (sólo existía porque Don Poncho quitó la ruta de plantilla) ni el cambio
+de DP-7g a la mutación de FORCE RLS (depende de DP-7f, el `verify:acople` reducido, DP-D21).
+
+De paso, la CI del PR #19 sacó dos defectos del maestro que no venían de Don Poncho y se
+arreglaron allí: `lista_espera_citas.anotar` aceptaba la clienta de otro negocio (R16) y la
+galería dependía del día de la semana.
+
+## A-55 · 31-oct-2026 · PAR-1 bloque B · DP-9 (el paquete 1 de cambios del cliente)
+
+Recetas no pisa área ni visibilidad (DP-D22); el portal sin asignación de mesas y los globos
+(DP-D23); la vista «Solicitudes» y la caja que ya no las ve (DP-D24, sólo el paquete
+restaurante); cocina en el teléfono (DP-D25); botones sobre el menú QR (DP-D26, sin las
+posiciones de la carta de Don Poncho); QR de las mesas con diseño (DP-D28); demo local en la
+red y cookies `Secure` sólo con https (DP-D27).
+
+**Adaptado:** `cookiesSeguras` también en las dos rutas del modo presentación (sólo del
+maestro); `demo-local.mjs` arma una de las cinco demos del maestro con sus PIN públicos, en
+vez de dar de alta a Don Poncho.
+
+## A-56 · 31-oct-2026 · PAR-1 bloque C · DP-10 (el funcionamiento)
+
+Estaciones Cocina y Bebidas con la estación en la sesión del servidor (DP-D31); la última caja
+no cierra con cuentas vivas (DP-D32, sólo cuentas con mesa: los otros giros no cambian); el
+puente de las mesas unidas (DP-D33, lo reemplaza el bloque E); la mudanza de un negocio
+(DP-D34).
+
+**Adaptado:** en la entrada con PIN la estación se lee del negocio y el empleo EFECTIVOS (el
+gemelo del modo presentación); la mudanza se parametriza por negocio (`--org <slug> --id
+<uuid>`, sin ningún id fijo) y la base nueva admite sólo los tres negocios que siembra la 042.
+
+## A-57 · 31-oct-2026 · PAR-1 bloque D · DP-11.0 a 11.3 (la experiencia)
+
+`idAlAzar` (DP-D37), el medidor de fluidez y la huella de los negocios; Morfi (DP-D38), el modo
+espera (DP-D39) y los sonidos (DP-D40), para todos los giros. DP-11.4 (el diseño nuevo) NO
+entra: Miguel no lo aprobó.
+
+**Adaptado:**
+
+- `idAlAzar` también en la cafetería y la ferretería (el contrato de Don Poncho las encontró).
+- La huella toma todos los negocios (`--solo`/`--excluir`), compara sobre las columnas de la
+  primera toma y conoce el relleno de la 187.
+- El modo espera enseña la hora de `organizaciones.zona_horaria` (en Don Poncho estaba fija) y
+  conoce las pantallas de cada giro: cobro y mostrador son caja, la barra de la cafetería es
+  cocina; nunca la agenda, la recogida, los accesos ni el portal.
+- El acceso por PIN de la cafetería suena y quita el candado del modo espera, como los otros dos.
+- El medidor de fluidez entra a la demo con los PIN públicos de las demos.

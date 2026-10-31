@@ -274,6 +274,27 @@ Revisar una vez al mes. Si aparecen dos, se para y se corrige:
 
 ---
 
+## 8 bis. Lo que el restaurante ganó de POS Don Poncho (PAR-1, 31-oct-2026)
+
+POS Don Poncho, el primer proyecto de cliente sacado de este maestro (A-52), arregló y
+construyó cosas que sirven a cualquier restaurante. Vuelven aquí por cambio (A-53 a A-58,
+progreso en [`docs/paridad/PARIDAD-DON-PONCHO.md`](docs/paridad/PARIDAD-DON-PONCHO.md)):
+
+- **Seguridad y arranque:** Next 16.4.3, los ocho defectos heredados (arreglos `jsonb`, zonas
+  del salón, receta pendiente en vez de costo $0, opciones en el menú público, colores fijos,
+  las carreras de la cocina).
+- **Sala:** el portal QR sin asignación de mesas, con globos de solicitud sobre cada mesa; la
+  vista «Solicitudes»; botones sobre las páginas del menú QR; QR de las mesas con diseño que
+  sólo se imprime si se lee; estaciones Cocina y Bebidas con la estación en la sesión; la
+  última caja no cierra con cuentas vivas.
+- **Cocina en el teléfono:** un QR por estación, sin PIN, con voz y botonera.
+- **Experiencia (todos los giros):** Morfi en las cargas largas y la página que no existe, el
+  modo espera por aparato con la hora del negocio, los sonidos de la interfaz.
+- **Herramientas:** la demo local en la red (`scripts/demo-local.mjs`), la mudanza de un negocio
+  a su base, la huella de los negocios y el medidor de fluidez.
+- **Con la migración 186/187 (PR B, cuando la base la tenga):** el pedido compartido de la mesa
+  (un carrito por mesa para todos los teléfonos) y unir mesas arrastrándolas en el mapa.
+
 ## 9. Estado y qué sigue
 
 ### Pendiente de Miguel
