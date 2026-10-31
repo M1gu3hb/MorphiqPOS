@@ -19,21 +19,21 @@ import {
 } from './ayudantes/sesion.ts';
 
 /**
- * EL MENÚ PERSONALIZADO DEL PORTAL QR TAMBIÉN PIDE (DP-5).
+ * EL MENÚ PERSONALIZADO DEL PORTAL QR TAMBIÉN PIDE (DP-5, al día con DP-9.7).
  *
- * La dueña sube su menú —una página con su imagen— y le pone de título las categorías que trae,
- * separadas por «·». El comensal, en su teléfono y sin sesión, ve la página y debajo sus platillos
- * (de ESAS categorías y de ninguna otra), toca «Agregar», elige la opción del platillo, y su
+ * La dueña sube su menú —una página con su imagen— y le pone botones encima: los platillos que
+ * esa página enseña. El comensal, en su teléfono y sin sesión, toca el platillo sobre la imagen
+ * (sólo los de la página: lo que no tiene botón no se ofrece), elige la opción del platillo, y su
  * pedido llega a la cuenta de la mesa con la opción en la nota. Se lee del SERVIDOR, no de la
- * pantalla.
+ * pantalla. (Hasta DP-9.7 la página traía debajo una lista por las categorías de su título,
+ * DP-D18; esa lista ya no existe.)
  */
 
 const SLUG = 'demo-acople-restaurante';
 const MESA = 6;
 const ZONA = 'Interior';
 const MESERO = 'Lupita';
-/** Dos categorías de la siembra del restaurante de prueba. «Bebidas» queda fuera a propósito. */
-const PAGINA = 'Platos fuertes · Cervezas';
+const PAGINA = 'Platos fuertes y cervezas';
 const OPCION = { grupo: 'Temperatura', nombre: 'Bien fría' };
 
 async function escribir(duena: Page, datos: Record<string, unknown>, ruta = '/api/datos/escribir') {
@@ -97,6 +97,36 @@ test.describe('el menú personalizado del portal QR', () => {
           limite: 1,
         });
         expect(cerveza, 'La siembra no trae la cerveza clara.').toBeDefined();
+        const [arrachera] = await consultarPuente<{ id: string }>(duena, 'ProductoTerminado', {
+          filtro: { nombre: CARTA.arrachera.nombre },
+          limite: 1,
+        });
+        const [pagina] = await consultarPuente<{ id: string }>(duena, 'MenuQRSeccion', {
+          filtro: { nombre: PAGINA },
+          limite: 1,
+        });
+        const boton = (id: string, y: number, productoId?: string) => ({
+          id,
+          tipo: 'platillo',
+          x: 10,
+          y,
+          ancho: 40,
+          alto: 8,
+          productoId,
+          mostrarPrecio: true,
+        });
+        await escribir(duena, {
+          entidad: 'ConfiguracionNegocio',
+          operacion: 'update',
+          datos: {
+            portal_qr_botones: {
+              [pagina?.id ?? '']: [
+                boton('cerveza', 20, cerveza?.id),
+                boton('arrachera', 40, arrachera?.id),
+              ],
+            },
+          },
+        });
         await escribir(
           duena,
           {
@@ -124,17 +154,17 @@ test.describe('el menú personalizado del portal QR', () => {
         const telefono = comensal.page;
         fallos.push(vigilarFallos(telefono));
 
-        const lista = telefono.getByRole('list', { name: `Pedir de ${PAGINA}` });
-        await expect(lista, 'La página del menú subido no trae sus platillos.').toBeVisible();
+        const carta = telefono.getByRole('article', { name: PAGINA });
         await expect(
-          lista.getByRole('button', { name: `Agregar ${CARTA.arrachera.nombre}` }),
+          carta.getByRole('button', { name: `Agregar ${CARTA.arrachera.nombre}` }),
+          'La página del menú subido no trae sus botones.',
         ).toBeVisible();
         await expect(
-          lista.getByRole('button', { name: `Agregar ${CARTA.limonada.nombre}` }),
-          'La página trae un platillo de una categoría que su título no nombra.',
+          telefono.getByRole('button', { name: `Agregar ${CARTA.limonada.nombre}` }),
+          'La página ofrece un platillo que no tiene botón en ella.',
         ).toHaveCount(0);
 
-        await lista.getByRole('button', { name: `Agregar ${CARTA.cerveza.nombre}` }).click();
+        await carta.getByRole('button', { name: `Agregar ${CARTA.cerveza.nombre}` }).click();
         // El diálogo del platillo es una hoja propia (no `role=dialog`): se busca por su contenido.
         await telefono.getByText(OPCION.nombre, { exact: true }).click();
         // «Agregar · $55.00»: el de la hoja, no los «Agregar <platillo>» de la página.
