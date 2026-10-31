@@ -406,6 +406,37 @@ export const SIN_ESTADO = [
       'No lee nada: recibe las solicitudes que el mapa ya leyó, y el mapa enseña su propia espera.',
   },
   {
+    pantalla: 'restaurante/IconoDeSolicitud',
+    estado: 'vacio',
+    razon: 'No es una pantalla: es el icono de UN tipo de solicitud (DP-9.3); siempre tiene uno.',
+  },
+  {
+    pantalla: 'restaurante/IconoDeSolicitud',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el tipo de quien lo pinta.',
+  },
+  {
+    pantalla: 'restaurante/IconoDeSolicitud',
+    estado: 'error',
+    razon: 'No lee ni escribe: no tiene cómo fallar.',
+  },
+  {
+    pantalla: 'restaurante/SelectorDeVista',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: son los dos botones Mesas / Solicitudes (DP-9.3); siempre están los dos.',
+  },
+  {
+    pantalla: 'restaurante/SelectorDeVista',
+    estado: 'cargando',
+    razon: 'No lee nada: el número de pendientes se lo pasa la pantalla de Mesas, que ya las leyó.',
+  },
+  {
+    pantalla: 'restaurante/SelectorDeVista',
+    estado: 'error',
+    razon: 'No escribe en el servidor: recordar la vista en el aparato no falla para quien la usa.',
+  },
+  {
     pantalla: 'restaurante/AreaDePreparacionSelect',
     estado: 'vacio',
     razon:

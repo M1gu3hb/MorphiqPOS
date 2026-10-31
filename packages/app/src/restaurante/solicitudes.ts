@@ -51,6 +51,13 @@ import type { Movimiento } from './transiciones.ts';
 /** Mesero en adelante. Los mismos cinco de `mesas.ts` (E6-2). */
 const ROLES_DE_SALA = ['mesero', 'cajero', 'gerente', 'administrador', 'dueno'] as const;
 
+/**
+ * Quién atiende y limpia las solicitudes del comensal: la sala, sin la caja (DP-9.3). La vista
+ * «Solicitudes» la ven mesero, gerente y dueño; esconderla no basta, el servidor también se lo
+ * niega a la caja. Tomar la mesa (`asignar_mesero`) sigue siendo de toda la sala.
+ */
+const ROLES_DE_SOLICITUDES = ['mesero', 'gerente', 'administrador', 'dueno'] as const;
+
 /** Quién puede borrarlo TODO. Mismo par que el mantenimiento reversible (F1-07 §4.3). */
 const ROLES_DE_ADMINISTRACION = ['dueno', 'administrador'] as const;
 
@@ -238,7 +245,7 @@ export const atenderSolicitud = definirComando<
   nombre: 'restaurante.atender_solicitud',
   entidad: 'solicitud_qr',
   escribe: true,
-  roles: [...ROLES_DE_SALA],
+  roles: [...ROLES_DE_SOLICITUDES],
   paquetes: PAQUETES_RESTAURANTE,
   sucursal: { solicitudId: 'solicitudes_qr' },
   entrada: entradaAtenderSolicitud,
@@ -400,7 +407,7 @@ export const limpiarSolicitudes = definirComando<
   nombre: 'restaurante.limpiar_solicitudes',
   entidad: 'solicitud_qr',
   escribe: true,
-  roles: [...ROLES_DE_SALA],
+  roles: [...ROLES_DE_SOLICITUDES],
   paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaLimpiarSolicitudes,
   async ejecutar(ctx) {

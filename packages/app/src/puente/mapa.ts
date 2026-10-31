@@ -3211,7 +3211,9 @@ const MAPA_DECLARADO: Readonly<Record<string, MapaEntidad>> = {
   SolicitudQR: {
     tabla: 'solicitudes_qr',
     sucursal: { porPadre: { columna: 'mesa_id', tabla: 'mesas' } },
-    rolesLectura: [...OPERACION_RESTAURANTE],
+    // Las solicitudes del comensal son de la sala (DP-9.3): mesero, gerente y dueño. Ni la caja
+    // ni la cocina las leen; la caja cobra la cuenta por `Venta`, que ya trae lo que pidió el QR.
+    rolesLectura: [...DIRECCION, 'mesero'],
     // Crear una solicitud, atenderla y resolverla mueven mesa y venta. Y el
     // anti-duplicado de `PortalCliente.jsx:524-532` es un TOCTOU (D-17) que
     // ahora cierra un índice único parcial.

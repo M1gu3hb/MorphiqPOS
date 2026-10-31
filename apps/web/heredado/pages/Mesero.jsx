@@ -42,7 +42,6 @@ import SoundUnlockButton from '@/components/common/SoundUnlockButton';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import MesaHuerfanaDialog from '@/components/mesero/MesaHuerfanaDialog';
 import ProductoFichaExpandible from '@/components/mesero/ProductoFichaExpandible';
-import SolicitudesQRPanel from '@/components/mesero/SolicitudesQRPanel';
 import SolicitudesQRCardList from '@/components/mesero/SolicitudesQRCardList';
 import AlertasMeseroDialog from '@/components/mesero/AlertasMeseroDialog';
 import SeleccionModificadoresDialog from '@/components/mesero/SeleccionModificadoresDialog';
@@ -51,7 +50,7 @@ import AbrirMesaDialog from '@/components/mesero/AbrirMesaDialog';
 import CantidadVariableDialog from '@/components/mesero/CantidadVariableDialog';
 import { TIPO_VENTA, formatearCantidadVariable } from '@/utils/tipoVentaUtils';
 import PrecioProductoMesero, { VariableBadge } from '@/components/mesero/PrecioProductoMesero';
-import { Bell, Volume2 } from 'lucide-react';
+import { Volume2 } from 'lucide-react';
 import { useCajaAbierta } from '@/lib/useCajaAbierta';
 import { useIsDark } from '@/lib/ThemeContext';
 import { FLOOR_BG } from '@/lib/darkPalettes';
@@ -59,6 +58,7 @@ import { printDocument } from '@/lib/print';
 import { tipsEnabled, getPorcentajesSugeridos } from '@/utils/tipsUtils';
 import {
   asignacionActiva,
+  debeUsarNombreEnVoz,
   filtrarMesasParaUsuario,
   responsableTexto,
   responsableColor,
@@ -71,6 +71,15 @@ import { claves } from '~/cliente/claves-de-consulta';
 import { mesasDelPlano, zonasConMesas, zonasDelNegocio } from '~/cliente/mesas-del-mapa';
 import { GlobosDeSolicitud } from '~/restaurante/GlobosDeSolicitud';
 import { solicitudesPorMesa } from '~/restaurante/globos-de-solicitud';
+import { SelectorDeVista } from '~/restaurante/SelectorDeVista';
+import { VistaDeSolicitudes } from '~/restaurante/VistaDeSolicitudes';
+import {
+  almacenDelAparato,
+  guardarVista,
+  leerVistaGuardada,
+} from '~/restaurante/vista-de-solicitudes';
+import { playNewOrder } from '@/lib/sounds';
+import { frasePorSolicitud, getAlertConfig, speak } from '@/lib/voiceAlert';
 
 const MAP_HEIGHT = 600;
 // Hook simple para detectar móvil
@@ -150,15 +159,19 @@ function Mesero() {
   const [mesaHuerfana, setMesaHuerfana] = useState(null);
   const [liberandoHuerfana, setLiberandoHuerfana] = useState(false);
 
-  // Solicitudes QR del Portal — panel modal
-  const [showSolicitudesQR, setShowSolicitudesQR] = useState(false);
+  // DP-9.3: Mesas o Solicitudes. La vista la recuerda ESTE aparato: así uno se queda de estación.
+  const [vista, setVista] = useState(() => leerVistaGuardada(almacenDelAparato()));
+  const cambiarVista = (nueva) => {
+    setVista(nueva);
+    guardarVista(almacenDelAparato(), nueva);
+  };
   // Configuración personal de alertas/voz del mesero
   const [showAlertasMesero, setShowAlertasMesero] = useState(false);
   // Modal de selección de modificadores al agregar producto
   const [productoParaPersonalizar, setProductoParaPersonalizar] = useState(null);
   // 6B / 1.D — Modal de cantidad/porción para productos variables
   const [productoVariable, setProductoVariable] = useState(null);
-  const { data: solicitudesPendRaw = [] } = useQuery({
+  const { data: solicitudesPendRaw = [], isFetched: solicitudesLeidas } = useQuery({
     queryKey: ['solicitudes_qr_mesero_count'],
     queryFn: () => api.entidades.SolicitudQR.filter({ estado: 'pendiente' }),
     initialData: [],
@@ -200,6 +213,22 @@ function Mesero() {
       />
     );
   };
+
+  // DP-9.3: la voz de las solicitudes suena SÓLO en la vista «Solicitudes» (antes la soltaba el
+  // vigilante global en cualquier pantalla). Cada aparato la configura en Alertas: sonido, voz o
+  // las dos; `speak` respeta el modo. El nombre del mesero sólo va en las suyas.
+  const anunciarSolicitudes = (nuevas) => {
+    const alertas = getAlertConfig();
+    if (alertas.modo === 'sonido' || alertas.modo === 'sonido_voz') playNewOrder();
+    nuevas.forEach((s, i) => {
+      const propia = Boolean(s.mesero_destino_id) && s.mesero_destino_id === posUser?.id;
+      const nombre =
+        propia && alertas.decir_nombre && debeUsarNombreEnVoz(config, s) ? posUser?.nombre || '' : '';
+      setTimeout(() => speak(frasePorSolicitud(s.tipo, s.mesa_numero, nombre)), 280 + i * 1400);
+    });
+  };
+  const portalActivo = config?.portal_qr_activo === true;
+  const enSolicitudes = portalActivo && vista === 'solicitudes';
 
   // Refs para evitar doble cierre y cerrar el sheet hijo antes que el Dialog
   const cartFabRef = useRef(null);
@@ -977,23 +1006,6 @@ function Mesero() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {config?.portal_qr_activo === true && (
-            <Button
-              type="button"
-              size="sm"
-              variant={(solicitudesActivas?.length || 0) > 0 ? 'default' : 'outline'}
-              onClick={() => setShowSolicitudesQR(true)}
-              className="gap-1.5 relative shrink-0"
-            >
-              <Bell className="w-4 h-4" />
-              <span>Solicitudes</span>
-              {(solicitudesActivas?.length || 0) > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-peligro text-peligro-texto text-[10px] font-bold flex items-center justify-center">
-                  {solicitudesActivas.length}
-                </span>
-              )}
-            </Button>
-          )}
           {/* Configuración personal de voz/alertas — solo para meseros */}
           {posUser?.rol === ROLES.WAITER && (
             <Button
@@ -1012,6 +1024,24 @@ function Mesero() {
         </div>
       </div>
 
+      {/* DP-9.3: arriba de las zonas, Mesas o Solicitudes. «Solicitudes» es la pantalla entera. */}
+      {portalActivo && (
+        <SelectorDeVista
+          vista={enSolicitudes ? 'solicitudes' : 'mesas'}
+          pendientes={solicitudesActivas.length}
+          alCambiar={cambiarVista}
+        />
+      )}
+
+      {enSolicitudes ? (
+        <VistaDeSolicitudes
+          solicitudes={solicitudesActivas}
+          cargando={!solicitudesLeidas}
+          alAtender={releerTrasAtender}
+          alAnunciar={anunciarSolicitudes}
+        />
+      ) : (
+        <>
       {/* Zone tabs */}
       {zonasConCount.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -1131,6 +1161,9 @@ function Mesero() {
             </div>
           ))}
       </div>
+
+        </>
+      )}
 
       {/* === ABRIR MESA DIALOG (6A) === */}
       <AbrirMesaDialog
@@ -1434,18 +1467,6 @@ function Mesero() {
             onUpdateNotas={actualizarNotasItem}
             onUpdateExclusiones={actualizarExclusionesItem}
           />
-        </DialogContent>
-      </Dialog>
-
-      {/* === SOLICITUDES QR DIALOG === */}
-      <Dialog open={showSolicitudesQR} onOpenChange={setShowSolicitudesQR}>
-        <DialogContent className="sm:max-w-3xl w-[calc(100%-1rem)] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="font-heading flex items-center gap-2">
-              <Bell className="w-5 h-5 text-primary" /> Solicitudes QR
-            </DialogTitle>
-          </DialogHeader>
-          <SolicitudesQRPanel />
         </DialogContent>
       </Dialog>
 

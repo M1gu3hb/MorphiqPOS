@@ -14,6 +14,8 @@ export type TipoSolicitud = 'ordenar' | 'cuenta' | 'ayuda';
 export interface SolicitudPendiente {
   readonly id: string;
   readonly mesa_id: string | null;
+  /** El número que se lee en la lista de Solicitudes; el globo ya está sobre su mesa. */
+  readonly mesa_numero?: number | null;
   readonly tipo: string;
   readonly created_date?: string | null;
 }

@@ -59,8 +59,8 @@ export default function SolicitudesQRCardList() {
   const accion = async (s, accionTipo) => {
     if (!s?.id) return;
     try {
-      // Mismo cambio que en SolicitudesQRPanel, que es este mismo componente en
-      // versión panel: `atendido_por_id` y `atendido_por_nombre` NO se mandan.
+      // `atendido_por_id` y `atendido_por_nombre` NO se mandan (el panel gemelo
+      // se fue con DP-9.3: lo sustituye la vista «Solicitudes» de Mesas).
       // Los pone la sesión dentro de `atender_solicitud`, así que ya nadie se
       // puede atribuir el trabajo de otro desde el navegador.
       await api.comandos.ejecutar('/api/restaurante/atender-solicitud', {

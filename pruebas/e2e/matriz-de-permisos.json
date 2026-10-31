@@ -1159,7 +1159,7 @@
       "ruta": "/api/restaurante/atender-solicitud",
       "comando": "restaurante.atender_solicitud",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "roles": ["administrador", "dueno", "gerente", "mesero"],
       "paquetes": ["restaurante"]
     },
     {
@@ -1250,7 +1250,7 @@
       "ruta": "/api/restaurante/limpiar-solicitudes",
       "comando": "restaurante.limpiar_solicitudes",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "roles": ["administrador", "dueno", "gerente", "mesero"],
       "paquetes": ["restaurante"]
     },
     {

@@ -1208,6 +1208,52 @@
       "archivo": "apps/web/heredado/components/mesero/MesaGridMobile.jsx",
       "porque": "DP-9.2 (DP-D23): cada tarjeta de mesa del teléfono va dentro de una columna que lleva ENCIMA sus globos de solicitud. La tarjeta es un botón y no puede llevar otro botón adentro; la tarjeta no cambia.",
       "testigos": ["+ clase:flex", "+ clase:flex-col", "+ clase:gap-1"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Mesero.jsx",
+      "porque": "DP-9.3 (DP-D24): el botón «Solicitudes» del encabezado y su modal (SolicitudesQRPanel) se van; los sustituye el selector Mesas / Solicitudes arriba de las zonas, que convierte la pantalla entera en la lista de pendientes. Lo nuevo vive en src (SelectorDeVista, VistaDeSolicitudes).",
+      "testigos": [
+        "- clase:flex",
+        "- clase:flex",
+        "- clase:items-center",
+        "- clase:items-center",
+        "- clase:justify-center",
+        "- clase:shrink-0",
+        "- clase:w-5",
+        "- clase:h-5",
+        "- clase:h-5",
+        "- clase:font-heading",
+        "- clase:font-bold",
+        "- clase:gap-2",
+        "- clase:gap-1.5",
+        "- clase:relative",
+        "- clase:w-4",
+        "- clase:h-4",
+        "- clase:absolute",
+        "- clase:-top-1.5",
+        "- clase:-right-1.5",
+        "- clase:min-w-[20px]",
+        "- clase:px-1",
+        "- clase:rounded-full",
+        "- clase:bg-peligro",
+        "- clase:text-peligro-texto",
+        "- clase:text-[10px]",
+        "- clase:text-primary",
+        "- clase:overflow-y-auto",
+        "- clase:sm:max-w-3xl",
+        "- clase:w-[calc(100%-1rem)]",
+        "- clase:max-h-[92vh]",
+        "- clase:p-4",
+        "- clase:sm:p-6",
+        "- texto:Solicitudes",
+        "- icono:Bell"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/mesero/SolicitudesQRPanel.jsx",
+      "borrado": true,
+      "porque": "DP-9.3 (DP-D24): el modal de solicitudes del mesero se va con su botón; la vista «Solicitudes» de Mesas (src/restaurante/VistaDeSolicitudes) lo sustituye, y atender o resolver desde el plano sigue en SolicitudesQRCardList.",
+      "testigos": []
     }
   ]
 }

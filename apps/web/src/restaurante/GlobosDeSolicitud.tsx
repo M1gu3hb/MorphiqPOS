@@ -2,24 +2,16 @@
 
 import { Button } from '@morphiqpos/ui/primitivas/button';
 import { Aviso } from '@morphiqpos/ui/sistema';
-import { ClipboardList, Hand, Receipt, type LucideIcon } from 'lucide-react';
 import { useState } from 'react';
 
-import { invocarComando } from '~/cliente/api';
-
+import { atenderLaSolicitud, motivoDelFallo } from './atender-solicitud';
 import {
   esTipoDeSolicitud,
   globosDeLaMesa,
   TIPOS_DE_SOLICITUD,
   type SolicitudPendiente,
-  type TipoSolicitud,
 } from './globos-de-solicitud';
-
-const ICONOS: Readonly<Record<TipoSolicitud, LucideIcon>> = {
-  ayuda: Hand,
-  cuenta: Receipt,
-  ordenar: ClipboardList,
-};
+import { IconoDeSolicitud } from './IconoDeSolicitud';
 
 /**
  * Dónde va la pila: ENCIMA de la mesa en el plano; DEBAJO si la mesa está pegada al borde de
@@ -34,12 +26,6 @@ const LUGARES: Readonly<Record<LugarDeLosGlobos, string>> = {
   abajo:
     'pointer-events-none absolute top-full left-1/2 z-10 mt-2 flex -translate-x-1/2 flex-col-reverse items-center',
   'en-linea': 'flex flex-wrap items-center justify-center',
-};
-
-const TONOS: Readonly<Record<TipoSolicitud, string>> = {
-  ayuda: 'bg-peligro text-peligro-texto',
-  cuenta: 'bg-exito text-exito-texto',
-  ordenar: 'bg-acento text-acento-texto',
 };
 
 /**
@@ -68,13 +54,10 @@ export function GlobosDeSolicitud({
     setEnCurso(solicitud.id);
     setFallo(null);
     try {
-      await invocarComando('/api/restaurante/atender-solicitud', {
-        solicitudId: solicitud.id,
-        estado: 'atendida',
-      });
+      await atenderLaSolicitud(solicitud.id);
       alAtender();
     } catch (error: unknown) {
-      setFallo(error instanceof Error ? error.message : 'No se pudo atender.');
+      setFallo(motivoDelFallo(error));
     } finally {
       setEnCurso(null);
     }
@@ -85,7 +68,6 @@ export function GlobosDeSolicitud({
       {visibles.map((solicitud) => {
         if (!esTipoDeSolicitud(solicitud.tipo)) return null;
         const tipo = TIPOS_DE_SOLICITUD[solicitud.tipo];
-        const Icono = ICONOS[solicitud.tipo];
         return (
           <Button
             key={solicitud.id}
@@ -98,11 +80,7 @@ export function GlobosDeSolicitud({
             }}
             className="pointer-events-auto h-auto gap-(--espacio-1) rounded-full bg-texto py-1 pr-(--espacio-3) pl-1 text-sm font-bold text-fondo shadow-3 ring-2 ring-fondo hover:bg-texto/90"
           >
-            <span
-              className={`flex size-[calc(var(--altura-control)*0.65)] items-center justify-center rounded-full ${TONOS[solicitud.tipo]}`}
-            >
-              <Icono aria-hidden className="size-4" />
-            </span>
+            <IconoDeSolicitud tipo={solicitud.tipo} tamano="globo" />
             {enCurso === solicitud.id ? 'Atendiendo…' : tipo.corto}
           </Button>
         );
