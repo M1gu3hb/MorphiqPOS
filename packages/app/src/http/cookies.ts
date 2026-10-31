@@ -33,6 +33,21 @@ export function cookieDeSesion({ token, maxEdadSegundos, seguro }: OpcionesCooki
   return partes.join('; ');
 }
 
+/**
+ * ¿Las cookies llevan `Secure`? Sólo si el despliegue está compilado Y habla https: lo dice
+ * `APP_URL`, como en el middleware (la CSP estricta sale del mismo dato).
+ *
+ * Con `NODE_ENV` nada más, la demo de la red local —compilada, servida en `http://<IP de la
+ * PC>`— mandaba cookies `Secure` que el teléfono descarta: nadie podía entrar. En producción,
+ * con su dirección https, nada cambia.
+ */
+export function cookiesSeguras(entorno: {
+  readonly NODE_ENV: string;
+  readonly APP_URL: string;
+}): boolean {
+  return entorno.NODE_ENV === 'production' && /^https:\/\//i.test(entorno.APP_URL);
+}
+
 /** Cierra la sesión de verdad: caduca la cookie en el navegador. */
 export function cookieDeCierre(seguro: boolean): string {
   const partes = [`${NOMBRE_COOKIE}=`, 'Path=/', 'HttpOnly', 'SameSite=Lax', 'Max-Age=0'];

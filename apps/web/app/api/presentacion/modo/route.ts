@@ -1,6 +1,7 @@
 import { esErrorDominio, validarEntorno } from '@morphiqpos/contracts';
 import {
   cookieDeSesion,
+  cookiesSeguras,
   cuerpoDentroDelLimite,
   leerCookie,
   NOMBRE_COOKIE,
@@ -118,7 +119,7 @@ export async function POST(peticion: Request) {
   if (entrada.data.accion !== 'preparar' && general === null)
     return negado('Desbloquea la presentación con el PIN del dueño general.');
 
-  const seguro = entorno.NODE_ENV === 'production';
+  const seguro = cookiesSeguras(entorno);
   try {
     if (entrada.data.accion === 'preparar' && quienPrepara !== null) {
       const espejo = await asegurarEspejo(restaurante, quienPrepara);

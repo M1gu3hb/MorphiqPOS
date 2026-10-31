@@ -1,5 +1,5 @@
 import { validarEntorno } from '@morphiqpos/contracts';
-import { leerCookie, permitir } from '@morphiqpos/app/http';
+import { cookiesSeguras, leerCookie, permitir } from '@morphiqpos/app/http';
 import { empleadosParaEntrar } from '@morphiqpos/app/identidad';
 import { terminosDeLaOrganizacion } from '@morphiqpos/app/configuracion';
 import { negociosDelDespliegue, elegirNegocioDeLaEntrada } from '@morphiqpos/app/negocio';
@@ -110,7 +110,7 @@ export async function GET(peticion: Request): Promise<Response> {
     if (explicito !== null)
       respuesta.headers.append(
         'set-cookie',
-        cookieDeEntrada(explicito.slug, entorno.NODE_ENV === 'production'),
+        cookieDeEntrada(explicito.slug, cookiesSeguras(entorno)),
       );
     return respuesta;
   } catch {

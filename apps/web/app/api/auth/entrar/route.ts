@@ -2,6 +2,7 @@ import { validarEntorno } from '@morphiqpos/contracts';
 import {
   cuerpoDentroDelLimite,
   cookieDeSesion,
+  cookiesSeguras,
   devolver,
   leerCookie,
   permitir,
@@ -191,7 +192,7 @@ export async function POST(peticion: Request): Promise<Response> {
 
   // Sin HTTPS el navegador descarta una cookie `Secure`, y en la red local de
   // una demostración eso significaría no poder entrar nunca.
-  const seguro = entorno.NODE_ENV === 'production';
+  const seguro = cookiesSeguras(entorno);
   const cookies = [
     cookieDePresentacion('', seguro, 0),
     cookieDeSesion({

@@ -8,7 +8,7 @@ export {
   type RespuestaHttp,
 } from './ruta.ts';
 
-export { cookieDeCierre, cookieDeSesion, type OpcionesCookie } from './cookies.ts';
+export { cookieDeCierre, cookieDeSesion, cookiesSeguras, type OpcionesCookie } from './cookies.ts';
 
 export {
   devolver,
