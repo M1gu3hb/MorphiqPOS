@@ -200,3 +200,25 @@ entra: Miguel no lo aprobó.
   cocina; nunca la agenda, la recogida, los accesos ni el portal.
 - El acceso por PIN de la cafetería suena y quita el candado del modo espera, como los otros dos.
 - El medidor de fluidez entra a la demo con los PIN públicos de las demos.
+
+## A-58 · 31-oct-2026 · PAR-1 bloque E · el pedido compartido y unir mesas desde el mapa (migraciones 186 y 187)
+
+Lo que en POS Don Poncho vive en `fase-b`: el pedido compartido de la mesa (DP-D29) y unir mesas
+desde el mapa (DP-D30), con las migraciones **186 y 187 copiadas byte por byte** (mismo número,
+nombre y contenido; el ejecutor de cada repo les da el mismo hash), para que la base compartida
+las reciba una sola vez y sirvan a los dos sistemas. Reemplaza el puente de DP-10.3.
+
+- Entra como la diferencia `main..fase-b` de Don Poncho (ya trae resueltas sus fusiones), sin la
+  188 (archiva demos en una base nueva: aquí dañaría a tres negocios reales).
+- **No se fusiona** hasta que la base compartida tenga la 186 y la 187: el código lee tablas y
+  columnas que todavía no existen. La migración la hace la laptop de Miguel con
+  `scripts/paridad-laptop.mjs` (RUNBOOK §2: sólo `pnpm db:migrate`, por el CLI vinculado), que
+  aborta si lo pendiente no es exactamente la 186 y la 187 y compara la huella de todos los
+  negocios antes y después.
+- Alternativa descartada: migrar desde la nube con el conector de Supabase (prohibido por el
+  RUNBOOK y por el encargo).
+- Convivencia: el código viejo del maestro y de Don Poncho pasa su integración contra una base con
+  la 187. Riesgo de ventana (una unión creada con código viejo después de migrar no queda marcada):
+  la fase 3 y la 4 van seguidas y fuera del horario de Don Poncho.
+- En Don Poncho (`fase-b`): su `verify:acople` deja de exigir la 188 en la base compartida y su
+  `db:migrate` se niega a migrar la compartida; la 188 sigue siendo para su base propia.
