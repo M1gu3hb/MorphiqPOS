@@ -3,6 +3,7 @@ import React, { useEffect, useRef } from 'react';
 import { speak, fraseNuevoPedidoCocina, getCocinaVozConfig } from '@/lib/voiceAlert';
 import { playNewOrder } from '@/lib/sounds';
 import { toast } from 'sonner';
+import { despertarLaPantalla } from '~/espera/despertador';
 
 const NOTIFIED_KEY = 'mh_cocina_notified_nuevos';
 
@@ -75,6 +76,8 @@ export default function CocinaNuevoPedidoWatcher({ pedidos = [], cargando = fals
     }
     const recien = nuevos.filter((p) => !notifiedRef.current.has(p.id));
     if (recien.length === 0) return;
+    // DP-11.2: una comanda nueva de mi estación despierta la pantalla (si estaba en modo espera).
+    despertarLaPantalla('comanda');
 
     const vozCfg = getCocinaVozConfig();
     const frasesAHablar = [];

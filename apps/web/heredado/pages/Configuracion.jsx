@@ -37,13 +37,15 @@ import {
   Sparkles,
   ShieldAlert,
   Database,
+  Tablet,
 } from 'lucide-react';
 import IntegracionesRespaldos from '@/components/configuracion/IntegracionesRespaldos';
 import DatosSection from '@/components/datos/DatosSection';
 import { PresentacionDelDueno } from '~/configuracion/PresentacionDelDueno';
 import ConfiguracionDeVoz from '@/components/configuracion/ConfiguracionDeVoz';
 import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
-import { MascotaDelNegocio } from '~/configuracion/MascotaDelNegocio';
+import { ExperienciaDelNegocio } from '~/configuracion/ExperienciaDelNegocio';
+import { ModoEsperaDelAparato } from '~/configuracion/ModoEsperaDelAparato';
 import { useLocation } from '@/enrutado';
 import { canAccessModule } from '@/lib/packageConfig';
 import ReiniciarSistemaSection from '@/components/configuracion/ReiniciarSistemaSection';
@@ -506,6 +508,10 @@ export default function Configuracion() {
             Identidad
           </TabsTrigger>
           <TabsTrigger value="apariencia">Apariencia</TabsTrigger>
+          <TabsTrigger value="aparato">
+            <Tablet className="w-3 h-3 mr-1" />
+            Este aparato
+          </TabsTrigger>
           <TabsTrigger value="negocio">
             <Settings className="w-3 h-3 mr-1" />
             Operación
@@ -553,12 +559,17 @@ export default function Configuracion() {
         <TabsContent value="apariencia">
           <div className="space-y-6">
             <SelectorDeApariencia />
-            {/* DP-11.1: «Mascota Morfi», por negocio. */}
-            <MascotaDelNegocio />
+            {/* DP-11.1 y 11.2: «Mascota Morfi» y «Pedir PIN al despertar», por negocio. */}
+            <ExperienciaDelNegocio />
             {/* La voz de los avisos es de ESTE dispositivo: la cocina o la tableta de la sala
                 eligen la suya entrando aquí desde ese equipo. */}
             <ConfiguracionDeVoz />
           </div>
+        </TabsContent>
+
+        {/* DP-11.2: lo que es de ESTE aparato y no del negocio (el modo espera). */}
+        <TabsContent value="aparato">
+          <ModoEsperaDelAparato />
         </TabsContent>
 
         <TabsContent value="negocio">

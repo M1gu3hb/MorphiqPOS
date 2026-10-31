@@ -60,14 +60,19 @@ beforeAll(async () => {
 
 describe('«Mascota Morfi» en la configuración del negocio', () => {
   it('sin guardar nada, el servidor la da encendida', async () => {
-    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toEqual({ mascota: true });
+    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toEqual({
+      mascota: true,
+      pin_al_despertar: false,
+    });
   });
 
   it('el dueño la apaga y el servidor la lee apagada', async () => {
     const r = await guardar({ experiencia: { mascota: false } });
     expect(r.ok).toBe(true);
-    expect(await guardada(negocio.organizacionId)).toEqual({ mascota: false });
-    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toEqual({ mascota: false });
+    expect(await guardada(negocio.organizacionId)).toMatchObject({ mascota: false });
+    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toMatchObject({
+      mascota: false,
+    });
   });
 
   it('un valor que no es sí o no, o un campo de más, no se guarda y lo de antes se queda', async () => {
@@ -76,23 +81,42 @@ describe('«Mascota Morfi» en la configuración del negocio', () => {
     expect(JSON.stringify(malo)).toMatch(/PUENTE_CAMPO_INVALIDO/);
     const deMas = await guardar({ experiencia: { mascota: true, volumen: 11 } });
     expect(deMas.ok).toBe(false);
-    expect(await guardada(negocio.organizacionId)).toEqual({ mascota: false });
+    expect(await guardada(negocio.organizacionId)).toMatchObject({ mascota: false });
+  });
+
+  it('se guarda interruptor por interruptor: uno no borra al otro (DP-11.2)', async () => {
+    // Otra pestaña enciende el PIN; ésta, que cargó antes, sólo manda la mascota.
+    expect((await guardar({ experiencia: { pin_al_despertar: true } })).ok).toBe(true);
+    expect((await guardar({ experiencia: { mascota: false } })).ok).toBe(true);
+    expect(await guardada(negocio.organizacionId)).toEqual({
+      mascota: false,
+      pin_al_despertar: true,
+    });
+    expect((await guardar({ experiencia: { pin_al_despertar: false } })).ok).toBe(true);
+    expect(await experienciaDeLaOrganizacion(negocio.organizacionId)).toEqual({
+      mascota: false,
+      pin_al_despertar: false,
+    });
   });
 
   it('el mesero no la cambia', async () => {
     const r = await guardar({ experiencia: { mascota: true } }, 'mesero');
     expect(r.ok ? null : r.error.codigo).toBe('SIN_PERMISO');
-    expect(await guardada(negocio.organizacionId)).toEqual({ mascota: false });
+    expect(await guardada(negocio.organizacionId)).toMatchObject({ mascota: false });
   });
 
   it('lo de un negocio no toca al otro', async () => {
     expect(await guardada(vecino.organizacionId)).toBeUndefined();
-    expect(await experienciaDeLaOrganizacion(vecino.organizacionId)).toEqual({ mascota: true });
+    expect(await experienciaDeLaOrganizacion(vecino.organizacionId)).toEqual({
+      mascota: true,
+      pin_al_despertar: false,
+    });
   });
 
   it('un negocio que no existe no tumba nada: sale la de omisión', async () => {
     expect(await experienciaDeLaOrganizacion('00000000-0000-4000-8000-000000000000')).toEqual({
       mascota: true,
+      pin_al_despertar: false,
     });
   });
 });

@@ -18,6 +18,9 @@ import { flushSync } from 'react-dom';
 
 import { ErrorApi, invocarComando, obtenerApi } from '~/cliente/api';
 import { negocioParaEntrar, rutaDeEmpleados } from '~/cliente/entrada';
+import { abrir as abrirElCandado } from '~/espera/candado-del-pin';
+
+import { almacenDelAparato } from './vista-de-solicitudes';
 
 /**
  * PANTALLA · restaurante · acceso-por-pin
@@ -398,6 +401,8 @@ export function AccesoPorPin({ empleadosIniciales, onEntro }: AccesoPorPinProps)
         });
         setIntentos(INTENTOS);
         setError(null);
+        // DP-11.2: entrar con el PIN quita el candado del modo espera que hubiera en el aparato.
+        abrirElCandado(almacenDelAparato());
         // A dónde va cada rol lo decide el armazón: aquí sólo se resuelve QUIÉN.
         //
         // Y se RECARGA la página en vez de navegar con el enrutador, a

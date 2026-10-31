@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -17,6 +17,7 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
 import { claves } from '~/cliente/claves-de-consulta';
+import { mantenerDespierta } from '~/espera/despertador';
 import { alcanceDeLaCocina, comandasDelAlcance } from '~/restaurante/alcance-de-la-cocina';
 import {
   conLosToques,
@@ -188,6 +189,14 @@ export default function Cocina() {
       }, {}),
     [activos],
   );
+
+  // DP-11.2: con comandas por preparar en MI estación, el modo espera no entra (y al salir de
+  // Cocina deja de contar).
+  const porPreparar = (byEstado.nuevo?.length ?? 0) + (byEstado.en_preparacion?.length ?? 0);
+  useEffect(() => {
+    mantenerDespierta('cocina', porPreparar > 0);
+    return () => mantenerDespierta('cocina', false);
+  }, [porPreparar]);
 
   /**
    * Mover una comanda de estado — el único camino de los tres botones (E6-6).

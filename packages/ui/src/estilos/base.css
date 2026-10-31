@@ -101,6 +101,13 @@
   --duracion-rapida: 120ms;
   --duracion-normal: 200ms;
   --duracion-lenta: 320ms;
+
+  /* ------------------------------------------------------------ modo espera
+     DP-11.2: casi negro en TODOS los estilos y modos, no el lateral de cada uno (en
+     «papel» claro es casi blanco). Una pantalla que pasa horas encendida no se quema ni
+     deslumbra de noche. 92 % sobre 3 % pasa de sobra el AA. */
+  --espera-fondo: 222 25% 3%;
+  --espera-texto: 220 12% 92%;
 }
 
 /* =========================================================== PERILLA 1

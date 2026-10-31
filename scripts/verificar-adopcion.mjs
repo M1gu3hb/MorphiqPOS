@@ -52,16 +52,90 @@ function lectorDesde(ruta) {
  */
 export const SIN_ESTADO = [
   {
-    pantalla: 'configuracion/MascotaDelNegocio',
+    pantalla: 'configuracion/ExperienciaDelNegocio',
     estado: 'vacio',
     razon:
-      'Un interruptor de la configuración del negocio (DP-11.1): no tiene lista que pueda llegar vacía.',
+      'Dos interruptores de la configuración del negocio (DP-11.1 y 11.2): no tiene lista que pueda llegar vacía.',
   },
   {
-    pantalla: 'configuracion/MascotaDelNegocio',
+    pantalla: 'configuracion/ExperienciaDelNegocio',
     estado: 'cargando',
     razon:
       'No lee nada al pintarse: el valor llega del servidor con la página (useExperiencia). Mientras guarda, el interruptor queda deshabilitado.',
+  },
+  {
+    pantalla: 'configuracion/ModoEsperaDelAparato',
+    estado: 'vacio',
+    razon:
+      'Un interruptor y un selector de minutos de ESTE aparato (DP-11.2): no tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'configuracion/ModoEsperaDelAparato',
+    estado: 'cargando',
+    razon:
+      'Lee el almacén del navegador, que responde al instante; sin almacén pinta lo de omisión. No hay viaje al servidor.',
+  },
+  {
+    pantalla: 'espera/CapaModal',
+    estado: 'vacio',
+    razon:
+      'El marco de las capas del modo espera (DP-11.2): un `<dialog>` en la capa superior que pinta lo que le dan. No tiene lista propia.',
+  },
+  {
+    pantalla: 'espera/CapaModal',
+    estado: 'cargando',
+    razon: 'No lee nada: abre el diálogo al montarse y lo cierra al quitarse.',
+  },
+  {
+    pantalla: 'espera/CapaModal',
+    estado: 'error',
+    razon: 'No hace viajes. Lo que pinta adentro (la espera, el PIN) dice sus propios errores.',
+  },
+  {
+    pantalla: 'espera/ModoEspera',
+    estado: 'vacio',
+    razon: 'Monta la capa del modo espera o el PIN según la fase (DP-11.2); no pinta lista alguna.',
+  },
+  {
+    pantalla: 'espera/ModoEspera',
+    estado: 'cargando',
+    razon:
+      'No lee nada: la marca y la sesión ya están en sus contextos y la fase la decide el reloj del aparato.',
+  },
+  {
+    pantalla: 'espera/ModoEspera',
+    estado: 'error',
+    razon:
+      'No hace viajes: decide qué capa va encima. El error del PIN lo dice `PedirPinAlDespertar`.',
+  },
+  {
+    pantalla: 'espera/PantallaDeEspera',
+    estado: 'vacio',
+    razon:
+      'La pantalla dormida (DP-11.2): la hora, la fecha, el logo y Morfi. No tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'espera/PantallaDeEspera',
+    estado: 'cargando',
+    razon:
+      'La hora sale del reloj del aparato; Morfi trae su imagen fija como póster mientras llega el clip.',
+  },
+  {
+    pantalla: 'espera/PantallaDeEspera',
+    estado: 'error',
+    razon:
+      'No hace viajes. Si un clip de Morfi no carga, `ClipDeMorfi` se queda con la imagen fija.',
+  },
+  {
+    pantalla: 'espera/PedirPinAlDespertar',
+    estado: 'vacio',
+    razon: 'Un teclado de PIN (DP-11.2): no tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'espera/PedirPinAlDespertar',
+    estado: 'cargando',
+    razon:
+      'Mientras comprueba el PIN, las teclas quedan deshabilitadas; no carga nada al pintarse.',
   },
   {
     pantalla: 'morfi/ClipDeMorfi',

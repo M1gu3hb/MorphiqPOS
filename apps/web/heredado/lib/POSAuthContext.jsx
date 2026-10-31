@@ -4,6 +4,8 @@ import React, { createContext, useContext, useEffect, useRef, useState } from 'r
 import { api, ErrorPuente } from '@/api/cliente';
 import { claveDeContexto } from '~/cliente/contexto-de-consultas';
 import { mismaCocina } from '~/restaurante/alcance-de-la-cocina';
+import { almacenDelAparato } from '~/restaurante/vista-de-solicitudes';
+import { abrir as abrirElCandado } from '~/espera/candado-del-pin';
 
 /** @typedef {{id: string, nombre: string, rol: string, etiqueta?: string, esDuenoGeneral?: boolean, enPresentacion?: boolean, paquete?: string, organizacionId?: string, estacion_preparacion_id?: string | null, estacion_preparacion_nombre?: string | null, estacion_preparacion_color?: string | null, puede_ver_todas_estaciones?: boolean}} UsuarioDePOS */
 /** @type {React.Context<{posUser: UsuarioDePOS | null, isLoading: boolean, verificada: boolean, sesion: number, login: (user: UsuarioDePOS) => void, logout: () => Promise<void>} | null>} */
@@ -174,6 +176,8 @@ export function POSAuthProvider({ children, conSesion = true }) {
   }, [conSesion]);
 
   const login = (user) => {
+    // DP-11.2: entrar con el PIN quita el candado del modo espera que hubiera en el aparato.
+    abrirElCandado(almacenDelAparato());
     version.current += 1;
     setSesion((n) => n + 1);
     setPosUser(user);
@@ -188,6 +192,9 @@ export function POSAuthProvider({ children, conSesion = true }) {
 
   const logout = async () => {
     await api.auth.salir();
+    // DP-11.2: el candado del modo espera se quita sólo cuando el servidor cerró la sesión; si
+    // `salir` falla, sigue puesto (una recarga no debe entrar sin el PIN).
+    abrirElCandado(almacenDelAparato());
     version.current += 1;
     setSesion((n) => n + 1);
     setPosUser(null);

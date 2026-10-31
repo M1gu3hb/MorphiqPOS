@@ -6,8 +6,9 @@ import { obtenerDb } from '@morphiqpos/data';
 
 /**
  * LA EXPERIENCIA DEL NEGOCIO (DP-11): lo que no es color ni perilla, pero cambia cómo se siente
- * el sistema. Hoy, «Mascota Morfi» (DP-11.1): Morfi acompaña las cargas largas, la página que no
- * existe y el modo espera; apagada, cada lugar usa su versión sin mascota.
+ * el sistema. «Mascota Morfi» (DP-11.1): Morfi acompaña las cargas largas, la página que no existe y
+ * el modo espera; apagada, cada lugar usa su versión sin mascota. «Pedir PIN al despertar»
+ * (DP-11.2): al volver del modo espera, la persona de la sesión teclea su PIN.
  *
  * Vive en `configuracion.valores.experiencia` y se guarda por el camino genérico de la
  * configuración (`puente/configuracion.ts`), validada con `EXPERIENCIA`. Sin migración.
@@ -18,15 +19,17 @@ export const CLAVE_DE_EXPERIENCIA = 'experiencia';
 export const EXPERIENCIA = z
   .object({
     mascota: z.boolean(),
+    pin_al_despertar: z.boolean(),
   })
   .partial()
   .strict();
 
 export interface Experiencia {
   readonly mascota: boolean;
+  readonly pin_al_despertar: boolean;
 }
 
-export const EXPERIENCIA_POR_OMISION: Experiencia = { mascota: true };
+export const EXPERIENCIA_POR_OMISION: Experiencia = { mascota: true, pin_al_despertar: false };
 
 function esDocumento(valor: unknown): valor is Record<string, unknown> {
   return typeof valor === 'object' && valor !== null && !Array.isArray(valor);
@@ -36,10 +39,11 @@ function esDocumento(valor: unknown): valor is Record<string, unknown> {
 export function experienciaDe(valores: unknown): Experiencia {
   const documento = esDocumento(valores) ? valores[CLAVE_DE_EXPERIENCIA] : undefined;
   const guardada = esDocumento(documento) ? documento : {};
-  const mascota = guardada['mascota'];
-  return {
-    mascota: typeof mascota === 'boolean' ? mascota : EXPERIENCIA_POR_OMISION.mascota,
+  const sino = (clave: keyof Experiencia): boolean => {
+    const valor = guardada[clave];
+    return typeof valor === 'boolean' ? valor : EXPERIENCIA_POR_OMISION[clave];
   };
+  return { mascota: sino('mascota'), pin_al_despertar: sino('pin_al_despertar') };
 }
 
 /**

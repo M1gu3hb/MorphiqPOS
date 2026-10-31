@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react';
 
 /**
- * LA EXPERIENCIA DEL NEGOCIO EN VIVO (DP-11): «Mascota Morfi» y lo que venga.
+ * LA EXPERIENCIA DEL NEGOCIO EN VIVO (DP-11): «Mascota Morfi» y «Pedir PIN al despertar».
  *
  * El servidor la lee al pintar (`app/layout.tsx`, de `configuracion.valores.experiencia`) y la
  * pasa aquí, como la apariencia: la primera pintura ya sabe si Morfi sale. `cambiar` la ajusta
@@ -11,9 +11,13 @@ import { createContext, useContext, useMemo, useState, type ReactNode } from 're
  */
 export interface ExperienciaDelNegocio {
   readonly mascota: boolean;
+  readonly pin_al_despertar: boolean;
 }
 
-export const EXPERIENCIA_DE_OMISION: ExperienciaDelNegocio = { mascota: true };
+export const EXPERIENCIA_DE_OMISION: ExperienciaDelNegocio = {
+  mascota: true,
+  pin_al_despertar: false,
+};
 
 interface ExperienciaEnVivo {
   readonly experiencia: ExperienciaDelNegocio;

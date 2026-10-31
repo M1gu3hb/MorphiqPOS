@@ -470,7 +470,16 @@ export async function guardarConfiguracionParcial(
       .execute();
   }
 
-  const valores = { ...(esObjeto(actual?.valores) ? actual.valores : {}), ...resto };
+  const anteriores = esObjeto(actual?.valores) ? actual.valores : {};
+  // La experiencia (DP-11) se guarda interruptor por interruptor: lo que llega se MEZCLA con lo
+  // guardado. Si reemplazara, una pestaña que cargó hace días borraría al guardar «Mascota Morfi»
+  // el «Pedir PIN al despertar» que otro aparato encendió después.
+  const experienciaNueva = resto[CLAVE_DE_EXPERIENCIA];
+  if (esObjeto(experienciaNueva)) {
+    const previa = anteriores[CLAVE_DE_EXPERIENCIA];
+    resto[CLAVE_DE_EXPERIENCIA] = { ...(esObjeto(previa) ? previa : {}), ...experienciaNueva };
+  }
+  const valores = { ...anteriores, ...resto };
   const valoresSerializados = serializarConfiguracion(valores);
 
   if (actual === undefined) {

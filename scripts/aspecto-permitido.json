@@ -281,18 +281,6 @@
       ]
     },
     {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Los 6 cambios de aviso de Configuracion.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
-      "testigos": [
-        "- aviso:Mesas eliminadas correctamente. Ahora puedes crear tu mapa desde cero.",
-        "- aviso:Error al eliminar mesas",
-        "- aviso:Error:",
-        "+ aviso:No se pudo desactivar el usuario",
-        "+ aviso:${cuantas} mesas retiradas. Ahora puedes crear tu mapa desde cero.",
-        "+ aviso:No se pudieron retirar las mesas."
-      ]
-    },
-    {
       "archivo": "apps/web/heredado/pages/CorteCaja.jsx",
       "porque": "Los 1 cambios de aviso de CorteCaja.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
       "testigos": ["+ aviso:No se pudo abrir el corte de caja"]
@@ -473,11 +461,6 @@
       "porque": "Bloque D de la 2.4 · era el 404 de la plataforma anterior, en ingles (\"Page Not Found\", \"Go Home\") y con una \"Admin Note\" que decia que \"la IA todavia no implemento esta pagina\" y que se pidiera \"en el chat\". Lo sustituye apps/web/app/not-found.tsx, en espanol, con el sistema de diseno y un 404 de verdad sin indexar. Miguel no lo vera menos: nunca debio verlo."
     },
     {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Solicitud explícita de Miguel del 19 de octubre de 2026: los ocho estilos deben poder cambiarse desde una pestaña visible de Apariencia, sin quedar escondidos tras el candado de presentación. Se conserva toda la configuración anterior.",
-      "testigos": ["+ texto:Apariencia"]
-    },
-    {
       "archivo": "apps/web/heredado/pages/POSLogin.jsx",
       "porque": "A-52 / D-42: Miguel pidió acceso central del Master POS. Se agrega un selector visible de equipo general y puestos de demostración, conservando el teclado y las tarjetas originales. La URL por negocio deja de ser obligatoria. Son únicamente los testigos deliberados del selector, no una exención de toda la pantalla. El aviso pide seleccionar la cuenta antes del PIN; la única cuenta general se preselecciona sin cambiar la autenticación en servidor.",
       "testigos": [
@@ -555,44 +538,6 @@
         "+ texto:¿Quitar esta mesa del mapa?",
         "+ texto:No se borran ventas, registros ni historial. Puedes reactivarla desde «Mesas desactivadas», debajo del mapa.",
         "+ texto:Sí, quitar del mapa"
-      ]
-    },
-    {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Cierre del restaurante (2.4): las mesas desactivadas seguían pintadas en el mapa del editor —el aviso decía «Mesa eliminada» y la mesa no se movía de su lugar—. Ahora el mapa, la lista del teléfono y el contador por zona son de las mesas activas, y debajo del mapa una sección «Mesas desactivadas» las enseña con su número y zona y un botón «Reactivar» (si otra mesa activa ya tiene ese número, el aviso dice por qué no). Los avisos dicen qué pasó de verdad. No se quita nada de lo que Miguel usaba: el editor, el arrastre y el interruptor «Mesa activa» siguen igual.",
-      "testigos": [
-        "- aviso:Mesa eliminada",
-        "+ clase:flex",
-        "+ clase:flex",
-        "+ clase:flex-col",
-        "+ clase:items-center",
-        "+ clase:text-muted-foreground",
-        "+ clase:text-sm",
-        "+ clase:text-sm",
-        "+ clase:text-xs",
-        "+ clase:justify-between",
-        "+ clase:font-semibold",
-        "+ clase:rounded-lg",
-        "+ clase:border",
-        "+ clase:mt-4",
-        "+ clase:gap-2",
-        "+ clase:p-3",
-        "+ clase:gap-1.5",
-        "+ clase:mb-2",
-        "+ texto:No aparecen en el mapa ni con los meseros. Su historial se conserva.",
-        "+ texto:Reactivar",
-        "+ aviso:Mesa ${mesa?.numero ?? ''} quitada del mapa. Su historial se conserva; puedes reactivarla en «Mesas desactivadas».",
-        "+ aviso:Mesa ${mesa.numero} reactivada: vuelve al mapa y a los meseros.",
-        "+ aviso:No se pudo reactivar la mesa:",
-        "+ label:Mesas desactivadas",
-        "+ aria-label:Mesas desactivadas"
-      ]
-    },
-    {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Cierre del restaurante (21-10): la zona elegida al crear o editar una mesa no se guardaba —el diálogo la manda por nombre, el puente guarda `zona_id` y `zona` es un derivado de sólo lectura—, y la mesa creada desde la pestaña «Terraza» caía en «Interior» sin aviso. Ahora el nombre se traduce a su `zona_id` con las zonas del negocio; si la zona no existe, el aviso lo dice en vez de guardar la mesa en otra zona. No cambia nada de lo que Miguel ve al guardar con éxito.",
-      "testigos": [
-        "+ aviso:No se pudo guardar la mesa: la zona «${data.zona}» no existe en este negocio."
       ]
     },
     {
@@ -951,11 +896,6 @@
       ]
     },
     {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "21-10 (Miguel): la pestaña Apariencia monta la elección de voz de los avisos de este dispositivo; la cabecera nombra Morphiq POS en vez de la marca anterior.",
-      "testigos": ["+ clase:space-y-6"]
-    },
-    {
       "archivo": "apps/web/heredado/pages/Inventario.jsx",
       "porque": "Cierre del 21-10 (Miguel): existencias y acciones alineadas en PC, tableta y teléfono, y esqueleto mientras carga en vez de ceros provisionales.",
       "testigos": [
@@ -1152,28 +1092,6 @@
         "- clase:text-white",
         "+ clase:text-lateral-activo",
         "+ clase:text-lateral-texto"
-      ]
-    },
-    {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "DP-2 (DP-D05): sale la pestaña «Presentación» (su icono Sparkles de 3×3 con margen). Sin modo presentación no hay qué configurar; las demás pestañas quedan igual. DP-9.2 (DP-D23): los pedidos desde el QR ya no dependen de la asignación de mesas; sale el aviso ámbar «activa primero la asignación de mesas» y la explicación dice que funciona con y sin ella.",
-      "testigos": [
-        "- clase:w-3",
-        "- clase:h-3",
-        "- clase:mr-1",
-        "- clase:text-xs",
-        "- clase:px-3",
-        "- clase:py-2",
-        "- clase:rounded-lg",
-        "- clase:bg-advertencia/10",
-        "- clase:border",
-        "- clase:border-advertencia/30",
-        "- clase:text-advertencia",
-        "- texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Esta función solo está disponible si la",
-        "- texto:asignación de mesas",
-        "- texto:asignación de mesas",
-        "- texto:también está activa.",
-        "+ texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin asignación de mesas."
       ]
     },
     {
@@ -1375,6 +1293,86 @@
         "- clase:w-10",
         "- clase:h-10",
         "- texto:Cargando menú…"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Los 6 cambios de aviso de Configuracion.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Mesas eliminadas correctamente. Ahora puedes crear tu mapa desde cero.",
+        "- aviso:Error al eliminar mesas",
+        "- aviso:Error:",
+        "+ aviso:No se pudo desactivar el usuario",
+        "+ aviso:${cuantas} mesas retiradas. Ahora puedes crear tu mapa desde cero.",
+        "+ aviso:No se pudieron retirar las mesas."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Solicitud explícita de Miguel del 19 de octubre de 2026: los ocho estilos deben poder cambiarse desde una pestaña visible de Apariencia, sin quedar escondidos tras el candado de presentación. Se conserva toda la configuración anterior.",
+      "testigos": ["+ texto:Apariencia"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Cierre del restaurante (2.4): las mesas desactivadas seguían pintadas en el mapa del editor —el aviso decía «Mesa eliminada» y la mesa no se movía de su lugar—. Ahora el mapa, la lista del teléfono y el contador por zona son de las mesas activas, y debajo del mapa una sección «Mesas desactivadas» las enseña con su número y zona y un botón «Reactivar» (si otra mesa activa ya tiene ese número, el aviso dice por qué no). Los avisos dicen qué pasó de verdad. No se quita nada de lo que Miguel usaba: el editor, el arrastre y el interruptor «Mesa activa» siguen igual.",
+      "testigos": [
+        "- aviso:Mesa eliminada",
+        "+ clase:flex",
+        "+ clase:flex",
+        "+ clase:flex-col",
+        "+ clase:items-center",
+        "+ clase:text-muted-foreground",
+        "+ clase:text-sm",
+        "+ clase:text-sm",
+        "+ clase:text-xs",
+        "+ clase:justify-between",
+        "+ clase:font-semibold",
+        "+ clase:rounded-lg",
+        "+ clase:border",
+        "+ clase:mt-4",
+        "+ clase:gap-2",
+        "+ clase:p-3",
+        "+ clase:gap-1.5",
+        "+ clase:mb-2",
+        "+ texto:No aparecen en el mapa ni con los meseros. Su historial se conserva.",
+        "+ texto:Reactivar",
+        "+ aviso:Mesa ${mesa?.numero ?? ''} quitada del mapa. Su historial se conserva; puedes reactivarla en «Mesas desactivadas».",
+        "+ aviso:Mesa ${mesa.numero} reactivada: vuelve al mapa y a los meseros.",
+        "+ aviso:No se pudo reactivar la mesa:",
+        "+ label:Mesas desactivadas",
+        "+ aria-label:Mesas desactivadas"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Cierre del restaurante (21-10): la zona elegida al crear o editar una mesa no se guardaba —el diálogo la manda por nombre, el puente guarda `zona_id` y `zona` es un derivado de sólo lectura—, y la mesa creada desde la pestaña «Terraza» caía en «Interior» sin aviso. Ahora el nombre se traduce a su `zona_id` con las zonas del negocio; si la zona no existe, el aviso lo dice en vez de guardar la mesa en otra zona. No cambia nada de lo que Miguel ve al guardar con éxito.",
+      "testigos": [
+        "+ aviso:No se pudo guardar la mesa: la zona «${data.zona}» no existe en este negocio."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "21-10 (Miguel): la pestaña Apariencia monta la elección de voz de los avisos de este dispositivo; la cabecera nombra Morphiq POS en vez de la marca anterior.",
+      "testigos": ["+ clase:space-y-6"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "PAR-1 (de POS Don Poncho). DP-9.2 (DP-D23): los pedidos desde el QR ya no dependen de la asignación de mesas; sale el aviso ámbar «activa primero la asignación de mesas» y la explicación dice que funciona con y sin ella. DP-11.2 (DP-D39): pestaña nueva «Este aparato» (icono Tablet de 3×3 con margen, como las demás) con el modo espera de ESE aparato; lo del negocio sigue en Apariencia. La pestaña «Presentación» del maestro se queda.",
+      "testigos": [
+        "- clase:px-3",
+        "- clase:py-2",
+        "- clase:bg-advertencia/10",
+        "- clase:border-advertencia/30",
+        "- clase:text-advertencia",
+        "- texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Esta función solo está disponible si la",
+        "- texto:asignación de mesas",
+        "- texto:asignación de mesas",
+        "- texto:también está activa.",
+        "+ clase:w-3",
+        "+ clase:h-3",
+        "+ clase:mr-1",
+        "+ texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin asignación de mesas.",
+        "+ icono:Tablet"
       ]
     }
   ]

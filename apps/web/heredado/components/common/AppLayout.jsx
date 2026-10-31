@@ -15,6 +15,7 @@ import MobileAdminRadialMenu from './MobileAdminRadialMenu';
 import { useRouteCleanup } from '@/lib/useRouteCleanup';
 import { MorfiCargando } from '~/morfi/MorfiCargando';
 import { textoDeCarga } from '~/morfi/textos-de-carga';
+import { ModoEspera } from '~/espera/ModoEspera';
 
 /**
  * `marco="modelo"` (bloque D de la 2.4): las pantallas de los cinco modelos no tenían
@@ -98,6 +99,8 @@ export default function AppLayout({ marco = 'interno' }) {
       <SolicitudesQRWatcher />
       <PedidoListoWatcher />
       <MobileAdminRadialMenu />
+      {/* DP-11.2: el modo espera, una capa encima; la pantalla de abajo sigue montada. */}
+      <ModoEspera ruta={pathname} />
     </div>
   );
 }
