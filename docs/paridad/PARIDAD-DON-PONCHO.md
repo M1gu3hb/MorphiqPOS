@@ -13,16 +13,16 @@ Archivo de progreso. **Con él solo, otra sesión retoma el encargo.** Se actual
 
 ## 1 · Estado
 
-| Paso       | Qué                                                                   | Estado                                            |
-| ---------- | --------------------------------------------------------------------- | ------------------------------------------------- |
-| Fase 0     | Este archivo: tabla, PR A / PR B, nube contra laptop                  | hecho                                             |
-| PR #19     | Next 16.4.3 + la lista de espera (R16) + la galería por día de semana | CI corriendo; se fusiona en verde                 |
-| PR A       | `paridad/sin-migracion`: bloques A a D, `PAR-1.2` a `PAR-1.44`        | portado y probado en local; falta CI y producción |
-| PR B       | `paridad/fase-b`: bloque E, 186 y 187                                 | pendiente                                         |
-| Guion      | `scripts/paridad-laptop.mjs` y su huella                              | huella hecha (`PAR-1.35`); guion pendiente        |
-| Don Poncho | PR #1 (`fase-b` → `main`) al día y listo                              | pendiente                                         |
-| Fase 3     | Migrar la base compartida (laptop)                                    | espera a la laptop                                |
-| Fase 4     | Fusionar `fase-b` de Don Poncho (laptop + Miguel)                     | espera a la fase 3                                |
+| Paso       | Qué                                                                   | Estado                                                 |
+| ---------- | --------------------------------------------------------------------- | ------------------------------------------------------ |
+| Fase 0     | Este archivo: tabla, PR A / PR B, nube contra laptop                  | hecho                                                  |
+| PR #19     | Next 16.4.3 + la lista de espera (R16) + la galería por día de semana | **fusionado, producción `READY`** (`85556f0`)          |
+| PR A       | #20 `paridad/sin-migracion`: bloques A a D                            | CI y galería; después fusionar, producción y humo      |
+| PR B       | `paridad/fase-b`: bloque E, 186 y 187, guion de la laptop             | listo en local; se abre tras el PR A, **sin fusionar** |
+| Guion      | `scripts/paridad-laptop.mjs` y la huella                              | probado de punta a punta (url y CLI simulado)          |
+| Don Poncho | PR #1 (`fase-b` → `main`): guardas de la 188, índice                  | en curso                                               |
+| Fase 3     | Migrar la base compartida (laptop)                                    | espera a la laptop                                     |
+| Fase 4     | Fusionar `fase-b` de Don Poncho (laptop + Miguel)                     | espera a la fase 3                                     |
 
 Numeración: el PR #19 lleva sus propios `PAR-1.1` a `PAR-1.3` (rama de la sesión); el PR A
 empieza en `PAR-1.2` sobre `PAR-1.1` y sigue hasta `PAR-1.44`. Los dos `PAR-1.2`/`PAR-1.3` son
@@ -192,6 +192,65 @@ de la base compartida, algo de `..\_PRIVADO\` (PIN, `PIN_PEPPER`) o a Miguel en 
 | 4.3 · Humo con PIN y huella de Don Poncho                                                     | **laptop**            | PIN de Don Poncho y credencial (`..\_PRIVADO\`).                                                                          |
 | Lecturas de la base (`_migraciones` en 185, tablas nuevas ausentes, uniones abiertas)         | nube, si hay conector | Sólo `select` por el conector de Supabase.                                                                                |
 
-## 5 · Lo que falta (se llena al cerrar las fases 1 y 2)
+## 5 · Lo que falta: las fases 3 y 4, paso por paso
 
-Pendiente.
+### Antes (comprobado desde la nube, 31-10, sólo `select` por el conector)
+
+- La base compartida termina en la **185** (117 migraciones); los hashes de la 181 a la 185 son los
+  del repositorio. No existen `carritos_mesa`, `carrito_mesa_lineas`, `dispositivos_mesa` ni
+  `mesas.unida_a_mesa_id`. **0 uniones abiertas** (el relleno de la 187 tocaría 0 mesas). 11
+  negocios.
+- La 186 y la 187 son las de Don Poncho byte por byte: mismo hash con el ejecutor de cada repo
+  (186 `87b4fddc36c87efa`, 187 `280af1ec0f6a38af`).
+- El código viejo convive con la base migrada: la integración del `main` del maestro (48 archivos)
+  y la del `main` de Don Poncho (45) pasan contra una base con la 186 y la 187.
+
+### Riesgo de la ventana, y cómo se cierra
+
+Una unión de mesas creada con el código VIEJO después de migrar no queda marcada en
+`mesas.unida_a_mesa_id` (el relleno corre una sola vez, al migrar). Por eso la fase 3 y la 4 van
+seguidas y **fuera del horario de Don Poncho**: migrar, fusionar el PR B del maestro y `fase-b` de
+Don Poncho sin dejar pasar servicio entre una cosa y otra. La huella de después dice cuántas
+mesas rellenó la 187; si apareció una unión nueva entre las dos huellas, sale DISTINTA.
+
+### Fase 3 · en la laptop (sesión local de Claude Code en la carpeta del maestro)
+
+1. `git fetch origin && git checkout paridad/fase-b && git pull` (el commit del PR B) y
+   `pnpm install --frozen-lockfile`.
+2. En PowerShell, desde la raíz del maestro (el vínculo del CLI tiene que existir en ESTE checkout:
+   `& $env:SUPABASE_CLI_PATH link --project-ref wyqmzhliurwyxuyxznpb` si falta):
+
+   ```powershell
+   node --conditions=react-server scripts/paridad-laptop.mjs --entorno ..\_PRIVADO\fase-a.env
+   ```
+
+   `--entorno` es el archivo con la `DATABASE_URL` de lectura (la de `morphiqpos_app` por el
+   pooler); el guion pone `SUPABASE_CLI_PATH` (el de `D:\herramientas\supabase-cli`) y
+   `MORPHIQPOS_SUPABASE_PROJECT_REF`. Hace: repo limpio y en el PR B → lo pendiente (sólo lee) →
+   aborta si no es exactamente 186 y 187 → huella → `pnpm db:migrate` → `verify:esquema` y
+   `verify:rls` → huella otra vez y comparación → resumen.
+
+3. Pegar el resumen en el chat. Lo esperado: «TODO EN VERDE», ledger de 117 a 119, las dos
+   puertas en verde, «huella de 11 negocios IDÉNTICA salvo el relleno de la 187 (0 mesas en 0
+   uniones abiertas); nuevas vacías: carrito_mesa_lineas, carritos_mesa, dispositivos_mesa».
+4. Si algo sale rojo: NO se fusiona nada. La migración es atómica (o entran las dos o ninguna).
+5. En verde: fusionar el PR B (merge, no squash) y esperar Production `READY` en Vercel.
+6. Antes del humo, la huella de los demás:
+   `node --conditions=react-server scripts/huella-de-negocios.mjs tomar --excluir demo-acople-restaurante --salida ..\_PRIVADO\paridad\antes-del-humo.json`.
+7. Humo con escritura en el restaurante de demostración (con PIN, dos pestañas o teléfonos): unir
+   dos mesas en el mapa, separarlas; abrir el QR de una mesa en dos pestañas, agregar en las dos y
+   enviar una vez. Dejarlo como estaba (cobrar o cancelar la cuenta, separar las mesas).
+8. La huella otra vez (`tomar --excluir demo-acople-restaurante --como ..\antes-del-humo.json
+--salida ..\despues-del-humo.json`) y `comparar` las dos: los otros negocios, IDÉNTICOS.
+
+### Fase 4 · Don Poncho, el mismo día y fuera de su horario
+
+1. Fusionar el PR #1 de Don Poncho (`fase-b` → `main`, con merge). **No** `dp11-4-en-faseb`.
+2. Su CI en verde (corre a mano en Don Poncho), Production `READY` en `pos-don-poncho`.
+3. Humo sin PIN (entrada, portal QR de una mesa) y con PIN (unir mesas, pedido compartido), y la
+   huella de los otros negocios.
+4. Ya comprobado leyendo el código (PAR-1): ninguna puerta de Don Poncho exige la 188 aplicada (su
+   `verify:acople` ya no la cuenta en la compartida y su `db:migrate` se niega a migrar la
+   compartida); su `esquema-esperado.json` es idéntico al del PR B (= una base en la 187); su
+   exportador de la mudanza descubre las tablas por catálogo e incluye las tres nuevas (135
+   tablas con una base en la 187).

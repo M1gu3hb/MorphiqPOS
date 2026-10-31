@@ -55,18 +55,26 @@ describe('puestoDeEspera', () => {
     }
   });
 
-  it('los otros giros del maestro: su caja, su barra y su administración (PAR-1)', () => {
-    expect(puestoDeEspera('/ferreteria/mostrador')).toBe('caja');
-    expect(puestoDeEspera('/abarrotes/cobrar')).toBe('caja');
-    expect(puestoDeEspera('/estetica-salon/caja-y-corte')).toBe('caja');
-    expect(puestoDeEspera('/cafeteria/barra')).toBe('cocina');
-    expect(puestoDeEspera('/restaurante/cocina')).toBe('cocina');
+  it('los otros giros del maestro: sólo su administración sin escáner (PAR-1)', () => {
     expect(puestoDeEspera('/cafeteria/inventario')).toBe('administracion');
     expect(puestoDeEspera('/ferreteria/existencias')).toBe('administracion');
+    expect(puestoDeEspera('/estetica-salon/reportes')).toBe('administracion');
+    expect(puestoDeEspera('/restaurante/recetas')).toBe('administracion');
   });
 
-  it('NUNCA en la agenda, la cita en curso, la recogida, los accesos ni el portal de un giro', () => {
+  it('NUNCA en lo que no avisa al despertador o se usa con escáner, ni en accesos y portal', () => {
     for (const ruta of [
+      // Cobro, mostrador, barra y cocina de otros giros: no avisan al despertador (PAR-1).
+      '/ferreteria/mostrador',
+      '/abarrotes/cobrar',
+      '/estetica-salon/caja-y-corte',
+      '/cafeteria/barra',
+      '/restaurante/cocina',
+      '/restaurante/caja',
+      // Con escáner: la capa se comería la primera lectura.
+      '/abarrotes/conteo',
+      '/ferreteria/entradas',
+      // De pie o del cliente.
       '/estetica-salon/agenda-del-dia',
       '/estetica-salon/cita-en-curso',
       '/estetica-salon/mi-dia',

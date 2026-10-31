@@ -71,11 +71,15 @@ if (existsSync(salida) && readdirSync(salida).length > 0) {
 
 const { Client } = createRequire(join(RAIZ, 'packages', 'data', 'package.json'))('pg');
 const url = new URL(process.env['DATABASE_URL'] ?? 'x://');
-const local = ['localhost', '127.0.0.1'].includes(url.hostname);
-const cliente = new Client({
-  connectionString: url.toString(),
-  ...(local ? {} : { ssl: { rejectUnauthorized: false } }),
-});
+if (decodeURIComponent(url.toString()).includes('ivqcxdpqxwjxfohiswqb')) {
+  console.error(
+    '✗ La base de origen es Pastelería Confetti: ese proyecto no se toca ni para leer.',
+  );
+  process.exit(2);
+}
+// El TLS de la aplicación (raíz de Supabase fijada): por aquí viaja la contraseña (PAR-1).
+const { tlsPara } = await import('../packages/data/src/tls.ts');
+const cliente = new Client({ connectionString: url.toString(), ssl: tlsPara(url.toString()) });
 
 const inicio = Date.now();
 await cliente.connect();

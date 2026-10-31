@@ -52,7 +52,14 @@ if (desde === '' || base === '') {
   );
   process.exit(2);
 }
-if (base.includes(COMPARTIDA) || (process.env['STORAGE_ENDPOINT'] ?? '').includes(COMPARTIDA)) {
+const { esDeUnProyectoIntocable } = await import('../packages/contracts/src/negocios/index.ts');
+// Decodificada y contra los dos proyectos intocables (la compartida y Pastelería Confetti): un
+// `%77yqm…` en el usuario no la esconde (PAR-1).
+if (
+  esDeUnProyectoIntocable(base) ||
+  base.includes(COMPARTIDA) ||
+  (process.env['STORAGE_ENDPOINT'] ?? '').includes(COMPARTIDA)
+) {
   console.error(
     '✗ El destino es la base o el almacén COMPARTIDO de la Fase A: aquí no se importa.',
   );
@@ -70,13 +77,9 @@ if (argumento('id') !== manifiesto.negocio.id) {
 }
 
 const { Client } = createRequire(join(RAIZ, 'packages', 'data', 'package.json'))('pg');
-const url = new URL(base);
-const cliente = new Client({
-  connectionString: base,
-  ...(['localhost', '127.0.0.1'].includes(url.hostname)
-    ? {}
-    : { ssl: { rejectUnauthorized: false } }),
-});
+// El TLS de la aplicación (raíz de Supabase fijada): por aquí viaja la contraseña (PAR-1).
+const { tlsPara } = await import('../packages/data/src/tls.ts');
+const cliente = new Client({ connectionString: base, ssl: tlsPara(base) });
 await cliente.connect();
 const inicio = Date.now();
 try {

@@ -175,6 +175,10 @@ async function fijarLoQueCambia(page: Page): Promise<void> {
       [/\b\d{1,2}\/\d{1,2}\/\d{2,4}\b/g, '01/01/2026'],
       [/\b\d{1,2} de [a-záéíóú]+( de \d{4})?/gi, '1 de enero'],
       [/\b(lunes|martes|miércoles|jueves|viernes|sábado|domingo)\b/gi, 'día'],
+      // La abreviatura antes de una fecha («Sáb 1 de enero» en la agenda de la estética) se fija
+      // en «Mié», la de los retratos de referencia: tomados un miércoles, la vuelta de un sábado
+      // salía distinta sin que la pantalla cambiara.
+      [/\b(lun|mar|mié|mie|jue|vie|sáb|sab|dom)\.?(?=\s+\d)/gi, 'Mié'],
       [/\bhace \d+\s?(s|seg|min|minutos?|h|horas?|d|días?)\b/gi, 'hace 0 min'],
     ];
     const caminante = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
