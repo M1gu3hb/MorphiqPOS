@@ -17,6 +17,7 @@ import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
 import { claves } from '~/cliente/claves-de-consulta';
+import { conLosToques, useToquesEnCamino } from '~/restaurante/toques-en-camino';
 
 const ESTADOS = ['nuevo', 'en_preparacion', 'listo'];
 const ESTADO_LABELS = { nuevo: 'Nuevos', en_preparacion: 'En preparación', listo: 'Listos' };
@@ -118,6 +119,11 @@ export default function Cocina() {
     refetchInterval: 2000,
   });
   const cargandoPedidos = pedidosLoading && !pedidos;
+  // DP-7: lo que la cocina ya tocó y el servidor todavía no contesta se pinta ENCIMA de lo
+  // leído, no dentro: una lectura que salió antes de otro toque lo traía viejo y regresaba la
+  // comanda a «Nuevos» (`~/restaurante/toques-en-camino`).
+  const { toques, poner: ponerToque, soltar: soltarToque } = useToquesEnCamino();
+  const pedidosVistos = useMemo(() => conLosToques(pedidos, toques), [pedidos, toques]);
 
   const { data: ventas } = useQuery({
     queryKey: ['ventas_para_cocina'],
@@ -177,7 +183,7 @@ export default function Cocina() {
   // legacy. Se muestran siempre en vista 'all'. En vista 'station' solo se
   // muestran si el usuario es de la estación general.
   const pedidosFiltrados = useMemo(() => {
-    const arr = Array.isArray(pedidos) ? pedidos : [];
+    const arr = pedidosVistos;
     if (userScope.mode === 'unassigned') return [];
     if (userScope.mode === 'all') return arr;
     if (userScope.mode === 'station') {
@@ -191,7 +197,7 @@ export default function Cocina() {
       });
     }
     return arr;
-  }, [pedidos, userScope, userEsCocinaGeneral]);
+  }, [pedidosVistos, userScope, userEsCocinaGeneral]);
 
   const activos = useMemo(
     () =>
@@ -209,20 +215,6 @@ export default function Cocina() {
       }, {}),
     [activos],
   );
-
-  // F3.1: helper de actualización optimista del cache local de pedidos.
-  // Aplica un cambio (partial) al pedido con id=pedidoId en TODAS las queries
-  // cuyo key comienza por 'pedidos_cocina' (cualquier sub-key como 'all'/'legacy').
-  const optimisticPatchPedido = (pedidoId, patch) => {
-    try {
-      queryClient.setQueriesData({ queryKey: ['pedidos_cocina'] }, (oldData) => {
-        if (!Array.isArray(oldData)) return oldData;
-        return oldData.map((p) => (p?.id === pedidoId ? { ...p, ...patch } : p));
-      });
-    } catch (err) {
-      console.warn('[Cocina] optimisticPatch:', err);
-    }
-  };
 
   /**
    * Mover una comanda de estado — el único camino de los tres botones (E6-6).
@@ -245,30 +237,39 @@ export default function Cocina() {
   const transicionar = (comandaId, estado) =>
     api.comandos.ejecutar('/api/restaurante/transicionar-pedido', { comandaId, estado });
 
+  /**
+   * Lo que comparten los tres botones: pinta el toque, lo manda y, si contesta, relee ANTES de
+   * soltarlo. `invalidateQueries` cancela la lectura que venía en camino (salió antes de este
+   * toque) y espera una que sale después: al soltar el toque, lo leído ya lo trae. Si falla, se
+   * suelta y la comanda vuelve a pintarse como la tiene el servidor; el fallo sigue hacia el
+   * botón, que lo avisa.
+   */
+  const moverComanda = async (pedido, estado, parche) => {
+    const toque = ponerToque(pedido.id, { estado, ...parche });
+    try {
+      await transicionar(pedido.id, estado);
+      await queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
+    } catch (e) {
+      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
+      throw e;
+    } finally {
+      soltarToque(pedido.id, toque);
+    }
+  };
+
   const iniciarPedido = async (pedido) => {
     if (!pedido?.id) return;
-    const ahora = new Date().toISOString();
-    // 1) UI optimista: mover a "en_preparacion" inmediatamente.
-    optimisticPatchPedido(pedido.id, { estado: 'en_preparacion', fecha_inicio: ahora });
     try {
-      await transicionar(pedido.id, 'en_preparacion');
-      // 2) Refetch inmediato para confirmar contra BD (no esperamos polling).
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
-      queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
+      await moverComanda(pedido, 'en_preparacion', { fecha_inicio: new Date().toISOString() });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       toast.success('Pedido en preparación');
     } catch (e) {
-      // Si falla, volvemos al estado original recargando de BD.
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       toast.error('No se pudo iniciar el pedido: ' + (e?.message || ''));
     }
   };
 
   const marcarListo = async (pedido) => {
     if (!pedido?.id) return;
-    const ahora = new Date().toISOString();
-    // 1) UI optimista: mover a "listo" inmediatamente.
-    optimisticPatchPedido(pedido.id, { estado: 'listo', fecha_listo: ahora });
     try {
       // F3: la mesa sólo avanza si TODAS sus comandas están listas. Esa cuenta
       // la hace ahora `sincronizarMesa` DENTRO de la transacción del comando,
@@ -277,10 +278,7 @@ export default function Cocina() {
       // lectura fallaba, la lista vacía se leía como «no queda nadie
       // cocinando», la mesa se marcaba lista con la otra estación todavía en el
       // fuego y el mesero recogía media charola (F1-06 §4.4, `:265`).
-      await transicionar(pedido.id, 'listo');
-      // 2) Refetch inmediato para reflejar en BD.
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
-      queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
+      await moverComanda(pedido, 'listo', { fecha_listo: new Date().toISOString() });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       // F3.2: refrescar la card "Listo para recoger" del Mesero y el watcher
       // global de voz si están abiertos en otra pestaña/sesión.
@@ -288,7 +286,6 @@ export default function Cocina() {
       queryClient.invalidateQueries({ queryKey: ['pedidos_listos_watcher'] });
       toast.success('¡Pedido listo!');
     } catch (e) {
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       toast.error('No se pudo marcar listo: ' + (e?.message || ''));
     }
   };
@@ -298,23 +295,15 @@ export default function Cocina() {
   const quitarPedidoListo = async (pedido) => {
     if (!pedido?.id) return;
     const ahora = new Date().toISOString();
-    // 1) UI optimista: marcar como entregado para que desaparezca del tablero.
-    optimisticPatchPedido(pedido.id, {
-      estado: 'entregado',
-      fecha_entregado: ahora,
-      ...(pedido.fecha_listo ? {} : { fecha_listo: ahora }),
-    });
     try {
-      // Las fechas las pone el servidor con la hora de la transacción; el
-      // parche de arriba es sólo para que la tarjeta desaparezca sin esperar al
-      // refetch.
-      await transicionar(pedido.id, 'entregado');
-      // 2) Refetch inmediato.
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
-      queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
+      // Las fechas las pone el servidor con la hora de la transacción; las del
+      // toque son sólo para que la tarjeta desaparezca sin esperar a la lectura.
+      await moverComanda(pedido, 'entregado', {
+        fecha_entregado: ahora,
+        ...(pedido.fecha_listo ? {} : { fecha_listo: ahora }),
+      });
       toast.success('Pedido quitado de la lista');
     } catch (e) {
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       toast.error('No se pudo quitar el pedido: ' + (e?.message || ''));
     }
   };

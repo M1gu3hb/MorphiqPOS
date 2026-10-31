@@ -627,12 +627,12 @@ export async function foliosCobrados(lector: Page): Promise<readonly string[]> {
  * Toño saca TODO lo de esa cuenta —cada comanda, de la cocina y de la barra— hasta que el
  * SERVIDOR las tiene todas «listas».
  *
- * No cuenta botones: la pantalla de cocina repinta cada dos segundos y una lectura que venía en
- * camino pisa el cambio optimista, de modo que un «Listo» recién tocado reaparece un instante
- * (lo vio el día de la prueba: el segundo toque cayó otra vez sobre la comanda de la cocina y la
- * de la barra se quedó fuego). Cada vuelta pregunta qué falta, toca UN botón y espera a que el
- * servidor avance; si no avanza —el toque se perdió—, vuelve a tocar. Mover una comanda a un
- * estado en el que ya está es inocuo.
+ * No cuenta botones: una lectura que venía en camino pisaba el cambio optimista y un «Listo»
+ * recién tocado reaparecía un instante (el segundo toque caía otra vez sobre la comanda de la
+ * cocina y la de la barra se quedaba en el fuego). La pantalla ya no lo hace (DP-D19,
+ * `cocina-toques-en-camino.spec.ts`), pero esto sigue preguntándole al SERVIDOR: cada vuelta ve
+ * qué falta, toca UN botón y espera a que avance; si no avanza, vuelve a tocar. Mover una comanda
+ * a un estado en el que ya está es inocuo.
  */
 export async function cocinaDejaLista(
   cocina: Page,
