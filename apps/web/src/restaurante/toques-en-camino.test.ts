@@ -103,7 +103,12 @@ describe('los toques de UNA comanda van en fila', () => {
       if (falla) throw new Error(nombre);
       return nombre;
     };
-    return { correr, soltar: () => soltar() };
+    return {
+      correr,
+      soltar: () => {
+        soltar();
+      },
+    };
   }
 
   it('«Listo» sale hasta que contestó el «Preparar» de la misma comanda', async () => {
