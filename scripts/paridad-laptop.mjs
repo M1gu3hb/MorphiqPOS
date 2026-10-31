@@ -60,7 +60,14 @@ function cargarArchivoDeEntorno(ruta) {
 
 function git(...args) {
   const r = spawnSync('git', args, { cwd: RAIZ, encoding: 'utf8' });
-  return { ok: r.status === 0, salida: (r.stdout ?? '').trim() };
+  return { ok: r.status === 0, salida: (r.stdout ?? '').trim(), error: (r.stderr ?? '').trim() };
+}
+
+/** Git TIENE que contestar: una guarda que pasa porque git falló no guarda nada. */
+function gitOAlto(...args) {
+  const r = git(...args);
+  if (!r.ok) alto(`git ${args.join(' ')} falló: ${r.error || 'sin salida'}`);
+  return r.salida;
 }
 
 function correr(comando, args, entorno) {
@@ -75,7 +82,7 @@ function correr(comando, args, entorno) {
 
 // ── 1 · El repositorio ─────────────────────────────────────────────────────
 paso(1, 'El repositorio, limpio y en el commit del PR B');
-if (git('status', '--porcelain', '--untracked-files=no').salida !== '') {
+if (gitOAlto('status', '--porcelain', '--untracked-files=no') !== '') {
   alto('El repositorio tiene cambios sin confirmar. Déjalo limpio (git status) y vuelve a correr.');
 }
 let esperado = argumento('commit');
@@ -83,10 +90,12 @@ if (esperado === null) {
   if (!git('fetch', '--quiet', 'origin', 'paridad/fase-b').ok) {
     alto('No se pudo traer origin/paridad/fase-b. Revisa la red o pasa --commit <sha>.');
   }
-  esperado = git('rev-parse', 'origin/paridad/fase-b').salida;
+  esperado = gitOAlto('rev-parse', 'origin/paridad/fase-b');
 }
-const cabeza = git('rev-parse', 'HEAD').salida;
-if (!cabeza.startsWith(esperado) && !esperado.startsWith(cabeza)) {
+if (!/^[0-9a-f]{7,40}$/.test(esperado))
+  alto(`--commit ${esperado}: tiene que ser un sha (7 a 40).`);
+const cabeza = gitOAlto('rev-parse', 'HEAD');
+if (!/^[0-9a-f]{40}$/.test(cabeza) || !cabeza.startsWith(esperado)) {
   alto(`HEAD es ${cabeza.slice(0, 9)} y el PR B es ${esperado.slice(0, 9)}: haz checkout de él.`);
 }
 console.log(`✓ limpio, en ${cabeza.slice(0, 9)}`);
@@ -98,7 +107,17 @@ cargarArchivoDeEntorno(argumento('entorno'));
 const transporte = argumento('transporte', 'cli');
 const url = process.env['DATABASE_URL'] ?? '';
 if (url === '') alto('Falta DATABASE_URL (las lecturas). Pásala con --entorno <archivo>.');
+const { referenciaDeLaCadena } =
+  await import('../packages/data/src/verificacion/consulta-directa.ts');
+const { esDeUnProyectoIntocable } = await import('../packages/contracts/src/negocios/index.ts');
 if (transporte === 'cli') {
+  // Las lecturas (lo pendiente y las huellas) tienen que ser de la MISMA base que migra el CLI:
+  // si no, se comprobaría una base y se migraría otra.
+  if (referenciaDeLaCadena(url) !== PROYECTO) {
+    alto(`DATABASE_URL no es del proyecto ${PROYECTO} (el que migra el CLI). Revisa --entorno.`);
+  }
+  process.env['MORPHIQPOS_DB_VERIFICACION'] = url;
+  process.env['MORPHIQPOS_PROYECTO_VERIFICADO'] = PROYECTO;
   process.env['SUPABASE_CLI_PATH'] ??= existsSync(CLI_DE_LA_LAPTOP) ? CLI_DE_LA_LAPTOP : 'supabase';
   process.env['MORPHIQPOS_SUPABASE_PROJECT_REF'] = PROYECTO;
   const version = spawnSync(process.env['SUPABASE_CLI_PATH'], ['--version'], { encoding: 'utf8' });
@@ -110,7 +129,10 @@ if (transporte === 'cli') {
   console.log(`✓ CLI ${version.stdout.trim()} vinculado a ${PROYECTO}`);
 } else if (transporte === 'url') {
   delete process.env['MORPHIQPOS_SUPABASE_PROJECT_REF'];
-  if (url.includes(PROYECTO)) alto('Con --transporte url no se migra la base compartida.');
+  // Decodificada y contra los dos intocables: un `%77yqm…` en el usuario no la esconde.
+  if (esDeUnProyectoIntocable(url)) {
+    alto('Con --transporte url no se migra la base compartida (ni la de otro cliente).');
+  }
   console.log('✓ transporte DATABASE_URL (ensayo en una base desechable)');
 } else {
   alto(`--transporte ${transporte}: sólo cli o url.`);
