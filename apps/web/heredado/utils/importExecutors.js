@@ -232,7 +232,10 @@ export async function ejecutarImportProductos(
         categoria_id: catId || null,
         descripcion: safeStr(p.descripcion),
         precio_venta: Number(p.precio_venta) || 0,
-        area_preparacion: p.area_preparacion || 'ninguno',
+        // DP-9.1: sin área en el archivo no se inventa `ninguno` (dejaba el platillo sin comanda,
+        // y al ACTUALIZAR le quitaba la que tenía). Al crear la aprende el servidor de su
+        // categoría; al actualizar se queda la que tiene.
+        ...(p.area_preparacion ? { area_preparacion: p.area_preparacion } : {}),
         visible_en_pos: p.visible_en_pos !== false,
         activo: p.activo !== false,
       };

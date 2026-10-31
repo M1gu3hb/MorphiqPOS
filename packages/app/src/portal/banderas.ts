@@ -39,8 +39,6 @@ export interface BanderasPortal {
   /** Porcentajes ya validados. Se emiten como el CSV que su `tipsUtils` parsea. */
   readonly porcentajesPropina: readonly number[];
   readonly asignacionMesasActiva: boolean;
-  /** Interno: decide el ruteo del pedido a estaciones. NUNCA sale (§36.3). */
-  readonly estacionesActivas: boolean;
 }
 
 const MODOS_MENU: readonly string[] = ['productos_pos', 'menu_subido', 'mixto'];
@@ -95,11 +93,15 @@ function enumerado<T extends string>(
 }
 
 /** Lee los interruptores del documento de configuración. Función pura. */
+/** El documento de configuración como objeto; cualquier otra cosa, vacío. */
+export function documentoDe(valores: unknown): Readonly<Record<string, unknown>> {
+  return typeof valores === 'object' && valores !== null && !Array.isArray(valores)
+    ? (valores as Record<string, unknown>)
+    : {};
+}
+
 export function banderasDe(valores: unknown): BanderasPortal {
-  const doc: Readonly<Record<string, unknown>> =
-    typeof valores === 'object' && valores !== null && !Array.isArray(valores)
-      ? (valores as Record<string, unknown>)
-      : {};
+  const doc = documentoDe(valores);
 
   return {
     // El portal nace CERRADO. Un negocio que nunca configuró nada no debe
@@ -121,6 +123,7 @@ export function banderasDe(valores: unknown): BanderasPortal {
     propinasActivas: bandera(doc, 'propinas_activas', true),
     porcentajesPropina: porcentajesValidos(doc['propina_porcentajes_sugeridos']),
     asignacionMesasActiva: bandera(doc, 'asignacion_mesas_activa', false),
-    estacionesActivas: bandera(doc, 'estaciones_preparacion_activas', false),
+    // `estaciones_preparacion_activas` ya no se lee aquí: a dónde va la comanda no depende de
+    // ella (DP-10.1, `estaciones.ts`). Sólo decide qué dibuja la pantalla de Cocina.
   };
 }

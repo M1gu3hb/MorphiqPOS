@@ -73,10 +73,18 @@ export function exigirPortalAbierto(banderas: BanderasPortal): void {
  */
 export function puedeOrdenarDesdeQR(paquete: string, banderas: BanderasPortal): boolean {
   const esDePreparacion = (PAQUETES_PORTAL as readonly string[]).includes(paquete);
-  return (
-    esDePreparacion &&
-    banderas.portalActivo &&
-    banderas.permitirPedidosCliente &&
-    banderas.asignacionMesasActiva
-  );
+  // DP-9.2: la asignación de mesas ya no es condición. Sin asignación el comensal pide igual;
+  // con ella, lo que falta es el mesero de ESA mesa (`faltaMesero`), no el negocio entero.
+  return esDePreparacion && banderas.portalActivo && banderas.permitirPedidosCliente;
+}
+
+/**
+ * Si a esta mesa le falta mesero para que el comensal abra o pida (DP-9.2).
+ *
+ * Sólo con la asignación ENCENDIDA: es el proceso que el negocio eligió, y una mesa sin mesero
+ * asignado se queda cerrada al QR. Sin asignación nadie tiene mesas fijas: la cuenta nace sin
+ * responsable y se la queda el mesero que la atiende.
+ */
+export function faltaMesero(banderas: BanderasPortal, empleadoAsignadoId: string | null): boolean {
+  return banderas.asignacionMesasActiva && empleadoAsignadoId === null;
 }

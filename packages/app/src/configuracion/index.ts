@@ -13,6 +13,22 @@ export {
 } from './apariencia.ts';
 
 export {
+  CLAVE_DE_EXPERIENCIA,
+  EXPERIENCIA,
+  EXPERIENCIA_POR_OMISION,
+  experienciaDe,
+  experienciaDeLaOrganizacion,
+  TECLAS_DE_SONIDO,
+  type Experiencia,
+} from './experiencia.ts';
+
+export {
+  ZONA_HORARIA_POR_OMISION,
+  zonaHorariaDeLaOrganizacion,
+  zonaValida,
+} from './zona-horaria.ts';
+
+export {
   entradaGuardarConfiguracion,
   guardarConfiguracion,
   leerConfiguracion,

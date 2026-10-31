@@ -37,6 +37,7 @@ import { tipsEnabled } from '@/utils/tipsUtils';
 import LoadingState from '@/components/common/LoadingState';
 import PrimerosPasosCard, { primerosPasosVigente } from '@/components/dashboard/PrimerosPasosCard';
 import { AccesosDelDueno } from '~/restaurante/AccesosDelDueno';
+import { RecetasPendientes } from '~/restaurante/RecetasPendientes';
 import { claves } from '~/cliente/claves-de-consulta';
 import { EsqueletoDeCifras, EsqueletoDeFilas } from '~/cliente/EstadosDeCarga';
 
@@ -292,6 +293,7 @@ export default function Dashboard() {
       />
 
       <AccesosDelDueno />
+      <RecetasPendientes />
 
       {/* Card informativa de Primeros pasos — solo aparece si quedan pasos
           pendientes, el admin no la ha ocultado y los queries terminaron su

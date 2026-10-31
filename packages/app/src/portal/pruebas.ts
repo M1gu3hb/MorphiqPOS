@@ -217,6 +217,8 @@ export function ambitoFalso(cambios: Partial<AmbitoPortal> = {}): AmbitoPortal {
     estadoMesa: 'ocupada',
     ordenActivaId: null,
     empleadoAsignadoId: 'empleo-1',
+    empleadoAtiendeId: null,
+    unidaALaPrincipal: false,
     ...cambios,
   };
 }

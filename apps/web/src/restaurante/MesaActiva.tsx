@@ -53,10 +53,11 @@ import { DividirCuentaDialog } from './DividirCuentaDialog';
 import { lineasDelEnvio } from './envio-a-cocina';
 import { ListosParaRecoger, useListosDeLaCuenta } from './ListosParaRecoger';
 import { useRolDeLaSesion } from './rol-de-la-sesion';
+import { useUnionDeLaMesa } from './unir-mesas/use-union-de-la-mesa';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { sonar } from '~/sonidos/gestor';
 
-/**
- * PANTALLA · restaurante · mesa-activa
+/** PANTALLA · restaurante · mesa-activa (en la primera línea: `verify:cobertura` lee 60)
  *
  * La comanda. 80-200 veces al día por mesero. No es una pantalla nueva: es la
  * mesa, abierta. Jerarquía (`04-INTERFAZ`): ENVIAR A COCINA, lo pedido, el
@@ -126,6 +127,9 @@ export function MesaActiva(props: MesaActivaProps) {
   const idDeLaDireccion = useSearchParams().get('mesa');
   const router = useRouter();
   const [mesa, setMesa] = useState<MesaAbierta | null>(mesaInicial ?? null);
+  // D-2 (DP-10.3): si esta mesa encabeza un grupo vivo, su pantalla ofrece «Separar mesas».
+  const [versionDelGrupo, setVersionDelGrupo] = useState(0);
+  const unionId = useUnionDeLaMesa(mesa?.id ?? null, versionDelGrupo)?.unionId ?? null;
   const [productos, setProductos] = useState<readonly ProductoDeComanda[] | null>(
     productosIniciales ?? (mesaInicial === undefined ? null : []),
   );
@@ -260,6 +264,9 @@ export function MesaActiva(props: MesaActivaProps) {
 
   /** Sumar es tocar el platillo; restar, el botón de su línea. */
   const tocar = (productoId: string, delta: number) => () => {
+    // DP-11.3: fuera del actualizador (StrictMode lo corre dos veces).
+    const queda = (borrador[productoId] ?? 0) + delta;
+    sonar(delta > 0 ? 'agregar' : queda > 0 ? 'cantidad' : 'quitar');
     setBorrador((actual) => {
       const siguiente = { ...actual, [productoId]: (actual[productoId] ?? 0) + delta };
       return Object.fromEntries(Object.entries(siguiente).filter(([, n]) => n > 0));
@@ -339,6 +346,7 @@ export function MesaActiva(props: MesaActivaProps) {
     try {
       const entrada = { ordenId: orden, lineas };
       await invocarComando('/api/restaurante/enviar-pedido', entrada, { idempotencyKey: clave });
+      sonar('enviarACocina');
       // Lo enviado cruza al bloque de arriba con identificadores provisionales;
       // los definitivos llegan con la siguiente lectura de la mesa. La línea imita
       // la fila del puente, así que su `total` va en la unidad del puente: se multiplica
@@ -836,7 +844,15 @@ export function MesaActiva(props: MesaActivaProps) {
               falloLineas === null ? enviadas.reduce((s, l) => s + importeDe(l), 0) : null
             }
             alCambiarDeMesa={alCambiarDeMesa}
-            alUnir={releerLoEnviado}
+            alUnir={() => {
+              setVersionDelGrupo((v) => v + 1);
+              releerLoEnviado();
+            }}
+            unionId={unionId}
+            alSeparar={() => {
+              setVersionDelGrupo((v) => v + 1);
+              releerLoEnviado();
+            }}
           />
         </div>
       ) : null}

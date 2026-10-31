@@ -10,13 +10,14 @@ import {
   DialogTitle,
 } from '@morphiqpos/ui/primitivas/dialog';
 import { Aviso, Esqueleto, Superficie, Vacio } from '@morphiqpos/ui/sistema';
-import { ArrowRightLeft, Combine, ReceiptText } from 'lucide-react';
+import { ArrowRightLeft, Combine, ReceiptText, Split } from 'lucide-react';
 import { useEffect, useState } from 'react';
 
 import { ErrorApi, consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 import { PedirLaCuentaDialog } from './PedirLaCuentaDialog';
+import { SepararMesasDialog } from './unir-mesas/SepararMesasDialog';
 
 /**
  * LO QUE EL MESERO HACE CON LA MESA ENTERA, no con un platillo (día completo del
@@ -91,12 +92,17 @@ export interface AccionesDeLaMesaProps {
   readonly alCambiarDeMesa: (mesaDestinoId: string) => void;
   /** Llegaron las líneas de las mesas unidas: la pantalla relee lo enviado. */
   readonly alUnir: () => void;
+  /** D-2 (DP-10.3) · el grupo vivo del que esta mesa es la principal; `null` si no encabeza uno. */
+  readonly unionId: string | null;
+  /** Se separó el grupo: la pantalla relee la mesa. */
+  readonly alSeparar: () => void;
 }
 
 export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
   const voc = useVocabulario();
   const [modo, setModo] = useState<Modo | null>(null);
   const [preguntandoLaPropina, setPreguntandoLaPropina] = useState(false);
+  const [separando, setSeparando] = useState(false);
 
   return (
     <div className="flex flex-col gap-(--espacio-2)">
@@ -136,7 +142,31 @@ export function AccionesDeLaMesa(props: AccionesDeLaMesaProps) {
           <Combine aria-hidden="true" />
           Unir {voc.plural('unidad_servicio')}
         </Button>
+        {props.unionId === null ? null : (
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setSeparando(true);
+            }}
+          >
+            <Split aria-hidden="true" />
+            Separar {voc.plural('unidad_servicio')}
+          </Button>
+        )}
       </div>
+      {props.unionId === null || !separando ? null : (
+        <SepararMesasDialog
+          unionId={props.unionId}
+          alCerrar={() => {
+            setSeparando(false);
+          }}
+          alHecho={() => {
+            setSeparando(false);
+            props.alSeparar();
+          }}
+        />
+      )}
       {preguntandoLaPropina ? (
         <PedirLaCuentaDialog
           ordenId={props.ordenId}

@@ -627,12 +627,12 @@ export async function foliosCobrados(lector: Page): Promise<readonly string[]> {
  * Toño saca TODO lo de esa cuenta —cada comanda, de la cocina y de la barra— hasta que el
  * SERVIDOR las tiene todas «listas».
  *
- * No cuenta botones: la pantalla de cocina repinta cada dos segundos y una lectura que venía en
- * camino pisa el cambio optimista, de modo que un «Listo» recién tocado reaparece un instante
- * (lo vio el día de la prueba: el segundo toque cayó otra vez sobre la comanda de la cocina y la
- * de la barra se quedó fuego). Cada vuelta pregunta qué falta, toca UN botón y espera a que el
- * servidor avance; si no avanza —el toque se perdió—, vuelve a tocar. Mover una comanda a un
- * estado en el que ya está es inocuo.
+ * No cuenta botones: una lectura que venía en camino pisaba el cambio optimista y un «Listo»
+ * recién tocado reaparecía un instante (el segundo toque caía otra vez sobre la comanda de la
+ * cocina y la de la barra se quedaba en el fuego). La pantalla ya no lo hace (DP-D19,
+ * `cocina-toques-en-camino.spec.ts`), pero esto sigue preguntándole al SERVIDOR: cada vuelta ve
+ * qué falta, toca UN botón y espera a que avance; si no avanza, vuelve a tocar. Mover una comanda
+ * a un estado en el que ya está es inocuo.
  */
 export async function cocinaDejaLista(
   cocina: Page,
@@ -952,9 +952,11 @@ export async function configuracionDelNegocio(
  *
  * Nace apagado y sin QR. Para que un comensal pueda escanear su mesa, la dueña enciende la
  * asignación de mesas, pone un mesero a la mesa, enciende el portal con «Cliente solicita» y
- * genera los códigos. Son pantallas heredadas —el mapa de mesas es de mosaicos que se arrastran,
- * sin rol ni nombre accesible—, así que algunos localizadores van por el texto de su fila; lo que
- * se comprueba SIEMPRE es lo que quedó guardado en el servidor, no el aviso de «guardado».
+ * genera los códigos. Con `mesero: null` deja la asignación APAGADA y la mesa sin mesero: el
+ * portal funciona igual y la cuenta es de quien la atiende (DP-9.2). Son pantallas heredadas —el
+ * mapa de mesas es de mosaicos que se arrastran, sin rol ni nombre accesible—, así que algunos
+ * localizadores van por el texto de su fila; lo que se comprueba SIEMPRE es lo que quedó
+ * guardado en el servidor, no el aviso de «guardado».
  *
  * Devuelve el código QR de la mesa, que la dirección lee por el puente (`Mesa.qr_token`).
  */
@@ -963,12 +965,15 @@ export async function prepararElPortalDelComensal(
   que: {
     readonly mesa: number;
     readonly zona: string;
-    readonly mesero: string;
+    /** El mesero asignado a la mesa; `null`, sin asignación de mesas. */
+    readonly mesero: string | null;
     /** Además de pedir atención y la cuenta, que el comensal pueda mandar pedidos a cocina. */
     readonly pedidosDelComensal?: boolean;
   },
 ): Promise<string> {
-  // 1 · Configuración → Operación: «Activar asignación de mesas a meseros».
+  // 1 · Configuración → Operación: «Activar asignación de mesas a meseros», encendida si la mesa
+  // lleva mesero y apagada si no.
+  const conAsignacion = que.mesero !== null;
   await duena.goto('/configuracion');
   await duena.getByRole('tab', { name: 'Operación' }).click();
   const asignacion = duena
@@ -976,11 +981,12 @@ export async function prepararElPortalDelComensal(
     .locator('xpath=ancestor::div[contains(@class,"flex items-start")][1]')
     .getByRole('switch');
   await expect(asignacion).toBeVisible();
-  if ((await asignacion.getAttribute('aria-checked')) !== 'true') await asignacion.click();
-  await expect(asignacion).toHaveAttribute('aria-checked', 'true');
+  if ((await asignacion.getAttribute('aria-checked')) !== String(conAsignacion)) {
+    await asignacion.click();
+  }
+  await expect(asignacion).toHaveAttribute('aria-checked', String(conAsignacion));
   if (que.pedidosDelComensal === true) {
-    // «Permitir que el comensal envíe pedidos desde el QR»: sólo se puede encender con la
-    // asignación de mesas ya encendida.
+    // «Permitir que el comensal envíe pedidos desde el QR»: con y sin asignación (DP-9.2).
     const pedidos = duena
       .getByText('Permitir que el comensal envíe pedidos desde el QR')
       .locator('xpath=ancestor::div[contains(@class,"flex items-start")][1]')
@@ -994,7 +1000,7 @@ export async function prepararElPortalDelComensal(
     .poll(async () => (await configuracionDelNegocio(duena))['asignacion_mesas_activa'], {
       message: 'La asignación de mesas no quedó guardada en el servidor.',
     })
-    .toBe(true);
+    .toBe(conAsignacion);
   if (que.pedidosDelComensal === true) {
     await expect
       .poll(
@@ -1004,26 +1010,8 @@ export async function prepararElPortalDelComensal(
       .toBe(true);
   }
 
-  // 2 · Configuración → Mesas: el mesero de la mesa. Los mosaicos no tienen rol: se tocan por su
-  // número, dentro del mapa.
-  await duena.getByRole('tab', { name: 'Mesas' }).click();
-  await duena.getByRole('button', { name: new RegExp(`^${escapar(que.zona)}`) }).click();
-  await duena
-    .locator('div.select-none')
-    .getByText(String(que.mesa), { exact: true })
-    .first()
-    .click();
-  const dialogo = duena.getByRole('dialog');
-  await expect(dialogo).toBeVisible();
-  await dialogo.getByRole('combobox').filter({ hasText: 'Sin asignar' }).click();
-  await duena.getByRole('option', { name: que.mesero, exact: true }).click();
-  await dialogo.getByRole('button', { name: 'Guardar cambios' }).click();
-  await expect(dialogo).toBeHidden();
-  await expect
-    .poll(async () => (await mesaEnElServidor(duena, que.mesa)).mesero, {
-      message: `La mesa ${String(que.mesa)} no quedó con su mesero asignado en el servidor.`,
-    })
-    .toBe(que.mesero);
+  // 2 · Configuración → Mesas: el mesero de la mesa, si lleva.
+  if (que.mesero !== null) await asignarElMesero(duena, que.mesa, que.zona, que.mesero);
 
   // 3 · Portal QR → Configuración: encenderlo y dejar que sea el comensal quien pide la cuenta.
   await duena.goto('/portal-qr');
@@ -1067,4 +1055,30 @@ export async function prepararElPortalDelComensal(
     )
     .not.toBeNull();
   return token ?? '';
+}
+
+/**
+ * Configuración → Mesas: la dueña le pone su mesero a la mesa, desde el mapa. Los mosaicos no
+ * tienen rol: se tocan por su número, dentro del mapa.
+ */
+async function asignarElMesero(
+  duena: Page,
+  mesa: number,
+  zona: string,
+  mesero: string,
+): Promise<void> {
+  await duena.getByRole('tab', { name: 'Mesas' }).click();
+  await duena.getByRole('button', { name: new RegExp(`^${escapar(zona)}`) }).click();
+  await duena.locator('div.select-none').getByText(String(mesa), { exact: true }).first().click();
+  const dialogo = duena.getByRole('dialog');
+  await expect(dialogo).toBeVisible();
+  await dialogo.getByRole('combobox').filter({ hasText: 'Sin asignar' }).click();
+  await duena.getByRole('option', { name: mesero, exact: true }).click();
+  await dialogo.getByRole('button', { name: 'Guardar cambios' }).click();
+  await expect(dialogo).toBeHidden();
+  await expect
+    .poll(async () => (await mesaEnElServidor(duena, mesa)).mesero, {
+      message: `La mesa ${String(mesa)} no quedó con su mesero asignado en el servidor.`,
+    })
+    .toBe(mesero);
 }

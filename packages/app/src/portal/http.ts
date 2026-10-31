@@ -51,9 +51,12 @@ const ESTADO_POR_REGLA: Readonly<Record<string, number>> = {
   QR_PORTAL_CERRADO: 403,
   QR_SOLICITUD_DUPLICADA: 409,
   QR_DEMASIADAS_PETICIONES: 429,
+  // El teléfono de una estación de cocina (DP-9.4): mismo trato que el QR de la mesa.
+  TELEFONO_DE_COCINA_INVALIDO: 404,
+  TELEFONO_DEMASIADAS_PETICIONES: 429,
 };
 
-function estadoDe(salida: Resultado<unknown>): number {
+export function estadoDe(salida: Resultado<unknown>): number {
   if (salida.ok) return 200;
   const regla = salida.error.datos?.['regla'];
   if (typeof regla === 'string' && regla in ESTADO_POR_REGLA) {

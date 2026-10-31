@@ -95,6 +95,12 @@ export {
 } from './estacion-crear.ts';
 
 export {
+  entradaMarcarEstacionGeneral,
+  marcarEstacionGeneral,
+  type ResultadoMarcarEstacionGeneral,
+} from './estacion-general.ts';
+
+export {
   anularLineaComando,
   entradaAnularLinea,
   type ResultadoAnulacion,

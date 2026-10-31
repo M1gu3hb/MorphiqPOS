@@ -244,6 +244,23 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
     }
   };
 
+  // DP-10.1: nombrar general una estación que ya existe (p. ej. «Cocina»), en vez de crear otra.
+  // Sólo se ofrece mientras no hay general: el servidor nunca la cambia de mano.
+  const hacerGeneral = async (estacion) => {
+    setSaving(true);
+    try {
+      await api.comandos.ejecutar('/api/restaurante/marcar-estacion-general', {
+        estacionId: estacion.id,
+      });
+      invalidar();
+      toast.success(`«${estacion.nombre}» es ahora la estación general`);
+    } catch (e) {
+      toast.error('No se pudo: ' + (e?.message || ''));
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const pedirDesactivar = (estacion) => {
     if (estacion?.es_general) {
       toast.error('No se puede desactivar Cocina general (es el fallback del sistema)');
@@ -343,7 +360,7 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
           <AlertTriangle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
           <div>
             Aún no existe <strong>Cocina general</strong>. Es la estación por defecto donde caen las
-            categorías sin asignar. Crea Cocina general para evitar inconsistencias futuras.
+            categorías sin asignar. Crea Cocina general o toca «Hacer general» en una de las tuyas.
           </div>
         </div>
       )}
@@ -404,6 +421,16 @@ export default function EstacionesPreparacionSection({ embedded = false }) {
                   <ChevronDown className="w-3.5 h-3.5" />
                 </button>
               </div>
+              {!cocinaGeneral && e?.activo !== false && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => hacerGeneral(e)}
+                  disabled={saving}
+                >
+                  Hacer general
+                </Button>
+              )}
               <Button
                 variant="ghost"
                 size="icon"

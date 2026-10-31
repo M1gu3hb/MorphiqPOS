@@ -6,6 +6,7 @@ import { Printer, X } from 'lucide-react';
 import { api } from '@/api/cliente';
 import { useConfig } from '@/lib/ConfigContext';
 import { printDocument } from '@/lib/print';
+import { sonar } from '~/sonidos/gestor';
 import PreCuentaTicket from './PreCuentaTicket';
 
 /**
@@ -59,6 +60,7 @@ export default function TicketViewerDialog({ venta, open, onClose }) {
   }, [open, venta]);
 
   const handlePrint = () => {
+    sonar('ticket');
     printDocument({ mode: 'thermal', title: `Ticket-${venta?.folio || ''}` });
   };
 

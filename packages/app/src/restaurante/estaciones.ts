@@ -68,19 +68,32 @@ export function resolverEstacion(
   estacionDeLaCategoria: string | null,
   estaciones: readonly EstacionCandidata[],
 ): EstacionResuelta {
-  if (estacionDeLaCategoria !== null) {
-    const directa = estaciones.find((e) => e.id === estacionDeLaCategoria);
-    if (directa !== undefined) return { ...sinBandera(directa), porRespaldo: false };
-  }
-
-  const general = estaciones.find((e) => e.esGeneral);
-  if (general !== undefined) return { ...sinBandera(general), porRespaldo: true };
+  const resuelta = estacionSiLaHay(estacionDeLaCategoria, estaciones);
+  if (resuelta !== null) return resuelta;
 
   throw new ErrorDominio(
     'ESTACION_NO_ENCONTRADA',
     'No hay ninguna estación de preparación activa. Crea la "Cocina general" en Configuración ' +
       'antes de enviar pedidos.',
   );
+}
+
+/**
+ * Los tramos 1 y 2 de `resolverEstacion`, sin el 3: `null` si no hay ni la de la categoría ni la
+ * general. El portal del comensal lo usa así (DP-10.1) porque ahí la regla es no dejar la mesa
+ * esperando: sin ninguna estación activa, la comanda sale por su área.
+ */
+export function estacionSiLaHay(
+  estacionDeLaCategoria: string | null,
+  estaciones: readonly EstacionCandidata[],
+): EstacionResuelta | null {
+  if (estacionDeLaCategoria !== null) {
+    const directa = estaciones.find((e) => e.id === estacionDeLaCategoria);
+    if (directa !== undefined) return { ...sinBandera(directa), porRespaldo: false };
+  }
+
+  const general = estaciones.find((e) => e.esGeneral);
+  return general === undefined ? null : { ...sinBandera(general), porRespaldo: true };
 }
 
 function sinBandera(estacion: EstacionCandidata): { id: string; nombre: string; color: string } {

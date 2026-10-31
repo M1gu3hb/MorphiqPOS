@@ -31,6 +31,7 @@
 
 import { negocioParaEntrar, rutaDeEmpleados } from '~/cliente/entrada';
 import { vigilarPresentacion } from '~/cliente/presentacion';
+import { idAlAzar } from '~/cliente/id-al-azar';
 
 /** Las seis operaciones que su código usa, con su semántica exacta. */
 /** Un rango cerrado sobre un campo de fecha. Los dos extremos son inclusivos. */
@@ -90,10 +91,7 @@ const CABECERA_PROPIA = 'x-morphiqpos-request';
  * en «Cobrar» no cobra dos veces.
  */
 export function nuevaClave(): string {
-  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
-    return crypto.randomUUID();
-  }
-  return `k-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+  return idAlAzar();
 }
 
 async function pedir<T>(ruta: string, cuerpo: unknown, clave?: string): Promise<T> {

@@ -27,6 +27,8 @@ export interface MesaPublica {
   readonly venta_activa_id: string | null;
   readonly puede_abrir: boolean;
   readonly puede_pedir: boolean;
+  /** DP-10.3: el QR es de una mesa unida a ésta; su número, para decirlo. Si no, `null`. */
+  readonly unida_a_la_mesa: number | null;
 }
 
 export interface FilaLineaCuenta {

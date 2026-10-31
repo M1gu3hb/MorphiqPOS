@@ -281,18 +281,6 @@
       ]
     },
     {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Los 6 cambios de aviso de Configuracion.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
-      "testigos": [
-        "- aviso:Mesas eliminadas correctamente. Ahora puedes crear tu mapa desde cero.",
-        "- aviso:Error al eliminar mesas",
-        "- aviso:Error:",
-        "+ aviso:No se pudo desactivar el usuario",
-        "+ aviso:${cuantas} mesas retiradas. Ahora puedes crear tu mapa desde cero.",
-        "+ aviso:No se pudieron retirar las mesas."
-      ]
-    },
-    {
       "archivo": "apps/web/heredado/pages/CorteCaja.jsx",
       "porque": "Los 1 cambios de aviso de CorteCaja.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
       "testigos": ["+ aviso:No se pudo abrir el corte de caja"]
@@ -473,11 +461,6 @@
       "porque": "Bloque D de la 2.4 · era el 404 de la plataforma anterior, en ingles (\"Page Not Found\", \"Go Home\") y con una \"Admin Note\" que decia que \"la IA todavia no implemento esta pagina\" y que se pidiera \"en el chat\". Lo sustituye apps/web/app/not-found.tsx, en espanol, con el sistema de diseno y un 404 de verdad sin indexar. Miguel no lo vera menos: nunca debio verlo."
     },
     {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Solicitud explícita de Miguel del 19 de octubre de 2026: los ocho estilos deben poder cambiarse desde una pestaña visible de Apariencia, sin quedar escondidos tras el candado de presentación. Se conserva toda la configuración anterior.",
-      "testigos": ["+ texto:Apariencia"]
-    },
-    {
       "archivo": "apps/web/heredado/pages/POSLogin.jsx",
       "porque": "A-52 / D-42: Miguel pidió acceso central del Master POS. Se agrega un selector visible de equipo general y puestos de demostración, conservando el teclado y las tarjetas originales. La URL por negocio deja de ser obligatoria. Son únicamente los testigos deliberados del selector, no una exención de toda la pantalla. El aviso pide seleccionar la cuenta antes del PIN; la única cuenta general se preselecciona sin cambiar la autenticación en servidor.",
       "testigos": [
@@ -555,44 +538,6 @@
         "+ texto:¿Quitar esta mesa del mapa?",
         "+ texto:No se borran ventas, registros ni historial. Puedes reactivarla desde «Mesas desactivadas», debajo del mapa.",
         "+ texto:Sí, quitar del mapa"
-      ]
-    },
-    {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Cierre del restaurante (2.4): las mesas desactivadas seguían pintadas en el mapa del editor —el aviso decía «Mesa eliminada» y la mesa no se movía de su lugar—. Ahora el mapa, la lista del teléfono y el contador por zona son de las mesas activas, y debajo del mapa una sección «Mesas desactivadas» las enseña con su número y zona y un botón «Reactivar» (si otra mesa activa ya tiene ese número, el aviso dice por qué no). Los avisos dicen qué pasó de verdad. No se quita nada de lo que Miguel usaba: el editor, el arrastre y el interruptor «Mesa activa» siguen igual.",
-      "testigos": [
-        "- aviso:Mesa eliminada",
-        "+ clase:flex",
-        "+ clase:flex",
-        "+ clase:flex-col",
-        "+ clase:items-center",
-        "+ clase:text-muted-foreground",
-        "+ clase:text-sm",
-        "+ clase:text-sm",
-        "+ clase:text-xs",
-        "+ clase:justify-between",
-        "+ clase:font-semibold",
-        "+ clase:rounded-lg",
-        "+ clase:border",
-        "+ clase:mt-4",
-        "+ clase:gap-2",
-        "+ clase:p-3",
-        "+ clase:gap-1.5",
-        "+ clase:mb-2",
-        "+ texto:No aparecen en el mapa ni con los meseros. Su historial se conserva.",
-        "+ texto:Reactivar",
-        "+ aviso:Mesa ${mesa?.numero ?? ''} quitada del mapa. Su historial se conserva; puedes reactivarla en «Mesas desactivadas».",
-        "+ aviso:Mesa ${mesa.numero} reactivada: vuelve al mapa y a los meseros.",
-        "+ aviso:No se pudo reactivar la mesa:",
-        "+ label:Mesas desactivadas",
-        "+ aria-label:Mesas desactivadas"
-      ]
-    },
-    {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "Cierre del restaurante (21-10): la zona elegida al crear o editar una mesa no se guardaba —el diálogo la manda por nombre, el puente guarda `zona_id` y `zona` es un derivado de sólo lectura—, y la mesa creada desde la pestaña «Terraza» caía en «Interior» sin aviso. Ahora el nombre se traduce a su `zona_id` con las zonas del negocio; si la zona no existe, el aviso lo dice en vez de guardar la mesa en otra zona. No cambia nada de lo que Miguel ve al guardar con éxito.",
-      "testigos": [
-        "+ aviso:No se pudo guardar la mesa: la zona «${data.zona}» no existe en este negocio."
       ]
     },
     {
@@ -951,11 +896,6 @@
       ]
     },
     {
-      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
-      "porque": "21-10 (Miguel): la pestaña Apariencia monta la elección de voz de los avisos de este dispositivo; la cabecera nombra Morphiq POS en vez de la marca anterior.",
-      "testigos": ["+ clase:space-y-6"]
-    },
-    {
       "archivo": "apps/web/heredado/pages/Inventario.jsx",
       "porque": "Cierre del 21-10 (Miguel): existencias y acciones alineadas en PC, tableta y teléfono, y esqueleto mientras carga en vez de ceros provisionales.",
       "testigos": [
@@ -1140,6 +1080,328 @@
       "archivo": "apps/web/heredado/pages/Recetas.jsx",
       "porque": "Cierre del 21-10 (Miguel): la lista de recetas usa la rejilla de columnas fijas y distingue carga, vacío y error con «Reintentar».",
       "testigos": ["- label:Cargando recetas…", "+ clase:@container", "+ texto:Reintentar"]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/ProductoPlaceholder.jsx",
+      "porque": "DP-3 (DP-D11): el marcador de platillo sin foto deja el degradado de un color por tipo (la cerveza salía azul) y su brillo radial, y se pinta plano sobre la pizarra de la marca: ícono en el dorado de lo activo y la inicial en la letra de la barra. Don Poncho no tiene fotos, así que es lo que el comensal ve en cada platillo del portal.",
+      "testigos": [
+        "- clase:absolute",
+        "- clase:inset-0",
+        "- clase:opacity-15",
+        "- clase:text-white/80",
+        "- clase:text-white",
+        "+ clase:text-lateral-activo",
+        "+ clase:text-lateral-texto"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/mesero/MesaGridMobile.jsx",
+      "porque": "DP-9.2 (DP-D23): cada tarjeta de mesa del teléfono va dentro de una columna que lleva ENCIMA sus globos de solicitud. La tarjeta es un botón y no puede llevar otro botón adentro; la tarjeta no cambia.",
+      "testigos": ["+ clase:flex", "+ clase:flex-col", "+ clase:gap-1"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Mesero.jsx",
+      "porque": "DP-9.3 (DP-D24): el botón «Solicitudes» del encabezado y su modal (SolicitudesQRPanel) se van; los sustituye el selector Mesas / Solicitudes arriba de las zonas, que convierte la pantalla entera en la lista de pendientes. Lo nuevo vive en src (SelectorDeVista, VistaDeSolicitudes).",
+      "testigos": [
+        "- clase:flex",
+        "- clase:flex",
+        "- clase:items-center",
+        "- clase:items-center",
+        "- clase:justify-center",
+        "- clase:shrink-0",
+        "- clase:w-5",
+        "- clase:h-5",
+        "- clase:h-5",
+        "- clase:font-heading",
+        "- clase:font-bold",
+        "- clase:gap-2",
+        "- clase:gap-1.5",
+        "- clase:relative",
+        "- clase:w-4",
+        "- clase:h-4",
+        "- clase:absolute",
+        "- clase:-top-1.5",
+        "- clase:-right-1.5",
+        "- clase:min-w-[20px]",
+        "- clase:px-1",
+        "- clase:rounded-full",
+        "- clase:bg-peligro",
+        "- clase:text-peligro-texto",
+        "- clase:text-[10px]",
+        "- clase:text-primary",
+        "- clase:overflow-y-auto",
+        "- clase:sm:max-w-3xl",
+        "- clase:w-[calc(100%-1rem)]",
+        "- clase:max-h-[92vh]",
+        "- clase:p-4",
+        "- clase:sm:p-6",
+        "- texto:Solicitudes",
+        "- icono:Bell"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/mesero/SolicitudesQRPanel.jsx",
+      "borrado": true,
+      "porque": "DP-9.3 (DP-D24): el modal de solicitudes del mesero se va con su botón; la vista «Solicitudes» de Mesas (src/restaurante/VistaDeSolicitudes) lo sustituye, y atender o resolver desde el plano sigue en SolicitudesQRCardList.",
+      "testigos": []
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/MenuQRTab.jsx",
+      "porque": "DP-5 (DP-D18): cada página del menú subido dice qué categorías pide y cuántos platillos («Se pide: …» o «Sólo imagen: …»), en la tarjeta y bajo el nombre del diálogo, para que el dueño sepa cómo ligarla a sus platillos. DP-9.7 (DP-D26): cada página tiene su botón «Botones» (el editor) y la pestaña lleva el panel «Aspecto del portal»; sale el resumen por título de DP-D18.",
+      "testigos": [
+        "+ clase:text-muted-foreground",
+        "+ clase:text-muted-foreground",
+        "+ clase:text-xs",
+        "+ clase:text-xs",
+        "+ clase:mt-1",
+        "+ clase:mt-1",
+        "+ texto:Los platillos se ligan a la página con «Botones», sobre la imagen."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/MesasQRTab.jsx",
+      "porque": "DP-9.8 (DP-D28): el QR de cada tarjeta ya no lo dibuja QRCanvas sino el motor de diseño, con su diseño, «Personalizar» y «Restablecer al diseño general»; su «Sin token» lo dice ahora ese bloque. Arriba entra el panel «Diseño de los QR».",
+      "testigos": [
+        "- clase:flex",
+        "- clase:text-muted-foreground",
+        "- clase:w-[70px]",
+        "- clase:h-[70px]",
+        "- clase:items-center",
+        "- clase:justify-center",
+        "- clase:text-[10px]",
+        "- texto:Sin token"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/QRMesaDialog.jsx",
+      "porque": "DP-9.8 (DP-D28): el QR de la mesa se ve con su diseño y «Descargar» e «Imprimir» (PNG de 800 px y una ventana emergente) se vuelven PNG, SVG y PDF a su tamaño en mm, que sólo salen si el QR se lee. Sus avisos y la hoja de impresión se van con ellos.",
+      "testigos": [
+        "- clase:gap-2",
+        "- clase:gap-2",
+        "- clase:w-4",
+        "- clase:w-4",
+        "- clase:h-4",
+        "- clase:h-4",
+        "- texto:Escanea para ver el menú",
+        "- aviso:QR descargado",
+        "- aviso:No se pudo descargar",
+        "- aviso:Tu navegador bloqueó la impresión",
+        "- aviso:No se pudo imprimir",
+        "- alt:QR Mesa ${mesa?.numero || ''}",
+        "- icono:Download",
+        "- icono:Printer"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/portalqr/QRCanvas.jsx",
+      "borrado": true,
+      "porque": "DP-9.8 (DP-D28): ya nadie lo usaba; los QR de mesa los dibuja el motor de diseño (packages/domain/src/qr).",
+      "testigos": []
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/EstacionesPreparacionSection.jsx",
+      "porque": "DP-10.1 (DP-D31): «Hacer general» nombra general una estación que ya existe (restaurante.marcar_estacion_general), mientras el negocio no tenga ninguna; el aviso lo ofrece junto a «Crear Cocina general».",
+      "testigos": [
+        "- texto:. Es la estación por defecto donde caen las categorías sin asignar. Crea Cocina general para evitar inconsistencias futuras.",
+        "+ texto:. Es la estación por defecto donde caen las categorías sin asignar. Crea Cocina general o toca «Hacer general» en una de las tuyas.",
+        "+ texto:Hacer general",
+        "+ aviso:«${estacion.nombre}» es ahora la estación general",
+        "+ aviso:No se pudo:"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Cocina.jsx",
+      "porque": "DP-10.1 (DP-D31): el aviso del cocinero sin estación dice lo que pidió el cliente: «Tu usuario no tiene estación asignada; pide al administrador que te asigne una.», y dónde se asigna.",
+      "testigos": [
+        "- texto:Este usuario de cocina no tiene estación asignada",
+        "- texto:Pide al administrador que te asigne una estación o te marque como \"Todas las estaciones\" en",
+        "+ texto:Se asigna en",
+        "+ texto:, o ahí mismo se le marca «Todas las estaciones»."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/utils/preparacionEstacionUtils.js",
+      "borrado": true,
+      "porque": "DP-10.1 (DP-D31): nadie lo importaba; la estación de cada comanda la decide el servidor (restaurante/estaciones.ts y portal/estaciones.ts).",
+      "testigos": []
+    },
+    {
+      "archivo": "apps/web/heredado/components/common/AppLayout.jsx",
+      "porque": "DP-11.1 (DP-D38): la carga de pantalla completa (al entrar con el PIN o recargar) deja el círculo girando suelto y es la carga larga del sistema: una tarjeta que dice qué carga («Cargando tu caja», «Cargando las mesas») con su barra, y Morfi asomado detrás si el negocio lo tiene encendido. Nada se ve antes de 600 ms. Y el <main> lleva min-w-0: como hijo de flex medía lo que su contenido más ancho, y en el teléfono una fila que no se encoge estiraba la página entera a lo ancho (Configuración → Apariencia: 543 px en un teléfono de 412). No cambia nada en tableta ni PC.",
+      "testigos": [
+        "- clase:fixed",
+        "- clase:inset-0",
+        "- clase:flex",
+        "- clase:items-center",
+        "- clase:justify-center",
+        "- clase:w-8",
+        "- clase:h-8",
+        "- clase:border-4",
+        "- clase:border-borde",
+        "- clase:border-t-primary",
+        "- clase:rounded-full",
+        "- clase:animate-spin",
+        "+ clase:min-w-0"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/components/configuracion/ConfiguracionDeVoz.jsx",
+      "porque": "DP-11.1: el fieldset de las voces lleva min-w-0. Un fieldset mide por omisión lo que su contenido, así que en el teléfono los renglones de voz no se encogían y la pestaña Apariencia entera se desbordaba a lo ancho (543 px en un teléfono de 412): el interruptor de «Mascota Morfi» y los selectores quedaban fuera de la pantalla. No cambia nada a la vista en tableta ni PC.",
+      "testigos": ["+ clase:min-w-0"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/PortalCliente.jsx",
+      "porque": "DP-5 (DP-D18): el menú personalizado (modo «menú subido») también pide. Cada página lleva debajo los platillos de las categorías que nombra su título, con el mismo «Agregar» que el menú de siempre (renglones separados por divide-y bajo un border-t), y con más de una página hay una fila de accesos para saltar a cada una (nav «Páginas del menú»). La página guarda su ancla (scroll-mt-20) para no quedar bajo el encabezado fijo. DP-9.7 (DP-D26): cada página del menú subido se pinta con `src/restaurante/menu-qr/PaginaConBotones` —los botones van ENCIMA de la imagen— y se va la lista repetida de platillos de abajo; el portal toma el estilo, la tipografía y el fondo que eligió el negocio. DP-10.3 (DP-D33): el QR de una mesa unida a otra dice «Esta mesa está unida a la mesa N» bajo el número de la principal. DP-11.1 (DP-D38): la carga del menú deja su círculo girando y es la carga larga del sistema (tarjeta «Cargando el menú», con Morfi si el negocio lo tiene encendido); el QR que no lleva a ninguna mesa («QR inválido», «Mesa no encontrada», mismos textos) es la página que no existe con Morfi asomado por el hoyo, sin botón (recargar el mismo QR no lo arregla).",
+      "testigos": [
+        "+ clase:flex",
+        "+ clase:gap-1.5",
+        "+ clase:overflow-x-auto",
+        "+ clase:pb-2",
+        "+ clase:px-3",
+        "+ clase:scroll-mt-20",
+        "+ clase:border-t",
+        "+ clase:divide-y",
+        "+ label:Páginas del menú",
+        "+ aria-label:Páginas del menú",
+        "- clase:shadow-sm",
+        "- clase:border",
+        "- clase:font-heading",
+        "- clase:text-base",
+        "- clase:text-xs",
+        "- clase:text-muted-foreground",
+        "- clase:rounded-2xl",
+        "- clase:bg-card",
+        "- clase:text-card-foreground",
+        "- clase:font-bold",
+        "- clase:overflow-hidden",
+        "- clase:w-full",
+        "- clase:h-auto",
+        "- clase:object-cover",
+        "- clase:p-3",
+        "+ clase:font-semibold",
+        "+ clase:text-primary",
+        "- clase:items-center",
+        "- clase:gap-3",
+        "- clase:text-muted-foreground",
+        "- clase:rounded-full",
+        "- clase:text-sm",
+        "- clase:flex-col",
+        "- clase:border-4",
+        "- clase:border-border",
+        "- clase:border-t-primary",
+        "- clase:animate-spin",
+        "- clase:w-10",
+        "- clase:h-10",
+        "- texto:Cargando menú…"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Los 6 cambios de aviso de Configuracion.jsx describen respuestas reales del backend y sustituyen errores genéricos; la estructura visual permanece igual.",
+      "testigos": [
+        "- aviso:Mesas eliminadas correctamente. Ahora puedes crear tu mapa desde cero.",
+        "- aviso:Error al eliminar mesas",
+        "- aviso:Error:",
+        "+ aviso:No se pudo desactivar el usuario",
+        "+ aviso:${cuantas} mesas retiradas. Ahora puedes crear tu mapa desde cero.",
+        "+ aviso:No se pudieron retirar las mesas."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Solicitud explícita de Miguel del 19 de octubre de 2026: los ocho estilos deben poder cambiarse desde una pestaña visible de Apariencia, sin quedar escondidos tras el candado de presentación. Se conserva toda la configuración anterior.",
+      "testigos": ["+ texto:Apariencia"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Cierre del restaurante (2.4): las mesas desactivadas seguían pintadas en el mapa del editor —el aviso decía «Mesa eliminada» y la mesa no se movía de su lugar—. Ahora el mapa, la lista del teléfono y el contador por zona son de las mesas activas, y debajo del mapa una sección «Mesas desactivadas» las enseña con su número y zona y un botón «Reactivar» (si otra mesa activa ya tiene ese número, el aviso dice por qué no). Los avisos dicen qué pasó de verdad. No se quita nada de lo que Miguel usaba: el editor, el arrastre y el interruptor «Mesa activa» siguen igual.",
+      "testigos": [
+        "- aviso:Mesa eliminada",
+        "+ clase:flex",
+        "+ clase:flex",
+        "+ clase:flex-col",
+        "+ clase:items-center",
+        "+ clase:text-muted-foreground",
+        "+ clase:text-sm",
+        "+ clase:text-sm",
+        "+ clase:text-xs",
+        "+ clase:justify-between",
+        "+ clase:font-semibold",
+        "+ clase:rounded-lg",
+        "+ clase:border",
+        "+ clase:mt-4",
+        "+ clase:gap-2",
+        "+ clase:p-3",
+        "+ clase:gap-1.5",
+        "+ clase:mb-2",
+        "+ texto:No aparecen en el mapa ni con los meseros. Su historial se conserva.",
+        "+ texto:Reactivar",
+        "+ aviso:Mesa ${mesa?.numero ?? ''} quitada del mapa. Su historial se conserva; puedes reactivarla en «Mesas desactivadas».",
+        "+ aviso:Mesa ${mesa.numero} reactivada: vuelve al mapa y a los meseros.",
+        "+ aviso:No se pudo reactivar la mesa:",
+        "+ label:Mesas desactivadas",
+        "+ aria-label:Mesas desactivadas"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "Cierre del restaurante (21-10): la zona elegida al crear o editar una mesa no se guardaba —el diálogo la manda por nombre, el puente guarda `zona_id` y `zona` es un derivado de sólo lectura—, y la mesa creada desde la pestaña «Terraza» caía en «Interior» sin aviso. Ahora el nombre se traduce a su `zona_id` con las zonas del negocio; si la zona no existe, el aviso lo dice en vez de guardar la mesa en otra zona. No cambia nada de lo que Miguel ve al guardar con éxito.",
+      "testigos": [
+        "+ aviso:No se pudo guardar la mesa: la zona «${data.zona}» no existe en este negocio."
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "21-10 (Miguel): la pestaña Apariencia monta la elección de voz de los avisos de este dispositivo; la cabecera nombra Morphiq POS en vez de la marca anterior.",
+      "testigos": ["+ clase:space-y-6"]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "PAR-1 (de POS Don Poncho). DP-9.2 (DP-D23): los pedidos desde el QR ya no dependen de la asignación de mesas; sale el aviso ámbar «activa primero la asignación de mesas» y la explicación dice que funciona con y sin ella. DP-11.2 (DP-D39): pestaña nueva «Este aparato» (icono Tablet de 3×3 con margen, como las demás) con el modo espera de ESE aparato; lo del negocio sigue en Apariencia. La pestaña «Presentación» del maestro se queda.",
+      "testigos": [
+        "- clase:px-3",
+        "- clase:py-2",
+        "- clase:bg-advertencia/10",
+        "- clase:border-advertencia/30",
+        "- clase:text-advertencia",
+        "- texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Esta función solo está disponible si la",
+        "- texto:asignación de mesas",
+        "- texto:asignación de mesas",
+        "- texto:también está activa.",
+        "+ clase:w-3",
+        "+ clase:h-3",
+        "+ clase:mr-1",
+        "+ texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin asignación de mesas.",
+        "+ icono:Tablet"
+      ]
+    },
+    {
+      "archivo": "apps/web/heredado/pages/Configuracion.jsx",
+      "porque": "DP-2 (DP-D05): sale la pestaña «Presentación» (su icono Sparkles de 3×3 con margen). Sin modo presentación no hay qué configurar; las demás pestañas quedan igual. DP-9.2 (DP-D23): los pedidos desde el QR ya no dependen de la asignación de mesas; sale el aviso ámbar «activa primero la asignación de mesas» y la explicación dice que funciona con y sin ella. DP-11.2 (DP-D39): pestaña nueva «Este aparato» (icono Tablet, del mismo tamaño que las demás) con el modo espera de ESE aparato; lo del negocio sigue en Apariencia. DP-11.3 (DP-D40): pestaña nueva «Sonidos» (icono Volume2, como las demás) con cada momento y su sonido; y en «Este aparato», el panel de sonido debajo del modo espera (por eso el contenedor con space-y-6).",
+      "testigos": [
+        "+ icono:Tablet",
+        "+ icono:Volume2",
+        "+ clase:w-3",
+        "+ clase:h-3",
+        "+ clase:mr-1",
+        "+ clase:space-y-6",
+        "- clase:w-3",
+        "- clase:h-3",
+        "- clase:mr-1",
+        "- clase:text-xs",
+        "- clase:px-3",
+        "- clase:py-2",
+        "- clase:rounded-lg",
+        "- clase:bg-advertencia/10",
+        "- clase:border",
+        "- clase:border-advertencia/30",
+        "- clase:text-advertencia",
+        "- texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Esta función solo está disponible si la",
+        "- texto:asignación de mesas",
+        "- texto:asignación de mesas",
+        "- texto:también está activa.",
+        "+ texto:Si está activo, el comensal puede agregar productos a un carrito y enviar el pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin asignación de mesas."
+      ]
     }
   ]
 }

@@ -1927,7 +1927,7 @@
       "ruta": "/api/restaurante/atender-solicitud",
       "comando": "restaurante.atender_solicitud",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "roles": ["administrador", "dueno", "gerente", "mesero"],
       "paquetes": ["restaurante"],
       "idRequerido": true,
       "cuerpo": { "solicitudId": "⟨solicitudes_qr⟩", "estado": "atendida" },
@@ -2058,6 +2058,16 @@
       "idRequerido": true,
       "cuerpo": { "mesaId": "⟨mesas⟩" },
       "ids": [{ "camino": "mesaId", "tabla": "mesas" }]
+    },
+    {
+      "ruta": "/api/restaurante/marcar-estacion-general",
+      "comando": "restaurante.marcar_estacion_general",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
+      "paquetes": ["restaurante"],
+      "idRequerido": true,
+      "cuerpo": { "estacionId": "⟨?⟩" },
+      "ids": [{ "camino": "estacionId", "tabla": null }]
     },
     {
       "ruta": "/api/restaurante/marchar-tiempo",

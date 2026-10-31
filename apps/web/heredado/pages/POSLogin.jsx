@@ -17,6 +17,7 @@ import {
   nombreVisibleDelNegocio,
   nombreVisibleDelSistema,
 } from '~/marca/nombre-visible';
+import { sonarAntesDeIrse } from '~/sonidos/gestor';
 
 export default function POSLogin() {
   const [pin, setPin] = useState('');
@@ -125,6 +126,9 @@ export default function POSLogin() {
     try {
       await api.auth.entrar({ id: quien.id, pin: pinToUse });
       const entrado = await api.auth.me();
+      // DP-11.3: suena la entrada ANTES de cambiar la sesión: al cambiarla, la pantalla ya navega
+      // sola, y la recarga de abajo llegaría encima (dos navegaciones). La recarga corta el audio.
+      await sonarAntesDeIrse('entrar');
       entrandoConPin.current = true;
       login(entrado);
       toast.success(`Bienvenido, ${entrado.nombre}`);
@@ -315,8 +319,8 @@ export default function POSLogin() {
           })}
         </div>
 
-        {/* Keypad — hover/border usan acento dinámico */}
-        <div className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
+        {/* Keypad — hover/border usan acento dinámico. DP-11.3: suena con el sonido de teclado. */}
+        <div data-sonido="tecla" className="grid grid-cols-3 gap-2.5 w-full max-w-[280px]">
           {keys.map((key, idx) =>
             key === '' ? (
               <div key={idx} />

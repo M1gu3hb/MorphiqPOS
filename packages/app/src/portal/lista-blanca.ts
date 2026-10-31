@@ -1,5 +1,6 @@
 import type { BanderasPortal } from './banderas.ts';
 import { aCentavos, aPesos } from './conversion.ts';
+import type { GrupoPublico } from './opciones-publicas.ts';
 
 /**
  * LA LISTA BLANCA DEL PORTAL PÚBLICO — cierre de D-14 (`F1-04` §13.4 y §36.3).
@@ -167,6 +168,12 @@ export interface ProductoDeMenu {
    */
   readonly presets_variable_qr: readonly unknown[];
   readonly presets_porcion_qr: readonly unknown[];
+  /**
+   * Sus grupos de opciones —el sabor del pulque, el relleno de la quesadilla—, con NOMBRES y
+   * nada más (DP-5). `ProductoQRDialog` los pinta y el carrito los pliega en la nota del pedido;
+   * sin ellos, desde el QR no se podía elegir el sabor. Sin precio: una opción no cobra.
+   */
+  readonly modificadores: readonly GrupoPublico[];
 }
 
 /**
@@ -180,7 +187,11 @@ export interface ProductoDeMenu {
  * bandera apagada, el precio **no sale**; la bandera sigue viajando porque su
  * pantalla la necesita para maquetar (`PortalCliente.jsx:608`).
  */
-export function productoDeMenu(fila: FilaProductoMenu, conPrecios: boolean): ProductoDeMenu {
+export function productoDeMenu(
+  fila: FilaProductoMenu,
+  conPrecios: boolean,
+  modificadores: readonly GrupoPublico[] = [],
+): ProductoDeMenu {
   const importe = (centavos: bigint | null): bigint | null => (conPrecios ? centavos : null);
 
   return {
@@ -204,6 +215,7 @@ export function productoDeMenu(fila: FilaProductoMenu, conPrecios: boolean): Pro
     precio_por_porcion_centavos: aCentavos(importe(fila.precio_por_porcion_centavos)),
     presets_variable_qr: comoLista(fila.presets_variable),
     presets_porcion_qr: comoLista(fila.presets_porcion),
+    modificadores,
   };
 }
 

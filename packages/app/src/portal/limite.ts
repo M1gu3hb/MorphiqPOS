@@ -62,6 +62,13 @@ export const LIMITES_PORTAL = {
    */
   apartar_anticipado: { intentos: 5, ventanaSegundos: 3 * CINCO_MINUTOS },
   apartados_del_negocio: { intentos: 60, ventanaSegundos: 12 * CINCO_MINUTOS },
+  /**
+   * DP-9.4 · El teléfono de una estación de cocina pregunta cada 2,5 s (24 al minuto): 120 deja
+   * aire para dos pestañas abiertas sin dejar que alguien barra el endpoint con un token.
+   */
+  cocina_consulta: { intentos: 120, ventanaSegundos: MINUTO },
+  /** Preparar y Listo: una cocina con prisa no pasa de unos cuantos por minuto. */
+  cocina_transicion: { intentos: 60, ventanaSegundos: CINCO_MINUTOS },
 } as const satisfies Readonly<Record<string, Limite>>;
 
 export type AccionPortal = keyof typeof LIMITES_PORTAL;

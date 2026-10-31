@@ -14,6 +14,7 @@ import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
 // el puente calcula al leer la mesa, no una columna que esta pantalla escriba.
 import { filtrarSolicitudesParaUsuario, asignacionActiva } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
+import { sonar } from '~/sonidos/gestor';
 
 const TIPO_ICON = { ordenar: Bell, cuenta: Receipt, ayuda: HelpCircle };
 const TIPO_COLOR = {
@@ -59,8 +60,8 @@ export default function SolicitudesQRCardList() {
   const accion = async (s, accionTipo) => {
     if (!s?.id) return;
     try {
-      // Mismo cambio que en SolicitudesQRPanel, que es este mismo componente en
-      // versión panel: `atendido_por_id` y `atendido_por_nombre` NO se mandan.
+      // `atendido_por_id` y `atendido_por_nombre` NO se mandan (el panel gemelo
+      // se fue con DP-9.3: lo sustituye la vista «Solicitudes» de Mesas).
       // Los pone la sesión dentro de `atender_solicitud`, así que ya nadie se
       // puede atribuir el trabajo de otro desde el navegador.
       await api.comandos.ejecutar('/api/restaurante/atender-solicitud', {
@@ -82,6 +83,7 @@ export default function SolicitudesQRCardList() {
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
       queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero_count'] });
       toast.success('Solicitud actualizada');
+      if (accionTipo === 'atender') sonar('solicitudAtendida');
     } catch (err) {
       console.error('[SolicitudesQRCardList] accion:', err);
       toast.error(err?.message || 'No se pudo actualizar');

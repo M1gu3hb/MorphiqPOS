@@ -74,6 +74,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { safeFormatDate } from '@/lib/safeFormat';
 import StatCard from '@/components/common/StatCard';
 import { claves } from '~/cliente/claves-de-consulta';
+import { sonar } from '~/sonidos/gestor';
 
 const METODOS = [
   {
@@ -806,6 +807,7 @@ export default function Caja() {
       setPropinaTarjeta('');
       setPropinaTransferencia('');
       toast.success(`¡Venta cobrada! Cambio: ${formatCurrency(cambio)}`);
+      sonar('cobro');
     } catch (err) {
       // 🟡 HOTFIX bandera amarilla #2: mensaje correcto según el momento del fallo.
       // - Si venta NO quedó pagada → el motivo TAL CUAL lo dice el dominio, que
@@ -991,6 +993,9 @@ export default function Caja() {
         efectivoContadoCentavos: aCentavos(form.efectivo_contado),
         ...(form.notas ? { notas: form.notas } : {}),
       });
+      // DP-10.2: cerró con cuentas de mesa vivas porque queda otra caja abierta; el servidor
+      // dice cuáles y que las cobrará la otra. (La última caja ni siquiera cierra.)
+      if (arqueo?.aviso?.mensaje) toast.warning(arqueo.aviso.mensaje, { duration: 10000 });
 
       // Lo que se enseña y se imprime. El esperado, la diferencia y el número de
       // ventas son los del SERVIDOR —los del navegador se calculaban sobre una
@@ -1727,6 +1732,7 @@ export default function Caja() {
             <Button
               onClick={() => {
                 try {
+                  sonar('ticket');
                   printDocument({
                     mode: 'thermal',
                     title: `Ticket-${ticketFinalData?.venta?.folio || ''}`,

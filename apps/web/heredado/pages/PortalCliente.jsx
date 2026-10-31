@@ -24,7 +24,12 @@ import { getTiposSolicitudHabilitados, TIPO_SOLICITUD_VERBO } from '@/utils/qrUt
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import ThemeToggle from '@/components/common/ThemeToggle';
 import { MarcaMorphiq } from '~/marca/MarcaMorphiq';
+import { useIsDark } from '@/lib/ThemeContext';
 import { nombreVisibleDelNegocio } from '~/marca/nombre-visible';
+import { MorfiCargando } from '~/morfi/MorfiCargando';
+import { MorfiNoEncontrada } from '~/morfi/MorfiNoEncontrada';
+import { PaginaConBotones } from '~/restaurante/menu-qr/PaginaConBotones';
+import { atributosDelTema, temaDelPortal } from '~/restaurante/menu-qr/tema-del-portal';
 
 /**
  * Vista pública del comensal (sin sidebar, sin POS).
@@ -98,6 +103,9 @@ function PortalCliente() {
   const productos = useMemo(() => portal?.productos || [], [portal]);
   const categorias = useMemo(() => portal?.categorias || [], [portal]);
   const secciones = useMemo(() => portal?.secciones || [], [portal]);
+  // DP-9.7: el aspecto que eligió el negocio para su portal (estilo, tipografía, fondo).
+  const tema = useMemo(() => temaDelPortal(portal?.tema), [portal]);
+  const oscuro = useIsDark();
   // La venta viva de ESTA mesa, resuelta por el token, CON sus líneas dentro.
   // Ya no se consulta una lista de ventas desde el navegador para quedarse con
   // la más reciente, ni se sondea `DetalleVenta` aparte —que era lo que dejaba
@@ -201,6 +209,9 @@ function PortalCliente() {
   const pedidosQRActivos = config?.puede_ordenar === true;
 
   const tieneMeseroAsignado = mesa?.tiene_mesero === true;
+  // DP-9.2: el mesero sólo FALTA con la asignación encendida. Sin asignación nadie tiene mesas
+  // fijas: el comensal abre, pide y llama igual, y la cuenta es de quien la atiende.
+  const faltaMesero = config?.asignacion_mesas_activa === true && !tieneMeseroAsignado;
   // "Mesa ya abierta" se miraba por TRES señales porque el navegador no podía
   // fiarse de ninguna: la venta del sondeo, el puntero de la mesa y su estado,
   // cada una de una consulta distinta y llegando en momentos distintos. Ahora
@@ -227,7 +238,7 @@ function PortalCliente() {
       return;
     }
     if (!mesaPermitePedirAhora) {
-      if (!tieneMeseroAsignado) {
+      if (faltaMesero) {
         toast.error('Esta mesa aún no tiene mesero asignado. Pide apoyo al personal.');
       } else {
         toast.info('No se pueden agregar productos en este momento.');
@@ -323,7 +334,7 @@ function PortalCliente() {
       toast.error('Tu pedido está vacío.');
       return;
     }
-    if (!mesa?.id || !tieneMeseroAsignado) {
+    if (!mesa?.id || faltaMesero) {
       toast.error('Esta mesa no está disponible para pedir.');
       return;
     }
@@ -354,7 +365,7 @@ function PortalCliente() {
 
   // Estados de no-disponibilidad
   if (!token) {
-    return <ScreenError titulo="QR inválido" texto="Este enlace no es válido." />;
+    return <ScreenNoEncontrada titulo="QR inválido" texto="Este enlace no es válido." />;
   }
   // Loader mientras carga config/mesa — evita flash de "Portal no disponible".
   if (cargando) {
@@ -379,7 +390,10 @@ function PortalCliente() {
     }
     if (errorPortal.codigo === 'QR_TOKEN_INVALIDO') {
       return (
-        <ScreenError titulo="Mesa no encontrada" texto="Llama a un mesero para que te ayude." />
+        <ScreenNoEncontrada
+          titulo="Mesa no encontrada"
+          texto="Llama a un mesero para que te ayude."
+        />
       );
     }
     return (
@@ -390,7 +404,9 @@ function PortalCliente() {
     );
   }
   if (!mesa) {
-    return <ScreenError titulo="Mesa no encontrada" texto="Llama a un mesero para que te ayude." />;
+    return (
+      <ScreenNoEncontrada titulo="Mesa no encontrada" texto="Llama a un mesero para que te ayude." />
+    );
   }
 
   const enviarSolicitud = async (tipo) => {
@@ -457,11 +473,16 @@ function PortalCliente() {
   };
 
   return (
-    <div className="relative min-h-screen bg-background text-foreground pb-32 overflow-x-hidden">
+    <div
+      className="relative min-h-screen bg-background text-foreground pb-32 overflow-x-hidden"
+      {...atributosDelTema(tema)}
+      // Los estilos cambian su paleta oscura con `data-modo` en el MISMO elemento.
+      {...(tema.estilo === null ? {} : { 'data-modo': oscuro ? 'oscuro' : 'claro' })}
+    >
       {/* MARCA DE AGUA — logo del negocio, visible en claro y oscuro.
           Usa la clase `brand-watermark` para que en modo oscuro el filtro
           definido en index.css realce el logo (brightness + grayscale). */}
-      {brandLogo && (
+      {brandLogo && tema.fondo === 'marca' && (
         <div
           aria-hidden="true"
           className="pointer-events-none fixed inset-0 z-0 flex items-center justify-center"
@@ -497,6 +518,12 @@ function PortalCliente() {
               Mesa {mesa?.numero}
               {mesa?.nombre ? ` · ${mesa.nombre}` : ''}
             </p>
+            {/* DP-10.3: el QR es de una mesa unida a ésta; todo cae en la cuenta de la principal. */}
+            {mesa?.unida_a_la_mesa != null && (
+              <p className="text-xs font-semibold text-primary">
+                Esta mesa está unida a la mesa {mesa.unida_a_la_mesa}
+              </p>
+            )}
           </div>
           <ThemeToggle variant="icon" />
         </div>
@@ -563,25 +590,38 @@ function PortalCliente() {
           </section>
         )}
 
-        {/* MODO MENÚ SUBIDO */}
+        {/* MODO MENÚ SUBIDO — el menú que diseñó el negocio, con sus botones encima de cada
+            página (DP-9.7; la regla del título de DP-D18 queda superada). */}
         {usarSecciones && seccionesUtiles.length > 0 && (
           <section className="space-y-3">
             {usarProductos && <h2 className="text-sm font-heading font-bold mt-4">Menús</h2>}
+            {!usarProductos && seccionesUtiles.length > 1 && (
+              <nav aria-label="Páginas del menú" className="flex gap-1.5 overflow-x-auto pb-2">
+                {seccionesUtiles.map((s) => (
+                  <Pill
+                    key={`ir-${s.id}`}
+                    active={false}
+                    onClick={() =>
+                      document
+                        .getElementById(`pagina-${s.id}`)
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+                    }
+                  >
+                    {s.nombre}
+                  </Pill>
+                ))}
+              </nav>
+            )}
+            {/* DP-9.7: cada página con sus botones ENCIMA (en % de la imagen). Sin poder pedir,
+                la página es sólo imagen; la lista repetida de abajo ya no va. */}
             {seccionesUtiles.map((s) => (
-              <div
+              <PaginaConBotones
                 key={s.id}
-                className="rounded-2xl border bg-card text-card-foreground overflow-hidden shadow-sm"
-              >
-                {s.imagen_url && (
-                  <img src={s.imagen_url} alt={s.nombre} className="w-full h-auto object-cover" />
-                )}
-                <div className="p-3">
-                  <p className="font-heading font-bold text-base">{s.nombre}</p>
-                  {s.descripcion && (
-                    <p className="text-xs text-muted-foreground">{s.descripcion}</p>
-                  )}
-                </div>
-              </div>
+                pagina={pedidosQRActivos && !cuentaYaSolicitada ? s : { ...s, botones: [] }}
+                productos={productos}
+                mostrarPrecios={mostrarPrecios}
+                alPedir={handleClickProducto}
+              />
             ))}
           </section>
         )}
@@ -597,28 +637,18 @@ function PortalCliente() {
         <MarcaMorphiq variante="portal" />
       </main>
 
-      {/* Botón flotante de atención.
-          Reglas:
+      {/* Botón flotante de atención (DP-9.2). Siempre: las solicitudes llegan en los dos modos.
           - Asignación activa + mesa SIN mesero asignado: bloqueado (mensaje aviso).
-          - Asignación apagada: el botón se oculta (no audio masivo).
-          - Asignación activa + mesa con mesero: funciona normal.
-      */}
-      {(() => {
-        const asign = config?.asignacion_mesas_activa === true;
-        if (!asign) return null; // oculto si no hay asignación
-        // `tiene_mesero` es un booleano: quién atiende la mesa es dato de la
-        // operación y no sale al público. Lo que el portal necesita saber es si
-        // hay alguien a quien avisar, no a quién le toca.
-        return (
-          <AtencionFAB
-            tiposHabilitados={tiposHabilitados}
-            onPedir={enviarSolicitud}
-            disabled={!!enviandoTipo}
-            bloqueado={!tieneMeseroAsignado}
-            mensajeBloqueado="Esta mesa aún no tiene un mesero asignado. Por favor, acércate a un mesero del salón."
-          />
-        );
-      })()}
+          - Asignación apagada: funciona; el aviso va a todo el salón, y la voz sólo suena en la
+            vista «Solicitudes» de Mesas (DP-9.3), no en todas las pantallas.
+          `tiene_mesero` es un booleano: quién atiende la mesa no sale al público. */}
+      <AtencionFAB
+        tiposHabilitados={tiposHabilitados}
+        onPedir={enviarSolicitud}
+        disabled={!!enviandoTipo}
+        bloqueado={faltaMesero}
+        mensajeBloqueado="Esta mesa aún no tiene un mesero asignado. Por favor, acércate a un mesero del salón."
+      />
 
       {/* Tarjeta persistente: cuando el mesero ya disparó la cuenta.
           Permite reabrir PedirCuentaQR si el cliente cerró la pantalla. */}
@@ -859,13 +889,18 @@ function ScreenError({ titulo, texto }) {
   );
 }
 
-function ScreenLoading() {
+// DP-11.1: el QR que no lleva a ninguna mesa es la página que no existe del portal: Morfi se
+// asoma por el hoyo (o el vacío del sistema, sin mascota). Sin botón: recargar el mismo QR no lo
+// arregla, y el texto ya dice qué hacer (llamar a un mesero).
+function ScreenNoEncontrada({ titulo, texto }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6 bg-background">
-      <div className="flex flex-col items-center gap-3">
-        <div className="w-10 h-10 border-4 border-border border-t-primary rounded-full animate-spin" />
-        <p className="text-sm text-muted-foreground">Cargando menú…</p>
-      </div>
+      <MorfiNoEncontrada titulo={titulo} explicacion={texto} />
     </div>
   );
+}
+
+// DP-11.1: la carga larga del sistema; nada antes de 600 ms. Antes, un círculo girando.
+function ScreenLoading() {
+  return <MorfiCargando titulo="Cargando el menú" />;
 }

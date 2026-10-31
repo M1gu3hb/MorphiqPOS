@@ -10,7 +10,10 @@ import { ThemeProvider } from '@/lib/ThemeContext';
 
 import type { AparienciaInicial } from '@morphiqpos/ui/hooks';
 
+import { ProveedorDeSonidos } from '~/sonidos/ProveedorDeSonidos';
+
 import { ProveedorDeApariencia } from './Apariencia';
+import { ProveedorDeExperiencia, type ExperienciaDelNegocio } from './Experiencia';
 import { GuardiaDePlantilla, ProveedorDeConsultas } from './ProveedorDeConsultas';
 import { VigiaDePresentacion } from './VigiaDePresentacion';
 
@@ -46,45 +49,56 @@ export function Proveedores({
   children,
   conSesion,
   apariencia,
+  experiencia,
+  zona,
 }: {
   readonly children: ReactNode;
   readonly conSesion: boolean;
   /** La apariencia que el servidor ya puso en el `<html>`, perillas incluidas. Aquí se vuelve estado. */
   readonly apariencia: AparienciaInicial;
+  /** La experiencia del negocio (DP-11: «Mascota Morfi»), leída en el servidor como la apariencia. */
+  readonly experiencia: ExperienciaDelNegocio;
+  /** La zona horaria del negocio, leída en el servidor (PAR-1): la hora del modo espera. */
+  readonly zona?: string;
 }) {
   return (
     <ProveedorDeApariencia aparienciaInicial={apariencia}>
-      <ThemeProvider>
-        <POSAuthProvider conSesion={conSesion}>
-          {/*
+      <ProveedorDeExperiencia inicial={experiencia} {...(zona === undefined ? {} : { zona })}>
+        {/* DP-11.3: el gestor de sonido de la pestaña (el aparato, el negocio y el oyente único). */}
+        <ProveedorDeSonidos>
+          <ThemeProvider>
+            <POSAuthProvider conSesion={conSesion}>
+              {/*
             El caché de consultas cuelga de QUIÉN está dentro, y por eso va DEBAJO de la
             sesión: cada contexto —negocio, empleo y plantilla— tiene el suyo, y cambiar de
             contexto lo descarta entero, con sus consultas en vuelo
             (`ProveedorDeConsultas`). Los avisos quedan fuera de él: que un aviso siga en
             pantalla al cambiar de contexto es justo lo que se quiere.
           */}
-          <ProveedorDeConsultas>
-            <VigiaDePresentacion />
-            {conSesion ? (
-              <ConfigProvider>
-                <GuardiaDePlantilla />
-                {children}
-              </ConfigProvider>
-            ) : (
-              children
-            )}
-          </ProveedorDeConsultas>
-          <Toaster />
-          <SonnerToaster
-            richColors
-            position="top-right"
-            closeButton
-            duration={3500}
-            visibleToasts={4}
-            swipeDirections={['top', 'right']}
-          />
-        </POSAuthProvider>
-      </ThemeProvider>
+              <ProveedorDeConsultas>
+                <VigiaDePresentacion />
+                {conSesion ? (
+                  <ConfigProvider>
+                    <GuardiaDePlantilla />
+                    {children}
+                  </ConfigProvider>
+                ) : (
+                  children
+                )}
+              </ProveedorDeConsultas>
+              <Toaster />
+              <SonnerToaster
+                richColors
+                position="top-right"
+                closeButton
+                duration={3500}
+                visibleToasts={4}
+                swipeDirections={['top', 'right']}
+              />
+            </POSAuthProvider>
+          </ThemeProvider>
+        </ProveedorDeSonidos>
+      </ProveedorDeExperiencia>
     </ProveedorDeApariencia>
   );
 }

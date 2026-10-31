@@ -6,7 +6,14 @@ import type { ReactNode } from 'react';
 import { GUION_SIN_PARPADEO } from '@/tema-arranque';
 import { validarEntorno } from '@morphiqpos/contracts';
 import { NOMBRE_COOKIE } from '@morphiqpos/app/http';
-import { APARIENCIA_POR_OMISION, aparienciaDeLaOrganizacion } from '@morphiqpos/app/configuracion';
+import {
+  APARIENCIA_POR_OMISION,
+  EXPERIENCIA_POR_OMISION,
+  aparienciaDeLaOrganizacion,
+  experienciaDeLaOrganizacion,
+  ZONA_HORARIA_POR_OMISION,
+  zonaHorariaDeLaOrganizacion,
+} from '@morphiqpos/app/configuracion';
 import { negocioDeLaEntrada, slugDeLaRutaDeEntrada } from '@morphiqpos/app/negocio';
 import { estiloOPredeterminado } from '@morphiqpos/ui/tokens';
 
@@ -37,17 +44,18 @@ const dmSans = DM_Sans({ subsets: ['latin'], display: 'swap', variable: '--mh-dm
  *
  * Aparte del componente porque tiene tres caminos y cada uno con su razón, y un
  * ternario de tres ramas dentro del `layout` esconde la de en medio — que es la única
- * que no es obvia.
+ * que no es obvia. De ese negocio salen su apariencia y su experiencia (DP-11: «Mascota
+ * Morfi»); sin negocio, `null` y las dos de omisión.
  *
  * NUNCA lanza. Es un dato decorativo: una pantalla de acceso que no abre porque el
  * color no se pudo leer sería un desastre causado por un adorno.
  */
-async function aparienciaDelDespliegue(
+async function organizacionDelDespliegue(
   sesion: { readonly organizacionId: string } | null,
   host: string | null,
   ruta: string | null,
-) {
-  if (sesion !== null) return aparienciaDeLaOrganizacion(sesion.organizacionId);
+): Promise<string | null> {
+  if (sesion !== null) return sesion.organizacionId;
   try {
     // La entrada de un negocio (`/n/<slug>/login-pos`) se pinta con SU estilo; sin
     // dirección, el único que sirve el despliegue. Varios sin dirección —las cinco
@@ -59,10 +67,9 @@ async function aparienciaDelDespliegue(
       host,
       slugDeLaRutaDeEntrada(ruta),
     );
-    if (negocio === null) return APARIENCIA_POR_OMISION;
-    return await aparienciaDeLaOrganizacion(negocio.organizacionId);
+    return negocio?.organizacionId ?? null;
   } catch {
-    return APARIENCIA_POR_OMISION;
+    return null;
   }
 }
 
@@ -130,11 +137,19 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
    * una respuesta correcta, y ahí sí se pinta con la base.
    */
   const sesion = conSesion ? await sesionDelServidor() : null;
-  const guardada = await aparienciaDelDespliegue(
+  const organizacionId = await organizacionDelDespliegue(
     sesion,
     cabeceras.get('host'),
     cabeceras.get(CABECERA_RUTA),
   );
+  const [guardada, experiencia, zona] =
+    organizacionId === null
+      ? [APARIENCIA_POR_OMISION, EXPERIENCIA_POR_OMISION, ZONA_HORARIA_POR_OMISION]
+      : await Promise.all([
+          aparienciaDeLaOrganizacion(organizacionId),
+          experienciaDeLaOrganizacion(organizacionId),
+          zonaHorariaDeLaOrganizacion(organizacionId),
+        ]);
   /**
    * Sin preferencia, o con una que ya no es un estilo construido, arranca `morphiq`.
    *
@@ -194,7 +209,12 @@ export default async function LayoutRaiz({ children }: { children: ReactNode }) 
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: GUION_DEL_MODO }} />
       </head>
       <body>
-        <Proveedores conSesion={conSesion} apariencia={apariencia}>
+        <Proveedores
+          conSesion={conSesion}
+          apariencia={apariencia}
+          experiencia={experiencia}
+          zona={zona}
+        >
           {children}
         </Proveedores>
       </body>

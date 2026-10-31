@@ -137,6 +137,8 @@
   --color-grafico-6: hsl(var(--grafico-6));
   --color-velo: hsl(var(--velo));
   --color-lateral-fondo: hsl(var(--lateral-fondo));
+  --color-espera-fondo: hsl(var(--espera-fondo));
+  --color-espera-texto: hsl(var(--espera-texto));
   --color-lateral-texto: hsl(var(--lateral-texto));
   --color-lateral-activo: hsl(var(--lateral-activo));
   --color-lateral-activo-texto: hsl(var(--lateral-activo-texto));
@@ -245,4 +247,16 @@
   ::file-selector-button {
     border-color: hsl(var(--border));
   }
+}
+
+/* DP-9.7 · La tipografía del portal del comensal, elegida por el negocio. Reasigna el token de la
+   familia sólo dentro del portal; las dos familias ya las carga el layout raíz. */
+[data-tipografia='redonda'] {
+  --fuente-ui: var(--mh-dm-sans), ui-sans-serif, system-ui, sans-serif;
+  --fuente-display: var(--fuente-ui);
+}
+
+[data-tipografia='clasica'] {
+  --fuente-ui: Georgia, 'Times New Roman', serif;
+  --fuente-display: var(--fuente-ui);
 }

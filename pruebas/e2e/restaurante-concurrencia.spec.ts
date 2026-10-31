@@ -943,6 +943,29 @@ test.describe('el restaurante cuando todo se repite, se duplica o se pierde', ()
         await esperadoDelCajon(dia.rosa),
         'El cajón no tiene el fondo más el efectivo de cada cobro, una vez.',
       ).toBe(esperado);
+      // DP-10.2 · las mesas 1 y 2 de la primera prueba siguen comiendo, y la de Rosa es la ÚLTIMA
+      // caja abierta: no cierra con cuentas vivas. Como al final de un día de verdad, esas cuentas
+      // se cancelan con su motivo —cancelar no toca la caja ni el almacén— y entonces cierra.
+      await test.step('con mesas sentadas la última caja no cierra; canceladas, sí', async () => {
+        const cerrar = await dia.rosa.request.post('/api/caja/cerrar', {
+          headers: cabecerasDeEscrituraDePrueba(),
+          data: { efectivoContadoCentavos: esperado },
+        });
+        expect(cerrar.status(), 'La última caja cerró con cuentas vivas.').toBe(422);
+        expect(await cerrar.text()).toMatch(/Quedan cuentas sin cobrar en las mesas 1 y 2/);
+        const sentadas = (
+          await consultarPuente<{ venta_activa_id?: string | null }>(dia.duena, 'Mesa', {
+            limite: 50,
+          })
+        ).flatMap((m) => (m.venta_activa_id ? [m.venta_activa_id] : []));
+        for (const ordenId of sentadas) {
+          const cancelada = await dia.duena.request.post('/api/restaurante/cancelar-orden', {
+            headers: cabecerasDeEscrituraDePrueba(),
+            data: { ordenId, motivo: 'fin del día de prueba: la mesa no se cobró' },
+          });
+          expect(cancelada.status(), await cancelada.text()).toBe(200);
+        }
+      });
       await cerrarCajaYCuadrar(dia.rosa, esperado);
       libro.contar(sesionDeRosa, esperado);
       // Lo que se vendió, contra el servidor: cada venta, cada método, cada propina, el cajón y el

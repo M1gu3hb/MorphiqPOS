@@ -1159,7 +1159,7 @@
       "ruta": "/api/restaurante/atender-solicitud",
       "comando": "restaurante.atender_solicitud",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "roles": ["administrador", "dueno", "gerente", "mesero"],
       "paquetes": ["restaurante"]
     },
     {
@@ -1250,7 +1250,14 @@
       "ruta": "/api/restaurante/limpiar-solicitudes",
       "comando": "restaurante.limpiar_solicitudes",
       "escribe": true,
-      "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
+      "roles": ["administrador", "dueno", "gerente", "mesero"],
+      "paquetes": ["restaurante"]
+    },
+    {
+      "ruta": "/api/restaurante/marcar-estacion-general",
+      "comando": "restaurante.marcar_estacion_general",
+      "escribe": true,
+      "roles": ["administrador", "dueno", "gerente"],
       "paquetes": ["restaurante"]
     },
     {
@@ -1805,6 +1812,14 @@
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
     {
+      "ruta": "/api/publico/cocina/[token]",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/cocina/[token]/transicion",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
       "ruta": "/api/publico/negocio/[slug]/apartar",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
@@ -1844,6 +1859,10 @@
     {
       "ruta": "/api/reportes/exportar",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/restaurante/conectar-telefono-de-cocina",
+      "razon": "no sirve UN comando por la tubería estándar: valida o encadena antes del comando"
     },
     {
       "ruta": "/api/venta/cobrar-mostrador",

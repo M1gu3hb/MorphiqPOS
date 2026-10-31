@@ -1,0 +1,108 @@
+'use client';
+
+import { useQueryClient } from '@tanstack/react-query';
+import { useEffect, useRef } from 'react';
+
+import { useConfig } from '@/lib/ConfigContext';
+import { usePOSAuth } from '@/lib/POSAuthContext';
+
+import { useExperiencia } from '~/proveedores/Experiencia';
+import { sonar } from '~/sonidos/gestor';
+
+import { PantallaDeEspera } from './PantallaDeEspera';
+import { PedirPinAlDespertar } from './PedirPinAlDespertar';
+import { puestoDeEspera } from './reglas';
+import { useDespertadorDeCaja } from './use-despertador-de-caja';
+import { useModoEspera } from './use-modo-espera';
+
+/** Mientras duerme, cada cuánto vuelve a leer la configuración del negocio. */
+const RELEER_DORMIDA_MS = 60_000;
+
+/** Lo que el modo espera lee de la configuración del negocio (contexto heredado, sin tipos). */
+interface ConfiguracionDelNegocio {
+  readonly config: {
+    readonly logo_url?: string | null;
+    readonly nombre_negocio?: string | null;
+    readonly experiencia?: { readonly pin_al_despertar?: unknown } | null;
+  };
+}
+
+/** Lo que lee de la sesión (contexto heredado, sin tipos). */
+interface SesionDelPuesto {
+  readonly posUser: { readonly id: string; readonly nombre: string } | null;
+  readonly logout: () => Promise<void>;
+}
+
+/**
+ * EL MODO ESPERA (DP-11.2), montado por `AppLayout` como hijo con sus propios ganchos: cuando ya
+ * hay sesión. Fuera de Caja, Tablero, Cocina y administración no se duerme, pero el candado del
+ * PIN vale en todas. Es una capa: la pantalla de abajo sigue montada y nada de lo tecleado se
+ * pierde.
+ *
+ * «Pedir PIN al despertar» se lee de la configuración del negocio (`useConfig`), y si aún no llega,
+ * de la que vino al pintar. Al dormirse, y cada minuto mientras duerme, la configuración se vuelve
+ * a pedir: un «Pedir PIN» encendido en otro aparato vale al despertar, sin recargar la tableta.
+ */
+export function ModoEspera({ ruta }: { readonly ruta: string }) {
+  // La hora es la del NEGOCIO (`organizaciones.zona_horaria`, leída al pintar), no la del
+  // aparato ni una fija (PAR-1: en Don Poncho era la de la Ciudad de México).
+  const { experiencia, zona } = useExperiencia();
+  const { config } = useConfig() as unknown as ConfiguracionDelNegocio;
+  const { posUser, logout } = usePOSAuth() as unknown as SesionDelPuesto;
+  const consultas = useQueryClient();
+  const leido = config.experiencia?.pin_al_despertar;
+  const pedirPin = typeof leido === 'boolean' ? leido : experiencia.pin_al_despertar;
+  const puesto = puestoDeEspera(ruta);
+  const { fase, dormidaDesde, pedirDespertar, volver } = useModoEspera(
+    puesto,
+    { pedirPin, empleoId: posUser?.id ?? null },
+    () => {
+      void consultas.invalidateQueries({ queryKey: ['config'] });
+    },
+  );
+  useDespertadorDeCaja(puesto === 'caja');
+
+  // DP-11.3: anochece al dormirse. Amanece al tocarla (`PantallaDeEspera`), no cuando la despierta
+  // un aviso: ahí suenan el timbre y la voz de Cocina.
+  const faseAnterior = useRef(fase);
+  useEffect(() => {
+    const antes = faseAnterior.current;
+    faseAnterior.current = fase;
+    if (antes !== 'dormida' && fase === 'dormida') sonar('dormir');
+  }, [fase]);
+
+  useEffect(() => {
+    if (fase !== 'dormida') return undefined;
+    const releer = window.setInterval(() => {
+      void consultas.invalidateQueries({ queryKey: ['config'] });
+    }, RELEER_DORMIDA_MS);
+    return () => {
+      window.clearInterval(releer);
+    };
+  }, [fase, consultas]);
+
+  if (fase === 'pin') {
+    if (posUser === null) return null;
+    return (
+      <PedirPinAlDespertar
+        empleoId={posUser.id}
+        nombre={posUser.nombre}
+        alVolver={volver}
+        // Cerrar la sesión quita el candado, pero sólo si el servidor la cerró (`POSAuthContext`).
+        alCambiarDePersona={logout}
+      />
+    );
+  }
+  if (fase === 'dormida' && dormidaDesde !== null) {
+    return (
+      <PantallaDeEspera
+        logo={config.logo_url ?? ''}
+        nombre={config.nombre_negocio ?? ''}
+        zona={zona}
+        dormidaDesde={dormidaDesde}
+        alDespertar={pedirDespertar}
+      />
+    );
+  }
+  return null;
+}

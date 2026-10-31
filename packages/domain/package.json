@@ -10,6 +10,7 @@
     "./dinero": "./src/dinero/index.ts",
     "./catalogo": "./src/catalogo/index.ts",
     "./inventario": "./src/inventario/index.ts",
+    "./qr": "./src/qr/index.ts",
     "./sala": "./src/sala/index.ts",
     "./venta": "./src/venta/index.ts",
     "./vocabulario": "./src/vocabulario/index.ts"

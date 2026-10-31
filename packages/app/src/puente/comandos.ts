@@ -6,6 +6,7 @@ import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
 import { prepararReferenciasPublicas } from '../archivos/referencias.ts';
+import { completarAreaAlCrear } from '../catalogo/area-al-crear.ts';
 import { guardarConfiguracionParcial } from './configuracion.ts';
 import { escribir } from './escribir.ts';
 
@@ -56,11 +57,20 @@ export const escribirDatos = definirComando<
       sucursalId: ctx.ambito.sucursalId,
       rol: ctx.ambito.rol,
     };
-    const datos = await ctx.paso('publicar_archivos', () =>
+    const publicados = await ctx.paso('publicar_archivos', () =>
       prepararReferenciasPublicas({
         entidad: entrada.entidad,
         datos: entrada.datos ?? {},
         organizacionId: ambito.organizacionId,
+      }),
+    );
+    // Un platillo nuevo sin área la aprende de su categoría, o se niega (DP-9.1).
+    const datos = await ctx.paso('area_de_preparacion', () =>
+      completarAreaAlCrear(ctx.tx, {
+        organizacionId: ambito.organizacionId,
+        entidad: entrada.entidad,
+        operacion: entrada.operacion,
+        datos: publicados,
       }),
     );
 

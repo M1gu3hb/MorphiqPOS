@@ -14,6 +14,8 @@ export default function MesaShape({
   inline = false,
   responsableColor = null,
   responsableNombre = '',
+  // DP-9.2: los globos de solicitud de esta mesa, si tiene. Los arma la pantalla.
+  globos = null,
 }) {
   const isDark = useIsDark();
   const lightCfg = MESA_STATUS_CONFIG[mesa.estado] || MESA_STATUS_CONFIG.libre;
@@ -76,6 +78,7 @@ export default function MesaShape({
             : ', linear-gradient(to bottom, rgba(255,255,255,0.35) 0%, rgba(255,255,255,0) 30%)'),
       }}
     >
+      {globos}
       {responsableColor && (
         // Punto del color del mesero — más grande y notorio que antes
         // para que la asignación se vea de un vistazo incluso de lejos.

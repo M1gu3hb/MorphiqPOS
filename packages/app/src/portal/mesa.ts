@@ -7,7 +7,7 @@ import { definirComandoPublico, type ContextoPortal } from './definicion-publica
 import { violaIndice } from './errores-sql.ts';
 import { ORDEN_ACTIVA } from './estados.ts';
 import { entradaAbrirMesa } from './esquemas.ts';
-import { puedeOrdenarDesdeQR } from './negocio.ts';
+import { faltaMesero, puedeOrdenarDesdeQR } from './negocio.ts';
 import { sellarTransicionDeMesa } from '../restaurante/sala-escrituras.ts';
 
 /**
@@ -47,15 +47,16 @@ export const abrirMesaDesdeQR = definirComandoPublico<typeof entradaAbrirMesa, R
     const { ambito } = ctx;
     exigirPedidosDesdeElTelefono(ctx);
 
-    const meseroId = ambito.empleadoAsignadoId;
-    if (meseroId === null) {
-      // `qrPedidoFlow.js:63`. Sin mesero asignado nadie recibiría el pedido, y
-      // una mesa abierta que nadie atiende es peor que una mesa cerrada.
+    // DP-9.2: con la asignación encendida, sin mesero asignado no se abre (es el proceso que el
+    // negocio eligió). Sin asignación la cuenta es de quien ya tomó la mesa, o de nadie hasta
+    // que un mesero la atienda; el pedido llega a cocina igual.
+    if (faltaMesero(ctx.banderas, ambito.empleadoAsignadoId)) {
       throw new ErrorDominio(
         'QR_PORTAL_CERRADO',
         'Esta mesa todavía no tiene mesero asignado. Pide apoyo al personal.',
       );
     }
+    const meseroId = ambito.empleadoAsignadoId ?? ambito.empleadoAtiendeId;
 
     const abierta = await ctx.paso('buscar_venta_activa', () =>
       ctx.tx
@@ -128,7 +129,7 @@ export const abrirMesaDesdeQR = definirComandoPublico<typeof entradaAbrirMesa, R
 async function insertarOrden(
   ctx: ContextoPortal,
   entrada: z.output<typeof entradaAbrirMesa>,
-  meseroId: string,
+  meseroId: string | null,
 ): Promise<string> {
   const { ambito } = ctx;
   try {

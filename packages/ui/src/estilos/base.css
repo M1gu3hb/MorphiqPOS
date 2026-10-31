@@ -101,6 +101,13 @@
   --duracion-rapida: 120ms;
   --duracion-normal: 200ms;
   --duracion-lenta: 320ms;
+
+  /* ------------------------------------------------------------ modo espera
+     DP-11.2: casi negro en TODOS los estilos y modos, no el lateral de cada uno (en
+     «papel» claro es casi blanco). Una pantalla que pasa horas encendida no se quema ni
+     deslumbra de noche. 92 % sobre 3 % pasa de sobra el AA. */
+  --espera-fondo: 222 25% 3%;
+  --espera-texto: 220 12% 92%;
 }
 
 /* =========================================================== PERILLA 1
@@ -316,4 +323,42 @@
 ::view-transition-group(*) {
   animation-duration: var(--duracion-normal);
   animation-timing-function: var(--curva-entrada);
+}
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   LA CARGA LARGA (`PantallaDeCarga`, DP-11.1)
+   ───────────────────────────────────────────────────────────────────────────
+   Nada antes de su retraso (600 ms): una carga corta no parpadea. Después aparece con la
+   duración de la perilla —en `nula`, seca—. La barra recorre su riel mientras dure; con
+   «reducir movimiento» o en `nula` se queda quieta, y la tarjeta sigue diciendo qué carga. */
+@keyframes carga-aparece {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes carga-recorre {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(300%);
+  }
+}
+
+.carga-aparece {
+  animation: carga-aparece var(--duracion-normal) var(--curva-entrada) both;
+}
+
+.carga-barra {
+  animation: carga-recorre calc(var(--duracion-lenta) * 4) ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .carga-barra {
+    animation: none;
+  }
 }

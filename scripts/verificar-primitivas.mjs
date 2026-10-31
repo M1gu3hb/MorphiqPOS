@@ -250,6 +250,11 @@ const REGLAS = [
 const EXENTOS = new Map([
   ['globals.css', 'Es donde se define el puente de tokens; ahi los colores SI viven'],
   ['icono.svg', 'Es el logotipo, no un componente'],
+  [
+    'colores-del-qr.ts',
+    'La tinta y el papel de un QR impreso (DP-9.8): datos del diseno que se guardan y salen al ' +
+      'papel, no colores de la interfaz. Viven solo en ese archivo',
+  ],
 ]);
 
 /**
@@ -456,15 +461,6 @@ const PALETA_PERMITIDA_EN_EL_HEREDADO = new Map([
       porque:
         'El botón cambia en tiempo de ejecución entre dos degradados fijos en línea (carrito o no): ' +
         'ningún token sirve a los dos.',
-    },
-  ],
-  [
-    'components/portalqr/ProductoPlaceholder.jsx',
-    {
-      cuantas: 2,
-      porque:
-        'El marcador de producto sin foto va sobre un degradado elegido por categoría en tiempo de ' +
-        'ejecución (`MAPA`): el texto blanco es parte de ese dibujo.',
     },
   ],
   [

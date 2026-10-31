@@ -6,16 +6,9 @@ import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
 import { ROLES } from '@/lib/constants';
 import { canAccessModule } from '@/lib/packageConfig';
-import { playNewOrder } from '@/lib/sounds';
-import { speak, frasePorSolicitud, getAlertConfig } from '@/lib/voiceAlert';
 import { TIPO_SOLICITUD_VERBO } from '@/utils/qrUtils';
 import { toast } from 'sonner';
-import {
-  debeEscucharAudio,
-  debeUsarNombreEnVoz,
-  filtrarSolicitudesParaUsuario,
-  cleanupOldSolicitudes,
-} from '@/lib/asignacionMesas';
+import { filtrarSolicitudesParaUsuario, cleanupOldSolicitudes } from '@/lib/asignacionMesas';
 
 /**
  * Watcher global de solicitudes QR.
@@ -27,9 +20,11 @@ import {
  * - El MESERO con asignación activa solo recibe sus solicitudes (mesero_destino_id == él
  *   o solicitudes sin asignar).
  * - El MESERO sin asignación recibe toda la cola general.
- * - La voz usa el NOMBRE del mesero solo si la asignación está activa y la
- *   solicitud tiene destino claro; si no, frase genérica.
  * - Notifica únicamente eventos nuevos (no spam tras refresh).
+ * - SIN sonido ni voz (DP-9.3): la voz de las solicitudes suena sólo en la vista «Solicitudes» de
+ *   Mesas (`VistaDeSolicitudes`), que es la estación que las atiende. Aquí queda el aviso
+ *   visual, en cualquier pantalla. Hasta DP-9.3 este vigilante hablaba en TODAS las pantallas del
+ *   mesero (y del dueño/gerente si no las silenciaba).
  */
 const NOTIFIED_KEY = 'mh_notified_solicitudes_qr';
 
@@ -111,46 +106,15 @@ export default function SolicitudesQRWatcher() {
     const nuevas = pendientes.filter((s) => !notifiedRef.current.has(s.id));
     if (nuevas.length === 0) return;
 
-    const alertCfg = getAlertConfig();
-    const audioOk = debeEscucharAudio(posUser, config);
-    const conSonido = audioOk && (alertCfg.modo === 'sonido' || alertCfg.modo === 'sonido_voz');
-    const conVoz = audioOk && (alertCfg.modo === 'voz' || alertCfg.modo === 'sonido_voz');
-
-    const frasesAHablar = [];
     nuevas.forEach((s) => {
       notifiedRef.current.add(s.id);
       const verbo = TIPO_SOLICITUD_VERBO[s.tipo] || 'requiere atención';
-      // PRIMERO visual (toast).
       toast.success('Solicitud QR', {
         description: `Mesa ${s.mesa_numero || '—'} ${verbo}`,
         duration: 10000,
       });
-      if (conVoz) {
-        const puedeNombrar = debeUsarNombreEnVoz(config, s);
-        const propio = !!s?.mesero_destino_id && s.mesero_destino_id === posUser?.id;
-        const nombre = puedeNombrar && propio && alertCfg.decir_nombre ? posUser?.nombre || '' : '';
-        frasesAHablar.push(frasePorSolicitud(s.tipo, s.mesa_numero, nombre));
-      }
     });
-
     saveSet(notifiedRef.current);
-    // Visual → voz/sonido con pequeño delay.
-    if (conSonido || frasesAHablar.length > 0) {
-      setTimeout(() => {
-        if (conSonido) {
-          try {
-            playNewOrder();
-          } catch {}
-        }
-        frasesAHablar.forEach((frase, i) => {
-          setTimeout(() => {
-            try {
-              speak(frase);
-            } catch {}
-          }, i * 1400);
-        });
-      }, 280);
-    }
   }, [solicitudes, watch, posUser, config]);
 
   return null;

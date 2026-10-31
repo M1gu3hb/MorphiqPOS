@@ -56,24 +56,18 @@ function resolverEstilo(producto, categoriaNombre) {
  * Sin APIs externas. Estilo basado en categoría/keywords del producto.
  */
 export default function ProductoPlaceholder({ producto, categoriaNombre, className = '' }) {
-  const { grad, Icon } = resolverEstilo(producto, categoriaNombre);
+  // DP-3: el ícono de su tipo sigue, pero sobre la pizarra de la marca y plano —sin el
+  // degradado de un color por tipo (la cerveza salía azul)—. Don Poncho no tiene fotos, así
+  // que este marcador es lo que el comensal ve en cada platillo.
+  const { Icon } = resolverEstilo(producto, categoriaNombre);
   const inicial = (producto?.nombre || '?').trim().charAt(0).toUpperCase();
   return (
     <div
       className={`w-full h-32 flex items-center justify-center relative overflow-hidden ${className}`}
-      style={{
-        background: `linear-gradient(135deg, ${grad[0]} 0%, ${grad[1]} 100%)`,
-      }}
+      style={{ background: 'hsl(var(--lateral-fondo))' }}
     >
-      <div
-        className="absolute inset-0 opacity-15"
-        style={{
-          backgroundImage:
-            'radial-gradient(circle at 30% 30%, rgba(255,255,255,0.3) 0%, transparent 50%), radial-gradient(circle at 70% 70%, rgba(255,255,255,0.2) 0%, transparent 50%)',
-        }}
-      />
-      <Icon className="w-12 h-12 text-white/80 absolute" strokeWidth={1.5} />
-      <span className="absolute bottom-2 right-3 text-white font-heading font-black text-2xl opacity-30 leading-none">
+      <Icon className="w-12 h-12 text-lateral-activo absolute" strokeWidth={1.5} />
+      <span className="absolute bottom-2 right-3 text-lateral-texto font-heading font-black text-2xl opacity-30 leading-none">
         {inicial}
       </span>
     </div>

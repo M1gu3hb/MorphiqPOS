@@ -52,6 +52,175 @@ function lectorDesde(ruta) {
  */
 export const SIN_ESTADO = [
   {
+    pantalla: 'configuracion/ExperienciaDelNegocio',
+    estado: 'vacio',
+    razon:
+      'Dos interruptores de la configuración del negocio (DP-11.1 y 11.2): no tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'configuracion/ExperienciaDelNegocio',
+    estado: 'cargando',
+    razon:
+      'No lee nada al pintarse: el valor llega del servidor con la página (useExperiencia). Mientras guarda, el interruptor queda deshabilitado.',
+  },
+  {
+    pantalla: 'configuracion/ModoEsperaDelAparato',
+    estado: 'vacio',
+    razon:
+      'Un interruptor y un selector de minutos de ESTE aparato (DP-11.2): no tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'configuracion/ModoEsperaDelAparato',
+    estado: 'cargando',
+    razon:
+      'Lee el almacén del navegador, que responde al instante; sin almacén pinta lo de omisión. No hay viaje al servidor.',
+  },
+  {
+    pantalla: 'configuracion/SonidoDelAparato',
+    estado: 'vacio',
+    razon:
+      'El sonido de ESTE aparato (DP-11.3): un perfil, un volumen y un botón para probar. No tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'configuracion/SonidoDelAparato',
+    estado: 'cargando',
+    razon:
+      'Lee el almacén del navegador, que responde al instante; sin almacén pinta lo de omisión. No hay viaje al servidor.',
+  },
+  {
+    pantalla: 'configuracion/SonidosDelNegocio',
+    estado: 'vacio',
+    razon:
+      'El mapa de sonidos es fijo (DP-11.3): siempre trae sus momentos. No viene del servidor.',
+  },
+  {
+    pantalla: 'configuracion/SonidosDelNegocio',
+    estado: 'cargando',
+    razon:
+      'No lee nada al pintarse: el teclado y el portal llegan del servidor con la página (useExperiencia). Mientras guarda, los controles quedan deshabilitados.',
+  },
+  {
+    pantalla: 'espera/CapaModal',
+    estado: 'vacio',
+    razon:
+      'El marco de las capas del modo espera (DP-11.2): un `<dialog>` en la capa superior que pinta lo que le dan. No tiene lista propia.',
+  },
+  {
+    pantalla: 'espera/CapaModal',
+    estado: 'cargando',
+    razon: 'No lee nada: abre el diálogo al montarse y lo cierra al quitarse.',
+  },
+  {
+    pantalla: 'espera/CapaModal',
+    estado: 'error',
+    razon: 'No hace viajes. Lo que pinta adentro (la espera, el PIN) dice sus propios errores.',
+  },
+  {
+    pantalla: 'espera/ModoEspera',
+    estado: 'vacio',
+    razon: 'Monta la capa del modo espera o el PIN según la fase (DP-11.2); no pinta lista alguna.',
+  },
+  {
+    pantalla: 'espera/ModoEspera',
+    estado: 'cargando',
+    razon:
+      'No lee nada: la marca y la sesión ya están en sus contextos y la fase la decide el reloj del aparato.',
+  },
+  {
+    pantalla: 'espera/ModoEspera',
+    estado: 'error',
+    razon:
+      'No hace viajes: decide qué capa va encima. El error del PIN lo dice `PedirPinAlDespertar`.',
+  },
+  {
+    pantalla: 'espera/PantallaDeEspera',
+    estado: 'vacio',
+    razon:
+      'La pantalla dormida (DP-11.2): la hora, la fecha, el logo y Morfi. No tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'espera/PantallaDeEspera',
+    estado: 'cargando',
+    razon:
+      'La hora sale del reloj del aparato; Morfi trae su imagen fija como póster mientras llega el clip.',
+  },
+  {
+    pantalla: 'espera/PantallaDeEspera',
+    estado: 'error',
+    razon:
+      'No hace viajes. Si un clip de Morfi no carga, `ClipDeMorfi` se queda con la imagen fija.',
+  },
+  {
+    pantalla: 'espera/PedirPinAlDespertar',
+    estado: 'vacio',
+    razon: 'Un teclado de PIN (DP-11.2): no tiene lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'espera/PedirPinAlDespertar',
+    estado: 'cargando',
+    razon:
+      'Mientras comprueba el PIN, las teclas quedan deshabilitadas; no carga nada al pintarse.',
+  },
+  {
+    pantalla: 'morfi/ClipDeMorfi',
+    estado: 'vacio',
+    razon:
+      'Pieza decorativa (DP-11.1): pinta un clip de Morfi o su imagen fija; no tiene lista que pueda llegar vacía. El texto de al lado dice lo que pasa.',
+  },
+  {
+    pantalla: 'morfi/ClipDeMorfi',
+    estado: 'cargando',
+    razon:
+      'Pieza decorativa: mientras el clip se descarga se ve su imagen fija, y antes de saber el navegador un hueco del mismo tamaño. No lee datos.',
+  },
+  {
+    pantalla: 'morfi/ClipDeMorfi',
+    estado: 'error',
+    razon:
+      'Pieza decorativa: si el clip no se puede reproducir (sin red, sin archivo, sin alfa) se queda en su imagen fija, y el texto de la pantalla sigue diciendo lo que pasa.',
+  },
+  {
+    pantalla: 'morfi/HoyoEnLaTarjeta',
+    estado: 'vacio',
+    razon:
+      'Dibujo SVG del hoyo de la página que no existe (DP-11.1): no tiene lista ni contenido que pueda faltar.',
+  },
+  {
+    pantalla: 'morfi/HoyoEnLaTarjeta',
+    estado: 'cargando',
+    razon: 'Dibujo SVG en línea: no se descarga ni lee nada, así que no tiene espera que enseñar.',
+  },
+  {
+    pantalla: 'morfi/HoyoEnLaTarjeta',
+    estado: 'error',
+    razon:
+      'Dibujo SVG en línea: no lee nada ni manda comandos, así que no tiene nada que pueda fallar.',
+  },
+  {
+    pantalla: 'morfi/MorfiCargando',
+    estado: 'vacio',
+    razon:
+      'ES la espera de una pantalla entera (DP-11.1, PantallaDeCarga con Morfi): no tiene lista; lo que llega después lo pinta la pantalla que cargaba.',
+  },
+  {
+    pantalla: 'morfi/MorfiCargando',
+    estado: 'error',
+    razon:
+      'ES la espera: si lo que se carga falla, lo dice la pantalla que lo pidió (AppLayout manda a la entrada, el portal pinta su error).',
+  },
+  {
+    pantalla: 'morfi/MorfiNoEncontrada',
+    estado: 'cargando',
+    razon:
+      'La página que no existe (DP-11.1) no lee nada: recibe su título, su explicación y su acción por props.',
+  },
+  {
+    pantalla: 'morfi/MorfiNoEncontrada',
+    estado: 'error',
+    razon:
+      'Ya es el estado de «no está»: su título y su acción dicen qué hacer; no manda comandos que puedan fallar.',
+  },
+  {
     pantalla: 'restaurante/AnularLineaDialog',
     estado: 'vacio',
     razon:
@@ -375,6 +544,239 @@ export const SIN_ESTADO = [
     estado: 'vacio',
     razon:
       'Los ocho estilos y sus perillas son constantes del sistema de diseño (ESTILOS, PERILLAS), no datos de la red: no hay ninguna lista que pueda llegar vacía.',
+  },
+  {
+    pantalla: 'restaurante/PlatilloParaPedir',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es UN renglón bajo una página del menú personalizado del portal (DP-5). Sin platillos que pedir, la página no pinta la lista.',
+  },
+  {
+    pantalla: 'restaurante/PlatilloParaPedir',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el platillo ya leído por el portal, que enseña su propia espera.',
+  },
+  {
+    pantalla: 'restaurante/PlatilloParaPedir',
+    estado: 'error',
+    razon:
+      'No lee ni escribe: «Agregar» abre el diálogo del portal, que es quien envía y dice si falló.',
+  },
+  {
+    pantalla: 'restaurante/GlobosDeSolicitud',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: son los globos de UNA mesa en el mapa (DP-9.2). Sin solicitudes no pinta nada: la mesa se ve como siempre.',
+  },
+  {
+    pantalla: 'restaurante/GlobosDeSolicitud',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe las solicitudes que el mapa ya leyó, y el mapa enseña su propia espera.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PaginaConBotones',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es UNA página del menú del portal (DP-9.7). Sin botones es sólo imagen; sin páginas, el portal dice «Sin menú configurado».',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PaginaConBotones',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe la página y el catálogo que el portal ya leyó, y el portal enseña su espera.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PaginaConBotones',
+    estado: 'error',
+    razon:
+      'No lee ni escribe: «Agregar» abre el diálogo del portal, que es quien envía y dice si falló.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/LienzoDeBotones',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es la imagen con sus botones dentro del editor (DP-9.7). Sin botones, el editor dice qué hacer al lado.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/LienzoDeBotones',
+    estado: 'cargando',
+    razon: 'No lee nada: el editor ya leyó los botones y enseña su espera.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/LienzoDeBotones',
+    estado: 'error',
+    razon: 'No escribe: mover un botón es estado local; guardar y su fallo son del editor.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PanelDelBoton',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el formulario de UN botón; sin botón elegido no se pinta (el editor dice qué tocar).',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/PanelDelBoton',
+    estado: 'cargando',
+    razon: 'No lee nada: el catálogo se lo pasa la pestaña Menú QR, que ya lo leyó.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/EditorDeBotones',
+    estado: 'vacio',
+    razon:
+      'Es un diálogo de edición (DP-9.7): una página sin botones dice «Toca un botón para elegir qué hace, o agrega uno» con un Aviso.',
+  },
+  {
+    pantalla: 'restaurante/menu-qr/AspectoDelPortal',
+    estado: 'vacio',
+    razon:
+      'Es un formulario de tres opciones que siempre tiene valor (el de siempre si no se guardó nada): no hay vacío que enseñar.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/ControlesDelDiseno',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: son los controles del diseño de un QR dentro del editor (DP-9.8); siempre hay un diseño que editar.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/ControlesDelDiseno',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el diseño que el editor ya tiene.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/ControlesDelDiseno',
+    estado: 'error',
+    razon:
+      'No escribe: cambiar un control es estado local; el editor dice lo que falta y si se lee.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/MiniaturaDelQr',
+    estado: 'vacio',
+    razon: 'No es una pantalla: es la imagen de UN QR (DP-9.8); sin mesa con token no se pinta.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/MiniaturaDelQr',
+    estado: 'cargando',
+    razon: 'No lee nada: dibuja en el momento el diseño que recibe.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/MiniaturaDelQr',
+    estado: 'error',
+    razon: 'No escribe ni lee: el diseño que recibe ya pasó la validación.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DisenoDeLaMesa',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el QR de UNA mesa en su tarjeta (DP-9.8); sin token dice «Sin token», y sin mesas la pestaña enseña su vacío.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DisenoDeLaMesa',
+    estado: 'cargando',
+    razon: 'No lee nada: el diseño lo leyó la pestaña, y su panel enseña la espera.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DescargasDeLaMesa',
+    estado: 'vacio',
+    razon: 'No es una pantalla: son las descargas de UNA mesa en su diálogo (DP-9.8).',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/DescargasDeLaMesa',
+    estado: 'cargando',
+    razon: 'No lee nada: mientras revisa y arma el archivo, el botón dice «Revisando…».',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/EditorDeDisenoDeQr',
+    estado: 'vacio',
+    razon: 'No es una pantalla: es el diálogo de UN diseño (DP-9.8); siempre abre con uno.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/EditorDeDisenoDeQr',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el diseño ya leído; la revisión de lectura se anuncia con Aviso.',
+  },
+  {
+    pantalla: 'restaurante/qr-de-mesas/PanelDeLosQr',
+    estado: 'vacio',
+    razon:
+      'Sin mesas con token no hay QR que diseñar: lo dice un Aviso que manda a «Generar tokens faltantes», el botón de al lado (DP-9.8).',
+  },
+  {
+    pantalla: 'telefono-de-cocina/ComandaEnElTelefono',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es la tarjeta de UNA comanda en el teléfono de cocina (DP-9.4). Sin comanda no se pinta: el teléfono enseña su Vacio.',
+  },
+  {
+    pantalla: 'telefono-de-cocina/ComandaEnElTelefono',
+    estado: 'cargando',
+    razon:
+      'No lee nada: recibe la comanda que el teléfono ya leyó, y el teléfono enseña su espera.',
+  },
+  {
+    pantalla: 'telefono-de-cocina/ConectarTelefono',
+    estado: 'vacio',
+    razon:
+      'Es un diálogo de un paso (DP-9.4): sin estaciones activas dice por qué con un Aviso dentro del diálogo, no con una pantalla vacía.',
+  },
+  {
+    pantalla: 'restaurante/IconoDeSolicitud',
+    estado: 'vacio',
+    razon: 'No es una pantalla: es el icono de UN tipo de solicitud (DP-9.3); siempre tiene uno.',
+  },
+  {
+    pantalla: 'restaurante/IconoDeSolicitud',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe el tipo de quien lo pinta.',
+  },
+  {
+    pantalla: 'restaurante/IconoDeSolicitud',
+    estado: 'error',
+    razon: 'No lee ni escribe: no tiene cómo fallar.',
+  },
+  {
+    pantalla: 'restaurante/SelectorDeVista',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: son los dos botones Mesas / Solicitudes (DP-9.3); siempre están los dos.',
+  },
+  {
+    pantalla: 'restaurante/SelectorDeVista',
+    estado: 'cargando',
+    razon: 'No lee nada: el número de pendientes se lo pasa la pantalla de Mesas, que ya las leyó.',
+  },
+  {
+    pantalla: 'restaurante/SelectorDeVista',
+    estado: 'error',
+    razon: 'No escribe en el servidor: recordar la vista en el aparato no falla para quien la usa.',
+  },
+  {
+    pantalla: 'restaurante/AreaDePreparacionSelect',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es UN campo de los diálogos de Recetas y Platillos (DP-9.1). Sus opciones son fijas; nunca está vacío.',
+  },
+  {
+    pantalla: 'restaurante/AreaDePreparacionSelect',
+    estado: 'cargando',
+    razon: 'No lee nada: las cinco áreas son una lista fija del dominio.',
+  },
+  {
+    pantalla: 'restaurante/AreaDePreparacionSelect',
+    estado: 'error',
+    razon:
+      'No lee ni escribe: el diálogo que lo contiene es quien guarda y dice si el servidor se negó.',
+  },
+  {
+    pantalla: 'restaurante/RecetasPendientes',
+    estado: 'vacio',
+    razon:
+      'No es una pantalla: es el aviso «N platillos sin receta» del tablero (DP-5). Con cero no hay nada que avisar, y no pintar nada ES su estado vacío.',
+  },
+  {
+    pantalla: 'restaurante/RecetasPendientes',
+    estado: 'cargando',
+    razon:
+      'Es un aviso dentro del tablero, que ya enseña sus propios esqueletos: mientras cuenta no se pinta, en vez de empujar el tablero con un hueco que luego desaparece.',
   },
   {
     pantalla: 'marca/MarcaMorphiq',
@@ -733,6 +1135,16 @@ export const SIN_ESTADO = [
     estado: 'error',
     razon:
       'Va dentro del renglón de un ajuste de inventario: si los motivos no se leen lo dice en una línea bajo el selector y deja la corrección de conteo. Un Aviso o un ErrorDePantalla ahí ocuparía el renglón entero.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
+    estado: 'vacio',
+    razon: 'Diálogo de confirmación de un grupo que ya existe: no tiene lista.',
+  },
+  {
+    pantalla: 'restaurante/unir-mesas/SepararMesasDialog',
+    estado: 'cargando',
+    razon: 'No lee nada: recibe la unión por props. Mientras separa, su botón dice «Separando…».',
   },
 ];
 

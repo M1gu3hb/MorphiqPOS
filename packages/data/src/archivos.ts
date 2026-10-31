@@ -21,6 +21,12 @@ export interface ArchivoAlmacenado {
   readonly contentType: string;
 }
 
+/** Lo que hay guardado bajo un prefijo: la clave y su tamaño en bytes. */
+export interface ArchivoListado {
+  readonly clave: string;
+  readonly bytes: number;
+}
+
 function cliente(configuracion: ConfiguracionAlmacen): S3Client {
   return new S3Client({
     endpoint: configuracion.endpoint,
@@ -107,6 +113,8 @@ export interface AlmacenDeArchivos {
   borrar(clave: string): Promise<void>;
   obtener(clave: string): Promise<ArchivoAlmacenado | null>;
   bytesBajo(prefijo: string): Promise<number>;
+  /** Todo lo guardado bajo el prefijo, a cualquier profundidad (DP-10.5: copiar el bucket). */
+  listar(prefijo: string): Promise<readonly ArchivoListado[]>;
 }
 
 /**
@@ -209,24 +217,36 @@ function almacenS3(configuracion: ConfiguracionAlmacen): AlmacenDeArchivos {
     },
 
     async bytesBajo(prefijo: string): Promise<number> {
-      let total = 0;
-      let continuacion: string | undefined;
-      do {
-        const pagina = await conAlmacen(configuracion.endpoint, () =>
-          s3.send(
-            new ListObjectsV2Command({
-              Bucket: configuracion.bucket,
-              Prefix: prefijo,
-              ...(continuacion === undefined ? {} : { ContinuationToken: continuacion }),
-            }),
-          ),
-        );
-        for (const objeto of pagina.Contents ?? []) total += objeto.Size ?? 0;
-        continuacion = pagina.IsTruncated === true ? pagina.NextContinuationToken : undefined;
-      } while (continuacion !== undefined);
-      return total;
+      return sumaDe(await listar(prefijo));
     },
+
+    listar,
   };
+
+  async function listar(prefijo: string): Promise<readonly ArchivoListado[]> {
+    const lista: ArchivoListado[] = [];
+    let continuacion: string | undefined;
+    do {
+      const pagina = await conAlmacen(configuracion.endpoint, () =>
+        s3.send(
+          new ListObjectsV2Command({
+            Bucket: configuracion.bucket,
+            Prefix: prefijo,
+            ...(continuacion === undefined ? {} : { ContinuationToken: continuacion }),
+          }),
+        ),
+      );
+      for (const objeto of pagina.Contents ?? []) {
+        if (objeto.Key !== undefined) lista.push({ clave: objeto.Key, bytes: objeto.Size ?? 0 });
+      }
+      continuacion = pagina.IsTruncated === true ? pagina.NextContinuationToken : undefined;
+    } while (continuacion !== undefined);
+    return lista;
+  }
+}
+
+function sumaDe(lista: readonly ArchivoListado[]): number {
+  return lista.reduce((total, archivo) => total + archivo.bytes, 0);
 }
 
 /**
@@ -368,49 +388,55 @@ function almacenDeSupabase(configuracion: ConfiguracionAlmacen): AlmacenDeArchiv
     },
 
     async bytesBajo(prefijo: string): Promise<number> {
-      /**
-       * EL TAMAÑO DE LO QUE HAY BAJO UN PREFIJO, y por qué es recursivo.
-       *
-       * `POST /object/list` devuelve **un nivel**: los archivos de esa carpeta y las
-       * carpetas hijas, que llegan con `id: null`. S3 no distingue carpetas y su
-       * `ListObjectsV2` con `Prefix` devuelve el árbol entero, así que para que las
-       * dos cuentas signifiquen lo mismo —la cuota de archivos de un negocio— hay que
-       * bajar por las carpetas.
-       */
-      const PAGINA = 100;
-      let total = 0;
-
-      async function sumar(carpeta: string): Promise<void> {
-        let desde = 0;
-        for (;;) {
-          const respuesta = await fetch(`${raiz}/object/list/${bucket}`, {
-            method: 'POST',
-            headers: { ...cabeceras, 'content-type': 'application/json' },
-            body: JSON.stringify({ prefix: carpeta, limit: PAGINA, offset: desde }),
-          });
-          await exigir(respuesta, `listar «${carpeta}»`);
-          const entradas = (await respuesta.json()) as readonly {
-            readonly name?: string;
-            readonly id?: string | null;
-            readonly metadata?: { readonly size?: number } | null;
-          }[];
-          for (const entrada of entradas) {
-            const nombre = entrada.name ?? '';
-            if (nombre === '') continue;
-            const hijo = carpeta === '' ? nombre : `${carpeta}/${nombre}`;
-            if (entrada.id === null || entrada.id === undefined) {
-              await sumar(hijo);
-              continue;
-            }
-            total += entrada.metadata?.size ?? 0;
-          }
-          if (entradas.length < PAGINA) return;
-          desde += PAGINA;
-        }
-      }
-
-      await conAlmacen(configuracion.endpoint, () => sumar(prefijo.replace(/\/+$/, '')));
-      return total;
+      return sumaDe(await listar(prefijo));
     },
+
+    listar,
   };
+
+  async function listar(prefijo: string): Promise<readonly ArchivoListado[]> {
+    /**
+     * LO QUE HAY BAJO UN PREFIJO, y por qué es recursivo.
+     *
+     * `POST /object/list` devuelve **un nivel**: los archivos de esa carpeta y las
+     * carpetas hijas, que llegan con `id: null`. S3 no distingue carpetas y su
+     * `ListObjectsV2` con `Prefix` devuelve el árbol entero, así que para que las
+     * dos cuentas signifiquen lo mismo —la cuota de archivos de un negocio— hay que
+     * bajar por las carpetas.
+     */
+    const PAGINA = 100;
+    const lista: ArchivoListado[] = [];
+
+    async function bajar(carpeta: string): Promise<void> {
+      let desde = 0;
+      for (;;) {
+        const respuesta = await fetch(`${raiz}/object/list/${bucket}`, {
+          method: 'POST',
+          headers: { ...cabeceras, 'content-type': 'application/json' },
+          body: JSON.stringify({ prefix: carpeta, limit: PAGINA, offset: desde }),
+        });
+        await exigir(respuesta, `listar «${carpeta}»`);
+        const entradas = (await respuesta.json()) as readonly {
+          readonly name?: string;
+          readonly id?: string | null;
+          readonly metadata?: { readonly size?: number } | null;
+        }[];
+        for (const entrada of entradas) {
+          const nombre = entrada.name ?? '';
+          if (nombre === '') continue;
+          const hijo = carpeta === '' ? nombre : `${carpeta}/${nombre}`;
+          if (entrada.id === null || entrada.id === undefined) {
+            await bajar(hijo);
+            continue;
+          }
+          lista.push({ clave: hijo, bytes: entrada.metadata?.size ?? 0 });
+        }
+        if (entradas.length < PAGINA) return;
+        desde += PAGINA;
+      }
+    }
+
+    await conAlmacen(configuracion.endpoint, () => bajar(prefijo.replace(/\/+$/, '')));
+    return lista;
+  }
 }

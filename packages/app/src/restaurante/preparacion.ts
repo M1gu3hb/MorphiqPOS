@@ -91,24 +91,22 @@ export const transicionarPedido = definirComando<
 
     const estadoComanda =
       item === null
-        ? await moverToda(ctx, comanda, entrada.estado, empleoId)
+        ? await moverToda(ctx.tx, (nombre, fn) => ctx.paso(nombre, fn), {
+            organizacionId,
+            comanda,
+            destino: entrada.estado,
+            empleoId,
+            ahora: ctx.ahora,
+          })
         : await moverUnPlato(ctx, comanda, item, entrada.estado);
 
-    await ctx.paso('recalcular_lineas', () =>
-      recalcularEstadoDeLineas(ctx.tx, organizacionId, [comanda.id]),
-    );
-
-    const estadoMesa = await ctx.paso('avanzar_mesa', () =>
-      sincronizarMesa(ctx.tx, {
-        organizacionId,
-        ordenId: comanda.ordenId,
-        mesaId: comanda.mesaId,
-        comandasMovidas: [comanda.id],
-        estadoComanda,
-        empleoId,
-        ahora: ctx.ahora,
-      }),
-    );
+    const estadoMesa = await cerrarElMovimiento(ctx.tx, (nombre, fn) => ctx.paso(nombre, fn), {
+      organizacionId,
+      comanda,
+      estadoComanda,
+      empleoId,
+      ahora: ctx.ahora,
+    });
 
     ctx.auditar({
       entidadId: comanda.id,
@@ -130,28 +128,77 @@ export const transicionarPedido = definirComando<
   },
 });
 
+/** Cómo se nombra un paso: el del comando, o directo para quien no lleva bitácora de pasos. */
+type Paso = <T>(nombre: string, fn: () => Promise<T>) => Promise<T>;
+
+interface DatosDeLaComanda {
+  readonly organizacionId: string;
+  readonly comanda: ComandaViva;
+  /** Quien la mueve; nulo desde el teléfono de una estación, que no tiene sesión (DP-9.4). */
+  readonly empleoId: string | null;
+  readonly ahora: Date;
+}
+
 /** La comanda entera: se mueve la cabecera y sus items la siguen. */
 async function moverToda(
-  ctx: ContextoComando<Transaccion>,
-  comanda: ComandaViva,
-  destino: EstadoComanda,
-  empleoId: string,
+  tx: Transaccion,
+  paso: Paso,
+  datos: DatosDeLaComanda & { readonly destino: EstadoComanda },
 ): Promise<EstadoComanda> {
-  const { organizacionId } = ctx.ambito;
-  await ctx.paso('mover_comanda', () =>
-    moverComanda(ctx.tx, {
+  const { organizacionId, comanda, destino } = datos;
+  await paso('mover_comanda', () =>
+    moverComanda(tx, {
       organizacionId,
       comandaId: comanda.id,
       desde: comanda.estado,
       hacia: destino,
-      empleoId,
-      ahora: ctx.ahora,
+      empleoId: datos.empleoId,
+      ahora: datos.ahora,
     }),
   );
-  await ctx.paso('propagar_items', () =>
-    propagarAItems(ctx.tx, organizacionId, [comanda.id], destino, ctx.ahora),
+  await paso('propagar_items', () =>
+    propagarAItems(tx, organizacionId, [comanda.id], destino, datos.ahora),
   );
   return destino;
+}
+
+/** Después de mover: las líneas de la venta siguen a sus platos y la mesa avanza si le toca. */
+async function cerrarElMovimiento(
+  tx: Transaccion,
+  paso: Paso,
+  datos: DatosDeLaComanda & { readonly estadoComanda: EstadoComanda },
+): Promise<string | null> {
+  const { organizacionId, comanda } = datos;
+  await paso('recalcular_lineas', () => recalcularEstadoDeLineas(tx, organizacionId, [comanda.id]));
+  return paso('avanzar_mesa', () =>
+    sincronizarMesa(tx, {
+      organizacionId,
+      ordenId: comanda.ordenId,
+      mesaId: comanda.mesaId,
+      comandasMovidas: [comanda.id],
+      estadoComanda: datos.estadoComanda,
+      empleoId: datos.empleoId,
+      ahora: datos.ahora,
+    }),
+  );
+}
+
+/**
+ * Mueve una comanda ENTERA con la misma regla que `transicionar_pedido`: sólo hacia adelante,
+ * con el `where estado = leído` que hace que dos pantallas no se pisen, y la mesa detrás. La usa
+ * el teléfono de una estación (DP-9.4), que no tiene sesión ni bitácora de pasos.
+ */
+export async function moverLaComandaEntera(
+  tx: Transaccion,
+  datos: DatosDeLaComanda & { readonly destino: EstadoComanda },
+  paso: Paso = (_nombre, fn) => fn(),
+): Promise<{ readonly estado: EstadoComanda; readonly sinCambio: boolean }> {
+  if (evaluarTransicion(datos.comanda.estado, datos.destino).tipo === 'sin_cambio') {
+    return { estado: datos.comanda.estado, sinCambio: true };
+  }
+  const estadoComanda = await moverToda(tx, paso, datos);
+  await cerrarElMovimiento(tx, paso, { ...datos, estadoComanda });
+  return { estado: estadoComanda, sinCambio: false };
 }
 
 /**

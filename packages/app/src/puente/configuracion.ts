@@ -4,6 +4,11 @@ import { ErrorDominio, plantillaDeOrganizacion } from '@morphiqpos/contracts';
 import { leyendoConReintento, obtenerDb, type Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
+import { CLAVE_DE_EXPERIENCIA, EXPERIENCIA } from '../configuracion/experiencia.ts';
+import { BOTONES_DEL_MENU, CLAVE_DE_BOTONES } from '../portal/botones-del-menu.ts';
+import { CLAVE_DE_QR_DE_MESAS, QR_DE_MESAS } from '../portal/qr-de-mesas.ts';
+import { CLAVE_DEL_TEMA, TEMA_DEL_PORTAL } from '../portal/tema-del-portal.ts';
+
 /**
  * `ConfiguracionNegocio` — la entidad que no es una tabla con columnas.
  *
@@ -108,6 +113,9 @@ const NUNCA_SALEN = new Set([
   'presentacion_password_hash',
   'presentacion_dueno_empleo',
   'presentacion_destinos',
+  // DP-9.4: la versión vigente del teléfono de cada estación de cocina. No es secreta —el token
+  // va firmado—, pero es del servidor: ni se lee ni se escribe por el camino genérico.
+  'telefonos_de_cocina',
 ]);
 
 /**
@@ -177,6 +185,13 @@ const CLAVES_EDITABLES = new Set([
   'portal_qr_permitir_pedidos_cliente',
   'portal_qr_cuenta_modo',
   'portal_qr_mensaje_bienvenida',
+  // DP-9.7: los botones sobre las páginas del menú y el aspecto del portal, validados al guardar.
+  'portal_qr_botones',
+  'portal_qr_tema',
+  // DP-9.8: el diseño de los QR de las mesas (general y por mesa).
+  'qr_de_mesas',
+  // DP-11: la experiencia del negocio («Mascota Morfi»), validada al guardar.
+  'experiencia',
   'presentacion_ultimo_acceso',
   'bascula_etiqueta',
   'comision_terminal_bp',
@@ -227,6 +242,15 @@ function exigirTasaDeTerminal(valor: unknown): void {
       'PUENTE_CAMPO_INVALIDO',
       'La tasa de la terminal va en puntos base, de 0 a 1000 (3.6 % son 360).',
     );
+  }
+}
+
+/** Una clave con esquema (DP-9.7): `null` la vacía; lo demás se guarda sólo si tiene forma. */
+function exigirForma(esquema: z.ZodType, valor: unknown, porOmision: string): void {
+  if (valor === null) return;
+  const leido = esquema.safeParse(valor);
+  if (!leido.success) {
+    throw new ErrorDominio('PUENTE_CAMPO_INVALIDO', leido.error.issues[0]?.message ?? porOmision);
   }
 }
 
@@ -378,6 +402,30 @@ export async function guardarConfiguracionParcial(
   }
   serializarConfiguracion({ ...parche });
   if ('bascula_etiqueta' in parche) exigirBascula(parche['bascula_etiqueta']);
+  if (CLAVE_DE_BOTONES in parche) {
+    exigirForma(
+      BOTONES_DEL_MENU,
+      parche[CLAVE_DE_BOTONES],
+      'Los botones del menú no tienen forma.',
+    );
+  }
+  if (CLAVE_DEL_TEMA in parche) {
+    exigirForma(TEMA_DEL_PORTAL, parche[CLAVE_DEL_TEMA], 'El aspecto del portal no tiene forma.');
+  }
+  if (CLAVE_DE_QR_DE_MESAS in parche) {
+    exigirForma(
+      QR_DE_MESAS,
+      parche[CLAVE_DE_QR_DE_MESAS],
+      'El diseño de los QR de las mesas no tiene forma.',
+    );
+  }
+  if (CLAVE_DE_EXPERIENCIA in parche) {
+    exigirForma(
+      EXPERIENCIA,
+      parche[CLAVE_DE_EXPERIENCIA],
+      'La experiencia del negocio no tiene forma.',
+    );
+  }
   if ('comision_terminal_bp' in parche) exigirTasaDeTerminal(parche['comision_terminal_bp']);
 
   const nombreNuevo = parche['nombre_negocio'];
@@ -396,10 +444,14 @@ export async function guardarConfiguracionParcial(
     nombreNormalizado = nombre;
   }
 
+  // `for update`: este guardado lee el documento y lo escribe ENTERO. Sin el cerrojo, una
+  // escritura del servidor entre las dos (DP-9.4: conectar el teléfono de una estación sube su
+  // versión) se perdería y el código revocado volvería a valer.
   const actual = await tx
     .selectFrom('configuracion')
     .select(['id', 'valores', 'version'])
     .where('organizacion_id', '=', organizacionId)
+    .forUpdate()
     .executeTakeFirst();
 
   // `id` y `updated_date` los pone el servidor: si llegan en el parche, se
@@ -418,7 +470,16 @@ export async function guardarConfiguracionParcial(
       .execute();
   }
 
-  const valores = { ...(esObjeto(actual?.valores) ? actual.valores : {}), ...resto };
+  const anteriores = esObjeto(actual?.valores) ? actual.valores : {};
+  // La experiencia (DP-11) se guarda interruptor por interruptor: lo que llega se MEZCLA con lo
+  // guardado. Si reemplazara, una pestaña que cargó hace días borraría al guardar «Mascota Morfi»
+  // el «Pedir PIN al despertar» que otro aparato encendió después.
+  const experienciaNueva = resto[CLAVE_DE_EXPERIENCIA];
+  if (esObjeto(experienciaNueva)) {
+    const previa = anteriores[CLAVE_DE_EXPERIENCIA];
+    resto[CLAVE_DE_EXPERIENCIA] = { ...(esObjeto(previa) ? previa : {}), ...experienciaNueva };
+  }
+  const valores = { ...anteriores, ...resto };
   const valoresSerializados = serializarConfiguracion(valores);
 
   if (actual === undefined) {

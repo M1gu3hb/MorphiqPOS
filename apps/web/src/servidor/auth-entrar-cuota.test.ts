@@ -1,3 +1,4 @@
+import type { EstacionDeLaSesion } from '@morphiqpos/app/identidad';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 import { POST } from '../../app/api/auth/entrar/route';
@@ -14,12 +15,35 @@ import { POST } from '../../app/api/auth/entrar/route';
 
 const ORGANIZACION = '33dad5ff-ffea-44a5-abd4-cce8019098a7';
 const EMPLEO = '0b0b0b0b-0b0b-4b0b-8b0b-0b0b0b0b0b0b';
+const GEMELO = '9e9e9e9e-9e9e-4e9e-8e9e-9e9e9e9e9e9e';
+const EMPLEO_GEMELO = '0c0c0c0c-0c0c-4c0c-8c0c-0c0c0c0c0c0c';
+
+/** Lo que la ruta usa de la sesión del modo presentación (`@morphiqpos/app/presentacion`). */
+interface SesionDePresentacionDoble {
+  readonly token: string;
+  readonly organizacionId: string;
+  readonly empleoId: string;
+  readonly deviceToken?: string;
+}
 
 const dobles = vi.hoisted(() => ({
   permitir: vi.fn(),
   devolver: vi.fn(),
   entrarConPin: vi.fn(),
   organizacionDeQuienEntra: vi.fn(),
+  // Por omisión el restaurante no está en presentación: la entrada sigue como siempre (21-10).
+  sesionDePresentacion: vi.fn((): Promise<SesionDePresentacionDoble | null> =>
+    Promise.resolve(null),
+  ),
+  // La estación de la sesión (DP-10.1) se lee de la base; aquí no hay base y no es lo que se mide.
+  leerEstacionDeLaSesion: vi.fn((): Promise<EstacionDeLaSesion> =>
+    Promise.resolve({
+      estacion_preparacion_id: null,
+      estacion_preparacion_nombre: null,
+      estacion_preparacion_color: null,
+      puede_ver_todas_estaciones: false,
+    }),
+  ),
 }));
 
 vi.mock('@morphiqpos/contracts', async () => {
@@ -51,6 +75,7 @@ vi.mock('@morphiqpos/app/identidad', async () => {
     ...original,
     entrarConPin: dobles.entrarConPin,
     organizacionDeQuienEntra: dobles.organizacionDeQuienEntra,
+    leerEstacionDeLaSesion: dobles.leerEstacionDeLaSesion,
   };
 });
 
@@ -70,9 +95,8 @@ vi.mock('@morphiqpos/app/negocio', async () => {
   };
 });
 
-// El restaurante no está en presentación: la entrada sigue como siempre (21-10).
 vi.mock('@morphiqpos/app/presentacion', () => ({
-  sesionDePresentacion: () => Promise.resolve(null),
+  sesionDePresentacion: dobles.sesionDePresentacion,
 }));
 vi.mock('@morphiqpos/app/configuracion', async () => {
   const original = await vi.importActual<typeof import('@morphiqpos/app/configuracion')>(
@@ -169,5 +193,66 @@ describe('la cuota de entrada cuenta los PIN que fallan', () => {
     expect(respuesta.status).toBe(429);
     expect(dobles.entrarConPin).not.toHaveBeenCalled();
     expect(dobles.devolver).not.toHaveBeenCalled();
+  });
+});
+
+describe('la entrada con PIN trae la estación de cocina del empleo (DP-10.1)', () => {
+  it('con la misma forma que /api/catalogo/sesion, leída por el servidor para ESE empleo', async () => {
+    vi.clearAllMocks();
+    dobles.permitir.mockResolvedValue({ ok: true, esperaSegundos: 0 });
+    dobles.devolver.mockResolvedValue(undefined);
+    dobles.organizacionDeQuienEntra.mockResolvedValue(ORGANIZACION);
+    dobles.entrarConPin.mockResolvedValue({
+      ok: true,
+      token: 'token-de-sesion',
+      maxEdadSegundos: 3600,
+      organizacionId: ORGANIZACION,
+      rol: 'cocina',
+      nombre: 'Bebidas',
+    });
+    dobles.leerEstacionDeLaSesion.mockResolvedValueOnce({
+      estacion_preparacion_id: 'e-bebidas',
+      estacion_preparacion_nombre: 'Bebidas',
+      estacion_preparacion_color: '#0891b2',
+      puede_ver_todas_estaciones: false,
+    });
+
+    const respuesta = await POST(entrar({ empleoId: EMPLEO, pin: '1234' }));
+
+    expect(respuesta.status).toBe(200);
+    expect(dobles.leerEstacionDeLaSesion).toHaveBeenCalledWith(ORGANIZACION, EMPLEO, 'cocina');
+    expect(((await respuesta.json()) as { datos: Record<string, unknown> }).datos).toMatchObject({
+      rol: 'cocina',
+      estacion_preparacion_id: 'e-bebidas',
+      estacion_preparacion_nombre: 'Bebidas',
+      puede_ver_todas_estaciones: false,
+    });
+  });
+});
+
+describe('en el modo presentación, la estación es la del empleo GEMELO (PAR-1, maestro)', () => {
+  it('la lee del contexto de presentación, no del negocio real', async () => {
+    vi.clearAllMocks();
+    dobles.permitir.mockResolvedValue({ ok: true, esperaSegundos: 0 });
+    dobles.devolver.mockResolvedValue(undefined);
+    dobles.organizacionDeQuienEntra.mockResolvedValue(ORGANIZACION);
+    dobles.entrarConPin.mockResolvedValue({
+      ok: true,
+      token: 'token-de-sesion',
+      maxEdadSegundos: 3600,
+      organizacionId: ORGANIZACION,
+      rol: 'cocina',
+      nombre: 'Toño',
+    });
+    dobles.sesionDePresentacion.mockResolvedValueOnce({
+      token: 'token-del-gemelo',
+      organizacionId: GEMELO,
+      empleoId: EMPLEO_GEMELO,
+    });
+
+    const respuesta = await POST(entrar({ empleoId: EMPLEO, pin: '1234' }));
+
+    expect(respuesta.status).toBe(200);
+    expect(dobles.leerEstacionDeLaSesion).toHaveBeenCalledWith(GEMELO, EMPLEO_GEMELO, 'cocina');
   });
 });

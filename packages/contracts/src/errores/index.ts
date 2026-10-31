@@ -26,6 +26,8 @@ export const CODIGOS_ERROR = {
   CANTIDAD_INVALIDA: 'CANTIDAD_INVALIDA',
   UNIDAD_INCOMPATIBLE: 'UNIDAD_INCOMPATIBLE',
   CATALOGO_INVALIDO: 'CATALOGO_INVALIDO',
+  /** DP-9.1 · Un platillo nuevo sin área y sin de dónde aprenderla: alguien la elige. */
+  AREA_DE_PREPARACION_REQUERIDA: 'AREA_DE_PREPARACION_REQUERIDA',
   INVENTARIO_INVALIDO: 'INVENTARIO_INVALIDO',
   STOCK_INSUFICIENTE: 'STOCK_INSUFICIENTE',
   CONFIGURACION_INVALIDA: 'CONFIGURACION_INVALIDA',
@@ -100,6 +102,14 @@ export const CODIGOS_ERROR = {
   TRANSICION_INVALIDA: 'TRANSICION_INVALIDA',
   /** No hay estación de preparación a la que mandar la comanda, ni general. */
   ESTACION_NO_ENCONTRADA: 'ESTACION_NO_ENCONTRADA',
+  /**
+   * El código del teléfono de una estación de cocina ya no sirve (DP-9.4): firma mala, de otro
+   * negocio, de otro día, revocado por uno más nuevo o de una estación apagada. Un solo código
+   * para todo, a propósito: quien prueba códigos no aprende qué falló.
+   */
+  TELEFONO_DE_COCINA_INVALIDO: 'TELEFONO_DE_COCINA_INVALIDO',
+  /** Un cocinero con estación fija quiso conectar el teléfono de otra (DP-9.4). */
+  ESTACION_AJENA: 'ESTACION_AJENA',
   /**
    * Se intentó crear una segunda estación GENERAL.
    *

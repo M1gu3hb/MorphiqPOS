@@ -1,23 +1,29 @@
 import 'server-only';
 
+import { estacionesActivas } from '../restaurante/datos.ts';
+import { estacionSiLaHay } from '../restaurante/estaciones.ts';
 import type { ContextoPortal } from './definicion-publica.ts';
 
 /**
  * A qué estación va cada línea del pedido (`F1-04` §11.2).
  *
  * La cadena es **Producto → Categoría → Estación**, no Producto → Estación.
- * `preparacionEstacionUtils.js` la resuelve así y hay que preservarla: la
- * estación se configura por categoría, y las categorías llevan el nombre y el
- * color de su estación en instantánea.
+ * El `preparacionEstacionUtils.js` original la resolvía así (ya no existe): la
+ * estación se configura por categoría. La instantánea de nombre y color que
+ * guardan las categorías ya no se usa aquí: se leen de la estación viva.
  *
- * ── Las tres reglas del original, que se conservan ────────────────────────
- * 1. Si `estaciones_preparacion_activas` está apagado, se agrupa por
- *    `producto.area_preparacion` — el modo antiguo, y sigue siendo válido.
- * 2. Nunca lanza por no encontrar estación: cae a «Cocina general», y si
- *    tampoco existe, al área. Un pedido que no llega a la cocina porque falta
- *    una fila de configuración es una mesa esperando para siempre.
- * 3. Sólo se leen los snapshots ya guardados en `categorias`, nunca se consulta
- *    la estación en vivo.
+ * ── La MISMA cadena que el mesero (DP-10.1) ───────────────────────────────
+ * Esto agrupaba por área cuando `estaciones_preparacion_activas` estaba apagado
+ * —comandas SIN estación— y, encendido, tomaba la estación de la categoría
+ * aunque estuviera apagada, con el nombre de una instantánea que en Don Poncho
+ * está vacía. Ahora sigue `estacionSiLaHay` de `restaurante/estaciones.ts`, la
+ * de `resolverEstacion`: la estación ACTIVA de la categoría y, si no, la
+ * general, con su nombre y su color vivos, esté como esté la bandera. La
+ * bandera decide qué se DIBUJA en Cocina, no a dónde va la comanda.
+ *
+ * Lo que se conserva del original: nunca lanza. Sin ninguna estación activa
+ * (ni la general) la comanda sale por su área, porque un pedido que no llega a
+ * la cocina por una fila de configuración es una mesa esperando para siempre.
  *
  * ── Y por qué esto vive aquí y no viaja en la respuesta pública ───────────
  * Hoy `qrPedidoFlow.js:255` descarga la configuración ENTERA por segunda vez
@@ -56,12 +62,6 @@ interface Destino {
 /** `comandas.area` sólo admite `cocina` o `barra`; el producto admite cuatro. */
 function areaDeComanda(area: string): 'cocina' | 'barra' {
   return area === 'barra' ? 'barra' : 'cocina';
-}
-
-interface EstacionSnapshot {
-  readonly id: string;
-  readonly nombre: string;
-  readonly color: string;
 }
 
 /**
@@ -178,7 +178,7 @@ async function resolverDestinos(
   items: readonly ItemParaCocina[],
 ): Promise<Map<string, Destino>> {
   const destinos = new Map<string, Destino>();
-  if (!ctx.banderas.estacionesActivas) return destinos;
+  const estaciones = await estacionesActivas(ctx.tx, ctx.ambito.organizacionId);
 
   const categorias = [
     ...new Set(items.map((i) => i.categoriaId).filter((id): id is string => id !== null)),
@@ -189,59 +189,30 @@ async function resolverDestinos(
       ? []
       : await ctx.tx
           .selectFrom('categorias')
-          .select(['id', 'estacion_preparacion_id', 'estacion_nombre', 'estacion_color'])
+          .select(['id', 'estacion_preparacion_id'])
           .where('organizacion_id', '=', ctx.ambito.organizacionId)
           .where('id', 'in', categorias)
           .execute();
 
-  const porCategoria = new Map(filas.map((f) => [f.id, f]));
-  const general = await estacionGeneral(ctx);
+  const porCategoria = new Map(filas.map((f) => [f.id, f.estacion_preparacion_id]));
 
   for (const item of items) {
-    const categoria = item.categoriaId === null ? undefined : porCategoria.get(item.categoriaId);
-    const estacionId = categoria?.estacion_preparacion_id ?? null;
-
-    if (estacionId !== null) {
-      destinos.set(item.productoId, {
-        clave: `estacion:${estacionId}`,
-        estacionId,
-        estacionNombre: categoria?.estacion_nombre ?? null,
-        estacionColor: categoria?.estacion_color ?? null,
-        area: areaDeComanda(item.areaPreparacion),
-      });
-      continue;
-    }
-
-    if (general !== null) {
-      destinos.set(item.productoId, {
-        clave: `estacion:${general.id}`,
-        estacionId: general.id,
-        estacionNombre: general.nombre,
-        estacionColor: general.color,
-        area: areaDeComanda(item.areaPreparacion),
-      });
-    }
-    // Sin estación y sin general: se queda fuera del mapa y cae al área.
+    const deLaCategoria =
+      item.categoriaId === null ? null : (porCategoria.get(item.categoriaId) ?? null);
+    const estacion = estacionSiLaHay(deLaCategoria, estaciones);
+    // Sin estación activa ni general: se queda fuera del mapa y cae al área.
+    if (estacion === null) continue;
+    const area = areaDeComanda(item.areaPreparacion);
+    // Una comanda por estación Y área, como el mesero (`agruparEnComandas`): la bebida de la barra
+    // no viaja en la comanda de cocina aunque las dos sean de la misma estación.
+    destinos.set(item.productoId, {
+      clave: `estacion:${estacion.id}:${area}`,
+      estacionId: estacion.id,
+      estacionNombre: estacion.nombre,
+      estacionColor: estacion.color,
+      area,
+    });
   }
 
   return destinos;
-}
-
-/**
- * «Cocina general», el respaldo obligatorio de la regla 10.
- *
- * El índice `estaciones_una_general` garantiza que haya como mucho una, así que
- * aquí no hace falta el «toma la primera en silencio» que hoy hacen los cuatro
- * consumidores de `preparacionEstacionUtils.js:49`.
- */
-async function estacionGeneral(ctx: ContextoPortal): Promise<EstacionSnapshot | null> {
-  const fila = await ctx.tx
-    .selectFrom('estaciones_preparacion')
-    .select(['id', 'nombre', 'color'])
-    .where('organizacion_id', '=', ctx.ambito.organizacionId)
-    .where('es_general', '=', true)
-    .where('activa', '=', true)
-    .executeTakeFirst();
-
-  return fila ?? null;
 }

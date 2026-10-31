@@ -37,12 +37,18 @@ import {
   Sparkles,
   ShieldAlert,
   Database,
+  Tablet,
+  Volume2,
 } from 'lucide-react';
 import IntegracionesRespaldos from '@/components/configuracion/IntegracionesRespaldos';
 import DatosSection from '@/components/datos/DatosSection';
 import { PresentacionDelDueno } from '~/configuracion/PresentacionDelDueno';
 import ConfiguracionDeVoz from '@/components/configuracion/ConfiguracionDeVoz';
 import { SelectorDeApariencia } from '~/configuracion/SelectorDeApariencia';
+import { ExperienciaDelNegocio } from '~/configuracion/ExperienciaDelNegocio';
+import { ModoEsperaDelAparato } from '~/configuracion/ModoEsperaDelAparato';
+import { SonidoDelAparato } from '~/configuracion/SonidoDelAparato';
+import { SonidosDelNegocio } from '~/configuracion/SonidosDelNegocio';
 import { useLocation } from '@/enrutado';
 import { canAccessModule } from '@/lib/packageConfig';
 import ReiniciarSistemaSection from '@/components/configuracion/ReiniciarSistemaSection';
@@ -66,6 +72,7 @@ import {
   mesasDelPlano,
   siguientePosicionLibre,
   soloMesasEnServicio,
+  zonasDelNegocio,
 } from '~/cliente/mesas-del-mapa';
 import { Pencil, Phone, Mail } from 'lucide-react';
 
@@ -124,6 +131,11 @@ export default function Configuracion() {
     queryFn: () => api.entidades.Mesa.list('-created_date', 500),
   });
   const mesas = useMemo(() => (Array.isArray(mesasLeidas) ? mesasLeidas : []), [mesasLeidas]);
+  // Las zonas dadas de alta (DP-5): son las que el editor ofrece y en las que nace una mesa.
+  const { data: zonasLeidas = [] } = useQuery({
+    queryKey: ['zonas'],
+    queryFn: () => api.entidades.Zona.list(),
+  });
 
   // HOTFIX: cfg seguro. Si la query aún no respondió, cfg queda null
   // (no {} con defaults) para que los useEffects de los hijos NO se hidraten
@@ -430,6 +442,13 @@ export default function Configuracion() {
   const mesasActivas = soloMesasEnServicio(mesas);
   const mesasDesactivadas = mesas.filter((m) => m.activo === false);
   const mesasFiltradas = mesasDelPlano(mesas, zonaFiltro);
+  const zonasDelEditor = zonasDelNegocio(zonasLeidas, mesasActivas, ZONAS_MESA);
+  // Si la zona que se mira no es del negocio («Interior» en Don Poncho), la primera que sí.
+  const primeraZona = zonasDelEditor[0];
+  const zonaAjena = !zonasDelEditor.includes(zonaFiltro);
+  useEffect(() => {
+    if (primeraZona && zonaAjena) setZonaFiltro(primeraZona);
+  }, [primeraZona, zonaAjena]);
 
   const reactivarMesa = async (mesa) => {
     try {
@@ -492,6 +511,14 @@ export default function Configuracion() {
             Identidad
           </TabsTrigger>
           <TabsTrigger value="apariencia">Apariencia</TabsTrigger>
+          <TabsTrigger value="aparato">
+            <Tablet className="w-3 h-3 mr-1" />
+            Este aparato
+          </TabsTrigger>
+          <TabsTrigger value="sonidos">
+            <Volume2 className="w-3 h-3 mr-1" />
+            Sonidos
+          </TabsTrigger>
           <TabsTrigger value="negocio">
             <Settings className="w-3 h-3 mr-1" />
             Operación
@@ -539,10 +566,26 @@ export default function Configuracion() {
         <TabsContent value="apariencia">
           <div className="space-y-6">
             <SelectorDeApariencia />
+            {/* DP-11.1 y 11.2: «Mascota Morfi» y «Pedir PIN al despertar», por negocio. */}
+            <ExperienciaDelNegocio />
             {/* La voz de los avisos es de ESTE dispositivo: la cocina o la tableta de la sala
                 eligen la suya entrando aquí desde ese equipo. */}
             <ConfiguracionDeVoz />
           </div>
+        </TabsContent>
+
+        {/* DP-11.2: lo que es de ESTE aparato y no del negocio (el modo espera). */}
+        <TabsContent value="aparato">
+          <div className="space-y-6">
+            <ModoEsperaDelAparato />
+            {/* DP-11.3: cuánto suena ESTE aparato (Apagado, Suave, Normal). */}
+            <SonidoDelAparato />
+          </div>
+        </TabsContent>
+
+        {/* DP-11.3: cada momento con su sonido, el del teclado y el portal (del negocio). */}
+        <TabsContent value="sonidos">
+          <SonidosDelNegocio />
         </TabsContent>
 
         <TabsContent value="negocio">
@@ -702,8 +745,8 @@ export default function Configuracion() {
               </div>
 
               {/* === PEDIDOS DESDE PORTAL QR (Prompt 6C) ===
-                  Solo visible con módulo de mesas. Solo activable si asignación de mesas
-                  está activa. Si está apagada, el switch queda gris y se muestra aviso. */}
+                  Solo visible con módulo de mesas. Desde DP-9.2 no depende de la asignación de
+                  mesas: sin ella la cuenta es del mesero que la atiende. */}
               {showMesasTab && (
                 <div className="border-t pt-4 space-y-3">
                   <p className="text-sm font-semibold">Pedidos desde Portal QR</p>
@@ -714,8 +757,8 @@ export default function Configuracion() {
                       </Label>
                       <p className="text-[10px] text-muted-foreground mt-0.5">
                         Si está activo, el comensal puede agregar productos a un carrito y enviar el
-                        pedido a cocina. El cobro siempre se realiza en caja. Esta función solo está
-                        disponible si la <strong>asignación de mesas</strong> también está activa.
+                        pedido a cocina. El cobro siempre se realiza en caja. Funciona con y sin
+                        asignación de mesas.
                       </p>
                     </div>
                     <Switch
@@ -723,15 +766,8 @@ export default function Configuracion() {
                       onCheckedChange={(v) =>
                         setBizForm({ ...bizForm, portal_qr_permitir_pedidos_cliente: v })
                       }
-                      disabled={bizForm.asignacion_mesas_activa !== true}
                     />
                   </div>
-                  {bizForm.asignacion_mesas_activa !== true && (
-                    <div className="text-xs px-3 py-2 rounded-lg bg-advertencia/10 border border-advertencia/30 text-advertencia">
-                      Para permitir pedidos desde el QR, activa primero la{' '}
-                      <strong>asignación de mesas</strong>.
-                    </div>
-                  )}
                 </div>
               )}
 
@@ -981,7 +1017,7 @@ export default function Configuracion() {
                   </div>
                 </div>
                 <div className="flex gap-1.5 overflow-x-auto pb-1">
-                  {ZONAS_MESA.map((z) => (
+                  {zonasDelEditor.map((z) => (
                     <button
                       key={z}
                       onClick={() => setZonaFiltro(z)}
@@ -1104,6 +1140,7 @@ export default function Configuracion() {
       <MesaEditDialog
         open={showMesaDialog}
         mesa={editingMesa}
+        zonas={zonasDelEditor}
         onClose={() => {
           setShowMesaDialog(false);
           setEditingMesa(null);

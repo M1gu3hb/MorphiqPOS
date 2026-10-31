@@ -9,12 +9,15 @@ import { fileURLToPath } from 'node:url';
 import {
   cadenaDeVerificacion,
   consultarViva,
+  proyectoVerificado,
 } from '../packages/data/src/verificacion/consulta-directa.ts';
 import { problemasDeSeguridad } from '../packages/data/src/verificacion/rls.ts';
 
 const RAIZ = dirname(dirname(fileURLToPath(import.meta.url)));
 const PROYECTO_VINCULADO = join(RAIZ, 'supabase', '.temp', 'linked-project.json');
-const PROYECTO_MORPHIQPOS = 'wyqmzhliurwyxuyxznpb';
+// El proyecto contra el que se verifica: el de la Fase A, o el que diga
+// `MORPHIQPOS_PROYECTO_VERIFICADO` (DP-10.5, la mudanza).
+const PROYECTO_MORPHIQPOS = proyectoVerificado();
 
 const CONSULTA = String.raw`
 with relaciones as (

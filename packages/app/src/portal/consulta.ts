@@ -5,7 +5,7 @@ import { obtenerDb } from '@morphiqpos/data';
 
 import { leerConfiguracion } from '../puente/configuracion.ts';
 import { buscadorDeProduccion, resolverAmbitoPortal, type AmbitoPortal } from './ambito.ts';
-import { banderasDe } from './banderas.ts';
+import { banderasDe, documentoDe } from './banderas.ts';
 import { permitirPortal } from './limite.ts';
 import { cuentaPublica, type CuentaPublica, type MesaPublica } from './cuenta-publica.ts';
 import { esUnoDe, ORDEN_ACTIVA, ORDEN_ADMITE_PEDIDO } from './estados.ts';
@@ -19,7 +19,20 @@ import {
   type ProductoDeMenu,
   type SeccionDeMenu,
 } from './lista-blanca.ts';
-import { exigirPortalAbierto, leerContextoDelNegocio, puedeOrdenarDesdeQR } from './negocio.ts';
+import {
+  exigirPortalAbierto,
+  faltaMesero,
+  leerContextoDelNegocio,
+  puedeOrdenarDesdeQR,
+} from './negocio.ts';
+import {
+  botonesGuardados,
+  botonesPublicos,
+  CLAVE_DE_BOTONES,
+  type BotonPublico,
+} from './botones-del-menu.ts';
+import { CLAVE_DEL_TEMA, temaGuardado, type TemaDelPortal } from './tema-del-portal.ts';
+import { opcionesDelMenu } from './opciones-publicas.ts';
 
 /**
  * `GET /api/publico/qr/:token` — el payload COMBINADO y FILTRADO (E7-1).
@@ -34,12 +47,19 @@ import { exigirPortalAbierto, leerContextoDelNegocio, puedeOrdenarDesdeQR } from
  * siquiera son consultables sin sesión: el puente exige cookie.
  */
 
+/** Una página del menú subido con sus botones (DP-9.7). Sin pedir, sin botones: sólo imagen. */
+export interface SeccionConBotones extends SeccionDeMenu {
+  readonly botones: readonly BotonPublico[];
+}
+
 export interface PayloadPortal {
   readonly negocio: NegocioPublico;
   readonly mesa: MesaPublica;
   readonly productos: readonly ProductoDeMenu[];
   readonly categorias: readonly CategoriaDeMenu[];
-  readonly secciones: readonly SeccionDeMenu[];
+  readonly secciones: readonly SeccionConBotones[];
+  /** El aspecto del portal (DP-9.7): estilo, tipografía y fondo, por tokens. */
+  readonly tema: TemaDelPortal;
   /** La venta viva de ESTA mesa, sólo para la precuenta. `null` si no hay. */
   readonly cuenta: CuentaPublica | null;
   /** El último aviso de ESTA mesa, para que el comensal sepa si ya lo vieron. */
@@ -106,7 +126,10 @@ export async function payloadDelPortal(
   const puedeOrdenar = puedeOrdenarDesdeQR(negocio.paquete, banderas);
   const publica = await leerConfiguracion(ambito.organizacionId, { publica: true });
 
-  const usaCatalogo = banderas.modoMenu === 'productos_pos' || banderas.modoMenu === 'mixto';
+  // El menú SUBIDO también pide del catálogo cuando se puede ordenar (DP-5): los botones de cada
+  // página (DP-9.7) abren los platillos del catálogo.
+  const usaCatalogo =
+    banderas.modoMenu === 'productos_pos' || banderas.modoMenu === 'mixto' || puedeOrdenar;
   const usaSecciones = banderas.modoMenu === 'menu_subido' || banderas.modoMenu === 'mixto';
 
   // Las dos banderas de presentación DECIDEN aquí, en el servidor, y no sólo
@@ -121,12 +144,26 @@ export async function payloadDelPortal(
     solicitudDeLaMesa(ambito),
   ]);
 
+  // DP-9.7: los botones van SOBRE cada página y sólo con lo que se vende; sin poder pedir, la
+  // página es sólo imagen.
+  const documento = documentoDe(negocio.valores);
+  const botones = botonesGuardados(documento[CLAVE_DE_BOTONES]);
+  const conBotones = secciones.map((s) => ({
+    ...s,
+    botones: puedeOrdenar ? botonesPublicos(botones[s.id] ?? [], productos) : [],
+  }));
+
   return {
     negocio: negocioPublico(publica, banderas, puedeOrdenar),
-    mesa: mesaPublica(ambito, cuenta, puedeOrdenar),
+    mesa: mesaPublica(
+      ambito,
+      cuenta,
+      puedeOrdenar && !faltaMesero(banderas, ambito.empleadoAsignadoId),
+    ),
     productos,
     categorias,
-    secciones,
+    secciones: conBotones,
+    tema: temaGuardado(documento[CLAVE_DEL_TEMA]),
     cuenta,
     solicitud,
   };
@@ -165,10 +202,14 @@ async function solicitudDeLaMesa(ambito: AmbitoPortal): Promise<SolicitudPublica
  * la respuesta es un booleano, así que el latch anti-parpadeo deja de hacer
  * falta —la causa que lo obligaba a existir ya no puede ocurrir.
  */
+/**
+ * `puedeOrdenarAqui` ya trae `faltaMesero` (DP-9.2): con la asignación encendida una mesa sin
+ * mesero asignado no abre ni pide; sin asignación, sí.
+ */
 function mesaPublica(
   ambito: AmbitoPortal,
   cuenta: CuentaPublica | null,
-  puedeOrdenar: boolean,
+  puedeOrdenarAqui: boolean,
 ): MesaPublica {
   const tieneMesero = ambito.empleadoAsignadoId !== null;
   const abierta = cuenta !== null || ambito.ordenActivaId !== null || ambito.estadoMesa !== 'libre';
@@ -180,12 +221,12 @@ function mesaPublica(
     estado: ambito.estadoMesa,
     tiene_mesero: tieneMesero,
     venta_activa_id: cuenta?.id ?? null,
-    puede_abrir: puedeOrdenar && tieneMesero && !abierta,
+    puede_abrir: puedeOrdenarAqui && !abierta,
     // `puedeOrdenar` ya contiene `portal_qr_permitir_pedidos_cliente`: repetirlo
     // aquí daría dos sitios donde decidir lo mismo, y con el tiempo dirían cosas
     // distintas.
-    puede_pedir:
-      puedeOrdenar && tieneMesero && cuenta !== null && esUnoDe(ORDEN_ADMITE_PEDIDO, cuenta.estado),
+    puede_pedir: puedeOrdenarAqui && cuenta !== null && esUnoDe(ORDEN_ADMITE_PEDIDO, cuenta.estado),
+    unida_a_la_mesa: ambito.unidaALaPrincipal ? ambito.mesaNumero : null,
   };
 }
 
@@ -222,7 +263,12 @@ async function productosVisibles(
     .limit(TOPE_CATALOGO)
     .execute();
 
-  return filas.map((fila) => productoDeMenu(fila, conPrecios));
+  // Sus opciones, en UNA consulta para todos (DP-5): el sabor del pulque se elige desde el QR.
+  const opciones = await opcionesDelMenu(
+    organizacionId,
+    filas.map((fila) => fila.id),
+  );
+  return filas.map((fila) => productoDeMenu(fila, conPrecios, opciones.get(fila.id) ?? []));
 }
 
 async function categoriasVisibles(organizacionId: string): Promise<readonly CategoriaDeMenu[]> {

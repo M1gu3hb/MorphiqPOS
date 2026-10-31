@@ -48,6 +48,7 @@ import {
   type MetodoBase,
 } from './pagos-del-cobro.ts';
 import { bloqueoDe, columnasDeLaCuenta } from './piezas-del-cobro';
+import { sonar } from '~/sonidos/gestor';
 
 /**
  * PANTALLA · restaurante · cobro
@@ -346,6 +347,7 @@ export function Cobro({
         propinaOrigen: 'caja',
       });
       setCambio(Number(hecho.cambioCentavos));
+      sonar('cobro');
       onCobrada?.(id);
     } catch (fallo) {
       setError(fallo instanceof Error ? fallo.message : 'No se pudo cobrar.');

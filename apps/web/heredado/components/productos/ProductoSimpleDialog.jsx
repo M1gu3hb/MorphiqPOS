@@ -20,6 +20,8 @@ import ImageUploader from '@/components/common/ImageUploader';
 import { ensureCategoriaExists } from '@/utils/categoriaUtils';
 import TipoVentaSection from './TipoVentaSection';
 import { TIPO_VENTA, validarProductoVariable, esProductoVariable } from '@/utils/tipoVentaUtils';
+import { AreaDePreparacionSelect } from '~/restaurante/AreaDePreparacionSelect';
+import { areaInicial, SEGUN_SU_CATEGORIA } from '~/restaurante/area-de-preparacion';
 
 /**
  * Formulario simple para crear/editar un ProductoTerminado en paquete Esencial.
@@ -36,6 +38,8 @@ export default function ProductoSimpleDialog({ open, onClose, producto = null })
   const [categoriaId, setCategoriaId] = useState('');
   const [categoriaNombre, setCategoriaNombre] = useState('');
   const [guardando, setGuardando] = useState(false);
+  // DP-9.1: el área que tiene el platillo, o «según su categoría» al crear. Nunca una fija.
+  const [area, setArea] = useState(() => areaInicial(null));
   // 6B / 1.B — Estado del tipo de venta. Default: precio_fijo (flujo clásico).
   const [tipoVentaState, setTipoVentaState] = useState({ tipo_venta: TIPO_VENTA.PRECIO_FIJO });
 
@@ -62,6 +66,7 @@ export default function ProductoSimpleDialog({ open, onClose, producto = null })
       setActivo(producto?.activo !== false);
       setCategoriaId(producto?.categoria_id || '');
       setCategoriaNombre(producto?.categoria_nombre || '');
+      setArea(areaInicial(producto?.id ? producto : null));
       // Hidratar tipo de venta desde el producto (si existe). Por defecto, precio_fijo.
       setTipoVentaState({
         tipo_venta: producto?.tipo_venta || TIPO_VENTA.PRECIO_FIJO,
@@ -149,7 +154,9 @@ export default function ProductoSimpleDialog({ open, onClose, producto = null })
         descripcion: descripcion.trim() || undefined,
         activo,
         visible_en_pos: true,
-        area_preparacion: 'ninguno',
+        // DP-9.1: el área elegida, o ninguna y el servidor la aprende de su categoría. Antes
+        // iba `ninguno` también al EDITAR: le quitaba la comanda a un platillo que la tenía.
+        ...(area === SEGUN_SU_CATEGORIA ? {} : { area_preparacion: area }),
         categoria_id: catId,
         // `categoria_nombre` NO se manda. Es un DERIVADO: el puente lo saca del
         // `join` con `categorias` al leer, así que no tiene columna donde caer y
@@ -207,6 +214,9 @@ export default function ProductoSimpleDialog({ open, onClose, producto = null })
               categorias={categorias}
               placeholder="General"
             />
+          </div>
+          <div>
+            <AreaDePreparacionSelect valor={area} alCambiar={setArea} alCrear={!producto?.id} />
           </div>
           <div>
             <Label className="text-xs">Precio</Label>

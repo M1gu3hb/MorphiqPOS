@@ -1,8 +1,8 @@
 import { Button } from '@morphiqpos/ui/primitivas/button';
-import { Vacio } from '@morphiqpos/ui/sistema';
-import { MapPinOff } from 'lucide-react';
 import type { Metadata } from 'next';
 import Link from 'next/link';
+
+import { MorfiNoEncontrada } from '~/morfi/MorfiNoEncontrada';
 
 /**
  * LA PÁGINA QUE NO EXISTE.
@@ -15,6 +15,9 @@ import Link from 'next/link';
  *
  * Un 404 de verdad (lo pone Next al servir este archivo) y que no se indexe: un buscador
  * no tiene nada que guardar aquí.
+ *
+ * DP-11.1: Morfi se asoma por un hoyo de la tarjeta y señala «Ir al inicio»; con «Mascota
+ * Morfi» apagada, el vacío del sistema con el mismo texto.
  */
 export const metadata: Metadata = {
   title: 'Esta página no existe',
@@ -24,10 +27,9 @@ export const metadata: Metadata = {
 export default function NoEncontrada() {
   return (
     <main className="flex min-h-dvh items-center justify-center bg-fondo p-(--espacio-4)">
-      <Vacio
-        icono={<MapPinOff />}
-        titulo="Esta página no existe."
-        explicacion="La dirección está mal escrita o la pantalla cambió de lugar. Desde el inicio llegas a todo lo de tu negocio."
+      <MorfiNoEncontrada
+        titulo="Esta página no existe"
+        explicacion="Puede que la hayan movido o borrado."
         nivelDeTitulo={2}
         accion={
           <Button asChild>

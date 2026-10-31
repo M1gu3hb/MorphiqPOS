@@ -64,6 +64,27 @@ function entorno(clave: string): string | undefined {
   return undefined;
 }
 
+/** El proyecto de la base compartida de la Fase A (MorphiqPOS). */
+export const PROYECTO_DE_LA_FASE_A = 'wyqmzhliurwyxuyxznpb';
+
+/**
+ * El proyecto de Supabase contra el que se verifica (DP-10.5). Las puertas se niegan a mirar
+ * otro —una que aprueba mirando la base equivocada es peor que no tenerla—, pero ya no lo tienen
+ * clavado: el día de la mudanza, `MORPHIQPOS_PROYECTO_VERIFICADO` dice el nuevo. Sin ella, el de
+ * la Fase A.
+ */
+export function proyectoVerificado(): string {
+  const valor = entorno('MORPHIQPOS_PROYECTO_VERIFICADO')?.trim() ?? '';
+  if (valor === '') return PROYECTO_DE_LA_FASE_A;
+  if (!/^[a-z0-9]{20}$/.test(valor)) {
+    throw new Error(
+      `MORPHIQPOS_PROYECTO_VERIFICADO es «${valor}»: tiene que ser la referencia de un proyecto ` +
+        'de Supabase (20 letras minúsculas y números).',
+    );
+  }
+  return valor;
+}
+
 /** La cadena de conexión que usan las verificaciones, o `undefined` si no hay. */
 export function cadenaDeVerificacion(): string | undefined {
   return entorno('MORPHIQPOS_DB_VERIFICACION') ?? entorno('DATABASE_URL');

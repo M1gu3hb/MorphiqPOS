@@ -1,5 +1,5 @@
 'use client';
-import React, { useMemo } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { api } from '@/api/cliente';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Button } from '@/components/ui/button';
@@ -9,14 +9,22 @@ import CocinaPedidoCardPremium from '@/components/cocina/CocinaPedidoCardPremium
 import CocinaMesaGroupCard from '@/components/cocina/CocinaMesaGroupCard';
 import SoundUnlockButton from '@/components/common/SoundUnlockButton';
 import CocinaVozControl from '@/components/cocina/CocinaVozControl';
+import { ConectarTelefono } from '~/telefono-de-cocina/ConectarTelefono';
 import CocinaNuevoPedidoWatcher from '@/components/cocina/CocinaNuevoPedidoWatcher';
 import { useIsDark } from '@/lib/ThemeContext';
 import { COCINA_COLS } from '@/lib/darkPalettes';
 import { usePOSAuth } from '@/lib/POSAuthContext';
 import { useConfig } from '@/lib/ConfigContext';
-import { ROLES } from '@/lib/constants';
 import { COCINA_GENERAL_COLOR } from '@/utils/estacionUtils';
 import { claves } from '~/cliente/claves-de-consulta';
+import { mantenerDespierta } from '~/espera/despertador';
+import { sonar } from '~/sonidos/gestor';
+import { alcanceDeLaCocina, comandasDelAlcance } from '~/restaurante/alcance-de-la-cocina';
+import {
+  conLosToques,
+  crearFilaPorClave,
+  useToquesEnCamino,
+} from '~/restaurante/toques-en-camino';
 
 const ESTADOS = ['nuevo', 'en_preparacion', 'listo'];
 const ESTADO_LABELS = { nuevo: 'Nuevos', en_preparacion: 'En preparación', listo: 'Listos' };
@@ -63,38 +71,18 @@ function detectarHuerfano(pedido, ventasMap) {
 export default function Cocina() {
   const queryClient = useQueryClient();
   const isDark = useIsDark();
-  const { posUser } = usePOSAuth();
+  const { posUser, verificada } = usePOSAuth();
   const { config } = useConfig();
   const estacionesActivas = config?.estaciones_preparacion_activas === true;
 
-  // === F3: Decidir scope de filtro según rol + estación del usuario ===
-  // - admin → ve todos.
-  // - cocina con puede_ver_todas_estaciones → ve todos.
-  // - cocina con estacion_preparacion_id → ve solo su estación.
-  // - cocina sin nada (cuando estaciones activas) → ve nada + alerta.
-  // - Otros roles (caja/mesero) entrando a /cocina → ven todos (legacy, no rompemos).
-  const userScope = useMemo(() => {
-    const rol = posUser?.rol;
-    if (!estacionesActivas) return { mode: 'all', label: null };
-    if (rol === ROLES.ADMIN) return { mode: 'all', label: 'Vista general (admin)' };
-    if (rol === ROLES.KITCHEN) {
-      if (posUser?.puede_ver_todas_estaciones === true) {
-        return { mode: 'all', label: 'Todas las estaciones' };
-      }
-      if (posUser?.estacion_preparacion_id) {
-        return {
-          mode: 'station',
-          stationId: posUser.estacion_preparacion_id,
-          label: posUser.estacion_preparacion_nombre || 'Estación',
-          color: posUser.estacion_preparacion_color || COCINA_GENERAL_COLOR,
-        };
-      }
-      // (raro: caía a unassigned sin id ni todas)
-      return { mode: 'unassigned', label: null };
-    }
-    // Otros roles ven todo (no rompemos legacy).
-    return { mode: 'all', label: null };
-  }, [posUser, estacionesActivas]);
+  // === Qué ve cada quien (DP-10.1, `~/restaurante/alcance-de-la-cocina`) ===
+  // Dueño, gerente y administrador ven todo; el cocinero, su estación (o todas si se lo
+  // marcaron); el cocinero sin estación, un aviso. La estación sale de la sesión del SERVIDOR:
+  // mientras no la confirma, lo guardado de la pestaña no decide nada (podría ser de antes).
+  const userScope = useMemo(
+    () => alcanceDeLaCocina(posUser, estacionesActivas),
+    [posUser, estacionesActivas],
+  );
 
   // === Carga de pedidos ===
   // - Modo estaciones activas: trae TODOS los pedidos activos y filtra en memoria.
@@ -118,6 +106,13 @@ export default function Cocina() {
     refetchInterval: 2000,
   });
   const cargandoPedidos = pedidosLoading && !pedidos;
+  // DP-7: lo que la cocina ya tocó y el servidor todavía no contesta se pinta ENCIMA de lo
+  // leído, no dentro: una lectura que salió antes de otro toque lo traía viejo y regresaba la
+  // comanda a «Nuevos» (`~/restaurante/toques-en-camino`).
+  const { toques, poner: ponerToque, soltar: soltarToque } = useToquesEnCamino();
+  const pedidosVistos = useMemo(() => conLosToques(pedidos, toques), [pedidos, toques]);
+  // Y los de una misma comanda salen en fila: «Listo» espera a que conteste su «Preparar».
+  const [fila] = React.useState(crearFilaPorClave);
 
   const { data: ventas } = useQuery({
     queryKey: ['ventas_para_cocina'],
@@ -173,25 +168,11 @@ export default function Cocina() {
   }, [userScope, estacionesAll]);
 
   // === F3: Filtrado por estación del usuario ===
-  // Los pedidos sin estacion_preparacion_id se consideran "Cocina general" /
-  // legacy. Se muestran siempre en vista 'all'. En vista 'station' solo se
-  // muestran si el usuario es de la estación general.
-  const pedidosFiltrados = useMemo(() => {
-    const arr = Array.isArray(pedidos) ? pedidos : [];
-    if (userScope.mode === 'unassigned') return [];
-    if (userScope.mode === 'all') return arr;
-    if (userScope.mode === 'station') {
-      return arr.filter((p) => {
-        // Match directo por id
-        if (p?.estacion_preparacion_id === userScope.stationId) return true;
-        // Pedido legacy / fallback sin estacion_preparacion_id → solo lo ve
-        // el cocinero de la estación 'Cocina general'.
-        if (!p?.estacion_preparacion_id && userEsCocinaGeneral) return true;
-        return false;
-      });
-    }
-    return arr;
-  }, [pedidos, userScope, userEsCocinaGeneral]);
+  // Lo que nació sin estación (el portal, antes de DP-10.1) lo ve sólo la general.
+  const pedidosFiltrados = useMemo(
+    () => (verificada ? comandasDelAlcance(pedidosVistos, userScope, userEsCocinaGeneral) : []),
+    [verificada, pedidosVistos, userScope, userEsCocinaGeneral],
+  );
 
   const activos = useMemo(
     () =>
@@ -210,19 +191,13 @@ export default function Cocina() {
     [activos],
   );
 
-  // F3.1: helper de actualización optimista del cache local de pedidos.
-  // Aplica un cambio (partial) al pedido con id=pedidoId en TODAS las queries
-  // cuyo key comienza por 'pedidos_cocina' (cualquier sub-key como 'all'/'legacy').
-  const optimisticPatchPedido = (pedidoId, patch) => {
-    try {
-      queryClient.setQueriesData({ queryKey: ['pedidos_cocina'] }, (oldData) => {
-        if (!Array.isArray(oldData)) return oldData;
-        return oldData.map((p) => (p?.id === pedidoId ? { ...p, ...patch } : p));
-      });
-    } catch (err) {
-      console.warn('[Cocina] optimisticPatch:', err);
-    }
-  };
+  // DP-11.2: con comandas por preparar en MI estación, el modo espera no entra (y al salir de
+  // Cocina deja de contar).
+  const porPreparar = (byEstado.nuevo?.length ?? 0) + (byEstado.en_preparacion?.length ?? 0);
+  useEffect(() => {
+    mantenerDespierta('cocina', porPreparar > 0);
+    return () => mantenerDespierta('cocina', false);
+  }, [porPreparar]);
 
   /**
    * Mover una comanda de estado — el único camino de los tres botones (E6-6).
@@ -245,30 +220,39 @@ export default function Cocina() {
   const transicionar = (comandaId, estado) =>
     api.comandos.ejecutar('/api/restaurante/transicionar-pedido', { comandaId, estado });
 
+  /**
+   * Lo que comparten los tres botones: pinta el toque, lo manda y, si contesta, relee ANTES de
+   * soltarlo. `invalidateQueries` cancela la lectura que venía en camino (salió antes de este
+   * toque) y espera una que sale después: al soltar el toque, lo leído ya lo trae. Si falla, se
+   * suelta y la comanda vuelve a pintarse como la tiene el servidor; el fallo sigue hacia el
+   * botón, que lo avisa. El toque se manda cuando contestó el anterior de ESA comanda.
+   */
+  const moverComanda = async (pedido, estado, parche) => {
+    const toque = ponerToque(pedido.id, { estado, ...parche });
+    try {
+      await fila.encolar(pedido.id, () => transicionar(pedido.id, estado));
+      await queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
+    } catch (e) {
+      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
+      throw e;
+    } finally {
+      soltarToque(pedido.id, toque);
+    }
+  };
+
   const iniciarPedido = async (pedido) => {
     if (!pedido?.id) return;
-    const ahora = new Date().toISOString();
-    // 1) UI optimista: mover a "en_preparacion" inmediatamente.
-    optimisticPatchPedido(pedido.id, { estado: 'en_preparacion', fecha_inicio: ahora });
     try {
-      await transicionar(pedido.id, 'en_preparacion');
-      // 2) Refetch inmediato para confirmar contra BD (no esperamos polling).
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
-      queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
+      await moverComanda(pedido, 'en_preparacion', { fecha_inicio: new Date().toISOString() });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       toast.success('Pedido en preparación');
     } catch (e) {
-      // Si falla, volvemos al estado original recargando de BD.
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       toast.error('No se pudo iniciar el pedido: ' + (e?.message || ''));
     }
   };
 
   const marcarListo = async (pedido) => {
     if (!pedido?.id) return;
-    const ahora = new Date().toISOString();
-    // 1) UI optimista: mover a "listo" inmediatamente.
-    optimisticPatchPedido(pedido.id, { estado: 'listo', fecha_listo: ahora });
     try {
       // F3: la mesa sólo avanza si TODAS sus comandas están listas. Esa cuenta
       // la hace ahora `sincronizarMesa` DENTRO de la transacción del comando,
@@ -277,18 +261,15 @@ export default function Cocina() {
       // lectura fallaba, la lista vacía se leía como «no queda nadie
       // cocinando», la mesa se marcaba lista con la otra estación todavía en el
       // fuego y el mesero recogía media charola (F1-06 §4.4, `:265`).
-      await transicionar(pedido.id, 'listo');
-      // 2) Refetch inmediato para reflejar en BD.
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
-      queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
+      await moverComanda(pedido, 'listo', { fecha_listo: new Date().toISOString() });
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       // F3.2: refrescar la card "Listo para recoger" del Mesero y el watcher
       // global de voz si están abiertos en otra pestaña/sesión.
       queryClient.invalidateQueries({ queryKey: ['pedidos_listos_mesero'] });
       queryClient.invalidateQueries({ queryKey: ['pedidos_listos_watcher'] });
       toast.success('¡Pedido listo!');
+      sonar('comandaLista');
     } catch (e) {
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       toast.error('No se pudo marcar listo: ' + (e?.message || ''));
     }
   };
@@ -298,29 +279,21 @@ export default function Cocina() {
   const quitarPedidoListo = async (pedido) => {
     if (!pedido?.id) return;
     const ahora = new Date().toISOString();
-    // 1) UI optimista: marcar como entregado para que desaparezca del tablero.
-    optimisticPatchPedido(pedido.id, {
-      estado: 'entregado',
-      fecha_entregado: ahora,
-      ...(pedido.fecha_listo ? {} : { fecha_listo: ahora }),
-    });
     try {
-      // Las fechas las pone el servidor con la hora de la transacción; el
-      // parche de arriba es sólo para que la tarjeta desaparezca sin esperar al
-      // refetch.
-      await transicionar(pedido.id, 'entregado');
-      // 2) Refetch inmediato.
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
-      queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
+      // Las fechas las pone el servidor con la hora de la transacción; las del
+      // toque son sólo para que la tarjeta desaparezca sin esperar a la lectura.
+      await moverComanda(pedido, 'entregado', {
+        fecha_entregado: ahora,
+        ...(pedido.fecha_listo ? {} : { fecha_listo: ahora }),
+      });
       toast.success('Pedido quitado de la lista');
     } catch (e) {
-      queryClient.invalidateQueries({ queryKey: ['pedidos_cocina'] });
       toast.error('No se pudo quitar el pedido: ' + (e?.message || ''));
     }
   };
 
   // === F3: Pantalla especial si el usuario es cocina sin estación asignada ===
-  if (userScope.mode === 'unassigned') {
+  if (verificada && userScope.mode === 'unassigned') {
     return (
       <div className="space-y-5">
         <div className="flex items-center gap-3">
@@ -341,12 +314,12 @@ export default function Cocina() {
         <div className="rounded-2xl border-2 border-advertencia/30 bg-advertencia/10 p-6 text-center">
           <AlertTriangle className="w-12 h-12 mx-auto mb-3 text-advertencia" />
           <p className="font-bold text-base text-advertencia mb-1">
-            Este usuario de cocina no tiene estación asignada
+            Tu usuario no tiene estación asignada; pide al administrador que te asigne una.
           </p>
           <p className="text-sm text-advertencia">
-            Pide al administrador que te asigne una estación o te marque como "Todas las estaciones"
-            en
-            <strong> Configuración → Usuarios POS</strong>.
+            Se asigna en
+            <strong> Configuración → Usuarios POS</strong>, o ahí mismo se le marca «Todas las
+            estaciones».
           </p>
         </div>
       </div>
@@ -390,12 +363,24 @@ export default function Cocina() {
           </h1>
           <p className="text-xs text-muted-foreground">{activos.length} pedido(s) activos</p>
         </div>
+        {/* DP-9.4: el QR del teléfono de UNA estación; un cocinero con estación fija, la suya. */}
+        <ConectarTelefono
+          estacionFijaId={
+            userScope.mode === 'station' ? (posUser?.estacion_preparacion_id ?? null) : null
+          }
+        />
         <CocinaVozControl />
         <SoundUnlockButton />
       </div>
 
       {/* Watcher local: reproduce voz/sonido SOLO para pedidos NUEVOS, nunca para "listo". */}
-      <CocinaNuevoPedidoWatcher pedidos={pedidosFiltrados} />
+      {/* DP-10.1: por estación. La `key` lo vuelve a montar si cambia lo que se ve: lo que ya
+          estaba en la pantalla nueva se toma como visto, no se anuncia de golpe. */}
+      <CocinaNuevoPedidoWatcher
+        key={userScope.mode === 'station' ? userScope.stationId : userScope.mode}
+        pedidos={pedidosFiltrados}
+        cargando={cargandoPedidos || !verificada}
+      />
 
       {/* F3.1: vista "tipo llaves" SOLO cuando estaciones activas + modo all.
           En el resto de casos (estación específica, legacy) se renderiza la

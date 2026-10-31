@@ -53,6 +53,9 @@ const ESTADO_DEL_SISTEMA = {
   Vacio: 'vacio',
   Esqueleto: 'cargando',
   EsqueletoDeLista: 'cargando',
+  // DP-11.1: la carga larga de una pantalla entera (entrar con PIN, el menú del portal),
+  // donde no hay forma que esqueletar. Es el estado del sistema, con su tarjeta y su barra.
+  PantallaDeCarga: 'cargando',
   ErrorDePantalla: 'error',
   Aviso: 'error',
 };
@@ -221,7 +224,8 @@ export function analizarPantalla(texto, nombre = 'pantalla.tsx') {
   for (const n of componentes) {
     if (!delSistema.has(n)) continue;
     if (n === 'Vacio') pinta.vacio = true;
-    if (n === 'Esqueleto' || n === 'EsqueletoDeLista') pinta.cargando = true;
+    if (n === 'Esqueleto' || n === 'EsqueletoDeLista' || n === 'PantallaDeCarga')
+      pinta.cargando = true;
     if (n === 'ErrorDePantalla' || n === 'Aviso') pinta.error = true;
   }
 

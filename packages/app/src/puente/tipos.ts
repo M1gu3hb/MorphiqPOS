@@ -36,8 +36,17 @@ export type Conversion =
   | 'fecha'
   /** `date` ↔ `YYYY-MM-DD`. */
   | 'dia'
-  /** JSON opaco: viaja sin tocar. */
-  | 'json';
+  /**
+   * JSON opaco: viaja sin tocar. Es lo correcto para lo que sólo se lee y para una columna de
+   * ARREGLO NATIVO (`dia_visita int[]`): `pg` convierte el arreglo de JS en uno de Postgres.
+   */
+  | 'json'
+  /**
+   * Documento o arreglo en una columna `jsonb`. Hacia la base va como TEXTO JSON: `pg` volvía
+   * `[0.25, 0.5, 1]` un arreglo nativo, `{0.25,0.5,1}`, y `jsonb` lo rechazaba con `22P02`
+   * (los atajos de peso y las plantillas de compra no se guardaban). Hacia él, como `json`.
+   */
+  | 'jsonb';
 
 export interface CampoMapeado {
   /** La columna en la tabla destino. */
@@ -362,6 +371,7 @@ export function haciaEl(valor: unknown, conversion: Conversion): unknown {
     case 'dia':
       return valor instanceof Date ? valor.toISOString().slice(0, 10) : aTexto(valor);
     case 'json':
+    case 'jsonb':
       return valor;
     case 'texto':
     default:
@@ -402,6 +412,9 @@ export function haciaLaBase(valor: unknown, conversion: Conversion): unknown {
       return aTexto(valor).slice(0, 10);
     case 'json':
       return valor;
+    case 'jsonb':
+      // Nulo y ausente ya salieron arriba: «sin atajos» es NULL, no el texto «null».
+      return JSON.stringify(valor);
     case 'texto':
     default:
       return aTexto(valor);

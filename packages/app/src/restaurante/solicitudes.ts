@@ -5,6 +5,7 @@ import type { Transaccion } from '@morphiqpos/data';
 import { z } from 'zod';
 
 import { definirComando } from '../definicion.ts';
+import { quedarseConLaMesa } from './responsable-de-la-mesa.ts';
 
 import { mesaOperable } from './datos.ts';
 import type { Movimiento } from './transiciones.ts';
@@ -49,6 +50,13 @@ import type { Movimiento } from './transiciones.ts';
 
 /** Mesero en adelante. Los mismos cinco de `mesas.ts` (E6-2). */
 const ROLES_DE_SALA = ['mesero', 'cajero', 'gerente', 'administrador', 'dueno'] as const;
+
+/**
+ * Quién atiende y limpia las solicitudes del comensal: la sala, sin la caja (DP-9.3). La vista
+ * «Solicitudes» la ven mesero, gerente y dueño; esconderla no basta, el servidor también se lo
+ * niega a la caja. Tomar la mesa (`asignar_mesero`) sigue siendo de toda la sala.
+ */
+const ROLES_DE_SOLICITUDES = ['mesero', 'gerente', 'administrador', 'dueno'] as const;
 
 /** Quién puede borrarlo TODO. Mismo par que el mantenimiento reversible (F1-07 §4.3). */
 const ROLES_DE_ADMINISTRACION = ['dueno', 'administrador'] as const;
@@ -237,7 +245,7 @@ export const atenderSolicitud = definirComando<
   nombre: 'restaurante.atender_solicitud',
   entidad: 'solicitud_qr',
   escribe: true,
-  roles: [...ROLES_DE_SALA],
+  roles: [...ROLES_DE_SOLICITUDES],
   paquetes: PAQUETES_RESTAURANTE,
   sucursal: { solicitudId: 'solicitudes_qr' },
   entrada: entradaAtenderSolicitud,
@@ -285,6 +293,15 @@ export const atenderSolicitud = definirComando<
       );
     }
 
+    // DP-9.2: el MESERO que atiende el aviso de una mesa sin responsable se queda con la mesa y
+    // con su cuenta. Un gerente o la caja que lo atienden no la toman: no es su mesa.
+    const tomada =
+      ctx.ambito.rol === 'mesero' && atribucion.empleadoAtiendeId !== null
+        ? await ctx.paso('quedarse_con_la_mesa', () =>
+            quedarseConLaMesa(ctx.tx, organizacionId, solicitud.mesaId, empleoId),
+          )
+        : null;
+
     ctx.auditar({
       entidadId: solicitud.id,
       payload: {
@@ -295,6 +312,8 @@ export const atenderSolicitud = definirComando<
         // Queda constancia de a quién se acreditó: es el dato que hoy elige el
         // navegador y el que después nadie puede reconstruir.
         atendidaPorId: atribucion.empleadoAtiendeId,
+        tomoLaMesa: tomada?.mesa ?? false,
+        tomoLaCuenta: tomada?.cuenta ?? false,
       },
     });
 
@@ -388,7 +407,7 @@ export const limpiarSolicitudes = definirComando<
   nombre: 'restaurante.limpiar_solicitudes',
   entidad: 'solicitud_qr',
   escribe: true,
-  roles: [...ROLES_DE_SALA],
+  roles: [...ROLES_DE_SOLICITUDES],
   paquetes: PAQUETES_RESTAURANTE,
   entrada: entradaLimpiarSolicitudes,
   async ejecutar(ctx) {
@@ -552,6 +571,10 @@ export const asignarMesero = definirComando<
         { mesaNumero: mesa.numero },
       );
     }
+    // DP-9.2: con la mesa va su cuenta abierta, si la abrió el comensal sin responsable.
+    await ctx.paso('quedarse_con_la_cuenta', () =>
+      quedarseConLaMesa(ctx.tx, organizacionId, mesa.id, empleoId),
+    );
 
     ctx.auditar({
       entidadId: mesa.id,

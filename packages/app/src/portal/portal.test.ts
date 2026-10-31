@@ -7,7 +7,7 @@ import { resolverAmbitoPortal, type FilaMesaPorToken } from './ambito.ts';
 import { banderasDe, porcentajesValidos } from './banderas.ts';
 import { definirComandoPublico } from './definicion-publica.ts';
 import { entradaEnviarPedido, entradaPedirCuenta, entradaValorar } from './esquemas.ts';
-import { puedeOrdenarDesdeQR } from './negocio.ts';
+import { faltaMesero, puedeOrdenarDesdeQR } from './negocio.ts';
 import { valorarParaPedido } from './productos.ts';
 
 /**
@@ -109,6 +109,7 @@ describe('el token no distingue «no existe» de «no es tuyo»', () => {
     estado: 'libre',
     orden_activa_id: null,
     empleado_asignado_id: null,
+    empleado_atiende_id: null,
     qr_activa: true,
     activa: true,
     ...cambios,
@@ -191,6 +192,23 @@ describe('los interruptores del portal', () => {
     // Una ferretería no tiene mesas ni cocina.
     expect(puedeOrdenarDesdeQR('ferreteria', BANDERAS_ABIERTAS)).toBe(false);
     expect(puedeOrdenarDesdeQR('restaurante', banderasDe({ portal_qr_activo: true }))).toBe(false);
+  });
+
+  it('DP-9.2 · sin asignación de mesas el comensal pide igual, si el negocio acepta pedidos', () => {
+    const sinAsignacion = banderasDe({
+      portal_qr_activo: true,
+      portal_qr_permitir_pedidos_cliente: true,
+      asignacion_mesas_activa: false,
+    });
+    expect(puedeOrdenarDesdeQR('restaurante', sinAsignacion)).toBe(true);
+  });
+
+  it('DP-9.2 · el mesero sólo falta cuando la asignación está encendida', () => {
+    const conAsignacion = BANDERAS_ABIERTAS;
+    const sinAsignacion = banderasDe({ portal_qr_activo: true, asignacion_mesas_activa: false });
+    expect(faltaMesero(conAsignacion, null)).toBe(true);
+    expect(faltaMesero(conAsignacion, 'empleo-de-lupita')).toBe(false);
+    expect(faltaMesero(sinAsignacion, null)).toBe(false);
   });
 });
 

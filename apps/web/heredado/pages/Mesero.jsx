@@ -42,7 +42,6 @@ import SoundUnlockButton from '@/components/common/SoundUnlockButton';
 import ErrorBoundary from '@/components/common/ErrorBoundary';
 import MesaHuerfanaDialog from '@/components/mesero/MesaHuerfanaDialog';
 import ProductoFichaExpandible from '@/components/mesero/ProductoFichaExpandible';
-import SolicitudesQRPanel from '@/components/mesero/SolicitudesQRPanel';
 import SolicitudesQRCardList from '@/components/mesero/SolicitudesQRCardList';
 import AlertasMeseroDialog from '@/components/mesero/AlertasMeseroDialog';
 import SeleccionModificadoresDialog from '@/components/mesero/SeleccionModificadoresDialog';
@@ -51,7 +50,7 @@ import AbrirMesaDialog from '@/components/mesero/AbrirMesaDialog';
 import CantidadVariableDialog from '@/components/mesero/CantidadVariableDialog';
 import { TIPO_VENTA, formatearCantidadVariable } from '@/utils/tipoVentaUtils';
 import PrecioProductoMesero, { VariableBadge } from '@/components/mesero/PrecioProductoMesero';
-import { Bell, Volume2 } from 'lucide-react';
+import { Volume2 } from 'lucide-react';
 import { useCajaAbierta } from '@/lib/useCajaAbierta';
 import { useIsDark } from '@/lib/ThemeContext';
 import { FLOOR_BG } from '@/lib/darkPalettes';
@@ -59,6 +58,7 @@ import { printDocument } from '@/lib/print';
 import { tipsEnabled, getPorcentajesSugeridos } from '@/utils/tipsUtils';
 import {
   asignacionActiva,
+  debeUsarNombreEnVoz,
   filtrarMesasParaUsuario,
   responsableTexto,
   responsableColor,
@@ -68,7 +68,19 @@ import {
 } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
 import { claves } from '~/cliente/claves-de-consulta';
-import { mesasDelPlano, zonasConMesas } from '~/cliente/mesas-del-mapa';
+import { mesasDelPlano, zonasConMesas, zonasDelNegocio } from '~/cliente/mesas-del-mapa';
+import { GlobosDeSolicitud } from '~/restaurante/GlobosDeSolicitud';
+import { solicitudesPorMesa } from '~/restaurante/globos-de-solicitud';
+import { SelectorDeVista } from '~/restaurante/SelectorDeVista';
+import { VistaDeSolicitudes } from '~/restaurante/VistaDeSolicitudes';
+import {
+  almacenDelAparato,
+  guardarVista,
+  leerVistaGuardada,
+} from '~/restaurante/vista-de-solicitudes';
+import { playNewOrder } from '@/lib/sounds';
+import { frasePorSolicitud, getAlertConfig, speak } from '@/lib/voiceAlert';
+import { sonar } from '~/sonidos/gestor';
 
 const MAP_HEIGHT = 600;
 // Hook simple para detectar móvil
@@ -148,15 +160,19 @@ function Mesero() {
   const [mesaHuerfana, setMesaHuerfana] = useState(null);
   const [liberandoHuerfana, setLiberandoHuerfana] = useState(false);
 
-  // Solicitudes QR del Portal — panel modal
-  const [showSolicitudesQR, setShowSolicitudesQR] = useState(false);
+  // DP-9.3: Mesas o Solicitudes. La vista la recuerda ESTE aparato: así uno se queda de estación.
+  const [vista, setVista] = useState(() => leerVistaGuardada(almacenDelAparato()));
+  const cambiarVista = (nueva) => {
+    setVista(nueva);
+    guardarVista(almacenDelAparato(), nueva);
+  };
   // Configuración personal de alertas/voz del mesero
   const [showAlertasMesero, setShowAlertasMesero] = useState(false);
   // Modal de selección de modificadores al agregar producto
   const [productoParaPersonalizar, setProductoParaPersonalizar] = useState(null);
   // 6B / 1.D — Modal de cantidad/porción para productos variables
   const [productoVariable, setProductoVariable] = useState(null);
-  const { data: solicitudesPendRaw = [] } = useQuery({
+  const { data: solicitudesPendRaw = [], isFetched: solicitudesLeidas } = useQuery({
     queryKey: ['solicitudes_qr_mesero_count'],
     queryFn: () => api.entidades.SolicitudQR.filter({ estado: 'pendiente' }),
     initialData: [],
@@ -172,6 +188,48 @@ function Mesero() {
     if (!asignacionActiva(config)) return arr;
     return arr.filter((s) => !s?.mesero_destino_id || s.mesero_destino_id === posUser.id);
   }, [solicitudesPendRaw, posUser, config]);
+
+  // DP-9.2: los globos de solicitud sobre cada mesa, en los dos modos (con y sin asignación).
+  // Son las mismas solicitudes que cuenta el botón, agrupadas por mesa. Atender una desde su
+  // globo relee las solicitudes y las mesas (el mesero que la atiende puede quedarse con ella).
+  const solicitudesDeCadaMesa = useMemo(
+    () => solicitudesPorMesa(solicitudesActivas),
+    [solicitudesActivas],
+  );
+  const releerTrasAtender = () => {
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero_count'] });
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_mesero'] });
+    queryClient.invalidateQueries({ queryKey: ['solicitudes_qr_admin'] });
+    queryClient.invalidateQueries({ queryKey: claves.mesas.activas() });
+  };
+  const globosDe = (mesa, lugar) => {
+    const deLaMesa = solicitudesDeCadaMesa.get(mesa.id);
+    if (!deLaMesa || deLaMesa.length === 0) return null;
+    return (
+      <GlobosDeSolicitud
+        solicitudes={deLaMesa}
+        mesaNumero={mesa.numero}
+        alAtender={releerTrasAtender}
+        lugar={lugar}
+      />
+    );
+  };
+
+  // DP-9.3: la voz de las solicitudes suena SÓLO en la vista «Solicitudes» (antes la soltaba el
+  // vigilante global en cualquier pantalla). Cada aparato la configura en Alertas: sonido, voz o
+  // las dos; `speak` respeta el modo. El nombre del mesero sólo va en las suyas.
+  const anunciarSolicitudes = (nuevas) => {
+    const alertas = getAlertConfig();
+    if (alertas.modo === 'sonido' || alertas.modo === 'sonido_voz') playNewOrder();
+    nuevas.forEach((s, i) => {
+      const propia = Boolean(s.mesero_destino_id) && s.mesero_destino_id === posUser?.id;
+      const nombre =
+        propia && alertas.decir_nombre && debeUsarNombreEnVoz(config, s) ? posUser?.nombre || '' : '';
+      setTimeout(() => speak(frasePorSolicitud(s.tipo, s.mesa_numero, nombre)), 280 + i * 1400);
+    });
+  };
+  const portalActivo = config?.portal_qr_activo === true;
+  const enSolicitudes = portalActivo && vista === 'solicitudes';
 
   // Refs para evitar doble cierre y cerrar el sheet hijo antes que el Dialog
   const cartFabRef = useRef(null);
@@ -271,7 +329,11 @@ function Mesero() {
 
   // El plano de la zona y sus pestañas cuentan sólo mesas en servicio (21-10).
   const mesasZona = mesasDelPlano(mesas || [], zonaActiva);
-  const zonasConCount = zonasConMesas(mesas || [], ZONAS_MESA).map(({ zona, cuantas }) => ({
+  // Las zonas del NEGOCIO, no sólo la lista fija: una mesa en «Salón» se ve (DP-5).
+  const zonasConCount = zonasConMesas(
+    mesas || [],
+    zonasDelNegocio([], mesas || [], ZONAS_MESA),
+  ).map(({ zona, cuantas }) => ({
     zona,
     count: cuantas,
   }));
@@ -490,6 +552,7 @@ function Mesero() {
       setProductoParaPersonalizar(producto);
       return;
     }
+    sonar('agregar');
     setCarrito((prev) => {
       const existe = prev.find((i) => i.id === producto.id);
       if (existe)
@@ -520,6 +583,7 @@ function Mesero() {
       return;
     }
     const precioLinea = Number(snapshot?.precio_total_linea) || 0;
+    sonar('agregar');
     setCarrito((prev) => [
       ...prev,
       {
@@ -556,6 +620,7 @@ function Mesero() {
       )
       .join(' · ');
     const notasFinales = [textoMod, (notas || '').trim()].filter(Boolean).join(' · ');
+    sonar('agregar');
     setCarrito((prev) => [
       ...prev,
       {
@@ -589,6 +654,9 @@ function Mesero() {
   };
 
   const cambiarCantidad = (id, delta) => {
+    // DP-11.3: fuera del actualizador (StrictMode lo corre dos veces).
+    const linea = carrito.find((i) => i.id === id);
+    sonar(linea && linea.cantidad + delta > 0 ? 'cantidad' : 'quitar');
     setCarrito((prev) =>
       prev
         .map((i) => (i.id === id ? { ...i, cantidad: i.cantidad + delta } : i))
@@ -686,6 +754,7 @@ function Mesero() {
       queryClient.invalidateQueries({ queryKey: ['pedidos_listos_watcher'] });
       queryClient.refetchQueries({ queryKey: ['pedidos_cocina'], type: 'active' }).catch(() => {});
       toast.success('¡Pedido enviado a cocina!');
+      sonar('enviarACocina');
       setCarrito([]);
       setNotaMesa('');
       setVentaActiva(ventaFresca);
@@ -893,6 +962,7 @@ function Mesero() {
   };
 
   const imprimirPreCuenta = () => {
+    sonar('ticket');
     printDocument({ mode: 'thermal', title: `PreCuenta-${preCuentaData?.venta?.folio || ''}` });
   };
 
@@ -945,23 +1015,6 @@ function Mesero() {
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap w-full sm:w-auto">
-          {config?.portal_qr_activo === true && (
-            <Button
-              type="button"
-              size="sm"
-              variant={(solicitudesActivas?.length || 0) > 0 ? 'default' : 'outline'}
-              onClick={() => setShowSolicitudesQR(true)}
-              className="gap-1.5 relative shrink-0"
-            >
-              <Bell className="w-4 h-4" />
-              <span>Solicitudes</span>
-              {(solicitudesActivas?.length || 0) > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 min-w-[20px] h-5 px-1 rounded-full bg-peligro text-peligro-texto text-[10px] font-bold flex items-center justify-center">
-                  {solicitudesActivas.length}
-                </span>
-              )}
-            </Button>
-          )}
           {/* Configuración personal de voz/alertas — solo para meseros */}
           {posUser?.rol === ROLES.WAITER && (
             <Button
@@ -980,6 +1033,24 @@ function Mesero() {
         </div>
       </div>
 
+      {/* DP-9.3: arriba de las zonas, Mesas o Solicitudes. «Solicitudes» es la pantalla entera. */}
+      {portalActivo && (
+        <SelectorDeVista
+          vista={enSolicitudes ? 'solicitudes' : 'mesas'}
+          pendientes={solicitudesActivas.length}
+          alCambiar={cambiarVista}
+        />
+      )}
+
+      {enSolicitudes ? (
+        <VistaDeSolicitudes
+          solicitudes={solicitudesActivas}
+          cargando={!solicitudesLeidas}
+          alAtender={releerTrasAtender}
+          alAnunciar={anunciarSolicitudes}
+        />
+      ) : (
+        <>
       {/* Zone tabs */}
       {zonasConCount.length > 1 && (
         <div className="flex gap-1.5 overflow-x-auto pb-1">
@@ -1026,6 +1097,7 @@ function Mesero() {
             onMesaClick={onMesaClick}
             getResponsable={getResponsable}
             loading={cargandoMesas}
+            globosDe={(mesa) => globosDe(mesa, 'en-linea')}
           />
         </div>
       ) : (
@@ -1051,6 +1123,8 @@ function Mesero() {
                 onClick={() => onMesaClick(mesa)}
                 responsableColor={resp?.color || null}
                 responsableNombre={resp?.nombre || ''}
+                // Pegada al borde de arriba, el lienzo recortaría la pila: va debajo.
+                globos={globosDe(mesa, (mesa.posicion_y ?? 100) < 80 ? 'abajo' : 'arriba')}
               />
             );
           })}
@@ -1096,6 +1170,9 @@ function Mesero() {
             </div>
           ))}
       </div>
+
+        </>
+      )}
 
       {/* === ABRIR MESA DIALOG (6A) === */}
       <AbrirMesaDialog
@@ -1399,18 +1476,6 @@ function Mesero() {
             onUpdateNotas={actualizarNotasItem}
             onUpdateExclusiones={actualizarExclusionesItem}
           />
-        </DialogContent>
-      </Dialog>
-
-      {/* === SOLICITUDES QR DIALOG === */}
-      <Dialog open={showSolicitudesQR} onOpenChange={setShowSolicitudesQR}>
-        <DialogContent className="sm:max-w-3xl w-[calc(100%-1rem)] max-h-[92vh] overflow-y-auto p-4 sm:p-6">
-          <DialogHeader>
-            <DialogTitle className="font-heading flex items-center gap-2">
-              <Bell className="w-5 h-5 text-primary" /> Solicitudes QR
-            </DialogTitle>
-          </DialogHeader>
-          <SolicitudesQRPanel />
         </DialogContent>
       </Dialog>
 

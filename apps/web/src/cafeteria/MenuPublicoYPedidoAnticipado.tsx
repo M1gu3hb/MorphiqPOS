@@ -18,6 +18,7 @@ import {
 import { Check, ChevronDown, Clock, Coffee, Plus, ShoppingBag, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 
+import { idAlAzar } from '~/cliente/id-al-azar';
 import { useVocabulario } from '~/cliente/vocabulario';
 
 /** Lo mismo que acepta el servidor en un apartado sin pago (auditoría de la 2.4). */
@@ -329,7 +330,8 @@ function PedidoApartadoPieza({
 
 /** Una clave nueva por intento de apartar: reintentar con la MISMA no aparta dos veces. */
 function nuevaClave(): string {
-  return crypto.randomUUID();
+  // `idAlAzar` y no `crypto.randomUUID`: por http en la red local ésta no existe (PAR-1, DP-11.0).
+  return idAlAzar();
 }
 
 export function MenuPublicoYPedidoAnticipado({

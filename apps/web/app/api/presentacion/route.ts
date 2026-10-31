@@ -1,6 +1,7 @@
 import { validarEntorno } from '@morphiqpos/contracts';
 import {
   cookieDeSesion,
+  cookiesSeguras,
   cuerpoDentroDelLimite,
   leerCookie,
   NOMBRE_COOKIE,
@@ -83,7 +84,7 @@ export async function POST(peticion: Request) {
       { ok: false, error: { mensaje: 'Tu usuario no tiene acceso a la presentación general.' } },
       403,
     );
-  const seguro = entorno.NODE_ENV === 'production';
+  const seguro = cookiesSeguras(entorno);
   if (entrada.data.accion === 'desbloquear') {
     const cuota = await permitir('presentacion', peticion.headers, entorno.PIN_PEPPER);
     if (!cuota.ok)

@@ -130,10 +130,12 @@ export default function CorteCaja() {
       //
       // La rama «no hay corte abierto → créalo cerrado» desaparece: no se puede
       // cerrar una caja que nunca se abrió, y `caja.cerrar` lo dice así.
-      await api.comandos.ejecutar('/api/caja/cerrar', {
+      const cierre = await api.comandos.ejecutar('/api/caja/cerrar', {
         efectivoContadoCentavos: aCentavos(efectivoContadoNum),
         ...(notas ? { notas } : {}),
       });
+      // DP-10.2: con otra caja abierta cierra aunque queden cuentas de mesa vivas, y lo avisa.
+      if (cierre?.aviso?.mensaje) toast.warning(cierre.aviso.mensaje, { duration: 10000 });
       queryClient.invalidateQueries({ queryKey: ['cortes'] });
       queryClient.invalidateQueries({ queryKey: ['cortes_caja_estado'] });
       setShowCierre(false);

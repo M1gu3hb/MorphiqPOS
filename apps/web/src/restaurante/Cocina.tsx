@@ -15,6 +15,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 
 import { consultarPuente, invocarComando } from '~/cliente/api';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { sonar } from '~/sonidos/gestor';
 
 import { platillosPorPreparar, tieneQuePreparar } from './platillos-de-cocina.ts';
 
@@ -272,6 +273,7 @@ export function Cocina({ filasIniciales }: CocinaProps) {
       // `transicionar_pedido` (E6-6) rechaza el retroceso solo: dos pantallas de
       // cocina abiertas a la vez no se pisan.
       await invocarComando(RUTA_TRANSICION, { comandaId: comanda.id, estado: destino });
+      if (destino === 'listo') sonar('comandaLista');
     } catch (fallo: unknown) {
       setComandas(mover(comanda.estado));
       setError(fallo instanceof Error ? fallo.message : 'No se pudo mover la comanda.');
