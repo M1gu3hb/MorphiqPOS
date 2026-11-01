@@ -2,6 +2,9 @@
 
 Archivo de progreso. **Con él solo, otra sesión retoma el encargo.** Se actualiza en cada paso.
 
+**Estado: TERMINADO (31-10-2026, noche).** Las fases 3 y 4 se hicieron en la laptop; evidencia en
+el §6 y en el reporte 023.
+
 - Fuente: `M1gu3hb/POS-Don-Poncho`, `main` = `2feb661`, `fase-b` = `16d621b`, más `95274d7` de
   `dp-11` (la licencia de Sound Lab servida). Fichas: `docs/para-el-maestro/` de `fase-b`.
 - Destino: `M1gu3hb/MorphiqPOS`, `main` = `5f4534c` al empezar (31-10-2026).
@@ -18,11 +21,12 @@ Archivo de progreso. **Con él solo, otra sesión retoma el encargo.** Se actual
 | Fase 0     | Este archivo: tabla, PR A / PR B, nube contra laptop                  | hecho                                               |
 | PR #19     | Next 16.4.3 + la lista de espera (R16) + la galería por día de semana | **fusionado, producción `READY`** (`85556f0`)       |
 | PR A       | #20 `paridad/sin-migracion`: bloques A a D                            | **fusionado, producción `READY`** (`6bd55ba`), humo |
-| PR B       | #21 `paridad/fase-b`: bloque E, 186 y 187, guion de la laptop         | abierto, CI; **sin fusionar** hasta la fase 3       |
-| Guion      | `scripts/paridad-laptop.mjs` y la huella                              | revisado y probado de punta a punta (url y CLI)     |
-| Don Poncho | PR #1 (`fase-b` → `main`): guardas de la 188, índice                  | listo para revisión, **sin fusionar** (fase 4)      |
-| Fase 3     | Migrar la base compartida (laptop)                                    | espera a la laptop                                  |
-| Fase 4     | Fusionar `fase-b` de Don Poncho (laptop + Miguel)                     | espera a la fase 3                                  |
+| PR B       | #21 `paridad/fase-b`: bloque E, 186 y 187, guion de la laptop         | **fusionado, producción `READY`** (`e3edecd`), humo |
+| Guion      | `scripts/paridad-laptop.mjs` y la huella                              | corrido en la laptop: **TODO EN VERDE** (94 s)      |
+| Don Poncho | PR #1 (`fase-b` → `main`): guardas de la 188, índice                  | **fusionado** (`6ade1d9`), CI 16/16, `READY`, humo  |
+| Fase 3     | Migrar la base compartida (laptop)                                    | **hecha** (31-10, 18:48 CDMX): ledger 117 → 119     |
+| Fase 4     | Fusionar `fase-b` de Don Poncho (laptop + Miguel)                     | **hecha** (31-10, ~19:10 CDMX)                      |
+| Pendiente  | Producto oculto en el carrito compartido (§2)                         | **arreglado** en los dos repos (§6)                 |
 
 Numeración: el PR #19 lleva sus propios `PAR-1.1` a `PAR-1.3` (rama de la sesión); el PR A
 empieza en `PAR-1.2` sobre `PAR-1.1` y sigue hasta `PAR-1.56`; el PR B, de `PAR-1.46` en adelante. Los dos `PAR-1.2`/`PAR-1.3` son
@@ -78,12 +82,12 @@ sólo lectura. 22 hallazgos; 11 refutados. Los 11 que sobrevivieron:
   (rutas de la huella, `&&`, `$env:SUPABASE_CLI_PATH`). Corregidos en `PAR-1.58` y en el §5.
 - Ya resueltos al traer `main` (`PAR-1.57`): la huella con TLS fijado, Confetti, la guarda de la
   huella vacía y `conUnida`, que el PR B no tenía por nacer antes de `PAR-1.54`.
-- **Pendiente conocido, igual en Don Poncho** (menor, no se corrige en la paridad): si el negocio
-  oculta o desactiva un producto que ya está en el carrito compartido, «Enviar» falla para toda la
-  mesa (`PRODUCTO_NO_ENCONTRADO`) y sólo el teléfono que lo agregó puede quitar la línea; se
-  destraba reactivando el producto o quitando la línea desde ese teléfono. Arreglo propuesto para
-  los dos repos: que el envío descarte y avise las líneas no disponibles, y que cualquier teléfono
-  de la mesa pueda quitar una línea no disponible.
+- ~~**Pendiente conocido, igual en Don Poncho**~~ **Arreglado el 31-10 en los dos repos (§6):** si el
+  negocio ocultaba o desactivaba un producto que ya estaba en el carrito compartido, «Enviar»
+  fallaba para toda la mesa (`PRODUCTO_NO_ENCONTRADO`) y sólo el teléfono que lo agregó podía
+  quitar la línea. Ahora todos los teléfonos la ven marcada, el envío la quita, manda lo demás y
+  lo dice. Quitar una línea ajena sigue siendo sólo de quien la agregó: ya no hace falta para
+  enviar.
 
 ## 3 · Commit por commit
 
@@ -327,3 +331,84 @@ huella compara a los 11, y una venta o un inicio de sesión entre las dos tomas 
    compartida); su `esquema-esperado.json` es idéntico al del PR B (= una base en la 187); su
    exportador de la mudanza descubre las tablas por catálogo e incluye las tres nuevas (135
    tablas con una base en la 187).
+
+## 6 · El cierre en la laptop (31-10-2026, noche)
+
+Sesión local de Claude Code en la laptop de Miguel. Horas de CDMX. Sin secretos ni PIN: los PIN
+los tecleó Miguel en el navegador (la sesión no teclea credenciales en producción).
+
+### Antes de migrar (18:05, sólo lectura)
+
+- En los 11 negocios: cero ventas y cero entradas en la última hora. Abiertas: en Don Poncho, una
+  cuenta en la Mesa 1 (12:02, de «Miguel · Morphiq», sin caja); en el restaurante de demostración,
+  su caja del 20-10 y una cuenta del 21-10; en el espejo de la presentación, una caja y un borrador
+  del 21-10; en las ferreterías y la tienda, borradores de septiembre. Miguel confirmó que Don
+  Poncho ya había cerrado.
+- Ledger en la 185 (117 migraciones) y 0 uniones abiertas.
+
+### Fase 3
+
+- `paridad/fase-b` en `acfa0cb`, `pnpm install --frozen-lockfile`, CLI 2.115.0 vinculado en este
+  checkout (`link --project-ref wyqmzhliurwyxuyxznpb`).
+- `scripts/paridad-laptop.mjs`: **TODO EN VERDE** en 94 s. Pendientes, exactamente la 186 y la 187
+  con el hash de Don Poncho; `pnpm db:migrate` por el CLI vinculado («Aplicadas 2»); ledger
+  117 → 119; `verify:esquema` (1749 columnas, 1382 restricciones, 445 índices) y `verify:rls` (177
+  relaciones, 16 funciones) en verde; huella de 11 negocios IDÉNTICA, 0 mesas de relleno, tablas
+  nuevas vacías. Huellas en `..\_PRIVADO\paridad\2026-11-01T0048\`.
+- PR #21 fusionado con merge (`e3edecd`); Production `READY` en `www.pos-mh-astral-systems.com`.
+
+### Humo del maestro
+
+- **El modo presentación estaba encendido** (lo dejó así Miguel): con él, la sesión del dueño
+  trabaja en el espejo interno (`demo-acople-restaurante-presentacion-d24951`). Por eso la huella
+  del humo excluyó los dos slugs del demo (9 negocios) y se tomó antes de escribir nada.
+- **Unir:** en Terraza, la 8 arrastrada hacia la 7 se atrae y se funde; «¿Qué número queda?» (viene
+  marcada la que se arrastró); queda la 7, la 8 se oculta y su QR abre la 7 («Esta mesa está unida
+  a la mesa 7»). La unión nace con `orden_id` nulo, lo que permite la 187.
+- **Separar:** en la mesa activa, «Separar mesas» → «¿Separar las mesas?» → cada una a su lugar.
+  La cuenta vacía se liberó con `restaurante.liberar_mesa`.
+- **Pedido compartido** en la Mesa 3 (Interior, con mesero asignado; las de Terraza responden «Esta
+  mesa aún no tiene mesero asignado»): dos pestañas con dos ids de teléfono, «2 personas
+  conectadas», lo «De otro teléfono» sin «Quitar», cada quien quitó lo suyo, «¿Ya pidieron
+  todos?» y un solo envío: una ronda, 2 líneas, $100, una comanda y el carrito vacío en los dos.
+  Se dejó como estaba con `restaurante.cancelar_orden` (mesa liberada, comanda cancelada).
+- **Configuración → Sonidos** (teclado, portal y momentos; «Oír» deja `data-ultimo-sonido`) y
+  **→ Este aparato** (modo espera por pantalla, perfil y volumen, «Probar»): cargan y suenan.
+- Huella de los 9 antes y después del humo: IDÉNTICA.
+
+### Fase 4
+
+- 19:07: Don Poncho sin caja ni ventas; las únicas entradas del día, de «Miguel · Morphiq».
+- PR #1 de Don Poncho fusionado con merge (`6ade1d9`); su CI a mano sobre `main`, la corrida
+  41259830541, **16/16**; Production `READY` en `pos-don-poncho.vercel.app`.
+- Su `verify:esquema` contra la base compartida: verde (1749 / 1382 / 445).
+- Humo sin PIN: la entrada 200; la página que no existe, 404 con Morfi; CSP, HSTS y `nosniff`.
+- Humo con PIN (el de Miguel: el del dueño no estaba a la mano), sin crear cuentas ni comandas:
+  unir la 3 a la 2 en el mapa y separarlas (`restaurante.separar_mesas`; ver el primer hallazgo);
+  en el QR de la Mesa 1 (la cuenta de Miguel de las 12:02), dos pestañas: un tamal del teléfono 2
+  y una quesadilla (con su relleno obligatorio) del teléfono 1, «(2) · $75», cada uno quitó lo
+  suyo y no se envió nada. La cuenta de la Mesa 1 quedó igual ($145, una línea).
+- Huella de los otros 10 antes y después: IDÉNTICA.
+
+### Hallazgos del humo (no se corrigen en PAR-1)
+
+- **Unir sin cuenta y arrepentirse:** la mesa principal libre dice «Unida con 3» y sólo ofrece
+  «Abrir la mesa»; no hay botón para separar sin abrir la cuenta. Igual en los dos repos.
+- Las mesas sin mesero asignado no aceptan pedidos por QR en el maestro (la Terraza de la demo);
+  en Don Poncho el portal funciona sin asignación (DP-9.2). Es configuración, no defecto.
+
+### El pendiente menor: el producto oculto en el carrito compartido
+
+- Mismo arreglo en los dos repos (PR #22 del maestro, PR #2 de Don Poncho). Al enviar,
+  `carrito-disponibilidad.ts` aparta lo que ya no se puede pedir (oculto, desactivado o con una
+  cantidad que el producto ya no admite), lo quita del carrito para todos, manda lo demás y lo
+  dice (`noDisponibles`). `estadoDelCarrito` marca cada línea con `disponible`: el teléfono la
+  enseña «Ya no está disponible: no se enviará» y no la suma. Agregar ya valora la cantidad (media
+  pieza no entra al carrito).
+- Las pruebas primero en rojo (`PRODUCTO_NO_ENCONTRADO`), luego en verde: 5 de integración
+  (`carrito-disponibilidad.integracion.test.ts`, también la atomicidad con `interrumpirEn`) y 2
+  unitarias; 7 mutaciones muertas en cada repo (4 del servidor y 3 del teléfono).
+- Revisión independiente (un Sonnet de sólo lectura en su worktree): cero críticos y altos. Se
+  atendieron los 3 medios y los 5 bajos, salvo uno: los OTROS teléfonos no reciben la lista de lo
+  quitado (habría que guardarla en `carritos_mesa`, con migración). A cambio, la ven marcada antes
+  del envío.

@@ -104,6 +104,7 @@ Extraídas de las decisiones anteriores. Si una propuesta las viola, se rechaza.
 | 8/9-sep-2026 | Claude Code + Codex | **Sesión 2.** Carril A: A-01 (envoltorio `comando()`), 1 de 22. Carril B: B-01 a B-05 + 2 a medias, 5 de 24. Ambos reportes honestos |
 | 9-sep-2026 | Cowork local | **Auditoría de la sesión 2.** Hallazgo central: `apps/web` no importa nada del backend — motor sin cableado. Se revisa y se descarta la mudanza a la tiendita (A-49). Decisiones A-49 a A-51. Prompts de la sesión 3 en `docs/fase-1/19` |
 | 31-oct-2026 | Claude Code (nube) | **PAR-1 · paridad con POS Don Poncho.** Bloques A a D portados (PR A, sin migraciones) y el bloque E (pedido compartido y unir mesas, 186 y 187) listo sin fusionar. Decisiones A-53 a A-58. Progreso en `docs/paridad/PARIDAD-DON-PONCHO.md` |
+| 31-oct-2026 | Claude Code (laptop) | **PAR-1 terminado.** Fase 3: la 186 y la 187 en la base compartida por `scripts/paridad-laptop.mjs` (ledger 117 → 119, puertas verdes, huella IDÉNTICA), PR #21 en producción. Fase 4: PR #1 de Don Poncho en `main` y en producción. Humo y huellas en los dos. El producto oculto del carrito compartido, arreglado en los dos repos (A-59). Reporte 023 §10 |
 
 ## A-52 · 20-oct-2026 · Master POS interno y extracción por cliente
 
@@ -222,3 +223,21 @@ las reciba una sola vez y sirvan a los dos sistemas. Reemplaza el puente de DP-1
   la fase 3 y la 4 van seguidas y fuera del horario de Don Poncho.
 - En Don Poncho (`fase-b`): su `verify:acople` deja de exigir la 188 en la base compartida y su
   `db:migrate` se niega a migrar la compartida; la 188 sigue siendo para su base propia.
+
+## A-59 · 31-oct-2026 · PAR-1 · lo que ya no se puede pedir sale del carrito compartido al enviar
+
+Si el negocio ocultaba, desactivaba o cambiaba la regla de cantidad de un producto que ya estaba en
+el carrito compartido de una mesa, «Enviar» fallaba para TODOS (`PRODUCTO_NO_ENCONTRADO` o
+`CATALOGO_INVALIDO`) y sólo el teléfono que lo agregó podía quitar la línea.
+
+- **Elección:** al enviar, en la misma transacción y bajo el mismo candado, se apartan las líneas
+  que ya no se pueden pedir (`portal/carrito-disponibilidad.ts`), se quitan del carrito, el pedido
+  sale con lo demás y la respuesta dice qué se quitó (`noDisponibles`). El estado del carrito marca
+  cada línea con `disponible`, para que todos los teléfonos la vean antes de enviar. Agregar valora
+  la cantidad con las reglas del envío. El mismo cambio en POS Don Poncho.
+- **Alternativas descartadas:** quitar las líneas en el momento de ocultar el producto (acopla el
+  catálogo con el portal y no cubre el cambio de regla de cantidad); dejar que cualquier teléfono
+  quite una línea ajena no disponible (sigue trabando hasta que alguien la vea y la quite).
+- **Consecuencia:** el teléfono que envía ve qué se quitó; los demás ven la línea marcada y luego
+  el «Pedido enviado» de siempre, sin la lista. Guardar la lista para todos pediría una columna en
+  `carritos_mesa` (migración): no entra hasta que haga falta.

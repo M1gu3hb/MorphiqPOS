@@ -3,7 +3,7 @@
 > **Lee este archivo completo antes de responder cualquier cosa sobre MorphiqPOS.**
 > Es la fuente de verdad del proyecto. No dependas de memoria de conversaciones: todo lo acordado vive aquí y en `DECISIONES.md`.
 
-Última actualización: 20 de octubre de 2026
+Última actualización: 31 de octubre de 2026 (PAR-1 terminado)
 Fase actual: **2.4 — estabilización; prioridad inmediata: restaurante, acceso y navegación del dueño.**
 
 > **Actualización de Miguel · 19/20 de octubre de 2026 — A-52 / D-42.**
@@ -292,10 +292,23 @@ progreso en [`docs/paridad/PARIDAD-DON-PONCHO.md`](docs/paridad/PARIDAD-DON-PONC
   modo espera por aparato con la hora del negocio, los sonidos de la interfaz.
 - **Herramientas:** la demo local en la red (`scripts/demo-local.mjs`), la mudanza de un negocio
   a su base, la huella de los negocios y el medidor de fluidez.
-- **Con la migración 186/187 (PR B, cuando la base la tenga):** el pedido compartido de la mesa
-  (un carrito por mesa para todos los teléfonos) y unir mesas arrastrándolas en el mapa.
+- **Con las migraciones 186 y 187 (aplicadas el 31-oct-2026, PR #21 en producción):** el pedido
+  compartido de la mesa (un carrito por mesa para todos los teléfonos, que aparta y avisa lo que
+  ya no se puede pedir, A-59) y unir mesas arrastrándolas en el mapa.
+
+**PAR-1 está terminado** (31-oct-2026): las fases 3 y 4 se hicieron en la laptop con huellas
+IDÉNTICAS de los demás negocios; POS Don Poncho tiene `fase-b` en `main` y en producción. Reporte
+[`docs/reports/023-par-1-paridad-don-poncho.md`](docs/reports/023-par-1-paridad-don-poncho.md).
 
 ## 9. Estado y qué sigue
+
+### Fuera de PAR-1, lo que sigue (31-oct-2026)
+- El rediseño de pantallas (DP-11.4 de Don Poncho, esperando la decisión de Miguel).
+- Las 14 animaciones de Morfi.
+- La mudanza de Don Poncho a su propio Supabase (Fase B, 7 a 10 de noviembre).
+- La operación con PIN por puesto y dinero.
+- La seguridad marcada: rotar PIN, D-5, el monitor de recogida y el repositorio público.
+- Unir dos mesas libres y arrepentirse no tiene botón para separar (hallazgo del humo de PAR-1).
 
 ### Pendiente de Miguel
 1. **Verificar el SHA-256 del ZIP** (`Get-FileHash`, 30 segundos). Bloqueo formal de Fase 0.1.
