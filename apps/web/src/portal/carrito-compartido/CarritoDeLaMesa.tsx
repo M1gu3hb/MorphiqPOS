@@ -29,6 +29,7 @@ import { toast } from 'sonner';
 import { ErrorApi } from '~/cliente/api';
 
 import {
+  avisoDelEnvio,
   personasConectadas,
   subtotalAproximadoCentavos,
   type LineaDelCarrito,
@@ -62,6 +63,11 @@ function Renglon({
         {linea.esMia ? null : (
           <span className="block text-xs text-texto-sutil">De otro teléfono</span>
         )}
+        {linea.disponible === false ? (
+          <span className="block text-xs font-semibold text-peligro">
+            Ya no está disponible: no se enviará
+          </span>
+        ) : null}
       </span>
       {linea.esMia && alQuitar !== undefined ? (
         <Button
@@ -101,10 +107,9 @@ export function CarritoDeLaMesa({ carrito }: { readonly carrito: Carrito }) {
     setEnviando(true);
     setFallo(null);
     try {
-      const resultado = await carrito.enviar({ confirmado, notaGeneral: nota });
-      toast.success(
-        resultado.enviado ? '¡Pedido enviado a cocina!' : 'Otro teléfono de la mesa ya lo envió.',
-      );
+      const aviso = avisoDelEnvio(await carrito.enviar({ confirmado, notaGeneral: nota }));
+      if (aviso.tono === 'exito') toast.success(aviso.texto);
+      else toast.warning(aviso.texto);
       setNota('');
       setConfirmando(false);
       setAbierto(false);

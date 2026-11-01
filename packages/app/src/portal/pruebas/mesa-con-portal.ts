@@ -85,13 +85,19 @@ export async function mesaConPortal({ pedidos = true }: { readonly pedidos?: boo
     await comando(rotarQr, { entrada: { mesaId }, ambito, idempotencyKey: clave() }),
     'restaurante.rotar_qr',
   );
-  const publico = <E extends ZodType, S>(definicion: ComandoPublico<E, S>, entrada: unknown) =>
+  /** `interrumpirEn`: rompe el comando en ese paso, para probar que revierte entero. */
+  const publico = <E extends ZodType, S>(
+    definicion: ComandoPublico<E, S>,
+    entrada: unknown,
+    interrumpirEn?: string,
+  ) =>
     ejecutarComandoPublico(definicion, {
       token: qrToken,
       organizacionId: negocio.organizacionId,
       entrada,
       idempotencyKey: clave(),
       pimienta: PIMIENTA,
+      interrumpirEn,
     });
   const mirar = (dispositivo: string, ahora = new Date()) =>
     leerElCarrito({
