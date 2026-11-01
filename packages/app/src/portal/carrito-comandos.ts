@@ -12,10 +12,11 @@ import {
   latir,
   type EstadoDelCarrito,
 } from './carrito.ts';
+import { apartarLoQueYaNoSePide } from './carrito-disponibilidad.ts';
 import { definirComandoPublico, type ContextoPortal } from './definicion-publica.ts';
 import { exigirPedidosDesdeElTelefono } from './mesa.ts';
 import { ordenAbiertaDeLaMesa, pedirEnLaMesa, type ResultadoPedido } from './pedido.ts';
-import { cargarProductosDelMenu } from './productos.ts';
+import { cargarProductosDelMenu, valorarParaPedido } from './productos.ts';
 
 /**
  * LOS TRES COMANDOS DEL CARRITO COMPARTIDO (DP-9.5): agregar, quitar lo propio y enviar.
@@ -58,12 +59,16 @@ export const agregarAlCarrito = definirComandoPublico<
     const productos = await ctx.paso('cargar_menu', () =>
       cargarProductosDelMenu(ctx.tx, ctx.ambito.organizacionId, [entrada.item.productoId]),
     );
-    if (!productos.has(entrada.item.productoId)) {
+    const producto = productos.get(entrada.item.productoId);
+    if (producto === undefined) {
       throw new ErrorDominio(
         'PRODUCTO_NO_ENCONTRADO',
         'Ese producto ya no está disponible. Actualiza el menú y vuelve a intentar.',
       );
     }
+    // La cantidad se valora aquí con las reglas del envío: media pieza no entra al carrito (si
+    // entrara, trabaría el envío de toda la mesa). Lanza con el motivo exacto.
+    valorarParaPedido(producto.paraVender, entrada.item.cantidad);
 
     // Lo que quedó de una cuenta anterior ya no es de nadie: se va antes de contar.
     await ctx.paso('olvidar_lo_viejo', () =>
@@ -151,10 +156,15 @@ export const quitarDelCarrito = definirComandoPublico<
 });
 
 export interface ResultadoDelEnvio {
-  /** `false`: otro teléfono lo mandó primero y aquí ya no había nada que enviar. */
+  /** `false`: otro teléfono lo mandó primero, o todo lo del carrito dejó de estar disponible. */
   readonly enviado: boolean;
   readonly ronda: number;
   readonly pedido: ResultadoPedido | null;
+  /**
+   * Lo que se quitó del carrito porque ya no se podía pedir (oculto, desactivado o con una
+   * cantidad que el producto ya no admite): el pedido sale sin eso y el teléfono lo dice.
+   */
+  readonly noDisponibles: readonly string[];
 }
 
 export const enviarElCarrito = definirComandoPublico<
@@ -190,10 +200,10 @@ export const enviarElCarrito = definirComandoPublico<
       .forUpdate()
       .executeTakeFirstOrThrow();
 
-    const lineas = await lineasPendientes(ctx, orden.created_at);
-    if (lineas.length === 0) {
+    const pendientes = await lineasPendientes(ctx, orden.created_at);
+    if (pendientes.length === 0) {
       ctx.auditar({ entidadId: orden.id, payload: { enviado: false, ronda: antes.ronda } });
-      return { enviado: false, ronda: antes.ronda, pedido: null };
+      return { enviado: false, ronda: antes.ronda, pedido: null, noDisponibles: [] };
     }
 
     const estado = await estadoDelCarrito(ctx.tx, ctx.ambito, huella, {
@@ -207,11 +217,43 @@ export const enviarElCarrito = definirComandoPublico<
       );
     }
 
+    // Lo que el negocio ocultó, desactivó o cambió con la mesa a medio pedir trababa el envío
+    // de TODOS y sólo el teléfono que lo agregó podía quitarlo. Ahora sale del carrito para
+    // todos, el pedido va sin eso y el teléfono lo dice (`carrito-disponibilidad.ts`).
+    const {
+      quedan: lineas,
+      fuera,
+      nombres,
+      menu,
+    } = await apartarLoQueYaNoSePide(ctx, pendientes, estado);
+    const quitado = {
+      noDisponibles: nombres,
+      lineasQuitadas: fuera.map((l) => l.id),
+      productosQuitados: fuera.map((l) => l.producto_id),
+    };
+    if (fuera.length > 0) {
+      await ctx.paso('quitar_no_disponibles', () =>
+        ctx.tx
+          .deleteFrom('carrito_mesa_lineas')
+          .where('organizacion_id', '=', organizacionId)
+          .where('id', 'in', quitado.lineasQuitadas)
+          .execute(),
+      );
+    }
+    if (lineas.length === 0) {
+      ctx.auditar({
+        entidadId: orden.id,
+        payload: { enviado: false, ronda: antes.ronda, ...quitado },
+      });
+      return { enviado: false, ronda: antes.ronda, pedido: null, noDisponibles: nombres };
+    }
+
     const pedido = await pedirEnLaMesa(
       ctx,
       orden,
       lineas.map((l) => ({ productoId: l.producto_id, cantidad: l.cantidad, notas: l.notas })),
       entrada.notaGeneral,
+      menu,
     );
 
     await ctx.paso('vaciar', () =>
@@ -243,8 +285,9 @@ export const enviarElCarrito = definirComandoPublico<
         lineas: pedido.lineas,
         comandas: pedido.comandas,
         totalCentavos: pedido.totalCentavos,
+        ...quitado,
       },
     });
-    return { enviado: true, ronda, pedido };
+    return { enviado: true, ronda, pedido, noDisponibles: nombres };
   },
 });

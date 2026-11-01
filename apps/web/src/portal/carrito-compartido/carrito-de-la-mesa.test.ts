@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 
 import {
+  avisoDelEnvio,
   dispositivoDelTelefono,
   envioDeOtroTelefono,
   personasConectadas,
@@ -77,6 +78,9 @@ describe('lo que enseña el carrito de la mesa', () => {
       },
     ];
     expect(subtotalAproximadoCentavos(lineas)).toBe(7_000 + 10_500);
+    // Lo que el negocio ya no ofrece no se va a enviar: no cuenta.
+    const sinTaco = lineas.map((l) => (l.id === '1' ? { ...l, disponible: false } : l));
+    expect(subtotalAproximadoCentavos(sinTaco)).toBe(10_500);
   });
 
   it('«personas conectadas» en singular y plural', () => {
@@ -98,5 +102,40 @@ describe('lo que enseña el carrito de la mesa', () => {
         estado({ ronda: 2, ultimoEnvio: { en: '2026-10-26T20:00:00Z', porEsteTelefono: true } }),
       ),
     ).toBe(false);
+  });
+
+  it('el aviso del envío dice lo que se quitó porque ya no está disponible', () => {
+    const envio = (enviado: boolean, noDisponibles: readonly string[]) => ({
+      enviado,
+      ronda: 1,
+      noDisponibles,
+    });
+    expect(avisoDelEnvio(envio(true, []))).toEqual({
+      tono: 'exito',
+      texto: '¡Pedido enviado a cocina!',
+    });
+    // Vacío al llegar: lo mandó otro teléfono, o el envío de otro quitó lo que ya no había.
+    expect(avisoDelEnvio(envio(false, []))).toEqual({
+      tono: 'exito',
+      texto: 'Ya no había nada que enviar: lo mandó otro teléfono o se quitó del pedido.',
+    });
+    // Un servidor anterior (o un reintento guardado antes del despliegue) no trae la lista.
+    expect(avisoDelEnvio({ enviado: true, ronda: 2 })).toEqual({
+      tono: 'exito',
+      texto: '¡Pedido enviado a cocina!',
+    });
+    expect(avisoDelEnvio(envio(true, ['Taco']))).toEqual({
+      tono: 'aviso',
+      texto: 'Pedido enviado sin Taco: ya no está disponible y se quitó del pedido.',
+    });
+    expect(avisoDelEnvio(envio(true, ['Taco', 'Flan', 'Café']))).toEqual({
+      tono: 'aviso',
+      texto:
+        'Pedido enviado sin Taco, Flan y Café: ya no están disponibles y se quitaron del pedido.',
+    });
+    expect(avisoDelEnvio(envio(false, ['Taco']))).toEqual({
+      tono: 'aviso',
+      texto: 'No se envió nada: Taco ya no está disponible y se quitó del pedido.',
+    });
   });
 });

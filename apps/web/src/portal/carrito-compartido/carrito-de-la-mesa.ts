@@ -14,6 +14,8 @@ export interface LineaDelCarrito {
   readonly notas: string;
   readonly precioCentavos: string;
   readonly esMia: boolean;
+  /** `false`: el negocio ya no lo ofrece; al enviar se quita. Sin el campo, cuenta como sí. */
+  readonly disponible?: boolean;
 }
 
 export interface EstadoDelCarrito {
@@ -28,6 +30,50 @@ export interface EstadoDelCarrito {
 export interface ResultadoDelEnvio {
   readonly enviado: boolean;
   readonly ronda: number;
+  /**
+   * Lo que el servidor quitó del carrito porque ya no se podía pedir. Falta en la respuesta de un
+   * servidor anterior, o en la de un reintento que se guardó antes de desplegar.
+   */
+  readonly noDisponibles?: readonly string[];
+}
+
+export interface AvisoDelEnvio {
+  readonly tono: 'exito' | 'aviso';
+  readonly texto: string;
+}
+
+/** «Taco», «Taco y Flan», «Taco, Flan y Café». */
+function enLista(nombres: readonly string[]): string {
+  return nombres.length <= 1
+    ? (nombres[0] ?? '')
+    : `${nombres.slice(0, -1).join(', ')} y ${nombres[nombres.length - 1] ?? ''}`;
+}
+
+/**
+ * Lo que se le dice al comensal después de «Enviar». Si el negocio ocultó algo que ya estaba en
+ * el carrito, el servidor lo quita y manda lo demás: aquí se nombra lo que no se envió.
+ */
+export function avisoDelEnvio(resultado: ResultadoDelEnvio): AvisoDelEnvio {
+  const fuera = resultado.noDisponibles ?? [];
+  if (fuera.length === 0) {
+    // Vacío al llegar: otro teléfono lo mandó, o el envío de otro quitó lo que ya no había.
+    return {
+      tono: 'exito',
+      texto: resultado.enviado
+        ? '¡Pedido enviado a cocina!'
+        : 'Ya no había nada que enviar: lo mandó otro teléfono o se quitó del pedido.',
+    };
+  }
+  const motivo =
+    fuera.length === 1
+      ? 'ya no está disponible y se quitó del pedido.'
+      : 'ya no están disponibles y se quitaron del pedido.';
+  return {
+    tono: 'aviso',
+    texto: resultado.enviado
+      ? `Pedido enviado sin ${enLista(fuera)}: ${motivo}`
+      : `No se envió nada: ${enLista(fuera)} ${motivo}`,
+  };
 }
 
 /** Lo que se manda de un platillo: nunca su precio (lo pone el servidor). */
@@ -73,12 +119,14 @@ export function dispositivoDelTelefono(): string {
   return nuevo;
 }
 
-/** `'0.25'` × `42000` → `10500`: el subtotal para enseñar; lo que se cobra lo decide la caja. */
+/**
+ * `'0.25'` × `42000` → `10500`: el subtotal para enseñar; lo que se cobra lo decide la caja. Lo
+ * que ya no está disponible no cuenta: no se va a enviar.
+ */
 export function subtotalAproximadoCentavos(lineas: readonly LineaDelCarrito[]): number {
-  return lineas.reduce(
-    (suma, l) => suma + Math.round(Number(l.cantidad) * Number(l.precioCentavos)),
-    0,
-  );
+  return lineas
+    .filter((l) => l.disponible !== false)
+    .reduce((suma, l) => suma + Math.round(Number(l.cantidad) * Number(l.precioCentavos)), 0);
 }
 
 export function personasConectadas(n: number): string {

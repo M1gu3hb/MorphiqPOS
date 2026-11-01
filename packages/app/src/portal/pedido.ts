@@ -95,14 +95,18 @@ export async function pedirEnLaMesa(
   orden: OrdenAbierta,
   items: readonly ItemPedido[],
   notaGeneral: string,
+  /** El menú que quien llama ya leyó en esta transacción (el envío del carrito lo filtra con él). */
+  menu?: ReadonlyMap<string, ProductoDelMenu>,
 ): Promise<ResultadoPedido> {
-  const productos = await ctx.paso('cargar_menu', () =>
-    cargarProductosDelMenu(
-      ctx.tx,
-      ctx.ambito.organizacionId,
-      items.map((i) => i.productoId),
-    ),
-  );
+  const productos =
+    menu ??
+    (await ctx.paso('cargar_menu', () =>
+      cargarProductosDelMenu(
+        ctx.tx,
+        ctx.ambito.organizacionId,
+        items.map((i) => i.productoId),
+      ),
+    ));
 
   const visual = await siguienteOrdenVisual(ctx, orden.id);
   const paraCocina: ItemParaCocina[] = [];

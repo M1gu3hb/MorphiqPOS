@@ -62,6 +62,11 @@ export interface LineaDelCarrito {
   readonly precioCentavos: string;
   /** La agregó ESTE teléfono: sólo ésas se pueden quitar desde aquí. */
   readonly esMia: boolean;
+  /**
+   * `false`: el negocio la ocultó del menú o la desactivó después de que se agregara. Todos los
+   * teléfonos la ven marcada; al enviar se quita y el pedido sale sin ella.
+   */
+  readonly disponible: boolean;
 }
 
 export interface EstadoDelCarrito {
@@ -155,6 +160,8 @@ export async function estadoDelCarrito(
             'l.dispositivo_huella',
             'p.nombre',
             'p.precio_venta_centavos',
+            'p.activo',
+            'p.visible_en_menu_digital',
           ])
           .where('l.organizacion_id', '=', ambito.organizacionId)
           .where('l.mesa_id', '=', ambito.mesaId)
@@ -196,6 +203,7 @@ export async function estadoDelCarrito(
       notas: l.notas,
       precioCentavos: l.precio_venta_centavos.toString(),
       esMia: l.dispositivo_huella === huella,
+      disponible: l.activo && l.visible_en_menu_digital,
     })),
     conectados: nConectados,
     personas,

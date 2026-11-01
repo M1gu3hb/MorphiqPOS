@@ -1,7 +1,8 @@
 # 023 · PAR-1 · Paridad con POS Don Poncho
 
-Fecha: 31-10-2026. Sesión de desarrollo en la nube (Claude Code). Sin secretos ni PIN en este
-documento. Progreso vivo, tabla commit por commit y pasos de las fases 3 y 4:
+Fecha: 31-10-2026. Sesión de desarrollo en la nube (Claude Code); las fases 3 y 4, en la laptop de
+Miguel la misma noche (§10). **Cerrado.** Sin secretos ni PIN en este documento.
+Progreso vivo, tabla commit por commit y pasos de las fases 3 y 4:
 [`docs/paridad/PARIDAD-DON-PONCHO.md`](../paridad/PARIDAD-DON-PONCHO.md). Decisiones A-53 a A-58.
 
 ## 1 · Resumen
@@ -10,10 +11,11 @@ documento. Progreso vivo, tabla commit por commit y pasos de las fases 3 y 4:
 | --- | --- | --- |
 | Next 16.4.3, DOMPurify 3.4.17, Zod 4.6.7 (+ dos defectos del maestro) | PR #19 | **fusionado, en producción** |
 | Bloques A a D (sin migraciones) | PR #20, `paridad/sin-migracion` | **fusionado, en producción** (`6bd55ba`) |
-| Bloque E: pedido compartido y unir mesas, migraciones 186 y 187 | PR #21, `paridad/fase-b` | abierto, **sin fusionar** |
-| Guion de la laptop (`scripts/paridad-laptop.mjs`) | PR #21 | revisado y probado de punta a punta |
-| Don Poncho `fase-b` listo para la fase 4 | PR #1 de Don Poncho | listo para revisión, **sin fusionar** |
-| Fases 3 y 4 | laptop de Miguel | pendientes |
+| Bloque E: pedido compartido y unir mesas, migraciones 186 y 187 | PR #21, `paridad/fase-b` | **fusionado, en producción** (`e3edecd`) |
+| Guion de la laptop (`scripts/paridad-laptop.mjs`) | PR #21 | **corrido: TODO EN VERDE** (ledger 117 → 119) |
+| Don Poncho `fase-b` en `main` | PR #1 de Don Poncho | **fusionado, en producción** (`6ade1d9`, CI 16/16) |
+| Fases 3 y 4 | laptop de Miguel | **hechas**, huellas IDÉNTICAS (§10) |
+| El producto oculto en el carrito compartido | PR #22 y PR #2 de Don Poncho | arreglado en los dos repos (§10) |
 
 71 commits de Don Poncho revisados: **32 porta, 14 adapta, 25 no** (tabla en el archivo de progreso).
 
@@ -71,8 +73,9 @@ recargaba). La corrida normal no estaba expuesta. Se reprodujo con un CLI trampa
 - el slug en las diferencias de la huella;
 - los pasos del §5 para PowerShell 5.1.
 
-Queda anotado, sin corregir porque es igual en Don Poncho: un producto que se oculta con líneas
-en el carrito compartido traba el envío de esa mesa (progreso §2).
+Quedó anotado, sin corregir porque era igual en Don Poncho: un producto que se oculta con líneas
+en el carrito compartido trababa el envío de esa mesa (progreso §2). Se arregló en los dos repos
+al cerrar (§10).
 
 ## 4 · Convivencia con la 187
 
@@ -91,7 +94,8 @@ queda marcada; por eso la fase 3 y la 4 van seguidas y fuera del horario (progre
 | #20 | 1ª (`c4309be`) | 17/18: la galería del restaurante, por el cambio declarado (Configuración y Portal QR) |
 | #20 | galería regenerada (41232816583) | 16 retratos distintos según Playwright, subidos (`PAR-1.56`) |
 | #20 | 2ª (`71e7c87`, 41235720581) | **18/18** |
-| #21 | ver el PR | — |
+| #21 | ver el PR | verde (fusionado tras la fase 3) |
+| #22 | ver el PR | el producto oculto en el carrito |
 
 Producción tras el PR #19: `85556f0` `READY`; humo sin sesión: la raíz y la entrada 200, la página
 que no existe 404, la API sin sesión 401, CSP y HSTS presentes.
@@ -122,11 +126,12 @@ como el repositorio, tablas y columna nuevas ausentes, 0 uniones abiertas, 11 ne
   la 187); su exportador incluye las tablas nuevas (135 con una base en la 187).
 - `00-INDICE.md` marca cada ficha como portada al maestro, con su PR.
 
-## 7 · Lo que falta (laptop y Miguel)
+## 7 · Lo que falta
 
-Fase 3: correr `scripts/paridad-laptop.mjs` (migra 186 y 187, puertas, huellas), fusionar el PR B,
-humo con PIN de unir mesas y pedido compartido, huella. Fase 4: fusionar `fase-b` de Don Poncho
-fuera de su horario, su CI, producción y humo. Paso por paso en el archivo de progreso §5.
+De PAR-1, nada: las fases 3 y 4 se hicieron (§10). Fuera de PAR-1 quedan el rediseño de pantallas
+(DP-11.4), las 14 animaciones de Morfi, la mudanza de Don Poncho a su propio Supabase (Fase B), la
+operación con PIN por puesto y dinero, y la seguridad marcada (rotar PIN, D-5, el monitor de
+recogida y el repositorio público).
 
 ## 8 · Commits
 
@@ -149,3 +154,33 @@ ninguna base remota.
 - **Segunda ronda.** Dos atacantes sobre las correcciones (`PAR-1.58`).
 
 Lo que encontraron está en §3 bis.
+
+## 10 · Las fases 3 y 4 en la laptop (31-10-2026, noche)
+
+Detalle y horas en el archivo de progreso §6. En corto:
+
+- **Antes:** sólo lectura de los 11 negocios: cero ventas y cero entradas en la última hora; la
+  cuenta viva de Don Poncho (Mesa 1) era de Miguel, de las 12:02, y él confirmó que el restaurante
+  había cerrado.
+- **Fase 3:** `scripts/paridad-laptop.mjs` **TODO EN VERDE**: la 186 y la 187 por `pnpm
+  db:migrate` (CLI vinculado), ledger 117 → 119, `verify:esquema` y `verify:rls` en verde, huella
+  de 11 negocios IDÉNTICA (0 mesas de relleno, tablas nuevas vacías). PR #21 fusionado con merge
+  (`e3edecd`) y en producción.
+- **Humo del maestro** (el PIN lo tecleó Miguel): unir y separar mesas, el QR de la mesa absorbida
+  lleva a la principal, el pedido compartido en dos teléfonos con confirmación y un solo envío,
+  Configuración → Sonidos y → Este aparato. Todo en el espejo de la presentación (estaba
+  encendida) y dejado como estaba. Huella de los otros 9: IDÉNTICA.
+- **Fase 4:** PR #1 de Don Poncho fusionado con merge (`6ade1d9`), su CI 16/16 (41259830541), en
+  producción, su `verify:esquema` contra la base compartida en verde. Humo sin crear cuentas ni
+  comandas (unir y separar; carrito en dos teléfonos sin enviar y vaciado). Huella de los otros
+  10: IDÉNTICA.
+- **Hallazgo:** unir dos mesas libres y arrepentirse no tiene botón: la principal sólo ofrece
+  «Abrir la mesa». Se separaron con el comando `restaurante.separar_mesas`. Igual en los dos repos.
+- **El producto oculto** (§3 bis): arreglado en el maestro (PR #22) y en Don Poncho (PR #2) con el
+  mismo cambio. Al enviar se quita lo que ya no se puede pedir (oculto, desactivado o con una
+  cantidad que ya no admite), se manda lo demás y se dice; todos los teléfonos ven la línea
+  marcada antes; agregar valora la cantidad. Las pruebas, primero en rojo; 7 mutaciones muertas
+  en cada repo; revisión independiente sin críticos ni altos. Queda sin hacer, a propósito: avisar
+  a los OTROS teléfonos qué se quitó (pediría una migración).
+- **Subagentes de esta parte:** uno solo, Sonnet, de sólo lectura en su worktree, para la revisión
+  del arreglo.
