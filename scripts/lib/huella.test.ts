@@ -75,7 +75,7 @@ describe('la comparación de dos huellas', () => {
     };
     const r = compararHuellas(huella(), { ...despues, tablas });
     expect(r.diferencias).toEqual([
-      'productos · org-b: 18 → 18 filas (mismas filas, contenido distinto)',
+      'productos · b: 18 → 18 filas (mismas filas, contenido distinto)',
     ]);
   });
 

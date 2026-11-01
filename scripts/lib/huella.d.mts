@@ -19,6 +19,8 @@ export interface MesaAbsorbida {
 }
 
 export interface Huella {
+  /** De qué base es (`el proyecto <ref>` o `la base de <host>`), para no comparar dos bases. */
+  readonly base?: string;
   readonly tomada: string;
   readonly organizaciones: readonly { readonly id: string; readonly slug: string }[];
   readonly tablas: Readonly<Record<string, TablaDeLaHuella>>;

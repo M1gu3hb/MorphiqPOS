@@ -1828,6 +1828,22 @@
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },
     {
+      "ruta": "/api/publico/qr/[token]/carrito/agregar",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/carrito/enviar",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/carrito/quitar",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
+      "ruta": "/api/publico/qr/[token]/carrito",
+      "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
+    },
+    {
       "ruta": "/api/publico/qr/[token]/cuenta",
       "razon": "no es una ruta de comando (pública, de sesión o de consulta)"
     },

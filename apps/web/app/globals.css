@@ -191,6 +191,8 @@
   /* --- animation: el acordeón de Radix --------------------------------- */
   --animate-accordion-down: accordion-down 0.2s ease-out;
   --animate-accordion-up: accordion-up 0.2s ease-out;
+  /* DP-9.6: en «Unir mesas» las mesas tiemblan para decir «me puedes mover». Sólo transform. */
+  --animate-temblar: temblar 0.45s ease-in-out infinite alternate;
 }
 
 @keyframes accordion-down {
@@ -199,6 +201,15 @@
   }
   to {
     height: var(--radix-accordion-content-height);
+  }
+}
+
+@keyframes temblar {
+  from {
+    transform: rotate(-1.5deg);
+  }
+  to {
+    transform: rotate(1.5deg);
   }
 }
 

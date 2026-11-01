@@ -177,8 +177,23 @@ export function buscadorDeProduccion(organizacionId: string, db?: Transaccion): 
       .execute();
     const fila = filas[0];
     if (filas.length !== 1 || fila === undefined) return filas;
-    const principal = await principalDeLaUnion(base, organizacionId, fila.id);
-    // El QR propio sigue mandando: apagado en la unida, no sirve aunque la principal sí.
+    // DP-9.6 · Mesa unida a otra: su QR cae en la PRINCIPAL. La gente de la 5 pide, ve la cuenta
+    // y cuenta como persona de la 4. El QR propio sigue mandando: apagado en la 5, no sirve. Y el
+    // portal lo dice: «Esta mesa está unida a la mesa 4» (`unida`, DP-10.3).
+    const unida = await base
+      .selectFrom('mesas')
+      .select('unida_a_mesa_id')
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', fila.id)
+      .executeTakeFirst();
+    const principalId = unida?.unida_a_mesa_id ?? null;
+    if (principalId === null) return filas;
+    const principal = await base
+      .selectFrom('mesas')
+      .select(COLUMNAS_MESA)
+      .where('organizacion_id', '=', organizacionId)
+      .where('id', '=', principalId)
+      .executeTakeFirst();
     return principal === undefined
       ? filas
       : [
@@ -190,33 +205,4 @@ export function buscadorDeProduccion(organizacionId: string, db?: Transaccion): 
           },
         ];
   };
-}
-
-/**
- * DP-10.3 · EL PUENTE DE LAS MESAS UNIDAS hasta la mudanza. En la unión de `main` (F-302) la 5
- * unida a la 4 se queda SIN cuenta propia: su QR tiene que caer en la 4, o el comensal pide en
- * una mesa sin cuenta. Sólo mientras la unión está ABIERTA; separadas, cada QR es de su mesa. La
- * unión de la fase B (`mesas.unida_a_mesa_id`, migración 187) reemplaza esto.
- */
-async function principalDeLaUnion(
-  base: Transaccion | ReturnType<typeof obtenerDb>,
-  organizacionId: string,
-  mesaId: string,
-): Promise<Omit<FilaMesaPorToken, 'unida'> | undefined> {
-  const union = await base
-    .selectFrom('union_mesa_miembros as miembro')
-    .innerJoin('uniones_mesa as union', 'union.id', 'miembro.union_id')
-    .select('union.mesa_principal_id as principalId')
-    .where('miembro.mesa_id', '=', mesaId)
-    .where('miembro.union_abierta', '=', true)
-    .where('union.organizacion_id', '=', organizacionId)
-    .where('union.cerrada_en', 'is', null)
-    .executeTakeFirst();
-  if (union === undefined) return undefined;
-  return base
-    .selectFrom('mesas')
-    .select(COLUMNAS_MESA)
-    .where('organizacion_id', '=', organizacionId)
-    .where('id', '=', union.principalId)
-    .executeTakeFirst();
 }

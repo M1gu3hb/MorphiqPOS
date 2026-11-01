@@ -60,7 +60,7 @@ export const entradaAbrirMesa = z.object({
  * que «no entró». Con `strict()` la petición entera se rechaza y el comensal ve
  * un error, que es lo que hay que ver cuando alguien manipula el carrito.
  */
-const itemDelCarrito = z
+export const itemDelCarrito = z
   .object({
     productoId: z.uuid(),
     cantidad: cantidadPedida,

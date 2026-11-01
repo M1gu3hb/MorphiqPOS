@@ -50,6 +50,11 @@ export const entradaAbrirMesa = z.object({
 
 export const entradaLiberarMesa = z.object({
   mesaId: z.uuid(),
+  /**
+   * DP-9.6 · Sólo para la principal de mesas unidas: al limpiarla, ¿separarlas (cada una vuelve
+   * a donde estaba) o dejarlas unidas para el siguiente cliente?
+   */
+  grupo: z.enum(['separar', 'mantener']).optional(),
 });
 
 export const entradaEnviarPedido = z.object({

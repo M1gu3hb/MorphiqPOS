@@ -194,17 +194,8 @@ describe('F-302 · unir dos mesas con cuenta', () => {
 });
 
 describe('F-302 · lo que rechaza al unir', () => {
-  it('la principal SIN cuenta abierta: unir mesas es juntar cuentas', async () => {
-    const base = baseDe({
-      mesas: [
-        mesa('libre', { orden_activa_id: null, personas_actuales: 0 }),
-        mesa('ocupada', { id: MESA_6, numero: 6, orden_activa_id: CUENTA_6 }),
-      ],
-    });
-    const { ctx } = contextoFalso(base.tx, ambitoDe('mesero'), AHORA);
-
-    expect(await codigoDe(() => unirMesasComando.ejecutar(ctx, UNIR))).toBe('MESA_NO_ENCONTRADA');
-  });
+  // «La principal SIN cuenta abierta» ya no se rechaza (DP-9.6): la unión es del salón y la
+  // principal elegida toma la cuenta de la otra. Lo prueba `union-del-salon.integracion.test.ts`.
 
   it('una mesa que YA ESTÁ EN OTRO GRUPO', async () => {
     const base = baseDe({
@@ -367,12 +358,14 @@ describe('F-302 · quién une', () => {
     expect(separarMesasComando.roles).toContain('mesero');
   });
 
-  it('un grupo de más de seis mesas no es un grupo: es un salón privado', () => {
-    const analisis = unirMesasComando.entrada.safeParse({
-      mesaPrincipalId: MESA_5,
-      mesaIds: Array.from({ length: 6 }, () => MESA_6),
-    });
-    expect(analisis.success).toBe(false);
+  it('sin el tope de seis (DP-9.6): el de negocio es el perímetro; el técnico, 40', () => {
+    const mesas = (n: number) =>
+      Array.from({ length: n }, (_, i) => `00000000-0000-4000-8000-${String(i).padStart(12, '0')}`);
+    const con = (n: number) =>
+      unirMesasComando.entrada.safeParse({ mesaPrincipalId: MESA_5, mesaIds: mesas(n) }).success;
+    expect(con(6)).toBe(true);
+    expect(con(40)).toBe(true);
+    expect(con(41)).toBe(false);
   });
 
   it('unir con cero mesas no es unir', () => {

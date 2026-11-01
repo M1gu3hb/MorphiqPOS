@@ -38,7 +38,8 @@ const LECTURAS_PERMITIDAS = [
   },
   {
     campo: 'tipo_venta',
-    cantidad: 42,
+    // 41 desde DP-9.5: se fue el carrito local del portal (`CarritoQR`), que lo leía del snapshot.
+    cantidad: 41,
     razon:
       'Casi todas las lecturas son de ProductoTerminado y PedidoPreparacionItem, donde sí está mapeado; Venta conserva un badge opcional de compatibilidad.',
   },

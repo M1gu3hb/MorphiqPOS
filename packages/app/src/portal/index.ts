@@ -13,6 +13,14 @@ export { payloadDelPortal, type PayloadPortal } from './consulta.ts';
 
 export { abrirMesaDesdeQR, type ResultadoAbrirMesa } from './mesa.ts';
 export { enviarPedidoDesdeQR, type ResultadoPedido } from './pedido.ts';
+export {
+  agregarAlCarrito,
+  enviarElCarrito,
+  quitarDelCarrito,
+  type ResultadoDelEnvio,
+} from './carrito-comandos.ts';
+export { servirElCarrito } from './carrito-http.ts';
+export type { EstadoDelCarrito, LineaDelCarrito } from './carrito.ts';
 export { crearSolicitudQR, type ResultadoSolicitud } from './solicitudes.ts';
 export { pedirCuentaQR, type ResultadoCuenta } from './cuenta.ts';
 export { valorarVisita, type ResultadoValoracion } from './valoracion.ts';

@@ -97,6 +97,10 @@ export const CODIGOS_ERROR = {
   MESA_YA_ABIERTA: 'MESA_YA_ABIERTA',
   /** Se intentó liberar una mesa cuya venta todavía no se ha cobrado. */
   MESA_NO_LIBERABLE: 'MESA_NO_LIBERABLE',
+  /** DP-9.6 · Las mesas de la unión no quedaron pegadas, son de otra zona, o son medio salón. */
+  UNION_DE_MESAS_INVALIDA: 'UNION_DE_MESAS_INVALIDA',
+  /** DP-9.6 · Liberar la principal de una unión pide decidir: ¿separar o dejarlas unidas? */
+  MESA_UNIDA_SIN_DECISION: 'MESA_UNIDA_SIN_DECISION',
   COMANDA_NO_ENCONTRADA: 'COMANDA_NO_ENCONTRADA',
   /** El estado pedido no sigue a la tabla de transiciones, o retrocede. */
   TRANSICION_INVALIDA: 'TRANSICION_INVALIDA',
@@ -147,6 +151,12 @@ export const CODIGOS_ERROR = {
   QR_SOLICITUD_DUPLICADA: 'QR_SOLICITUD_DUPLICADA',
   /** Demasiadas peticiones desde el mismo código en poco tiempo. */
   QR_DEMASIADAS_PETICIONES: 'QR_DEMASIADAS_PETICIONES',
+  /** DP-9.5 · Mesa de dos o más: el envío del carrito compartido pide «¿Ya pidieron todos?». */
+  QR_CARRITO_SIN_CONFIRMAR: 'QR_CARRITO_SIN_CONFIRMAR',
+  /** DP-9.5 · Cada quien quita lo suyo: esa línea la agregó otro teléfono (o ya no está). */
+  QR_LINEA_AJENA: 'QR_LINEA_AJENA',
+  /** DP-9.5 · El carrito de la mesa llegó a su tope de líneas. */
+  QR_CARRITO_LLENO: 'QR_CARRITO_LLENO',
   /**
    * El aviso no existe, o es de otra organización, que se ve igual.
    *

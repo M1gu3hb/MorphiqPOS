@@ -2146,7 +2146,7 @@
       "roles": ["administrador", "cajero", "dueno", "gerente", "mesero"],
       "paquetes": ["restaurante"],
       "idRequerido": true,
-      "cuerpo": { "mesaPrincipalId": "⟨mesas⟩", "mesaIds": ["⟨mesas⟩"] },
+      "cuerpo": { "mesaPrincipalId": "⟨mesas⟩", "mesaIds": ["⟨mesas⟩"], "posiciones": [] },
       "ids": [
         { "camino": "mesaPrincipalId", "tabla": "mesas" },
         { "camino": "mesaIds[0]", "tabla": "mesas" }

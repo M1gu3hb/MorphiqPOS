@@ -4,6 +4,7 @@ import { obtenerDb } from '@morphiqpos/data';
 import { sql } from 'kysely';
 import { describe, expect, it } from 'vitest';
 
+import { agregarAlCarrito, enviarElCarrito } from '../portal/carrito-comandos.ts';
 import { ejecutarComandoPublico } from '../portal/comando-publico.ts';
 import { abrirMesaDesdeQR } from '../portal/mesa.ts';
 import { enviarPedidoDesdeQR } from '../portal/pedido.ts';
@@ -229,6 +230,50 @@ describe.each([true, false])('estaciones encendidas: %s', (estacionesActivas) =>
         }),
       ),
       'portal.enviar_pedido',
+    );
+    expect(await estacionDeCadaPlatillo(caso, caso.mesaDelQr)).toEqual(esperado(caso));
+  });
+
+  it('el pedido compartido de la mesa (fase B): la misma estación que el mesero', async () => {
+    const caso = await cocinaConPortal(estacionesActivas);
+    const { qrToken } = exigirOk(
+      await comando(rotarQr, {
+        entrada: { mesaId: caso.mesaDelQr },
+        ambito: caso.ambito,
+        idempotencyKey: clave(),
+      }),
+      'restaurante.rotar_qr',
+    );
+    const peticion = (entrada: unknown) => ({
+      token: qrToken,
+      organizacionId: caso.negocio.organizacionId,
+      entrada,
+      idempotencyKey: clave(),
+      pimienta: PIMIENTA,
+    });
+    const telefono = 'telefonoA_0123456789abcdef';
+    exigirOk(
+      await ejecutarComandoPublico(abrirMesaDesdeQR, peticion({ personas: 1 })),
+      'portal.abrir_mesa',
+    );
+    for (const platillo of PLATILLOS) {
+      exigirOk(
+        await ejecutarComandoPublico(
+          agregarAlCarrito,
+          peticion({
+            dispositivo: telefono,
+            item: { productoId: caso.productos[platillo], cantidad: '1', notas: '' },
+          }),
+        ),
+        'portal.carrito_agregar',
+      );
+    }
+    exigirOk(
+      await ejecutarComandoPublico(
+        enviarElCarrito,
+        peticion({ dispositivo: telefono, confirmado: true }),
+      ),
+      'portal.carrito_enviar',
     );
     expect(await estacionDeCadaPlatillo(caso, caso.mesaDelQr)).toEqual(esperado(caso));
   });

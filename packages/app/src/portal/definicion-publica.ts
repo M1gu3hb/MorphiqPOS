@@ -25,6 +25,11 @@ export interface ContextoPortal {
   readonly correlationId: string;
   readonly ahora: Date;
   readonly tx: Transaccion;
+  /**
+   * La pimienta del servidor (DP-9.5): con ella se guarda la HUELLA del teléfono que agrega al
+   * carrito compartido, nunca el id que viaja.
+   */
+  readonly pimienta: string;
   paso<T>(nombre: string, fn: () => Promise<T>): Promise<T>;
   auditar(datos: { entidadId: string | null; payload: Record<string, unknown> }): void;
 }

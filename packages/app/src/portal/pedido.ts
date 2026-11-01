@@ -64,128 +64,151 @@ export const enviarPedidoDesdeQR = definirComandoPublico<
     exigirPedidosDesdeElTelefono(ctx);
 
     const orden = await ctx.paso('cargar_venta', () => ordenAbiertaDeLaMesa(ctx));
-
-    const productos = await ctx.paso('cargar_menu', () =>
-      cargarProductosDelMenu(
-        ctx.tx,
-        ctx.ambito.organizacionId,
-        entrada.items.map((i) => i.productoId),
-      ),
-    );
-
-    const visual = await siguienteOrdenVisual(ctx, orden.id);
-    const paraCocina: ItemParaCocina[] = [];
-
-    let indice = 0;
-    for (const item of entrada.items) {
-      indice += 1;
-      const producto = productos.get(item.productoId);
-      // Un producto de otra organización, archivado, u oculto del menú digital
-      // responde igual que uno inexistente: distinguirlos dejaría sondear el
-      // catálogo ajeno con identificadores.
-      if (producto === undefined) {
-        throw new ErrorDominio(
-          'PRODUCTO_NO_ENCONTRADO',
-          'Uno de los productos ya no está disponible. Actualiza el menú y vuelve a intentar.',
-        );
-      }
-
-      const lineaId = await ctx.paso(`insertar_linea_${indice.toString()}`, () =>
-        insertarLinea(ctx, orden.id, producto, item, visual + indice),
-      );
-
-      paraCocina.push({
-        ordenLineaId: lineaId,
-        productoId: producto.id,
-        productoNombre: producto.nombre,
-        cantidad: item.cantidad,
-        notas: item.notas,
-        tipoVenta: producto.tipoVenta,
-        categoriaId: producto.categoriaId,
-        areaPreparacion: producto.areaPreparacion,
-      });
-    }
-
-    // Los totales se recalculan sobre TODAS las líneas ya persistidas, no sobre
-    // las que acaban de entrar: la mesa pudo pedir dos veces y el total es el
-    // de la cuenta entera. Es la misma `cotizar` del cobro.
-    const { totales } = await ctx.paso('recalcular_totales', () =>
-      cotizar(ctx.tx, ctx.ambito.organizacionId, orden.id),
-    );
-
-    await ctx.paso('confirmar_venta', () =>
-      ctx.tx
-        .updateTable('ordenes')
-        .set({
-          estado: 'confirmada',
-          subtotal_centavos: totales.subtotalCentavos,
-          descuento_centavos: totales.descuentoCentavos,
-          impuestos_centavos: totales.impuestosCentavos,
-          total_centavos: totales.totalCentavos,
-          costo_total_centavos: totales.costoTotalCentavos,
-          utilidad_centavos: totales.utilidadCentavos,
-          margen_bp: totales.margenBp,
-          version: orden.version + 1,
-          updated_at: ctx.ahora,
-        })
-        .where('organizacion_id', '=', ctx.ambito.organizacionId)
-        .where('id', '=', orden.id)
-        .execute(),
-    );
-
-    const comandas = await ctx.paso('enviar_a_cocina', () =>
-      enviarACocina(
-        ctx,
-        {
-          ordenId: orden.id,
-          notasAlergias: orden.notas_alergias,
-          celebracionEspecial: orden.celebracion_especial,
-          tipoCelebracion: orden.tipo_celebracion,
-          notas: entrada.notaGeneral,
-        },
-        paraCocina,
-      ),
-    );
-
-    await ctx.paso('marcar_mesa', () =>
-      moverMesaDelPortal(ctx.tx, {
-        organizacionId: ctx.ambito.organizacionId,
-        sucursalId: ctx.ambito.sucursalId,
-        mesaId: ctx.ambito.mesaId,
-        estadoAnterior: ctx.ambito.estadoMesa,
-        estado: 'pedido_enviado',
-        ahora: ctx.ahora,
-      }),
-    );
+    const resultado = await pedirEnLaMesa(ctx, orden, entrada.items, entrada.notaGeneral);
 
     ctx.auditar({
       entidadId: orden.id,
       payload: {
-        lineas: paraCocina.length,
-        comandas,
-        totalCentavos: totales.totalCentavos.toString(),
+        lineas: resultado.lineas,
+        comandas: resultado.comandas,
+        totalCentavos: resultado.totalCentavos,
       },
     });
-
-    return {
-      ventaId: orden.id,
-      lineas: paraCocina.length,
-      comandas,
-      totalCentavos: totales.totalCentavos.toString(),
-    };
+    return resultado;
   },
 });
 
-interface OrdenAbierta {
+/** Lo que pide el comensal de un producto: nunca su precio. */
+export interface ItemPedido {
+  readonly productoId: string;
+  readonly cantidad: string;
+  readonly notas: string;
+}
+
+/**
+ * Pide en la mesa: las líneas con el precio del CATÁLOGO, los totales de la cuenta entera, una
+ * comanda por estación y la mesa en «pedido enviado». La usan el pedido de siempre y el envío
+ * del carrito compartido (DP-9.5). `orden` llega ya leída CON CANDADO.
+ */
+export async function pedirEnLaMesa(
+  ctx: ContextoPortal,
+  orden: OrdenAbierta,
+  items: readonly ItemPedido[],
+  notaGeneral: string,
+): Promise<ResultadoPedido> {
+  const productos = await ctx.paso('cargar_menu', () =>
+    cargarProductosDelMenu(
+      ctx.tx,
+      ctx.ambito.organizacionId,
+      items.map((i) => i.productoId),
+    ),
+  );
+
+  const visual = await siguienteOrdenVisual(ctx, orden.id);
+  const paraCocina: ItemParaCocina[] = [];
+
+  let indice = 0;
+  for (const item of items) {
+    indice += 1;
+    const producto = productos.get(item.productoId);
+    // Un producto de otra organización, archivado, u oculto del menú digital
+    // responde igual que uno inexistente: distinguirlos dejaría sondear el
+    // catálogo ajeno con identificadores.
+    if (producto === undefined) {
+      throw new ErrorDominio(
+        'PRODUCTO_NO_ENCONTRADO',
+        'Uno de los productos ya no está disponible. Actualiza el menú y vuelve a intentar.',
+      );
+    }
+
+    const lineaId = await ctx.paso(`insertar_linea_${indice.toString()}`, () =>
+      insertarLinea(ctx, orden.id, producto, item, visual + indice),
+    );
+
+    paraCocina.push({
+      ordenLineaId: lineaId,
+      productoId: producto.id,
+      productoNombre: producto.nombre,
+      cantidad: item.cantidad,
+      notas: item.notas,
+      tipoVenta: producto.tipoVenta,
+      categoriaId: producto.categoriaId,
+      areaPreparacion: producto.areaPreparacion,
+    });
+  }
+
+  // Los totales se recalculan sobre TODAS las líneas ya persistidas, no sobre
+  // las que acaban de entrar: la mesa pudo pedir dos veces y el total es el
+  // de la cuenta entera. Es la misma `cotizar` del cobro.
+  const { totales } = await ctx.paso('recalcular_totales', () =>
+    cotizar(ctx.tx, ctx.ambito.organizacionId, orden.id),
+  );
+
+  await ctx.paso('confirmar_venta', () =>
+    ctx.tx
+      .updateTable('ordenes')
+      .set({
+        estado: 'confirmada',
+        subtotal_centavos: totales.subtotalCentavos,
+        descuento_centavos: totales.descuentoCentavos,
+        impuestos_centavos: totales.impuestosCentavos,
+        total_centavos: totales.totalCentavos,
+        costo_total_centavos: totales.costoTotalCentavos,
+        utilidad_centavos: totales.utilidadCentavos,
+        margen_bp: totales.margenBp,
+        version: orden.version + 1,
+        updated_at: ctx.ahora,
+      })
+      .where('organizacion_id', '=', ctx.ambito.organizacionId)
+      .where('id', '=', orden.id)
+      .execute(),
+  );
+
+  const comandas = await ctx.paso('enviar_a_cocina', () =>
+    enviarACocina(
+      ctx,
+      {
+        ordenId: orden.id,
+        notasAlergias: orden.notas_alergias,
+        celebracionEspecial: orden.celebracion_especial,
+        tipoCelebracion: orden.tipo_celebracion,
+        notas: notaGeneral,
+      },
+      paraCocina,
+    ),
+  );
+
+  await ctx.paso('marcar_mesa', () =>
+    moverMesaDelPortal(ctx.tx, {
+      organizacionId: ctx.ambito.organizacionId,
+      sucursalId: ctx.ambito.sucursalId,
+      mesaId: ctx.ambito.mesaId,
+      estadoAnterior: ctx.ambito.estadoMesa,
+      estado: 'pedido_enviado',
+      ahora: ctx.ahora,
+    }),
+  );
+
+  return {
+    ventaId: orden.id,
+    lineas: paraCocina.length,
+    comandas,
+    totalCentavos: totales.totalCentavos.toString(),
+  };
+}
+
+export interface OrdenAbierta {
   readonly id: string;
   readonly estado: string;
   readonly version: number;
   readonly notas_alergias: string | null;
   readonly celebracion_especial: boolean;
   readonly tipo_celebracion: string | null;
+  /** Desde cuándo está abierta la cuenta: el carrito compartido sólo cuenta lo de después. */
+  readonly created_at: Date;
 }
 
-async function ordenAbiertaDeLaMesa(ctx: ContextoPortal): Promise<OrdenAbierta> {
+export async function ordenAbiertaDeLaMesa(ctx: ContextoPortal): Promise<OrdenAbierta> {
   // CON CANDADO, como la lee el cobro de la caja. Sin él, dos teléfonos de la misma mesa
   // pedían a la vez, cada uno recalculaba el total sin ver los renglones del otro, y el
   // último en confirmar dejaba un total al que le faltaba lo del primero; y un pedido que
@@ -200,6 +223,7 @@ async function ordenAbiertaDeLaMesa(ctx: ContextoPortal): Promise<OrdenAbierta> 
       'notas_alergias',
       'celebracion_especial',
       'tipo_celebracion',
+      'created_at',
     ])
     .where('organizacion_id', '=', ctx.ambito.organizacionId)
     .where('mesa_id', '=', ctx.ambito.mesaId)

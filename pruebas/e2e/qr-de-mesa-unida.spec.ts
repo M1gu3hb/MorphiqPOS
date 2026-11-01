@@ -36,13 +36,19 @@ async function escribir(duena: Page, ruta: string, datos: Record<string, unknown
   return JSON.parse(texto) as { readonly datos?: Record<string, unknown> };
 }
 
-async function idDeLaMesa(duena: Page, numero: number): Promise<string> {
-  const [mesa] = await consultarPuente<{ id: string }>(duena, 'Mesa', {
+interface MesaDelPlano {
+  readonly id: string;
+  readonly posicion_x: number | null;
+  readonly posicion_y: number | null;
+}
+
+async function mesaDelPlano(duena: Page, numero: number): Promise<MesaDelPlano> {
+  const [mesa] = await consultarPuente<MesaDelPlano>(duena, 'Mesa', {
     filtro: { numero },
     limite: 1,
   });
   expect(mesa, `No está la mesa ${String(numero)}.`).toBeDefined();
-  return mesa?.id ?? '';
+  return mesa ?? { id: '', posicion_x: null, posicion_y: null };
 }
 
 test.describe('el QR de una mesa unida', () => {
@@ -71,7 +77,8 @@ test.describe('el QR de una mesa unida', () => {
         zona: 'Interior',
         mesero: null,
       });
-      const [cuatro, cinco] = [await idDeLaMesa(duena, 4), await idDeLaMesa(duena, 5)];
+      const laCuatro = await mesaDelPlano(duena, 4);
+      const [cuatro, cinco] = [laCuatro.id, (await mesaDelPlano(duena, 5)).id];
       const apertura = await escribir(duena, '/api/restaurante/abrir-mesa', {
         mesaId: cuatro,
         personas: 4,
@@ -90,9 +97,15 @@ test.describe('el QR de una mesa unida', () => {
           },
         ],
       });
+      // En la fase B sólo se unen mesas pegadas (DP-9.6): la 5 queda junto a la 4, como la deja
+      // el imán del mapa (la 4 mide 160 de ancho).
       const union = await escribir(duena, '/api/restaurante/unir-mesas', {
         mesaPrincipalId: cuatro,
         mesaIds: [cinco],
+        posiciones: [
+          { mesaId: cuatro, x: laCuatro.posicion_x ?? 0, y: laCuatro.posicion_y ?? 0 },
+          { mesaId: cinco, x: (laCuatro.posicion_x ?? 0) + 160, y: laCuatro.posicion_y ?? 0 },
+        ],
       });
 
       const telefono = await abrirElQrDeLaMesa(browser, info, SLUG, token);

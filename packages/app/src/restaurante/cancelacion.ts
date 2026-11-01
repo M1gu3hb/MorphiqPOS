@@ -6,7 +6,11 @@ import type { Transaccion } from '@morphiqpos/data';
 import { definirComando } from '../definicion.ts';
 import { mesaOperable, ordenDeMesa } from './datos.ts';
 import { entradaCancelarOrden } from './esquemas.ts';
-import { cerrarElGrupoDeLaMesa, cerrarOrdenCancelada, limpiarMesa } from './mesas-escrituras.ts';
+import {
+  cerrarOrdenCancelada,
+  limpiarMesa,
+  llevarElGrupoConLaPrincipal,
+} from './mesas-escrituras.ts';
 import { propagarAItems } from './propagacion.ts';
 import { ESTADOS_COMANDA_ACTIVOS } from './transiciones.ts';
 
@@ -146,10 +150,10 @@ export const cancelarOrden = definirComando<
           ahora: ctx.ahora,
         }),
       );
-      // La cuenta de un grupo de mesas unidas vive en la principal: cancelarla suelta el grupo
-      // entero, o las demás se quedaban ocupadas en un grupo sin cuenta.
+      // La cuenta de un grupo de mesas unidas vive en la principal: cancelarla libera también a
+      // las demás, o se quedaban ocupadas sin cuenta. El grupo sigue unido (DP-9.6).
       await ctx.paso('soltar_el_grupo', () =>
-        cerrarElGrupoDeLaMesa(ctx.tx, organizacionId, mesaId, {
+        llevarElGrupoConLaPrincipal(ctx.tx, organizacionId, mesaId, {
           estado: 'libre',
           ordenId: orden.id,
           empleoId,

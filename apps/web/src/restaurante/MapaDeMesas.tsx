@@ -9,6 +9,7 @@ import { ViewTransition, useEffect, useMemo, useState, type ReactNode } from 're
 import { consultarPuente } from '~/cliente/api';
 import { soloMesasEnServicio } from '~/cliente/mesas-del-mapa';
 import { useVocabulario } from '~/cliente/vocabulario';
+import { sinAbsorbidas } from './unir-mesas/plano-de-union';
 
 /**
  * PANTALLA · restaurante · mapa-de-mesas
@@ -119,6 +120,8 @@ const URGENCIA: readonly ClaveEstado[] = [
 
 export interface MesaDelMapa {
   readonly id: string;
+  /** DP-9.6 · La principal de la unión viva que la absorbió; el mapa no la enseña. */
+  readonly unida_a_mesa_id?: string | null;
   /**
    * NÚMERO, y es un NÚMERO.
    *
@@ -268,7 +271,10 @@ export function MapaDeMesas({ mesasIniciales, onAbrirMesa }: MapaDeMesasProps) {
   const zonas = useMemo(() => (mesas === null ? [] : zonasDe(mesas)), [mesas]);
   const visibles = useMemo(() => {
     if (mesas === null) return [];
-    const deLaZona = zona === null ? mesas : mesas.filter((m) => (m.zona ?? 'Salón') === zona);
+    // DP-9.6: una mesa absorbida en una unión no se enseña: su gente está en la principal.
+    const enServicio = sinAbsorbidas(mesas);
+    const deLaZona =
+      zona === null ? enServicio : enServicio.filter((m) => (m.zona ?? 'Salón') === zona);
     return porUrgencia(deLaZona);
   }, [mesas, zona]);
 

@@ -11,11 +11,13 @@ import {
   cancelarOrdenVacia,
   crearOrdenDeMesa,
   limpiarMesa,
+  llevarElGrupoConLaPrincipal,
   partesSinSaldar,
   tieneLineas,
   ORDEN_YA_CERRADA,
 } from './mesas-escrituras.ts';
-import { unionAbiertaDeMesa } from './sala-escrituras.ts';
+import { separarMesas, unionAbiertaDeMesa } from './sala-escrituras.ts';
+import { encabezaLaUnion, exigirQueNoEsteAbsorbida } from './union-del-salon.ts';
 
 /**
  * Abrir y liberar mesa (E6-2 y su recíproco).
@@ -57,6 +59,10 @@ export const abrirMesa = definirComando<Transaccion, typeof entradaAbrirMesa, Re
 
     const mesa = await ctx.paso('cargar_mesa', () =>
       mesaOperable(ctx.tx, organizacionId, entrada.mesaId),
+    );
+
+    await ctx.paso('mirar_si_esta_unida', () =>
+      exigirQueNoEsteAbsorbida(ctx.tx, organizacionId, mesa.id),
     );
 
     // Tabla de transiciones (F1-04 §8.2): sólo `libre` abre. Cualquier otro
@@ -150,17 +156,25 @@ export const liberarMesa = definirComando<
     // F-302 · Una mesa de un grupo VIVO no se libera sola: su consumo está en
     // la cuenta de la principal y soltarla aquí dejaría al grupo apuntando a
     // una mesa que ya volvió al servicio. Separar es una decisión consciente.
+    await ctx.paso('mirar_si_esta_unida', () =>
+      exigirQueNoEsteAbsorbida(ctx.tx, organizacionId, mesa.id, 'libera'),
+    );
     const grupo = await ctx.paso('mirar_grupo', () =>
       unionAbiertaDeMesa(ctx.tx, organizacionId, mesa.id),
     );
+    // Una miembro sin su marca (una unión de antes de la 187) tampoco decide por el grupo.
     if (grupo !== null) {
-      throw new ErrorDominio(
-        'MESA_NO_LIBERABLE',
-        `La mesa ${mesa.numero} está unida a otras. Sepáralas antes de liberarla.`,
-        { unionId: grupo },
+      const encabeza = await ctx.paso('mirar_si_encabeza', () =>
+        encabezaLaUnion(ctx.tx, organizacionId, grupo, mesa.id),
       );
+      if (!encabeza) {
+        throw new ErrorDominio(
+          'MESA_NO_LIBERABLE',
+          `La mesa ${String(mesa.numero)} está unida a otras: se libera desde la principal.`,
+          { unionId: grupo },
+        );
+      }
     }
-
     let ordenCancelada: string | null = null;
 
     if (ordenActivaId !== null) {
@@ -217,6 +231,17 @@ export const liberarMesa = definirComando<
       }
     }
 
+    // DP-9.6 · Al limpiar la principal se decide: separar (cada mesa vuelve a donde estaba) o
+    // dejarlas unidas para el siguiente cliente. Sin decidir no se libera. Va DESPUÉS de mirar la
+    // cuenta: con algo sin cobrar, eso es lo que hay que decir, no preguntar por el grupo.
+    if (grupo !== null && entrada.grupo === undefined) {
+      throw new ErrorDominio(
+        'MESA_UNIDA_SIN_DECISION',
+        `La mesa ${String(mesa.numero)} está unida a otras: ¿separarlas o dejarlas unidas?`,
+        { unionId: grupo },
+      );
+    }
+
     await ctx.paso('limpiar_mesa', () =>
       limpiarMesa(ctx.tx, organizacionId, mesa.id, {
         sucursalId: mesa.sucursalId,
@@ -226,9 +251,35 @@ export const liberarMesa = definirComando<
       }),
     );
 
+    if (grupo !== null && entrada.grupo === 'separar') {
+      await ctx.paso('separar_el_grupo', () =>
+        separarMesas(ctx.tx, {
+          organizacionId,
+          unionId: grupo,
+          empleadoId: empleoId,
+          ahora: ctx.ahora,
+        }),
+      );
+    } else if (grupo !== null) {
+      // Unidas: las demás quedan libres con la principal, y el grupo espera al siguiente cliente.
+      await ctx.paso('el_grupo_queda_libre', () =>
+        llevarElGrupoConLaPrincipal(ctx.tx, organizacionId, mesa.id, {
+          estado: 'libre',
+          ordenId: ordenActivaId,
+          empleoId,
+          ahora: ctx.ahora,
+        }),
+      );
+    }
+
     ctx.auditar({
       entidadId: mesa.id,
-      payload: { mesaNumero: mesa.numero, ordenCancelada, estadoPrevio: mesa.estado },
+      payload: {
+        mesaNumero: mesa.numero,
+        ordenCancelada,
+        estadoPrevio: mesa.estado,
+        ...(grupo === null ? {} : { unionId: grupo, grupo: entrada.grupo }),
+      },
     });
 
     return { mesaId: mesa.id, ordenCancelada };

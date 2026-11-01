@@ -24,7 +24,9 @@ import { rotarQr } from './qr.ts';
 import { separarMesasComando, unirMesasComando } from './union-de-mesas.ts';
 
 /**
- * DP-10.3 · EL PUENTE DE LAS MESAS UNIDAS HASTA LA MUDANZA (contra Postgres real).
+ * DP-10.3 · EL QR DE LA MESA UNIDA (contra Postgres real). En `main` era el puente sobre la unión
+ * vieja; en `fase-b` lo resuelve la unión de DP-9.6 (`mesas.unida_a_mesa_id`) y esta prueba
+ * afirma lo mismo sobre ella.
  *
  * En `main` la unión es la vieja (F-302): la 5 se une a la 4, su cuenta se absorbe y la 5 se
  * queda sin cuenta propia. Pero su QR seguía siendo de la 5: el comensal veía «Mesa 5», y pedir
@@ -77,17 +79,26 @@ async function salonConQr() {
     await tx
       .insertInto('mesas')
       .values([
+        // Pegadas en el plano (DP-9.6: sólo se unen mesas que se tocan): 80 × 80, lado a lado.
         {
           id: mesas.cuatro,
           organizacion_id: negocio.organizacionId,
           sucursal_id: sucursal.sucursalId,
           numero: 4,
+          posicion_x: 100,
+          posicion_y: 100,
+          forma: 'redonda',
+          tamano: 'mediana',
         },
         {
           id: mesas.cinco,
           organizacion_id: negocio.organizacionId,
           sucursal_id: sucursal.sucursalId,
           numero: 5,
+          posicion_x: 180,
+          posicion_y: 100,
+          forma: 'redonda',
+          tamano: 'mediana',
         },
       ])
       .execute();

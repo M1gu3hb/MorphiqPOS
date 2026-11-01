@@ -50,7 +50,7 @@ import AbrirMesaDialog from '@/components/mesero/AbrirMesaDialog';
 import CantidadVariableDialog from '@/components/mesero/CantidadVariableDialog';
 import { TIPO_VENTA, formatearCantidadVariable } from '@/utils/tipoVentaUtils';
 import PrecioProductoMesero, { VariableBadge } from '@/components/mesero/PrecioProductoMesero';
-import { Volume2 } from 'lucide-react';
+import { Combine, Volume2 } from 'lucide-react';
 import { useCajaAbierta } from '@/lib/useCajaAbierta';
 import { useIsDark } from '@/lib/ThemeContext';
 import { FLOOR_BG } from '@/lib/darkPalettes';
@@ -68,10 +68,19 @@ import {
 } from '@/lib/asignacionMesas';
 import { ROLES } from '@/lib/constants';
 import { claves } from '~/cliente/claves-de-consulta';
-import { mesasDelPlano, zonasConMesas, zonasDelNegocio } from '~/cliente/mesas-del-mapa';
+import {
+  mesasDelPlano,
+  zonaDeLaMesa,
+  zonasConMesas,
+  zonasDelNegocio,
+} from '~/cliente/mesas-del-mapa';
+import { liberarMesaConPregunta } from '~/restaurante/unir-mesas/liberar-con-pregunta';
 import { GlobosDeSolicitud } from '~/restaurante/GlobosDeSolicitud';
 import { solicitudesPorMesa } from '~/restaurante/globos-de-solicitud';
 import { SelectorDeVista } from '~/restaurante/SelectorDeVista';
+import { UnirMesasEnElMapa } from '~/restaurante/unir-mesas/UnirMesasEnElMapa';
+import { nombreConUnidas, sinAbsorbidas } from '~/restaurante/unir-mesas/plano-de-union';
+import { useLocation } from '@/enrutado';
 import { VistaDeSolicitudes } from '~/restaurante/VistaDeSolicitudes';
 import {
   almacenDelAparato,
@@ -328,7 +337,32 @@ function Mesero() {
   );
 
   // El plano de la zona y sus pestañas cuentan sólo mesas en servicio (21-10).
-  const mesasZona = mesasDelPlano(mesas || [], zonaActiva);
+  const mesasDeLaZona = mesasDelPlano(mesas || [], zonaActiva);
+  // DP-9.6: las mesas absorbidas en una unión no se pintan; la principal dice con cuáles va.
+  const mesasZona = useMemo(
+    () =>
+      sinAbsorbidas(mesasDeLaZona).map((m) => {
+        const unidas = nombreConUnidas(m, mesasDeLaZona);
+        return unidas ? { ...m, nombre: m.nombre ? `${m.nombre} · ${unidas}` : unidas } : m;
+      }),
+    [mesasDeLaZona],
+  );
+  // DP-9.6: «Unir mesas» en el mapa. Desde la mesa activa se llega con `?unir=<mesa>`.
+  const { search } = useLocation();
+  const unirDesde = new URLSearchParams(search).get('unir');
+  const [uniendo, setUniendo] = useState(false);
+  const anclaUbicada = useRef(null);
+  useEffect(() => {
+    if (!unirDesde || anclaUbicada.current === unirDesde) return;
+    // La zona de la mesa desde la que se llegó, para que esté en el plano. Una sola vez: luego
+    // el mesero puede cambiar de zona.
+    const ancla = (mesas || []).find((m) => m.id === unirDesde);
+    if (!ancla) return;
+    anclaUbicada.current = unirDesde;
+    setZonaActiva(zonaDeLaMesa(ancla));
+    setUniendo(true);
+  }, [unirDesde, mesas]);
+  const puedeUnir = posUser?.rol === ROLES.WAITER || posUser?.rol === ROLES.ADMIN;
   // Las zonas del NEGOCIO, no sólo la lista fija: una mesa en «Salón» se ve (DP-5).
   const zonasConCount = zonasConMesas(
     mesas || [],
@@ -378,7 +412,13 @@ function Mesero() {
         // escriben desde el navegador, que es lo que permitía «mesa libre con
         // venta viva». Y si falla, falla — antes el `.catch(() => {})` de
         // Caja.jsx:462 dejaba la mesa ocupada apuntando a una venta cancelada.
-        await api.comandos.ejecutar('/api/restaurante/liberar-mesa', { mesaId: mesa.id });
+        // DP-9.6: si es la principal de mesas unidas, pregunta «¿Separar o dejarlas unidas?».
+        const liberada = await liberarMesaConPregunta(
+          mesa.id,
+          (entrada) => api.comandos.ejecutar('/api/restaurante/liberar-mesa', entrada),
+          (mesas || []).some((m) => m.unida_a_mesa_id === mesa.id),
+        );
+        if (!liberada) return;
         queryClient.invalidateQueries({ queryKey: ['mesas'] });
         toast.success(`Mesa ${mesa.numero} lista`);
         return;
@@ -980,7 +1020,10 @@ function Mesero() {
       // consumo, `liberar_mesa` se niega con MESA_NO_LIBERABLE en vez de
       // borrarla de la vista. La reparación deja de poder tapar una venta sin
       // cobrar.
-      await api.comandos.ejecutar('/api/restaurante/liberar-mesa', { mesaId: mesaRef.id });
+      const liberada = await liberarMesaConPregunta(mesaRef.id, (entrada) =>
+        api.comandos.ejecutar('/api/restaurante/liberar-mesa', entrada),
+      );
+      if (!liberada) return;
       queryClient.invalidateQueries({ queryKey: ['mesas'] });
       toast.success(`Mesa ${mesaRef.numero} liberada`);
       setMesaHuerfana(null);
@@ -1081,7 +1124,31 @@ function Mesero() {
 
       {/* MAP — Desktop usa posiciones libres; mobile usa grid.
           Fondo "madera" dark-aware (FLOOR_BG). */}
-      {isMobile ? (
+      {puedeUnir && !uniendo && (
+        <div className="flex justify-end">
+          <Button
+            type="button"
+            size="sm"
+            variant="outline"
+            className="gap-1.5"
+            disabled={mesasLoading}
+            onClick={() => setUniendo(true)}
+          >
+            <Combine className="w-4 h-4" /> Unir mesas
+          </Button>
+        </div>
+      )}
+
+      {uniendo ? (
+        <UnirMesasEnElMapa
+          mesas={mesasDeLaZona}
+          anclaInicial={unirDesde}
+          alTerminar={(unidas) => {
+            setUniendo(false);
+            if (unidas) queryClient.invalidateQueries({ queryKey: ['mesas'] });
+          }}
+        />
+      ) : isMobile ? (
         <div
           className="rounded-2xl border-2 p-3"
           style={{

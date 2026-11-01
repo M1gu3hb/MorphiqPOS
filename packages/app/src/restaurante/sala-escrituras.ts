@@ -4,6 +4,7 @@ import { ErrorDominio } from '@morphiqpos/contracts';
 import type { Transaccion } from '@morphiqpos/data';
 
 import { cerrarAvisosDeLaMesa } from './avisos-de-la-mesa.ts';
+import { bloquearElGrupo } from './union-del-salon.ts';
 
 /**
  * Las escrituras que mueven una cuenta POR EL SALÓN: F-302 y F-303.
@@ -280,10 +281,13 @@ export async function cambiarDeMesa(
 export interface DatosDeUnion {
   readonly organizacionId: string;
   readonly principal: MesaEnSala;
-  readonly ordenPrincipalId: string;
+  /** `null`: una unión del salón sin cuenta todavía (DP-9.6); la toma al abrirse una. */
+  readonly ordenPrincipalId: string | null;
   readonly miembros: readonly { readonly mesa: MesaEnSala; readonly ordenId: string | null }[];
   readonly empleadoId: string;
   readonly ahora: Date;
+  /** DP-9.6 · Dónde estaba cada mesa del grupo antes de unir: separar la regresa ahí. */
+  readonly originales: ReadonlyMap<string, { readonly x: number; readonly y: number }>;
 }
 
 export interface UnionEscrita {
@@ -330,6 +334,8 @@ export async function unirMesas(tx: Transaccion, datos: DatosDeUnion): Promise<U
       orden_id: datos.ordenPrincipalId,
       abierta_en: datos.ahora,
       empleado_id: datos.empleadoId,
+      principal_x_original: datos.originales.get(datos.principal.id)?.x ?? null,
+      principal_y_original: datos.originales.get(datos.principal.id)?.y ?? null,
     })
     .returning('id')
     .executeTakeFirstOrThrow();
@@ -342,6 +348,12 @@ export async function unirMesas(tx: Transaccion, datos: DatosDeUnion): Promise<U
     const { mesa, ordenId } = miembro;
 
     if (ordenId !== null) {
+      if (datos.ordenPrincipalId === null) {
+        throw new ErrorDominio(
+          'ORDEN_NO_EDITABLE',
+          `La cuenta de la mesa ${String(mesa.numero)} necesita una cuenta en la principal que la absorba.`,
+        );
+      }
       // Lo que cocina tiene en marcha para esta mesa pasa a la cuenta del grupo (D-3): así
       // «Marcar entregado» en la principal alcanza lo que se pidió en la unida.
       await tx
@@ -395,6 +407,8 @@ export async function unirMesas(tx: Transaccion, datos: DatosDeUnion): Promise<U
         mesa_id: mesa.id,
         orden_absorbida_id: ordenId,
         union_abierta: true,
+        posicion_x_original: datos.originales.get(mesa.id)?.x ?? null,
+        posicion_y_original: datos.originales.get(mesa.id)?.y ?? null,
       })
       .execute();
 
@@ -407,6 +421,8 @@ export async function unirMesas(tx: Transaccion, datos: DatosDeUnion): Promise<U
         orden_activa_id: null,
         ocupada_desde: mesa.ocupadaDesde ?? datos.ahora,
         empleado_atiende_id: datos.principal.empleadoAtiendeId,
+        // DP-9.6: el mapa la oculta y su QR cae en la principal.
+        unida_a_mesa_id: datos.principal.id,
       })
       .where('organizacion_id', '=', datos.organizacionId)
       .where('id', '=', mesa.id)
@@ -427,12 +443,14 @@ export async function unirMesas(tx: Transaccion, datos: DatosDeUnion): Promise<U
     personas += mesa.personas;
   }
 
-  await tx
-    .updateTable('ordenes')
-    .set({ union_id: union.id, updated_at: datos.ahora })
-    .where('organizacion_id', '=', datos.organizacionId)
-    .where('id', '=', datos.ordenPrincipalId)
-    .execute();
+  if (datos.ordenPrincipalId !== null) {
+    await tx
+      .updateTable('ordenes')
+      .set({ union_id: union.id, updated_at: datos.ahora })
+      .where('organizacion_id', '=', datos.organizacionId)
+      .where('id', '=', datos.ordenPrincipalId)
+      .execute();
+  }
 
   // La principal recibe a toda la gente: es la que va a decir «mesa de diez».
   await tx
@@ -442,6 +460,10 @@ export async function unirMesas(tx: Transaccion, datos: DatosDeUnion): Promise<U
     .where('id', '=', datos.principal.id)
     .execute();
 
+  // Sin cuenta no hay movimiento de cuenta que registrar: la unión queda en su tabla.
+  if (datos.ordenPrincipalId === null) {
+    return { unionId: union.id, lineasMovidas, cuentasAbsorbidas };
+  }
   await tx
     .insertInto('movimientos_cuenta')
     .values({
@@ -474,7 +496,8 @@ export interface DatosDeSeparacion {
 
 export interface SeparacionEscrita {
   readonly mesasLiberadas: number;
-  readonly ordenPrincipalId: string;
+  /** `null` si la unión no tenía cuenta (DP-9.6). */
+  readonly ordenPrincipalId: string | null;
 }
 
 /**
@@ -496,7 +519,15 @@ export async function separarMesas(
 ): Promise<SeparacionEscrita> {
   const union = await tx
     .selectFrom('uniones_mesa')
-    .select(['id', 'mesa_principal_id', 'orden_id', 'sucursal_id', 'cerrada_en'])
+    .select([
+      'id',
+      'mesa_principal_id',
+      'orden_id',
+      'sucursal_id',
+      'cerrada_en',
+      'principal_x_original',
+      'principal_y_original',
+    ])
     .where('organizacion_id', '=', datos.organizacionId)
     .where('id', '=', datos.unionId)
     .executeTakeFirst();
@@ -510,9 +541,17 @@ export async function separarMesas(
 
   const miembros = await tx
     .selectFrom('union_mesa_miembros')
-    .select(['mesa_id'])
+    .select(['mesa_id', 'posicion_x_original', 'posicion_y_original'])
     .where('union_id', '=', datos.unionId)
     .execute();
+  // Los candados en el orden de todo el salón (cuentas, principal, demás): separar desde
+  // «Mesa limpia» y desde «Separar mesas» a la vez se esperan, no se traban.
+  await bloquearElGrupo(
+    tx,
+    datos.organizacionId,
+    union.mesa_principal_id,
+    miembros.map((m) => m.mesa_id),
+  );
 
   for (const miembro of miembros) {
     const previa = await tx
@@ -534,6 +573,11 @@ export async function separarMesas(
         celebracion_especial: false,
         tipo_celebracion: null,
         empleado_atiende_id: null,
+        // DP-9.6: vuelve a verse en el mapa, en el lugar donde estaba antes de unirla.
+        unida_a_mesa_id: null,
+        ...(miembro.posicion_x_original === null || miembro.posicion_y_original === null
+          ? {}
+          : { posicion_x: miembro.posicion_x_original, posicion_y: miembro.posicion_y_original }),
       })
       .where('organizacion_id', '=', datos.organizacionId)
       .where('id', '=', miembro.mesa_id)
@@ -568,6 +612,19 @@ export async function separarMesas(
     throw new ErrorDominio('MESA_NO_LIBERABLE', 'Ese grupo se separó mientras se separaba.');
   }
 
+  // La principal también vuelve a donde estaba (DP-9.6).
+  if (union.principal_x_original !== null && union.principal_y_original !== null) {
+    await tx
+      .updateTable('mesas')
+      .set({ posicion_x: union.principal_x_original, posicion_y: union.principal_y_original })
+      .where('organizacion_id', '=', datos.organizacionId)
+      .where('id', '=', union.mesa_principal_id)
+      .execute();
+  }
+
+  if (union.orden_id === null) {
+    return { mesasLiberadas: miembros.length, ordenPrincipalId: null };
+  }
   await tx
     .insertInto('movimientos_cuenta')
     .values({
